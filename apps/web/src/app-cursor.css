@@ -1,0 +1,329 @@
+.has-kc-cursor,
+.has-kc-cursor * {
+  cursor: none !important;
+}
+
+.has-kc-cursor audio,
+.has-kc-cursor [data-kc-native-cursor] {
+  cursor: auto !important;
+}
+
+.has-kc-cursor [data-kc-native-cursor][contenteditable],
+.has-kc-cursor [data-kc-native-cursor][role="textbox"] {
+  cursor: text !important;
+}
+
+.has-kc-cursor [class*="cursor-ew-resize"],
+.has-kc-cursor [class*="cursor-col-resize"] {
+  cursor: ew-resize !important;
+}
+
+.has-kc-cursor [class*="cursor-ns-resize"],
+.has-kc-cursor [class*="cursor-row-resize"] {
+  cursor: ns-resize !important;
+}
+
+.has-kc-cursor [class*="cursor-nwse-resize"] {
+  cursor: nwse-resize !important;
+}
+
+.has-kc-cursor [class*="cursor-nesw-resize"] {
+  cursor: nesw-resize !important;
+}
+
+.kc-app-cursor {
+  --kc-cursor-accent: var(--kc-selection);
+  --kc-cursor-contrast: var(--kc-text);
+  --kc-cursor-edge: color-mix(in srgb, var(--kc-text) 44%, transparent);
+  --kc-cursor-fill: color-mix(in srgb, var(--kc-text) 94%, transparent);
+  --kc-cursor-shadow: color-mix(in srgb, var(--kc-canvas) 58%, transparent);
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+.kc-app-cursor.is-visible {
+  opacity: 1;
+}
+
+.kc-app-cursor.is-native {
+  opacity: 0;
+}
+
+.kc-app-cursor-pointer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 28px;
+  height: 32px;
+  transform-origin: 6px 6px;
+  transition: none;
+  will-change: transform;
+}
+
+.kc-app-cursor-pointer::after {
+  position: absolute;
+  top: 21px;
+  left: 16px;
+  width: 9px;
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, var(--kc-cursor-accent), color-mix(in srgb, var(--kc-cursor-contrast) 72%, transparent));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--kc-cursor-accent) 28%, transparent);
+  content: "";
+  opacity: .58;
+  transform: rotate(-28deg);
+  transform-origin: left center;
+  transition: opacity 100ms ease, width 100ms cubic-bezier(.2, .9, .2, 1), transform 100ms cubic-bezier(.2, .9, .2, 1);
+}
+
+.kc-app-cursor-arrow {
+  width: 28px;
+  height: 32px;
+  overflow: visible;
+  filter: drop-shadow(0 2px 4px rgb(0 0 0 / 28%)) drop-shadow(0 8px 18px var(--kc-cursor-shadow));
+  transform-origin: 7px 7px;
+  transition: transform 100ms cubic-bezier(.2, .9, .2, 1), filter 100ms ease;
+  /* 光标每帧都在移动，而这个箭头自带 filter：不固定在独立合成层上，Chromium
+     会在指针移动时反复重栅格化滤镜面，层化决策一变就退化成大面重绘——实测
+     同一份代码在 88fps 与 6fps（p90 651ms）之间反复横跳，观感就是"光标追不上
+     手、拖拽发黏"。钉住后滤镜只栅格一次，之后只换位移矩阵，开销归零。 */
+  will-change: transform;
+}
+
+.kc-app-cursor-arrow-shell {
+  fill: var(--kc-cursor-fill);
+  stroke: var(--kc-cursor-edge);
+  stroke-linejoin: round;
+  stroke-width: 1.15;
+}
+
+.kc-app-cursor-arrow-core {
+  fill: color-mix(in srgb, var(--kc-cursor-accent) 24%, transparent);
+  opacity: .92;
+  transition: fill 100ms ease, opacity 100ms ease;
+}
+
+.kc-app-cursor-textbar {
+  position: absolute;
+  top: 2px;
+  left: 10px;
+  width: 2px;
+  height: 26px;
+  border-radius: 1px;
+  background: var(--kc-cursor-fill);
+  box-shadow:
+    -4px 0 0 -.5px color-mix(in srgb, var(--kc-cursor-fill) 74%, transparent),
+    4px 0 0 -.5px color-mix(in srgb, var(--kc-cursor-fill) 74%, transparent),
+    0 8px 18px var(--kc-cursor-shadow);
+  opacity: 0;
+  transform: translateX(-5px) scaleY(.72);
+  transition: opacity 90ms ease, transform 100ms cubic-bezier(.2, .9, .2, 1);
+}
+
+.kc-app-cursor-hand {
+  position: absolute;
+  top: -8px;
+  left: -7px;
+  width: 30px;
+  height: 30px;
+  color: var(--kc-cursor-fill);
+  fill: color-mix(in srgb, var(--kc-cursor-accent) 16%, transparent);
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 32%)) drop-shadow(0 7px 14px var(--kc-cursor-shadow));
+  opacity: 0;
+  transform: rotate(-10deg) scale(.78);
+  transform-origin: 50% 55%;
+  transition: color 100ms ease, fill 100ms ease, opacity 90ms ease, transform 110ms cubic-bezier(.2, .9, .2, 1);
+}
+
+.kc-app-cursor-hand--precision {
+  top: -7px;
+  left: -7px;
+  width: 29px;
+  height: 29px;
+  fill: color-mix(in srgb, var(--kc-cursor-accent) 10%, transparent);
+  stroke-width: 1.8;
+  transform: rotate(5deg) scale(.74);
+}
+
+.kc-app-cursor.is-link .kc-app-cursor-arrow {
+  filter: drop-shadow(0 1px 3px rgb(0 0 0 / 24%)) drop-shadow(0 0 16px color-mix(in srgb, var(--kc-cursor-accent) 36%, transparent));
+  transform: scale(.84);
+}
+
+.kc-app-cursor.is-link .kc-app-cursor-pointer::after {
+  width: 13px;
+  opacity: .92;
+  transform: translate3d(1px, -1px, 0) rotate(-28deg);
+}
+
+.kc-app-cursor.is-link .kc-app-cursor-arrow-core {
+  fill: color-mix(in srgb, var(--kc-cursor-accent) 38%, transparent);
+  opacity: 1;
+}
+
+.kc-app-cursor.is-drag .kc-app-cursor-arrow {
+  transform: rotate(-8deg) scale(.88);
+}
+
+.kc-app-cursor.is-drag .kc-app-cursor-pointer::after {
+  width: 15px;
+  opacity: .84;
+  transform: translate3d(1px, -2px, 0) rotate(-18deg);
+}
+
+.kc-app-cursor.is-pan .kc-app-cursor-arrow,
+.kc-app-cursor.is-pan .kc-app-cursor-pointer::after,
+.kc-app-cursor.is-pan .kc-app-cursor-textbar {
+  opacity: 0;
+}
+
+.kc-app-cursor--classic.is-pan .kc-app-cursor-hand--classic,
+.kc-app-cursor--precision.is-pan .kc-app-cursor-hand--precision {
+  opacity: 1;
+  transform: rotate(-5deg) scale(1);
+}
+
+.kc-app-cursor--classic.is-pan.is-down .kc-app-cursor-hand--classic,
+.kc-app-cursor--classic.is-pan.is-pan-grabbing .kc-app-cursor-hand--classic,
+.kc-app-cursor--precision.is-pan.is-down .kc-app-cursor-hand--precision,
+.kc-app-cursor--precision.is-pan.is-pan-grabbing .kc-app-cursor-hand--precision {
+  color: color-mix(in srgb, var(--kc-cursor-fill) 76%, var(--kc-cursor-accent));
+  fill: color-mix(in srgb, var(--kc-cursor-accent) 34%, transparent);
+  transform: translate3d(1px, 1px, 0) rotate(-2deg) scale(.88);
+}
+
+.kc-app-cursor--precision.is-pan .kc-app-cursor-hand--precision {
+  color: color-mix(in srgb, var(--kc-cursor-fill) 88%, var(--kc-cursor-accent));
+  filter:
+    drop-shadow(0 1px 2px rgb(0 0 0 / 34%))
+    drop-shadow(0 0 10px color-mix(in srgb, var(--kc-cursor-accent) 20%, transparent));
+  transform: rotate(4deg) scale(.94);
+}
+
+.kc-app-cursor--precision.is-pan.is-down .kc-app-cursor-hand--precision,
+.kc-app-cursor--precision.is-pan.is-pan-grabbing .kc-app-cursor-hand--precision {
+  fill: color-mix(in srgb, var(--kc-cursor-accent) 28%, transparent);
+  transform: translate3d(1px, 1px, 0) rotate(8deg) scale(.82);
+}
+
+.kc-app-cursor.is-text .kc-app-cursor-arrow {
+  opacity: 0;
+  transform: scale(.6);
+}
+
+.kc-app-cursor.is-text .kc-app-cursor-pointer::after {
+  width: 2px;
+  opacity: 0;
+}
+
+.kc-app-cursor.is-text .kc-app-cursor-textbar {
+  opacity: 1;
+  transform: translateX(-5px) scaleY(1);
+}
+
+.kc-app-cursor.is-down .kc-app-cursor-arrow {
+  transform: scale(.78);
+}
+
+.kc-app-cursor.is-down .kc-app-cursor-pointer::after {
+  width: 6px;
+  opacity: .9;
+  transform: translate3d(-1px, 1px, 0) rotate(-28deg);
+}
+
+.kc-app-cursor-precision {
+  position: absolute;
+  top: -7px;
+  left: -6px;
+  width: 20px;
+  height: 20px;
+  border: 1px solid color-mix(in srgb, var(--kc-cursor-contrast) 68%, transparent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--kc-canvas) 22%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--kc-canvas) 34%, transparent),
+    0 3px 12px color-mix(in srgb, var(--kc-canvas) 44%, transparent);
+  opacity: 0;
+  transform: scale(.78);
+  transform-origin: center;
+  transition: transform 110ms cubic-bezier(.2, .9, .2, 1), border-color 110ms ease, box-shadow 110ms ease;
+}
+
+.kc-app-cursor-precision::before {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--kc-cursor-accent) 72%, var(--kc-cursor-contrast));
+  box-shadow: 0 0 7px color-mix(in srgb, var(--kc-cursor-accent) 42%, transparent);
+  content: "";
+  transform: translate(-50%, -50%);
+  transition: width 100ms ease, height 100ms ease, box-shadow 100ms ease;
+}
+
+.kc-app-cursor-precision::after {
+  position: absolute;
+  inset: 3px;
+  border: 1px solid transparent;
+  border-top-color: color-mix(in srgb, var(--kc-cursor-accent) 68%, transparent);
+  border-right-color: color-mix(in srgb, var(--kc-cursor-contrast) 32%, transparent);
+  border-radius: 50%;
+  content: "";
+  animation: kc-cursor-precision-orbit 3.8s linear infinite;
+}
+
+.kc-app-cursor--precision .kc-app-cursor-arrow,
+.kc-app-cursor--precision .kc-app-cursor-pointer::after {
+  opacity: 0;
+}
+
+.kc-app-cursor--precision .kc-app-cursor-precision {
+  opacity: .94;
+  transform: scale(1);
+}
+
+.kc-app-cursor--precision.is-link .kc-app-cursor-precision {
+  border-color: color-mix(in srgb, var(--kc-cursor-accent) 74%, var(--kc-cursor-contrast));
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--kc-cursor-accent) 10%, transparent),
+    0 0 15px color-mix(in srgb, var(--kc-cursor-accent) 22%, transparent);
+  transform: scale(.82);
+}
+
+.kc-app-cursor--precision.is-link .kc-app-cursor-precision::before {
+  width: 5px;
+  height: 5px;
+  box-shadow: 0 0 9px color-mix(in srgb, var(--kc-cursor-accent) 58%, transparent);
+}
+
+.kc-app-cursor--precision.is-drag .kc-app-cursor-precision {
+  border-radius: 6px;
+  transform: rotate(-8deg) scale(.9);
+}
+
+.kc-app-cursor--precision.is-down .kc-app-cursor-precision {
+  transform: scale(.68);
+}
+
+.kc-app-cursor--precision.is-pan .kc-app-cursor-precision,
+.kc-app-cursor--precision.is-text .kc-app-cursor-precision {
+  opacity: 0;
+}
+
+.kc-app-cursor--precision.is-text .kc-app-cursor-textbar {
+  box-shadow:
+    -4px 0 0 -.5px color-mix(in srgb, var(--kc-cursor-fill) 64%, transparent),
+    4px 0 0 -.5px color-mix(in srgb, var(--kc-cursor-fill) 64%, transparent),
+    0 0 9px color-mix(in srgb, var(--kc-cursor-accent) 24%, transparent);
+}
+
+@keyframes kc-cursor-precision-orbit {
+  to { transform: rotate(360deg); }
+}
+

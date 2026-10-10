@@ -1,0 +1,715 @@
+/*
+ * 充值面板质感层（wallet premium）—— Round 3
+ *
+ * 本轮三件事（2026-09-06 用户拍板）：
+ * 1. 会员权益与会员充值合并：四张档位卡本身即可选中支付，卡内直接给价格，
+ *    独立的"会员充值"商品列表取消。层次感来自卡内三段式——
+ *    档位洗色的头部 / 权益正文 / 微暗一档的价格底座。
+ * 2. 当前权益横幅去掉图标——"不要图标都比这好看"。质感靠三层背景
+ *    （档位色顶光 + 顶部化开的洗色 + 2.6% 拉丝纹理）与档位色 2px 顶边线。
+ *    扫光仍只属于这张卡（9s 一轮，峰值 ~8%）。
+ * 3. 积分余额卡去 3D：整体压平——单一平面色 + 发丝边框，
+ *    无内高光、无投影、无顶光斑。资产数字的力量来自排版，不是拟物。
+ *
+ * 作用域纪律：只碰 .kc-wallet-* 与 .kc-membership-*。
+ * 排版权重：价格是购买决策的核心信息，必须比商品名重；
+ * 余额数字用等宽数字 + 负字距，标签放宽字距压小。
+ * 物理微交互：hover 上浮 1px、active 下压 1px，100~140ms。
+ */
+
+/* ==========================================================================
+   L1 —— 余额卡：压平
+   --------------------------------------------------------------------------
+   上一版给了渐变面 + 顶部内高光 + 两层投影 + 右上顶光斑，用户反馈
+   "太违和、不够克制、太3d"。现在只剩一种面、一圈发丝线，别无他物。
+   ========================================================================== */
+
+.kc-wallet-balance {
+  --kc-wb-text: var(--kc-text);
+  --kc-wb-muted: color-mix(in srgb, var(--kc-text) 62%, transparent);
+  --kc-wb-faint: color-mix(in srgb, var(--kc-text) 42%, transparent);
+  --kc-wb-line: color-mix(in srgb, var(--kc-border) 82%, transparent);
+  --kc-wb-face: #f5f6f2;
+  /* 支付成功那道光：浅色卡面用墨色，深色卡面用白色（见 just-paid）。 */
+  --kc-wb-sheen: rgb(0 0 0 / 6%);
+
+  position: relative;
+  margin: 14px 16px 4px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--kc-border) 92%, transparent);
+  border-radius: 12px;
+  background: var(--kc-wb-face);
+}
+
+.kc-wallet-balance > * {
+  position: relative;
+  z-index: 2;
+}
+
+:root[data-theme="dark"] .kc-wallet-balance {
+  --kc-wb-face: #151816;
+  --kc-wb-text: #f2f4f1;
+  --kc-wb-muted: rgb(242 244 241 / 56%);
+  --kc-wb-faint: rgb(242 244 241 / 34%);
+  --kc-wb-line: rgb(242 244 241 / 9%);
+  --kc-wb-sheen: rgb(255 255 255 / 13%);
+  border-color: rgb(255 255 255 / 7%);
+}
+
+.kc-wallet-balance-main {
+  gap: 5px;
+  padding: 20px 22px;
+  border-right: 1px solid var(--kc-wb-line);
+}
+
+.kc-wallet-balance-main > span {
+  color: var(--kc-wb-muted);
+  font-size: 10.5px;
+  font-weight: 560;
+  letter-spacing: .05em;
+}
+
+.kc-wallet-balance-main > strong {
+  color: var(--kc-wb-text);
+  font-size: 32px;
+  font-weight: 720;
+  letter-spacing: -.02em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.kc-wallet-balance-caption {
+  color: var(--kc-wb-faint);
+}
+
+.kc-wallet-refresh {
+  color: var(--kc-wb-faint);
+}
+
+.kc-wallet-refresh:hover:not(:disabled) {
+  color: var(--kc-wb-text);
+  background: color-mix(in srgb, var(--kc-text) 7%, transparent);
+}
+
+/* 分格：不垫任何底色——垫色就是"拼贴感"的来源，发丝线足够。 */
+.kc-wallet-balance-split {
+  background: none;
+}
+
+.kc-wallet-balance-split > div {
+  border-right: 1px solid var(--kc-wb-line);
+}
+
+.kc-wallet-balance-split > div:last-child {
+  border-right: none;
+}
+
+.kc-wallet-balance-split span {
+  color: var(--kc-wb-muted);
+  letter-spacing: .04em;
+}
+
+.kc-wallet-balance-split strong {
+  color: var(--kc-wb-text);
+  font-size: 17px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.kc-wallet-balance-split small {
+  color: var(--kc-wb-faint);
+}
+
+.kc-wallet-queued-membership {
+  color: var(--kc-wb-faint);
+}
+
+/* ==========================================================================
+   L2 —— 分区标题：把"这里是买积分的地方"用字重讲清楚
+   ========================================================================== */
+
+.kc-wallet-section-heading > div > strong {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: .01em;
+}
+
+.kc-wallet-section-heading > svg {
+  color: color-mix(in srgb, var(--kc-text-tertiary) 70%, transparent);
+}
+
+/* ==========================================================================
+   L3 —— 商品卡：价格是主角
+   ========================================================================== */
+
+.kc-wallet-product {
+  min-height: 62px;
+  padding: 10px 11px;
+  border-color: color-mix(in srgb, var(--kc-border) 88%, transparent);
+  border-radius: 8px;
+  background: linear-gradient(180deg, var(--kc-surface-raised) 0%, color-mix(in srgb, var(--kc-surface-raised) 92%, var(--kc-border)) 100%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--kc-text) 4%, transparent),
+    0 1px 2px rgb(0 0 0 / 6%);
+  transition:
+    border-color 120ms cubic-bezier(.2, .7, .3, 1),
+    box-shadow 140ms cubic-bezier(.2, .7, .3, 1),
+    transform 100ms cubic-bezier(.2, .7, .3, 1),
+    background-color 120ms ease;
+}
+
+.kc-wallet-product:hover {
+  border-color: var(--kc-border-strong);
+  background: var(--kc-surface-raised);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--kc-text) 5%, transparent),
+    0 4px 12px -4px rgb(0 0 0 / 22%);
+  transform: translateY(-1px);
+}
+
+.kc-wallet-product:active {
+  transform: translateY(0) scale(.99);
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 10%);
+}
+
+/* 选中态：描边直接用文字色（石墨下即近黑），比"灰混灰"明确得多。
+   背景只提亮半档——选中靠线条与圆点，不靠填色。 */
+.kc-wallet-product.is-selected {
+  border-color: color-mix(in srgb, var(--kc-text) 72%, var(--kc-border-strong));
+  background:
+    linear-gradient(180deg, var(--kc-surface-raised) 0%, color-mix(in srgb, var(--kc-text) 4%, var(--kc-surface-raised)) 100%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--kc-text) 5%, transparent),
+    0 4px 14px -6px rgb(0 0 0 / 26%);
+}
+
+.kc-wallet-product.is-selected .kc-wallet-product-check {
+  border-color: var(--kc-text);
+  background: var(--kc-text);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--kc-text) 12%, transparent);
+}
+
+.kc-wallet-product-copy strong {
+  font-size: 12px;
+  font-weight: 660;
+}
+
+.kc-wallet-product-copy small {
+  font-size: 10px;
+}
+
+/* 价格：从 11px 的配角升成 16px 的主角。这是整份文件里对"购买欲望"
+   影响最大的一行——用户扫视商品列表时，眼睛找的是价格，不是品类名。 */
+.kc-wallet-product > b {
+  font-size: 16px;
+  font-weight: 720;
+  letter-spacing: -.01em;
+}
+
+/* ==========================================================================
+   支付按钮：全面板最亮的白，视线终点
+   ========================================================================== */
+
+.kc-wallet-checkout {
+  height: 48px;
+  margin-top: 12px;
+  border: 1px solid rgb(255 255 255 / 52%);
+  border-radius: 8px;
+  /* 上亮下暗的极浅渐变 + 顶高光 + 底暗边 = 按钮的"厚度"。 */
+  background: linear-gradient(180deg, #ffffff 0%, #f0f2ee 58%, #e4e7e2 100%);
+  color: #131614;
+  font-size: 14px;
+  font-weight: 720;
+  letter-spacing: .015em;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 92%),
+    inset 0 -1px 0 rgb(0 0 0 / 7%),
+    0 1px 0 rgb(0 0 0 / 16%),
+    0 10px 26px -12px rgb(0 0 0 / 42%);
+  transition:
+    transform 100ms cubic-bezier(.2, .7, .3, 1),
+    box-shadow 140ms cubic-bezier(.2, .7, .3, 1),
+    filter 140ms ease;
+}
+
+.kc-wallet-checkout:hover:not(:disabled) {
+  filter: brightness(1.02);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 92%),
+    inset 0 -1px 0 rgb(0 0 0 / 7%),
+    0 2px 0 rgb(0 0 0 / 14%),
+    0 14px 32px -12px rgb(0 0 0 / 48%);
+}
+
+/* 按下：物理压缩。位移 + 投影收进面板 + 内侧暗影，三件事同时发生才有
+   "按进去了"的手感，只改 transform 会显得像贴图。 */
+.kc-wallet-checkout:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 2px 6px rgb(0 0 0 / 16%),
+    0 1px 2px rgb(0 0 0 / 22%);
+}
+
+/* ==========================================================================
+   会员横幅：没有图标的身份卡
+   --------------------------------------------------------------------------
+   用户拍板：皇冠图标"不要都比这好看"→ 删。横幅只做一件事：
+   用档位色与纹理说明"你是谁"。背景三层从上到下：
+     ① 右上角档位色顶光（径向，峰值 12%，只照亮一角）
+     ② 从顶部化开的档位洗色（64% 处收干净）
+     ③ 2.6% 透明度的 1px 拉丝纹理——质感来自这种几乎看不见
+        但确实存在的颗粒，而不是更强的颜色
+   再加档位色 2px 顶边线；扫光（::after，9s 一轮）是这张卡的特权。
+   ========================================================================== */
+
+/* 图标与按钮已从 DOM 移除，网格收成单列。 */
+.kc-membership-current {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 15px 16px;
+}
+
+.kc-membership-current.is-lite { --tier: var(--kc-tier-lite); --tier-soft: var(--kc-tier-lite-soft); }
+.kc-membership-current.is-basic { --tier: var(--kc-tier-basic); --tier-soft: var(--kc-tier-basic-soft); }
+.kc-membership-current.is-standard { --tier: var(--kc-tier-standard); --tier-soft: var(--kc-tier-standard-soft); }
+.kc-membership-current.is-pro { --tier: var(--kc-tier-pro); --tier-soft: var(--kc-tier-pro-soft); }
+.kc-membership-current.is-member { --tier: var(--kc-tier-member); --tier-soft: var(--kc-tier-member-soft); }
+
+.kc-membership-current.is-lite,
+.kc-membership-current.is-basic,
+.kc-membership-current.is-standard,
+.kc-membership-current.is-pro,
+.kc-membership-current.is-member {
+  position: relative;
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--tier) 32%, var(--kc-border));
+  background:
+    radial-gradient(150% 200% at 92% -40%, color-mix(in srgb, var(--tier) 12%, transparent) 0%, transparent 52%),
+    linear-gradient(180deg, var(--tier-soft) 0%, transparent 64%),
+    repeating-linear-gradient(115deg, color-mix(in srgb, var(--kc-text) 2.6%, transparent) 0 1px, transparent 1px 7px),
+    color-mix(in srgb, var(--kc-surface-muted) 72%, var(--kc-surface-raised));
+  box-shadow:
+    inset 0 2px 0 color-mix(in srgb, var(--tier) 58%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--kc-text) 4%, transparent);
+}
+
+/* 档位色微光：峰值 ~8%、9s 一轮——"偶尔瞟到"的存在感。 */
+.kc-membership-current.is-lite::after,
+.kc-membership-current.is-basic::after,
+.kc-membership-current.is-standard::after,
+.kc-membership-current.is-pro::after,
+.kc-membership-current.is-member::after {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(115deg, transparent 42%, color-mix(in srgb, var(--tier) 9%, transparent) 50%, transparent 58%);
+  background-size: 240% 100%;
+  background-repeat: no-repeat;
+  animation: kc-wallet-sheen 9000ms ease-in-out 1200ms infinite;
+  content: "";
+  pointer-events: none;
+}
+
+.kc-membership-current > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* 文案：档位宝石点（与方案卡同一枚钻石语法）+ 大一号的档位名。 */
+.kc-membership-current-copy {
+  gap: 3px;
+  padding: 2px 0;
+}
+
+.kc-membership-current-copy > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  letter-spacing: .05em;
+}
+
+.kc-membership-current-copy > span::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 1.5px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--tier, var(--kc-text-tertiary)) 72%, #ffffff) 0%, var(--tier, var(--kc-text-tertiary)) 100%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 40%);
+  content: "";
+  transform: rotate(45deg);
+}
+
+.kc-membership-current-copy > strong {
+  font-size: 19px;
+  letter-spacing: -.01em;
+}
+
+/* ==========================================================================
+   会员档位卡：权益与充值合并后的"可支付方案卡"
+   --------------------------------------------------------------------------
+   卡内三段式（层次感的来源）：
+     头部   档位洗色 + 底部发丝线 —— 档位识别区（caption + 宝石点档位名）
+     正文   权益清单，安静无色
+     底座   价格行：比正文暗半档的面 + 发丝线，价格是这一行的主角
+   选中 = 档位描边 + 顶部 2px 档位线 + 墨色实心圆勾；
+   当前档位 = 「当前会员」软底徽章。两种状态可叠加。
+   ========================================================================== */
+
+.kc-membership-plan {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.kc-membership-plan:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--kc-text) 34%, transparent);
+  outline-offset: 2px;
+}
+
+.kc-membership-plan.is-lite { --tier: var(--kc-tier-lite); --tier-soft: var(--kc-tier-lite-soft); }
+.kc-membership-plan.is-basic { --tier: var(--kc-tier-basic); --tier-soft: var(--kc-tier-basic-soft); }
+.kc-membership-plan.is-standard { --tier: var(--kc-tier-standard); --tier-soft: var(--kc-tier-standard-soft); }
+.kc-membership-plan.is-pro { --tier: var(--kc-tier-pro); --tier-soft: var(--kc-tier-pro-soft); }
+.kc-membership-plan.is-member { --tier: var(--kc-tier-member); --tier-soft: var(--kc-tier-member-soft); }
+
+/* 头部：档位洗色的高台，与正文用发丝线分开。 */
+.kc-membership-plan-head {
+  position: relative;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  min-height: 66px;
+  padding: 11px 12px 10px;
+  border-bottom: 1px solid var(--kc-border);
+  background:
+    linear-gradient(180deg, var(--tier-soft, transparent) 0%, transparent 96%),
+    color-mix(in srgb, var(--kc-surface-raised) 62%, transparent);
+}
+
+.kc-membership-plan-head > span:first-child {
+  color: var(--kc-text-tertiary);
+  font-size: 9px;
+  letter-spacing: .04em;
+}
+
+.kc-membership-plan-head > strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 690;
+}
+
+/* 宝石点：档位名前唯一的色彩，带一点顶部内光让它像"嵌进去"的。 */
+.kc-membership-plan-head > strong::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--tier, var(--kc-text-tertiary)) 72%, #ffffff) 0%, var(--tier, var(--kc-text-tertiary)) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 40%),
+    0 1px 2px color-mix(in srgb, var(--tier, transparent) 35%, transparent);
+  content: "";
+  transform: rotate(45deg);
+}
+
+/* 「当前会员」徽章：软底 + 档位色字 + 细边。 */
+.kc-membership-plan-head > em {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border: 1px solid color-mix(in srgb, var(--tier, var(--kc-text)) 30%, transparent);
+  border-radius: 999px;
+  color: var(--tier, var(--kc-text));
+  background: color-mix(in srgb, var(--kc-surface-raised) 78%, transparent);
+  font-size: 8.5px;
+  font-style: normal;
+  font-weight: 680;
+}
+
+:root[data-theme="dark"] .kc-membership-plan-head > em {
+  background: color-mix(in srgb, var(--kc-surface-raised) 55%, transparent);
+}
+
+.kc-membership-plan-head > em svg { width: 10px; height: 10px; }
+
+/* 正文：权益清单，保持安静。 */
+.kc-membership-plan-features {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px 12px;
+}
+
+.kc-membership-plan-feature {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  align-items: start;
+  gap: 5px;
+  color: var(--kc-text-secondary);
+  font-size: 9.5px;
+  line-height: 1.45;
+}
+
+.kc-membership-plan-feature > svg {
+  width: 11px;
+  height: 11px;
+  margin-top: 1px;
+  color: var(--kc-jade);
+}
+
+.kc-membership-plan-feature > small {
+  grid-column: 2;
+  width: max-content;
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: var(--kc-jade);
+  background: var(--kc-jade-soft);
+  font-size: 8px;
+  font-weight: 650;
+}
+
+/* 价格底座：比正文暗半档的面，价格是主角。 */
+.kc-membership-plan-price {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: auto;
+  padding: 9px 12px 10px;
+  border-top: 1px solid var(--kc-border);
+  background: color-mix(in srgb, var(--kc-canvas) 42%, transparent);
+}
+
+.kc-membership-plan-price > b {
+  font-size: 15px;
+  font-weight: 720;
+  letter-spacing: -.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.kc-membership-plan-price > small {
+  overflow: hidden;
+  color: var(--kc-text-tertiary);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 选中圆勾：默认空心描边，选中后墨色实心（与商品卡同语法）。 */
+.kc-membership-plan-check {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin-left: auto;
+  border: 1px solid color-mix(in srgb, var(--kc-text) 26%, var(--kc-border-strong));
+  border-radius: 999px;
+  color: transparent;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.kc-membership-plan-check svg { width: 10px; height: 10px; }
+
+.kc-membership-plan:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--tier, var(--kc-text)) 24%, var(--kc-border-strong));
+}
+
+/* 选中态：档位描边 + 洗色 + 顶边线，"已选好"的框选感。 */
+.kc-membership-plan.is-selected {
+  border-color: color-mix(in srgb, var(--tier, var(--kc-text)) 46%, var(--kc-border-strong));
+  background:
+    linear-gradient(180deg, var(--tier-soft, transparent) 0%, transparent 44%),
+    color-mix(in srgb, var(--kc-surface-muted) 78%, var(--kc-canvas));
+  box-shadow:
+    inset 0 2px 0 color-mix(in srgb, var(--tier, var(--kc-text)) 58%, transparent),
+    0 6px 16px -10px rgb(0 0 0 / 20%);
+}
+
+.kc-membership-plan.is-selected .kc-membership-plan-check {
+  border-color: var(--kc-text);
+  background: var(--kc-text);
+  color: var(--kc-surface-raised);
+}
+
+/* 尚未开放的档位：整体降一档存在感。 */
+.kc-membership-plan:disabled,
+.kc-membership-plan.is-unavailable {
+  cursor: default;
+  opacity: .55;
+}
+
+/* 合并后的支付动作区：与档位卡同属一个 section，用发丝线收口。 */
+.kc-membership-plan-actions {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--kc-border);
+}
+
+/* 历史档位兜底行：不在四张方案卡里的会员商品落在这里。 */
+.kc-membership-extra {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-height: none;
+}
+
+/* ==========================================================================
+   支付成功的一次性反馈 + 扫光关键帧
+   ========================================================================== */
+
+@keyframes kc-wallet-sheen {
+  0%, 100% { background-position: 130% 0; }
+  48%, 58% { background-position: -130% 0; }
+}
+
+/* 支付成功：一道一次性光束穿过余额卡 + 数字轻微上浮回落。
+   一次性是关键——常驻动效三分钟就成背景噪音，一次性才有"事件感"。 */
+@keyframes kc-wallet-bloom {
+  0% { background-position: 130% 0; }
+  100% { background-position: -130% 0; }
+}
+
+@keyframes kc-wallet-number-lift {
+  0% { transform: translateY(0); }
+  38% { transform: translateY(-2px); }
+  100% { transform: translateY(0); }
+}
+
+.kc-wallet-balance.kc-wallet-just-paid::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(115deg, transparent 38%, var(--kc-wb-sheen) 50%, transparent 62%);
+  background-size: 240% 100%;
+  background-repeat: no-repeat;
+  animation: kc-wallet-bloom 1100ms cubic-bezier(.2, .7, .3, 1) both;
+  pointer-events: none;
+}
+
+.kc-wallet-balance.kc-wallet-just-paid .kc-wallet-balance-main > strong {
+  animation: kc-wallet-number-lift 700ms cubic-bezier(.2, .7, .3, 1) both;
+}
+
+/* ==========================================================================
+   会员档位的"贵金属"体系 —— 不同等级不同色，但金色只属于专业版
+   --------------------------------------------------------------------------
+   设计依据（用户拍板）：参考卡片库 prompt-hubs 的"专业版会员"金字——
+   要"不太张扬，但又确实显眼，有正反馈"。
+   旧逻辑用功能色区分档位（绿/蓝/珊瑚），读起来像状态灯，不像身份。
+   新逻辑是一套宝石序列，色相各自独立、但都在"贵"的语系里：
+
+     lite     翡翠   低调的入门贵重
+     basic    蓝宝石
+     standard 紫水晶
+     pro      金     唯一的金色——稀缺性就是它贵的原因
+     其他/历史档位  标准金（is-member 兜底）
+
+   金色只在"你是会员/当前档位"这一处语义上出现，面积极小。
+   深浅主题各给一套值：深色下提亮、浅色下压暗，正文对比度全部 ≥ 4.5:1。
+   ========================================================================== */
+
+:root {
+  /* 深色主题：亮度优先（深底上要读得清） */
+  --kc-tier-lite: #5fbf92;
+  --kc-tier-basic: #6fa8e8;
+  --kc-tier-standard: #a98fe8;
+  --kc-tier-pro: #ecbd63;
+  --kc-tier-member: #d9a441;
+  /* 徽标的底色调：同色相的深底，让金字有"嵌进去"的体积感 */
+  --kc-tier-lite-soft: rgb(95 191 146 / 12%);
+  --kc-tier-basic-soft: rgb(111 168 232 / 12%);
+  --kc-tier-standard-soft: rgb(169 143 232 / 12%);
+  --kc-tier-pro-soft: rgb(236 189 99 / 13%);
+  --kc-tier-member-soft: rgb(217 164 65 / 12%);
+}
+
+:root[data-theme="light"] {
+  /* 浅色主题：压暗保对比（在 #fbfcfa 面上全部 ≥ 4.5:1） */
+  --kc-tier-lite: #1f7a5a;
+  --kc-tier-basic: #2f5fa0;
+  --kc-tier-standard: #6b46c8;
+  --kc-tier-pro: #96690f;
+  --kc-tier-member: #8a6420;
+  --kc-tier-lite-soft: rgb(31 122 90 / 8%);
+  --kc-tier-basic-soft: rgb(47 95 160 / 8%);
+  --kc-tier-standard-soft: rgb(107 70 200 / 8%);
+  --kc-tier-pro-soft: rgb(150 105 15 / 9%);
+  --kc-tier-member-soft: rgb(138 100 32 / 8%);
+}
+
+/* ---- 顶栏：头像旁的档位文字徽记（专业版 / 免费版） ----------------
+   用户拍板：皇冠小图标不如文字直白——平时显示"免费版"，
+   有档位显示对应版本名；身份信息读一眼就行，不用猜图标。 ---- */
+
+.kc-account-trigger.kc-icon-button {
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+  gap: 7px;
+  padding: 0 9px 0 8px;
+}
+
+.kc-account-tier-label {
+  padding: 3px 7px;
+  border: 1px solid color-mix(in srgb, var(--kc-text) 15%, var(--kc-border-strong));
+  border-radius: 999px;
+  color: var(--kc-text-secondary);
+  background: color-mix(in srgb, var(--kc-text) 4%, transparent);
+  font-size: 9.5px;
+  font-weight: 690;
+  letter-spacing: .03em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.kc-account-tier-label.is-lite { color: var(--kc-tier-lite); border-color: color-mix(in srgb, var(--kc-tier-lite) 36%, transparent); background: var(--kc-tier-lite-soft); }
+.kc-account-tier-label.is-basic { color: var(--kc-tier-basic); border-color: color-mix(in srgb, var(--kc-tier-basic) 36%, transparent); background: var(--kc-tier-basic-soft); }
+.kc-account-tier-label.is-standard { color: var(--kc-tier-standard); border-color: color-mix(in srgb, var(--kc-tier-standard) 36%, transparent); background: var(--kc-tier-standard-soft); }
+.kc-account-tier-label.is-pro { color: var(--kc-tier-pro); border-color: color-mix(in srgb, var(--kc-tier-pro) 44%, transparent); background: var(--kc-tier-pro-soft); }
+
+/* ==========================================================================
+   账号面板：会员徽标（外部可见身份的第一落点）
+   ========================================================================== */
+
+.kc-wallet-membership {
+  border-color: color-mix(in srgb, var(--kc-tier-member) 34%, transparent);
+  color: var(--kc-tier-member);
+  background: var(--kc-tier-member-soft);
+  font-weight: 640;
+  letter-spacing: .02em;
+}
+
+.kc-wallet-membership svg { color: inherit; }
+
+.kc-wallet-membership.is-lite { border-color: color-mix(in srgb, var(--kc-tier-lite) 34%, transparent); color: var(--kc-tier-lite); background: var(--kc-tier-lite-soft); }
+.kc-wallet-membership.is-basic { border-color: color-mix(in srgb, var(--kc-tier-basic) 34%, transparent); color: var(--kc-tier-basic); background: var(--kc-tier-basic-soft); }
+.kc-wallet-membership.is-standard { border-color: color-mix(in srgb, var(--kc-tier-standard) 34%, transparent); color: var(--kc-tier-standard); background: var(--kc-tier-standard-soft); }
+.kc-wallet-membership.is-pro { border-color: color-mix(in srgb, var(--kc-tier-pro) 40%, transparent); color: var(--kc-tier-pro); background: var(--kc-tier-pro-soft); }
+
+@media (prefers-reduced-motion: reduce) {
+  .kc-membership-current.is-lite::after,
+  .kc-membership-current.is-basic::after,
+  .kc-membership-current.is-standard::after,
+  .kc-membership-current.is-pro::after,
+  .kc-membership-current.is-member::after {
+    animation: none;
+  }
+
+  .kc-wallet-balance.kc-wallet-just-paid::after,
+  .kc-wallet-balance.kc-wallet-just-paid .kc-wallet-balance-main > strong {
+    animation: none;
+  }
+
+  .kc-wallet-product,
+  .kc-wallet-checkout,
+  .kc-membership-plan-check {
+    transition: none;
+  }
+}

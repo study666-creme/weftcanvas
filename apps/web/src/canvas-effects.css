@@ -1,0 +1,635 @@
+/*
+ * 画布背景与生成动效。
+ *
+ * 这些规则原先和「深空 / 灵境」两套界面风格写在同一个文件里。那两套风格已经
+ * 下线，但星空 / 水面背景与星云 / 水镜生成动效仍然是可选项，它们依赖的关键帧和
+ * 规则必须留下，所以单独成文。判断标准只有选择器：凡是被
+ * [data-*-style="cosmos"|"lingjing"] 限定的规则都随风格一起删除，其余原样保留。
+ */
+
+.kc-flow-shell[data-canvas-background="starfield"],
+.kc-flow-shell[data-canvas-background="starfield"] .react-flow {
+  background: #02030a;
+  box-shadow: none;
+}
+
+.kc-flow-shell[data-canvas-background="starfield"]::before,
+.kc-flow-shell[data-canvas-background="starfield"] .react-flow::before {
+  display: none;
+}
+
+.kc-canvas-starfield {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  contain: strict;
+  background: #02030a;
+  pointer-events: none;
+}
+
+.kc-canvas-starfield::before,
+.kc-canvas-starfield::after,
+.kc-canvas-starfield-dust {
+  position: absolute;
+  inset: 0;
+  display: block;
+  content: "";
+  pointer-events: none;
+}
+
+.kc-canvas-starfield-layer {
+  --kc-star-layer-size: 487px;
+  --kc-star-layer-inset: -244px;
+  position: absolute;
+  inset: var(--kc-star-layer-inset);
+  display: block;
+  contain: paint;
+  background-position: 0 0;
+  background-size: var(--kc-star-layer-size) var(--kc-star-layer-size);
+  pointer-events: none;
+  transform: translate3d(0, 0, 0);
+}
+
+.kc-workspace.is-viewport-moving .kc-canvas-starfield-layer {
+  will-change: transform;
+}
+
+.kc-canvas-starfield::before {
+  background:
+    radial-gradient(ellipse 68% 42% at 18% 72%, rgb(65 89 105 / 7%), transparent 72%),
+    radial-gradient(ellipse 54% 76% at 86% 18%, rgb(106 80 64 / 5.5%), transparent 74%),
+    linear-gradient(127deg, transparent 18%, rgb(122 151 166 / 2.4%) 43%, rgb(195 160 126 / 1.7%) 57%, transparent 81%);
+}
+
+.kc-canvas-starfield::after {
+  background: radial-gradient(ellipse at center, transparent 48%, rgb(0 0 0 / 18%) 78%, rgb(0 0 0 / 46%) 100%);
+}
+
+.kc-canvas-starfield-layer.is-far {
+  --kc-star-layer-size: 173px;
+  --kc-star-layer-inset: -87px;
+  background-image:
+    radial-gradient(circle at 7% 19%, rgb(226 237 248 / 48%) 0 .48px, transparent .88px),
+    radial-gradient(circle at 14% 73%, rgb(153 184 198 / 32%) 0 .42px, transparent .8px),
+    radial-gradient(circle at 28% 42%, rgb(213 183 148 / 25%) 0 .38px, transparent .76px),
+    radial-gradient(circle at 41% 91%, rgb(205 219 233 / 42%) 0 .46px, transparent .84px),
+    radial-gradient(circle at 54% 12%, rgb(141 171 193 / 29%) 0 .4px, transparent .78px),
+    radial-gradient(circle at 63% 58%, rgb(238 241 244 / 40%) 0 .48px, transparent .9px),
+    radial-gradient(circle at 79% 84%, rgb(178 158 137 / 24%) 0 .38px, transparent .75px),
+    radial-gradient(circle at 88% 31%, rgb(192 214 228 / 36%) 0 .44px, transparent .82px),
+    radial-gradient(circle at 96% 66%, rgb(226 234 241 / 27%) 0 .38px, transparent .76px);
+  opacity: .72;
+}
+
+.kc-canvas-starfield-layer.is-mid {
+  --kc-star-layer-size: 307px;
+  --kc-star-layer-inset: -154px;
+  background-image:
+    radial-gradient(circle at 9% 37%, rgb(238 244 250 / 67%) 0 .72px, rgb(193 218 230 / 12%) 1.3px, transparent 2.3px),
+    radial-gradient(circle at 24% 82%, rgb(139 179 193 / 48%) 0 .6px, transparent 1.55px),
+    radial-gradient(circle at 38% 16%, rgb(224 188 148 / 35%) 0 .52px, transparent 1.35px),
+    radial-gradient(circle at 55% 63%, rgb(222 232 241 / 54%) 0 .68px, transparent 1.65px),
+    radial-gradient(circle at 71% 29%, rgb(137 166 187 / 38%) 0 .56px, transparent 1.4px),
+    radial-gradient(circle at 87% 76%, rgb(230 239 247 / 61%) 0 .7px, rgb(200 218 230 / 10%) 1.3px, transparent 2.2px),
+    radial-gradient(circle at 94% 8%, rgb(194 164 138 / 31%) 0 .5px, transparent 1.25px);
+  opacity: .78;
+}
+
+.kc-canvas-starfield-layer.is-near {
+  --kc-star-layer-size: 487px;
+  --kc-star-layer-inset: -244px;
+  background-image:
+    radial-gradient(circle at 11% 69%, rgb(250 252 255 / 84%) 0 .9px, rgb(191 221 232 / 19%) 1.55px, transparent 4.2px),
+    radial-gradient(circle at 32% 18%, rgb(219 185 147 / 65%) 0 .76px, rgb(219 185 147 / 12%) 1.42px, transparent 3.7px),
+    radial-gradient(circle at 58% 87%, rgb(220 237 248 / 72%) 0 .82px, rgb(162 199 218 / 14%) 1.5px, transparent 4px),
+    radial-gradient(circle at 83% 43%, rgb(245 248 251 / 78%) 0 .88px, rgb(208 218 229 / 14%) 1.48px, transparent 4.3px),
+    radial-gradient(circle at 96% 9%, rgb(188 164 142 / 54%) 0 .7px, transparent 3.2px);
+  opacity: .84;
+}
+
+.kc-canvas-starfield-dust {
+  background:
+    radial-gradient(ellipse 72% 34% at 16% 78%, rgb(112 147 163 / 5%), transparent 73%),
+    radial-gradient(ellipse 38% 70% at 82% 23%, rgb(155 121 96 / 3.8%), transparent 76%),
+    linear-gradient(117deg, transparent 21%, rgb(168 194 205 / 1.5%) 44%, rgb(226 194 160 / 1.8%) 53%, transparent 77%),
+    url("./assets/canvas-grain.png") center / 521px 521px repeat;
+  opacity: .18;
+  transition: opacity 120ms ease;
+}
+
+.kc-workspace:is(.is-viewport-moving, .is-node-dragging) .kc-canvas-starfield-dust {
+  opacity: 0;
+}
+
+:root[data-generation-effect="nebula"] .kc-node-loading {
+  background: #02030a;
+}
+
+:root[data-generation-effect="nebula"] .kc-node-loading::after,
+:root[data-generation-effect="nebula"] .kc-node-loading--cinematic::after {
+  border: 0;
+  background: radial-gradient(ellipse at 50% 48%, transparent 44%, rgb(0 0 0 / 20%) 72%, rgb(0 0 0 / 76%) 100%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--node-accent) 18%, transparent), inset 0 0 20px rgb(0 0 0 / 62%);
+}
+
+:root[data-generation-effect="nebula"] .kc-node-loading--cinematic {
+  --kc-video-generation-cycle: 5.2s;
+  --kc-video-generation-glint-cycle: 3.4s;
+  background:
+    radial-gradient(ellipse 70% 58% at 48% 44%, color-mix(in srgb, var(--node-accent) 9%, #0a111b), transparent 72%),
+    #02030a;
+}
+
+:root[data-generation-effect="nebula"] .kc-video-generation-scene {
+  background:
+    radial-gradient(ellipse 82% 72% at 48% 44%, color-mix(in srgb, var(--node-accent) 11%, #101827) 0%, #040711 58%, #010208 100%);
+}
+
+:root[data-generation-effect="nebula"] .kc-video-generation-scene::before {
+  inset: -18%;
+  background:
+    radial-gradient(ellipse 31% 52% at 19% 67%, color-mix(in srgb, var(--node-accent) 24%, transparent), transparent 72%),
+    radial-gradient(ellipse 26% 43% at 72% 24%, color-mix(in srgb, var(--kc-coral) 16%, transparent), transparent 74%),
+    radial-gradient(ellipse 22% 38% at 84% 73%, color-mix(in srgb, var(--kc-amber) 13%, transparent), transparent 76%),
+    radial-gradient(ellipse 42% 24% at 45% 82%, rgb(220 233 244 / 8%), transparent 78%),
+    url("./assets/canvas-grain.png") center / 317px 317px repeat;
+  mix-blend-mode: screen;
+  opacity: .52;
+  transform: translate3d(-7%, 4%, 0) rotate(-7deg) scale(1.2);
+  animation: kc-cosmos-nebula-advection 7.2s cubic-bezier(.4, 0, .2, 1) infinite;
+}
+
+:root[data-generation-effect="nebula"] .kc-video-generation-scene::after {
+  inset: 0;
+  border: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(ellipse at 50% 46%, transparent 34%, rgb(0 0 0 / 16%) 64%, rgb(0 0 0 / 72%) 100%),
+    linear-gradient(180deg, rgb(255 255 255 / 3.5%), transparent 14%, transparent 84%, rgb(0 0 0 / 34%));
+  box-shadow: inset 0 0 26px rgb(0 0 0 / 54%);
+}
+
+:root[data-generation-effect="nebula"] .kc-video-generation-field {
+  inset: -42% -34%;
+  border-radius: 46%;
+  background:
+    radial-gradient(ellipse 28% 52% at 24% 63%, color-mix(in srgb, var(--node-accent) 64%, transparent) 0%, color-mix(in srgb, var(--node-accent) 25%, transparent) 35%, transparent 72%),
+    radial-gradient(ellipse 31% 56% at 68% 29%, color-mix(in srgb, var(--kc-coral) 34%, transparent) 0%, color-mix(in srgb, var(--node-accent) 14%, transparent) 42%, transparent 74%),
+    radial-gradient(ellipse 24% 39% at 79% 72%, color-mix(in srgb, var(--kc-amber) 25%, transparent) 0%, transparent 72%),
+    radial-gradient(ellipse 38% 24% at 46% 51%, rgb(226 239 249 / 18%) 0%, color-mix(in srgb, var(--node-accent) 11%, transparent) 44%, transparent 76%);
+  opacity: .46;
+  transform: translate3d(-8%, 5%, 0) rotate(-9deg) scale(1.24);
+  transform-origin: 50% 50%;
+  animation: kc-cosmos-nebula-primary 5.2s cubic-bezier(.4, 0, .2, 1) infinite;
+}
+
+:root[data-generation-effect="nebula"] .kc-video-generation-sweep {
+  inset: -48% -36%;
+  width: auto;
+  height: auto;
+  border-radius: 48%;
+  background:
+    conic-gradient(from 198deg at 50% 52%, transparent 0 9%, color-mix(in srgb, var(--node-accent) 8%, transparent) 16%, color-mix(in srgb, var(--node-accent) 32%, transparent) 22%, transparent 31% 48%, color-mix(in srgb, var(--kc-amber) 17%, transparent) 57%, transparent 66% 100%),
+    radial-gradient(ellipse 44% 70% at 64% 39%, color-mix(in srgb, var(--node-accent) 24%, transparent), transparent 72%);
+  opacity: .34;
+  transform: translate3d(5%, -3%, 0) rotate(-20deg) scale(.82);
+  transform-origin: 50% 50%;
+  animation: kc-cosmos-nebula-secondary 6.4s linear -1.7s infinite;
+}
+
+:root[data-generation-effect="nebula"] .kc-video-generation-sweep::after {
+  display: none;
+}
+
+:root[data-generation-effect="nebula"] .kc-video-generation-glint {
+  top: 18%;
+  left: 27%;
+  width: 46%;
+  height: 64%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, rgb(245 249 255 / 72%) 0 1.2%, color-mix(in srgb, var(--node-accent) 62%, transparent) 4%, color-mix(in srgb, var(--node-accent) 20%, transparent) 19%, transparent 58%),
+    radial-gradient(ellipse 62% 16% at 50% 50%, color-mix(in srgb, var(--node-accent) 28%, transparent), transparent 74%),
+    radial-gradient(ellipse 18% 62% at 50% 50%, rgb(226 238 248 / 15%), transparent 76%);
+  opacity: .12;
+  transform: translate3d(0, 0, 0) rotate(-7deg) scale(.34);
+  transform-origin: 50% 50%;
+  box-shadow: none;
+  animation: kc-cosmos-nebula-dust 3.4s cubic-bezier(.22, .61, .36, 1) -.8s infinite;
+}
+
+:root[data-generation-effect="nebula"] .kc-video-generation-scan {
+  display: none;
+  animation: none;
+}
+
+:root[data-generation-effect="nebula"] .kc-video-generation-rail {
+  top: 0;
+  right: 0;
+  bottom: auto;
+  left: 0;
+  height: 1px;
+  background: color-mix(in srgb, var(--node-accent) 14%, transparent);
+  box-shadow: 0 1px 9px color-mix(in srgb, var(--node-accent) 12%, transparent);
+}
+
+:root[data-generation-effect="nebula"] .kc-video-generation-rail > span {
+  background: color-mix(in srgb, var(--node-accent) 86%, #edf5ff);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--node-accent) 68%, transparent);
+}
+
+:root[data-generation-effect="nebula"] .kc-node-loading-beam::before {
+  inset: -54% -46%;
+  width: auto;
+  height: auto;
+  background:
+    radial-gradient(ellipse 30% 52% at 29% 62%, color-mix(in srgb, var(--node-accent) 48%, transparent), transparent 70%),
+    radial-gradient(ellipse 28% 46% at 69% 37%, color-mix(in srgb, var(--kc-coral) 25%, transparent), transparent 72%),
+    radial-gradient(circle at 50% 50%, rgb(238 246 253 / 32%), color-mix(in srgb, var(--node-accent) 16%, transparent) 9%, transparent 34%);
+  opacity: .46;
+  transform: translate3d(-8%, 5%, 0) rotate(-9deg) scale(1.24);
+  animation: kc-cosmos-nebula-primary 5.2s cubic-bezier(.4, 0, .2, 1) infinite;
+}
+
+:root[data-generation-effect="nebula"] .kc-node-loading-content .kc-node-loading-track {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--node-accent) 14%, transparent);
+}
+
+:root[data-generation-effect="nebula"] .kc-node-loading-track > span {
+  background: color-mix(in srgb, var(--node-accent) 86%, #edf5ff);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--node-accent) 62%, transparent);
+}
+
+@keyframes kc-cosmos-nebula-advection {
+  0%, 100% { opacity: .38; transform: translate3d(-7%, 4%, 0) rotate(-7deg) scale(1.2); }
+  27% { opacity: .62; transform: translate3d(2%, -5%, 0) rotate(2deg) scale(1.08); }
+  58% { opacity: .48; transform: translate3d(6%, 1%, 0) rotate(8deg) scale(1.16); }
+  81% { opacity: .68; transform: translate3d(-2%, 5%, 0) rotate(-1deg) scale(1.1); }
+}
+
+@keyframes kc-cosmos-nebula-primary {
+  0%, 100% { opacity: .42; transform: translate3d(-8%, 5%, 0) rotate(-9deg) scale(1.24); }
+  26% { opacity: .78; transform: translate3d(4%, -3%, 0) rotate(4deg) scale(.98); }
+  48% { opacity: 1; transform: translate3d(0, 0, 0) rotate(11deg) scale(.78); }
+  65% { opacity: .88; transform: translate3d(-2%, 2%, 0) rotate(4deg) scale(.94); }
+  84% { opacity: .55; transform: translate3d(6%, -1%, 0) rotate(-3deg) scale(1.16); }
+}
+
+@keyframes kc-cosmos-nebula-secondary {
+  0% { opacity: .3; transform: translate3d(5%, -3%, 0) rotate(-20deg) scale(.82); }
+  31% { opacity: .72; transform: translate3d(-3%, 4%, 0) rotate(72deg) scale(1.03); }
+  59% { opacity: .92; transform: translate3d(2%, -2%, 0) rotate(168deg) scale(.9); }
+  82% { opacity: .46; transform: translate3d(-4%, 2%, 0) rotate(258deg) scale(1.2); }
+  100% { opacity: .3; transform: translate3d(5%, -3%, 0) rotate(340deg) scale(.82); }
+}
+
+@keyframes kc-cosmos-nebula-dust {
+  0%, 100% { opacity: .08; transform: translate3d(0, 0, 0) rotate(-7deg) scale(.34); }
+  19% { opacity: .46; transform: translate3d(-2%, 1%, 0) rotate(-2deg) scale(.72); }
+  43% { opacity: 1; transform: translate3d(1%, -1%, 0) rotate(4deg) scale(1); }
+  64% { opacity: .28; transform: translate3d(0, 0, 0) rotate(9deg) scale(1.42); }
+  82% { opacity: .07; transform: translate3d(2%, -1%, 0) rotate(3deg) scale(.5); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-generation-effect="nebula"] .kc-video-generation-scene::before,
+  :root[data-generation-effect="nebula"] .kc-video-generation-field,
+  :root[data-generation-effect="nebula"] .kc-video-generation-sweep,
+  :root[data-generation-effect="nebula"] .kc-video-generation-glint,
+  :root[data-generation-effect="nebula"] .kc-node-loading-beam::before {
+    animation-duration: 8s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
+
+.kc-flow-shell[data-canvas-background="water"],
+.kc-flow-shell[data-canvas-background="water"] .react-flow {
+  background: #071217;
+  box-shadow: none;
+}
+
+.kc-flow-shell[data-canvas-background="water"]::before,
+.kc-flow-shell[data-canvas-background="water"] .react-flow::before {
+  display: none;
+}
+
+.kc-canvas-water {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  contain: strict;
+  background: #071217;
+  pointer-events: none;
+}
+
+.kc-canvas-water-material {
+  position: absolute;
+  inset: -64px;
+  display: block;
+  contain: paint;
+  background: #071217 url("./assets/canvas-water-surface.jpg") center / cover no-repeat;
+  pointer-events: none;
+  transform: translate3d(0, 0, 0);
+}
+
+.kc-workspace.is-viewport-moving .kc-canvas-water-material {
+  will-change: transform;
+}
+
+.kc-flow-shell[data-canvas-background="water"] .kc-node-wrap::before {
+  position: absolute;
+  right: 8%;
+  bottom: -28px;
+  left: 8%;
+  z-index: 0;
+  height: 38px;
+  background:
+    repeating-linear-gradient(180deg, color-mix(in srgb, var(--node-accent) 16%, rgb(212 229 231 / 12%)) 0 1px, transparent 2px 5px),
+    linear-gradient(180deg, color-mix(in srgb, var(--node-accent) 18%, transparent), transparent 82%);
+  content: "";
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, rgb(0 0 0 / 58%) 42%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, rgb(0 0 0 / 58%) 42%, transparent 100%);
+  opacity: .42;
+  pointer-events: none;
+  transform: perspective(90px) rotateX(58deg) scaleX(.88) scaleY(.72);
+  transform-origin: 50% 0;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.kc-flow-shell[data-canvas-background="water"] .kc-node-wrap::after {
+  position: absolute;
+  right: 2%;
+  bottom: -12px;
+  left: 2%;
+  z-index: 0;
+  height: 22px;
+  border-top: 1px solid color-mix(in srgb, var(--node-accent) 22%, rgb(211 229 231 / 18%));
+  border-radius: 50%;
+  content: "";
+  opacity: .46;
+  pointer-events: none;
+  transform: scaleX(.86) scaleY(.42);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.kc-flow-shell[data-canvas-background="water"] .kc-node-wrap > .kc-node-type-label {
+  z-index: 2;
+}
+
+.kc-flow-shell[data-canvas-background="water"] .react-flow__node-kachang:hover .kc-node-wrap::before,
+.kc-flow-shell[data-canvas-background="water"] .react-flow__node-kachang.selected .kc-node-wrap::before {
+  opacity: .62;
+  transform: perspective(90px) rotateX(58deg) scaleX(.96) scaleY(.8);
+}
+
+.kc-flow-shell[data-canvas-background="water"] .react-flow__node-kachang:hover .kc-node-wrap::after,
+.kc-flow-shell[data-canvas-background="water"] .react-flow__node-kachang.selected .kc-node-wrap::after {
+  opacity: .7;
+  transform: scaleX(1.02) scaleY(.5);
+}
+
+.kc-flow-shell[data-canvas-background="water"] .react-flow__node-kachang.dragging .kc-node-wrap::before {
+  opacity: .72;
+  transform: perspective(90px) rotateX(58deg) scaleX(1.08) scaleY(.88);
+}
+
+.kc-workspace.is-overview-zoom .kc-flow-shell[data-canvas-background="water"] .kc-node-wrap::before,
+.kc-workspace.is-overview-zoom .kc-flow-shell[data-canvas-background="water"] .kc-node-wrap::after {
+  display: none;
+}
+
+:root[data-generation-effect="water"] .kc-node-loading--cinematic {
+  --kc-video-generation-cycle: 4.8s;
+  --kc-video-generation-glint-cycle: 3.6s;
+  --kc-video-generation-scan-cycle: 3.2s;
+  background:
+    radial-gradient(ellipse 58% 48% at 50% 48%, color-mix(in srgb, var(--node-accent) 12%, rgb(198 228 230 / 12%)), transparent 70%),
+    radial-gradient(ellipse 76% 42% at 52% -8%, rgb(205 229 231 / 13%), transparent 72%),
+    linear-gradient(164deg, #132b31, #081a20 58%, #040b10);
+}
+
+:root[data-generation-effect="water"] .kc-video-generation-scene {
+  background:
+    radial-gradient(ellipse 42% 34% at 50% 52%, color-mix(in srgb, var(--node-accent) 12%, rgb(211 234 235 / 14%)), transparent 72%),
+    radial-gradient(ellipse 64% 36% at 58% 2%, rgb(218 235 236 / 10%), transparent 74%),
+    linear-gradient(158deg, #173137, #0a1c22 60%, #040b10);
+}
+
+:root[data-generation-effect="water"] .kc-video-generation-scene::before {
+  inset: -32%;
+  background:
+    radial-gradient(ellipse 48% 17% at 50% 53%, transparent 0 50%, rgb(215 235 236 / 21%) 54% 56%, transparent 62%),
+    radial-gradient(ellipse 30% 11% at 31% 67%, transparent 0 53%, color-mix(in srgb, var(--node-accent) 25%, rgb(196 225 227 / 18%)) 58% 60%, transparent 66%),
+    radial-gradient(ellipse 34% 12% at 72% 31%, transparent 0 54%, rgb(229 240 241 / 16%) 59% 61%, transparent 67%),
+    conic-gradient(from 224deg at 50% 53%, transparent 0 17%, rgb(210 232 233 / 5%) 24%, transparent 31% 68%, color-mix(in srgb, var(--node-accent) 10%, transparent) 75%, transparent 82%);
+  opacity: .7;
+  transform: translate3d(0, 0, 0) scale(1.22, 1.08) rotate(-3deg);
+  transform-origin: 50% 53%;
+  animation: kc-water-generation-surface 4.8s cubic-bezier(.37, 0, .2, 1) infinite;
+}
+
+:root[data-generation-effect="water"] .kc-video-generation-scene::after {
+  inset: 0;
+  border: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(ellipse at 50% 46%, transparent 42%, rgb(0 8 12 / 16%) 70%, rgb(0 4 8 / 58%) 100%),
+    linear-gradient(180deg, rgb(255 255 255 / 5%), transparent 14%, transparent 82%, rgb(0 0 0 / 28%));
+  box-shadow: inset 0 0 22px rgb(0 5 8 / 46%);
+}
+
+:root[data-generation-effect="water"] .kc-video-generation-field {
+  inset: -34% -28%;
+  background:
+    radial-gradient(circle at 50% 53%, rgb(235 246 246 / 30%) 0 1.2%, color-mix(in srgb, var(--node-accent) 18%, transparent) 3.5%, transparent 7.5%),
+    radial-gradient(ellipse 30% 11% at 50% 53%, transparent 0 50%, color-mix(in srgb, var(--node-accent) 34%, rgb(221 239 240 / 24%)) 55% 57%, transparent 63%),
+    radial-gradient(ellipse 54% 20% at 50% 53%, transparent 0 56%, rgb(205 230 232 / 17%) 60% 62%, transparent 68%),
+    conic-gradient(from 32deg at 50% 53%, transparent 0 29%, rgb(224 240 241 / 7%) 36%, transparent 43% 74%, color-mix(in srgb, var(--node-accent) 12%, transparent) 81%, transparent 88%);
+  filter: saturate(1.18) contrast(1.06);
+  opacity: .84;
+  transform: translate3d(0, 0, 0) scale(1.18, 1.08) rotate(2deg);
+  transform-origin: 50% 53%;
+  animation: kc-water-generation-primary 4.8s cubic-bezier(.4, 0, .18, 1) -.6s infinite;
+}
+
+:root[data-generation-effect="water"] .kc-video-generation-sweep {
+  inset: -38% auto -38% -46%;
+  width: 42%;
+  height: auto;
+  background:
+    radial-gradient(ellipse at 52% 50%, transparent 0 34%, rgb(230 243 244 / 7%) 43%, rgb(239 248 248 / 24%) 49%, color-mix(in srgb, var(--node-accent) 13%, transparent) 55%, transparent 66%),
+    conic-gradient(from 18deg at 52% 50%, transparent 0 31%, rgb(220 238 239 / 9%) 39%, transparent 47% 78%, rgb(122 178 182 / 6%) 84%, transparent 91%);
+  border-radius: 48%;
+  filter: saturate(1.12);
+  mix-blend-mode: screen;
+  opacity: 0;
+  transform: translate3d(-18%, 1%, 0) rotate(-9deg) scale(.82, 1.12);
+  animation: kc-water-generation-secondary 4.1s cubic-bezier(.28, .05, .18, 1) -1.4s infinite;
+}
+
+:root[data-generation-effect="water"] .kc-video-generation-sweep::after {
+  inset: 13% 8%;
+  display: block;
+  width: auto;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, transparent 0 46%, rgb(235 246 246 / 18%) 53%, transparent 61%);
+  box-shadow: none;
+  opacity: .62;
+}
+
+:root[data-generation-effect="water"] .kc-video-generation-glint {
+  top: -12%;
+  bottom: -12%;
+  left: -34%;
+  width: 34%;
+  height: auto;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse 36% 68% at 54% 50%, rgb(241 249 249 / 30%) 0, rgb(218 239 240 / 13%) 34%, transparent 72%),
+    conic-gradient(from 205deg at 54% 50%, transparent 0 38%, rgb(229 243 244 / 13%) 46%, transparent 55% 100%);
+  mix-blend-mode: screen;
+  opacity: 0;
+  box-shadow: none;
+  animation: kc-water-generation-glint 3.6s cubic-bezier(.24, .08, .2, 1) -.9s infinite;
+}
+
+:root[data-generation-effect="water"] .kc-video-generation-scan {
+  top: 53%;
+  right: auto;
+  left: 50%;
+  display: block;
+  width: 12%;
+  height: 14%;
+  opacity: 0;
+  transform: translate3d(-50%, -50%, 0) scale(.18, .1);
+  transform-origin: 50% 50%;
+  animation: kc-water-generation-ripple 3.2s cubic-bezier(.14, .52, .24, 1) -1.1s infinite;
+}
+
+:root[data-generation-effect="water"] .kc-video-generation-scan::before {
+  inset: 0;
+  height: auto;
+  border: 1px solid rgb(224 241 242 / 46%);
+  border-radius: 50%;
+  background: none;
+  box-shadow: 0 0 16px color-mix(in srgb, var(--node-accent) 20%, transparent);
+}
+
+:root[data-generation-effect="water"] .kc-video-generation-scan::after {
+  position: absolute;
+  inset: 18%;
+  border: 1px solid rgb(202 229 231 / 24%);
+  border-radius: 50%;
+  content: "";
+}
+
+:root[data-generation-effect="water"] .kc-video-generation-rail {
+  top: 0;
+  right: 0;
+  bottom: auto;
+  left: 0;
+  height: 1px;
+  background: rgb(196 221 223 / 14%);
+  box-shadow: 0 1px 8px rgb(176 211 214 / 12%);
+}
+
+:root[data-generation-effect="water"] .kc-video-generation-rail > span {
+  background: color-mix(in srgb, var(--node-accent) 46%, #e7f0f1);
+  box-shadow: 0 0 8px rgb(203 230 232 / 44%);
+}
+
+:root[data-generation-effect="water"] .kc-node-loading-beam::before {
+  inset: -38% -28%;
+  width: auto;
+  height: auto;
+  background:
+    radial-gradient(circle at 50% 52%, rgb(235 246 246 / 22%) 0 1.4%, color-mix(in srgb, var(--node-accent) 14%, transparent) 4%, transparent 8.5%),
+    radial-gradient(ellipse 34% 13% at 50% 52%, transparent 0 51%, color-mix(in srgb, var(--node-accent) 28%, rgb(218 235 236 / 18%)) 56% 58%, transparent 64%),
+    radial-gradient(ellipse 62% 23% at 50% 52%, transparent 0 56%, rgb(202 227 229 / 13%) 60% 62%, transparent 68%);
+  filter: none;
+  opacity: .76;
+  transform: translate3d(0, 0, 0) scale(1.2, 1.08);
+  transform-origin: 50% 52%;
+  animation: kc-water-generation-surface 4.8s cubic-bezier(.37, 0, .2, 1) infinite;
+}
+
+:root[data-generation-effect="water"] .kc-node-loading-content .kc-node-loading-track {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  border-radius: 0;
+  background: rgb(196 221 223 / 14%);
+}
+
+:root[data-generation-effect="water"] .kc-node-loading-track > span {
+  background: color-mix(in srgb, var(--node-accent) 46%, #e7f0f1);
+  box-shadow: 0 0 8px rgb(203 230 232 / 42%);
+}
+
+:root[data-generation-effect="water"] .kc-workspace.is-overview-zoom .kc-video-generation-scene::before,
+:root[data-generation-effect="water"] .kc-workspace.is-overview-zoom .kc-video-generation-scan {
+  display: none;
+}
+
+@keyframes kc-water-generation-surface {
+  0%, 100% { opacity: .18; transform: translate3d(0, 1%, 0) rotate(-3deg) scale(1.28, 1.14); }
+  24% { opacity: .54; transform: translate3d(-1%, -.5%, 0) rotate(1deg) scale(.98, .88); }
+  46% { opacity: .94; transform: translate3d(.5%, -1%, 0) rotate(-1deg) scale(.68, .58); }
+  63% { opacity: .72; transform: translate3d(1%, .5%, 0) rotate(2deg) scale(.86, .74); }
+  82% { opacity: .36; transform: translate3d(-.5%, 1%, 0) rotate(-2deg) scale(1.16, 1.02); }
+}
+
+@keyframes kc-water-generation-primary {
+  0%, 100% { transform: translate3d(0, 1%, 0) rotate(2deg) scale(1.2, 1.08); }
+  31% { transform: translate3d(-1%, -.4%, 0) rotate(-1.5deg) scale(.9, .8); }
+  51% { transform: translate3d(.5%, -1%, 0) rotate(.6deg) scale(.66, .56); }
+  68% { transform: translate3d(1%, .4%, 0) rotate(1.8deg) scale(.84, .72); }
+  84% { transform: translate3d(-.4%, 1%, 0) rotate(-1deg) scale(1.08, .95); }
+}
+
+@keyframes kc-water-generation-secondary {
+  0%, 10% { opacity: 0; transform: translate3d(-18%, 1%, 0) rotate(-9deg) scale(.82, 1.12); }
+  28% { opacity: .5; transform: translate3d(64%, -2%, 0) rotate(-4deg) scale(1, 1.18); }
+  58% { opacity: .88; transform: translate3d(196%, 2%, 0) rotate(4deg) scale(1.12, 1.08); }
+  82% { opacity: .36; transform: translate3d(302%, -1%, 0) rotate(8deg) scale(.94, 1.16); }
+  100% { opacity: 0; transform: translate3d(364%, 1%, 0) rotate(11deg) scale(.8, 1.08); }
+}
+
+@keyframes kc-water-generation-glint {
+  0%, 14% { opacity: 0; transform: translate3d(-22%, 3%, 0) rotate(-12deg) scale(.74, 1.08); }
+  36% { opacity: .48; transform: translate3d(118%, -2%, 0) rotate(-5deg) scale(.96, 1.16); }
+  58% { opacity: .82; transform: translate3d(252%, 2%, 0) rotate(3deg) scale(1.08, 1.04); }
+  82% { opacity: .28; transform: translate3d(386%, -1%, 0) rotate(9deg) scale(.9, 1.12); }
+  100% { opacity: 0; transform: translate3d(452%, 2%, 0) rotate(12deg) scale(.72, 1.06); }
+}
+
+@keyframes kc-water-generation-ripple {
+  0% { opacity: 0; transform: translate3d(-50%, -50%, 0) scale(.18, .1); }
+  16% { opacity: .72; }
+  58% { opacity: .4; }
+  100% { opacity: 0; transform: translate3d(-50%, -50%, 0) scale(7.8, 4.5); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-generation-effect="water"] .kc-video-generation-scene::before,
+  :root[data-generation-effect="water"] .kc-video-generation-field,
+  :root[data-generation-effect="water"] .kc-video-generation-sweep,
+  :root[data-generation-effect="water"] .kc-video-generation-glint,
+  :root[data-generation-effect="water"] .kc-video-generation-scan,
+  :root[data-generation-effect="water"] .kc-node-loading-beam::before {
+    animation-duration: 8s !important;
+    animation-iteration-count: infinite !important;
+  }
+}

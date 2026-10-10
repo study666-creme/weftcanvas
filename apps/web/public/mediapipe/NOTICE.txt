@@ -1,0 +1,40 @@
+Canvas Next — MediaPipe 自托管资源
+===================================
+
+这里是人脸网格（人脸检测）的运行时与模型。
+功能通过 lib/mediapipe-assets.ts 读取本目录的 wasm 文件集；模型按任务
+分开放在 models/ 下。全部同源加载，图片与视频帧不出浏览器。
+
+目录内容
+--------
+
+wasm/vision_wasm_internal.js            314 KiB  MediaPipe Tasks Vision 加载器（SIMD）
+wasm/vision_wasm_internal.wasm         10.6 MiB  运行时内核（SIMD）
+wasm/vision_wasm_nosimd_internal.js     314 KiB  同一加载器（无 SIMD 回退）
+wasm/vision_wasm_nosimd_internal.wasm   10.0 MiB 运行时内核（无 SIMD 回退）
+models/blaze_face_short_range.tflite    224 KiB  人脸检测（人脸网格）
+
+调用方可以覆盖 wasmBaseUrl（见 lib/face-grid.ts 的 FaceGridDetectorOptions
+与 lib/mediapipe-assets.ts），默认走本目录。
+
+许可与出处
+----------
+
+* MediaPipe Tasks Vision 运行时（Apache-2.0，© Google LLC）
+  来源 npm 包 `@mediapipe/tasks-vision@0.10.35` 的 wasm/ 目录。
+
+* BlazeFace short-range（Apache-2.0）
+  https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite
+
+整个 /mediapipe/ 以 immutable 缓存下发（见 _worker.js 的 isImmutableAsset 与
+_headers）。换模型或升级运行时必须换文件名或目录，否则老访客会拿到缓存的旧字节。
+
+当前文件校验（sha256）
+----------------------
+
+e7fd9858e8e8f221d9b96eddc11f8e077f263e0b7bbd79d3cbe882b134274f8c  wasm/vision_wasm_internal.js
+6a5c64584c2ab61c763b6e204afbdbc7ce1caf7f5216187322bca8df94f646bc  wasm/vision_wasm_internal.wasm
+438d1fe8ff7f4d946025bc211c291543c037d8a3785ed4eee60f1f521b236296  wasm/vision_wasm_nosimd_internal.js
+8a3092d34c79d3f57e6ba8592105e8a90f6b07c27891ffecd14cca428bfd3e31  wasm/vision_wasm_nosimd_internal.wasm
+b4578f35940bf5a1a655214a1cce5cab13eba73c1297cd78e1a04c2380b0152f  models/blaze_face_short_range.tflite
+

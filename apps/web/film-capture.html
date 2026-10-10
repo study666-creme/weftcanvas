@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Interstellar film capture</title>
+    <style>
+      /* 采集页：body 固定 1280×720，resize() 会按父容器尺寸取景，
+         1.4Mpx 预算内 1280×720 正好拿满 1.0 质量。 */
+      html, body { margin: 0; width: 1280px; height: 720px; overflow: hidden; background: #000; }
+      #stage { display: block; width: 1280px; height: 720px; }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage" width="1280" height="720"></canvas>
+    <script type="module" src="/src/lib/film-capture-main.ts"></script>
+  </body>
+</html>

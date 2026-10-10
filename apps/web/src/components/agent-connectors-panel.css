@@ -1,0 +1,335 @@
+/* Agent 外部连接面板：占据抽屉中段（消息区）网格行并在内部滚动，
+   顶部留出固定间距、底部永远不会压到 composer 输入区。 */
+.kc-connectors {
+  position: relative;
+  /* 低于 header（z-index:3）高于消息区（z-index:1）：
+     面板盖住消息，但对话记录菜单仍能浮在面板之上。 */
+  z-index: 2;
+  width: min(560px, calc(100% - 24px));
+  min-height: 0;
+  max-height: 100%;
+  grid-row: 2;
+  grid-column: 1;
+  align-self: stretch;
+  justify-self: center;
+  margin: 12px 0;
+  padding: 12px 14px 14px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--kc-border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--kc-surface-raised) 97%, var(--kc-canvas));
+  box-shadow: 0 24px 60px rgb(0 0 0 / 34%);
+  pointer-events: auto;
+}
+
+.kc-connectors-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* 面板自身的工具行（标题 + 刷新/收起）：与下方说明之间留出稳定的分隔。 */
+.kc-connectors > .kc-connectors-head {
+  padding-bottom: 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--kc-text) 8%, transparent);
+}
+
+.kc-connectors-head > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--kc-text);
+}
+
+.kc-connectors-head > span svg { width: 14px; height: 14px; color: var(--kc-text-tertiary); }
+
+.kc-connectors-head > div { display: inline-flex; gap: 2px; }
+
+.kc-connectors-head button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--kc-text-secondary);
+  background: transparent;
+  cursor: pointer;
+}
+
+.kc-connectors-head button:hover:not(:disabled) { background: var(--kc-surface-muted); color: var(--kc-text); }
+.kc-connectors-head button:disabled { opacity: .5; cursor: default; }
+.kc-connectors-head button svg { width: 13px; height: 13px; }
+
+.kc-connectors-note {
+  margin: 10px 0 12px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--kc-text-tertiary);
+}
+
+.kc-connectors-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.kc-connector {
+  padding: 11px 12px 10px;
+  border: 1px solid var(--kc-border);
+  border-radius: 11px;
+  background: var(--kc-surface);
+}
+
+.kc-connector-main {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.kc-connector-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  color: var(--kc-text-secondary);
+  background: var(--kc-surface-muted);
+}
+
+.kc-connector-icon svg { width: 13px; height: 13px; }
+
+.kc-connector-copy { display: grid; gap: 1px; min-width: 0; }
+.kc-connector-copy strong { font-size: 12px; font-weight: 600; color: var(--kc-text); }
+.kc-connector-copy small {
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--kc-text-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kc-connector-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--kc-text-secondary);
+  white-space: nowrap;
+}
+
+.kc-connector-state i { width: 6px; height: 6px; border-radius: 50%; background: var(--kc-text-tertiary); }
+.kc-connector-state svg { width: 12px; height: 12px; }
+.kc-connector-state[data-state="ready"] i { background: var(--kc-success); }
+.kc-connector-state[data-state="unavailable"] i { background: var(--kc-amber); }
+.kc-connector-state[data-state="error"] i { background: var(--kc-danger); }
+
+.kc-connector-switch,
+.kc-connector-action {
+  min-width: 56px;
+  height: 22px;
+  padding: 0 10px;
+  border: 1px solid var(--kc-border-strong);
+  border-radius: 999px;
+  color: var(--kc-text-secondary);
+  background: var(--kc-surface-muted);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.kc-connector-action:hover:not(:disabled) { color: var(--kc-text); border-color: var(--kc-text-tertiary); }
+
+/* 主按钮：文字色必须与 --kc-accent 形成对比。dark 主题的 accent 是近白色，
+   全局 --kc-on-accent 也是近白色，直接用会白底白字，所以这里按主题取反。 */
+.kc-connectors { --kc-connector-on-accent: #f7fbf9; }
+
+:root[data-theme="dark"] .kc-connectors { --kc-connector-on-accent: #1a1a1a; }
+
+.kc-connector-action[data-primary="true"] {
+  border-color: var(--kc-accent);
+  color: var(--kc-connector-on-accent);
+  background: var(--kc-accent);
+}
+
+.kc-connector-action[data-primary="true"]:hover:not(:disabled) {
+  background: var(--kc-accent-hover);
+  color: var(--kc-connector-on-accent);
+}
+.kc-connector-action:disabled { opacity: .6; cursor: default; }
+
+.kc-connector-detail {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--kc-text-secondary);
+  word-break: break-word;
+}
+
+.kc-connector-endpoint {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.kc-connector-endpoint > span { font-size: 11px; color: var(--kc-text-tertiary); }
+
+.kc-connector-capabilities {
+  display: grid;
+  gap: 2px;
+  margin: 8px 0 0;
+  padding: 0 0 0 2px;
+  list-style: none;
+  font-size: 11px;
+  color: var(--kc-text-secondary);
+}
+
+.kc-connector-capabilities li::before { margin-right: 5px; color: var(--kc-text-tertiary); content: "·"; }
+
+.kc-connector-setup { margin-top: 7px; }
+
+.kc-connector-setup summary {
+  font-size: 11px;
+  color: var(--kc-text-tertiary);
+  cursor: pointer;
+}
+
+.kc-connector-setup p {
+  margin: 5px 0 0;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--kc-text-secondary);
+  word-break: break-word;
+}
+
+.kc-connectors-empty,
+.kc-connectors-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 2px;
+  font-size: 11px;
+  color: var(--kc-text-secondary);
+}
+
+.kc-connectors-empty svg,
+.kc-connectors-error svg { width: 13px; height: 13px; flex: none; }
+.kc-connectors-error { color: var(--kc-danger); }
+
+.kc-connector-state[data-state="ready"] svg { color: var(--kc-success); }
+
+.kc-connector-endpoint input {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--kc-border);
+  border-radius: 8px;
+  color: var(--kc-text);
+  background: var(--kc-surface-raised);
+  font-size: 11px;
+  font-family: inherit;
+}
+
+.kc-connector-endpoint input:focus-visible { outline: 1px solid var(--kc-accent); outline-offset: 0; }
+
+.kc-connector-setup-text {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--kc-text-tertiary);
+  word-break: break-word;
+}
+
+/* --- 用户侧反向连接（远程配对）--- */
+.kc-remote-connectors {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--kc-border);
+}
+
+.kc-remote-connectors .kc-connectors-head > span { color: var(--kc-text); }
+
+.kc-connector-token {
+  display: grid;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid var(--kc-amber);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--kc-amber) 10%, transparent);
+}
+
+.kc-connector-token > span { font-size: 11px; color: var(--kc-amber); }
+
+.kc-connector-token > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kc-connector-token code {
+  flex: 1 1 auto;
+  overflow: hidden;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: var(--kc-surface-muted);
+  color: var(--kc-text);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kc-connector-token .kc-connector-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.kc-connector-token .kc-connector-action svg { width: 12px; height: 12px; }
+
+.kc-connector-steps {
+  display: grid;
+  gap: 5px;
+  margin: 9px 0 0;
+  padding-left: 19px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--kc-text-secondary);
+}
+
+.kc-connector-steps li { padding-left: 1px; }
+
+.kc-connector-steps code {
+  padding: 0 3px;
+  border-radius: 4px;
+  background: var(--kc-surface-muted);
+}
+
+.kc-connector-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.kc-connector-footer .kc-connector-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kc-connector-footer .kc-connector-detail { margin: 0; }
+.kc-connector-detail[data-ok="true"] { color: var(--kc-success); }

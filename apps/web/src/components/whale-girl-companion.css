@@ -1,0 +1,678 @@
+/**
+ * 画布伙伴「鲸鱼娘」（DeepSeek 娘 / 大肥鱼）。
+ *
+ * 造型不再用 CSS 画：用户要求一比一复刻参考图里的角色，手绘的扁平版本被否了。
+ * 现在用的是三视图设定稿正面视的抠图（head.png 裁到下巴、body.png 完整全身），
+ * 组件只负责在两张图之间切换和挂特效。
+ *
+ * 关键约束：head 与 body 同宽、都从呆毛顶端对齐——脑袋在两个档位里位置完全一致，
+ * 所以「只露脑袋 → 全身跳出来」时脑袋纹丝不动，身体是从它下面长出来的。
+ * body 的显示宽度乘 1.0093 是在补偿两次独立裁剪的宽度差（432 vs 436 像素），
+ * 不补的话脑袋会有约 0.6px 的错位。
+ *
+ * 两档形态（data-whale-mode，由 resolveWhaleMode 决定）：
+ *   head —— 默认，只露脑袋，体量与小熊 / 3D 机器人同级；
+ *   full —— 打开抽屉或她在做动作时，全身跳出来。
+ */
+
+.kc-agent-companion[data-companion-style="whale"] {
+  --whale-w: 68px;
+  /* 按钮高度必须正好等于 sprite 的显示高度（head 240x182 / body 240x320）：
+     停靠时「身体与面板重叠 34%」是按按钮算的，蒙版的渐隐带是按 sprite 算的，
+     两者差 1px 就会出现「悬在面板上方」的观感（已发生过的塌法）。 */
+  width: calc(var(--whale-w) + 10px);
+  height: calc(var(--whale-w) * 0.7583);
+  top: 26px;
+  transition: width 200ms ease, height 200ms ease;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.kc-agent-companion[data-companion-style="whale"][data-whale-mode="full"] {
+  width: calc(var(--whale-w) + 12px);
+  height: calc(var(--whale-w) * 1.3333);
+}
+
+/* 拖拽中：抓取光标 + 轻微放大 + 关掉过渡（位置本来就在逐帧跟手）。 */
+.kc-agent-companion.is-dragging {
+  cursor: grabbing;
+}
+
+.kc-agent-companion.is-dragging[data-companion-style="whale"] {
+  width: calc(var(--whale-w) + 12px);
+  height: calc(var(--whale-w) * 1.3333);
+}
+
+.kc-agent-companion.is-dragging .kc-whale-sprite {
+  transition: none;
+  animation: kc-whale-swing 900ms ease-in-out infinite;
+  filter: drop-shadow(0 14px 22px rgb(0 0 0 / 40%));
+}
+
+/* 趴横向面板：身体下缘渐隐（58%→70%），观感是下半身沉进面板里。
+   ⚠️ 这里**不能**换成和竖直抽屉一样的「真遮挡」：.kc-edit-dock 这类面板被
+   画布深度的 transform 困在自己的层叠上下文里，它的 z(25) 和她的 z(21)
+   根本不在同一个上下文里比较——去掉蒙版她整个人画在面板上面（本轮实测）。
+   竖直的 Agent 抽屉没有这个坑（z72 真的盖得住），所以两边是两套做法。 */
+.kc-agent-companion.is-docked:not(.is-dragging) .kc-whale-sprite {
+  -webkit-mask-image: linear-gradient(to bottom, #000 0 58%, transparent 70%);
+  mask-image: linear-gradient(to bottom, #000 0 58%, transparent 70%);
+}
+
+/* 趴着时柔光也收一收，不然光晕会漏到面板上。 */
+.kc-agent-companion.is-docked:not(.is-dragging) .kc-whale-aura {
+  opacity: .45;
+  height: calc(var(--whale-w) * 0.62);
+}
+
+/* 趴着时状态点挪到头顶右侧，不然会孤零零漂在面板上。 */
+.kc-agent-companion.is-docked[data-companion-style="whale"] .kc-agent-companion-state {
+  right: 5px;
+  bottom: auto;
+  top: 2px;
+}
+
+/* 趴在面板上：整只微微前倾，像扒着边沿往下看。 */
+.kc-agent-companion.is-docked .kc-whale-sprite {
+  --whale-lean: -4deg;
+}
+
+/* 状态点挂在右下角，两档都在同一个视觉位置。 */
+.kc-agent-companion[data-companion-style="whale"] .kc-agent-companion-state {
+  right: 5px;
+  bottom: 4px;
+  top: auto;
+}
+
+.kc-agent-whale {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.kc-whale-aura,
+.kc-whale-sprite,
+.kc-whale-glint,
+.kc-whale-fx,
+.kc-whale-fish,
+.kc-whale-fx > i {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* 深海水色的柔光，让她落在画布上时不显得是「贴上去的」。 */
+.kc-whale-aura {
+  left: calc(50% - var(--whale-w) * 0.62);
+  top: calc(var(--whale-w) * -0.04);
+  width: calc(var(--whale-w) * 1.24);
+  height: calc(var(--whale-w) * 0.9);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(77 107 254 / 26%), transparent 74%);
+  animation: kc-whale-aura 6.4s ease-in-out infinite;
+}
+
+/* 姿态的容器：常驻动画只挂在这里这一个元素上（呼吸 + 张望），
+   七张 sprite 一条动画都不跑——看不见的切片不参与合成，画布不背这个成本。
+   translate / rotate 都是合成器属性，不占主线程。 */
+.kc-whale-figure {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: kc-whale-bob 5.4s ease-in-out infinite, kc-whale-look-around 17s ease-in-out infinite;
+}
+
+/* --- 眨眼：左右眼各一个小窗口，盖预渲染的闭眼贴片 ----------------------- */
+
+/* 眼窗：**左右眼各一个**，裁切框按 head.png（240x182）实测眼眶换算。
+   所有系数都以 **--whale-w（显示宽）** 为分母，纵向也一样——写成「源图 y / 图高」
+   会把框推到下巴上（0.7143 × 240 = 171px 是下巴，踩过）。
+   为什么要左右分开：合成一个横跨两眼的大窗口时，覆盖会落在鼻梁上（评审实测）。
+   ⚠️ 曾经还有「眼球左右看」：在窗口里再叠一张原画并平移 ±2px。已整体删除——
+   平移的原画和窗外不动的原画在窗口边界上错位 2 显示像素（≈原画 7px），睫毛、
+   腮红、发丝全部断裂，脸沿着眼窗的矩形「裂开」；选中节点时错位被长期定格，
+   用户直接看到裂开。眨眼不走这条路：贴片是逐像素对齐的整帧替换，天然无裂。
+   眼球要再动，只能预渲染「虹膜位移」的整帧贴片（眨眼同款技术），见 handoff。 */
+.kc-whale-eyes {
+  position: absolute;
+  pointer-events: none;
+  top: calc(var(--whale-w) * 0.5125);
+  width: calc(var(--whale-w) * 0.2625);
+  height: calc(var(--whale-w) * 0.2250);
+  overflow: hidden;
+}
+
+/* 窗口 = 原图 (46..108) / (119..182) x (123..176) 的裁切框，正好框住眼眶。 */
+.kc-whale-eyes[data-whale-eyes-side="left"] { left: calc(50% - var(--whale-w) * 0.5 + var(--whale-w) * 0.19167); }
+.kc-whale-eyes[data-whale-eyes-side="right"] { left: calc(50% - var(--whale-w) * 0.5 + var(--whale-w) * 0.49583); }
+
+/* 眨眼 = 在窗口里盖一张**预渲染的闭眼贴片**（eye-closed-left/right.png）。
+   贴片是从原画里长出来的一帧：肤色按行沿着脸部轮廓补进去（所以不会在头发上
+   盖出一块方方正正的肤色），睫毛按原画自己的线色画成下弯的弧。
+   贴片与该窗口内的原画逐像素对齐，边界就是原画自己的边界，因此不会出现
+   「肤色矩形压在头发上」那种一眼假的东西，也不会裂。 */
+.kc-whale-eyes::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  opacity: 0;
+}
+
+.kc-whale-eyes[data-whale-eyes-side="left"]::before { background-image: url("/agent/whale-girl/eye-closed-left.png"); }
+.kc-whale-eyes[data-whale-eyes-side="right"]::before { background-image: url("/agent/whale-girl/eye-closed-right.png"); }
+
+/* 只在正面档位眨——侧/背/惊慌档的眼眶来自别的切片，正面贴片会错位。 */
+.kc-agent-whale[data-whale-pose="front"] .kc-whale-eyes::before {
+  animation: kc-whale-blink 6.4s ease-in-out infinite;
+}
+
+/* 眨眼：贴片闪现 ≈150ms，其余时间不可见。 */
+@keyframes kc-whale-blink {
+  0%, 91%, 100% { opacity: 0; }
+  93.5% { opacity: 1; }
+  96% { opacity: 0; }
+}
+
+/* 好奇（选中了节点）：整只朝节点方向**刚性**平移 ≤1.5px（连同原画一起挪，
+   不会产生任何错位）+ 头部 rotate（--whale-look，幅度见 tsx 的节点注视）。
+   刚性平移和 rotate 一起构成「她朝那边看了一眼」，眼球本身不动。 */
+.kc-agent-whale[data-whale-reaction="curious"] .kc-whale-sprite {
+  translate: var(--whale-gaze, 0px) 0;
+}
+
+.kc-whale-sprite {
+  top: 0;
+  left: calc(50% - var(--whale-w) / 2);
+  width: var(--whale-w);
+  height: auto;
+  /* 倾角 = 趴面板 / 好奇 的固定倾角 + 视线跟随的动态倾角。
+     rotate 带 260ms 过渡：节点注视的方向切换是「转头」，要缓一下；
+     指针跟随的连续小步也会被它抹软（拖拽中由 .is-dragging 关掉）。 */
+  rotate: calc(var(--whale-lean, 0deg) + var(--whale-look, 0deg));
+  transition: opacity 200ms ease, rotate 260ms ease, translate 260ms ease;
+  transform-origin: top center;
+  /* 全部默认隐藏，由下面的姿态规则点亮。这里漏一条就会出现
+     「三张头切片全叠加、最后一张（后脑勺）永远盖在最上面」的塌法。 */
+  opacity: 0;
+}
+
+.kc-whale-sprite[data-whale-part="body"] {
+  opacity: 0;
+}
+
+/* 脑袋档：按姿态点亮对应的一张头部切片（**只亮一张**）。
+   四条都要在：少一条就会出现两张切片叠着、后画的那张（例如后脑勺）永远盖在上面。
+   shock 那条是「被拎起来」的惊慌脸，之前漏掉了，等于拖动时根本没有表情变化。 */
+.kc-agent-whale[data-whale-mode="head"][data-whale-pose="front"] .kc-whale-sprite[data-whale-part="head"][data-whale-body-pose="front"],
+.kc-agent-whale[data-whale-mode="head"][data-whale-pose="side"] .kc-whale-sprite[data-whale-part="head"][data-whale-body-pose="side"],
+.kc-agent-whale[data-whale-mode="head"][data-whale-pose="back"] .kc-whale-sprite[data-whale-part="head"][data-whale-body-pose="back"],
+.kc-agent-whale[data-whale-mode="head"][data-whale-pose="shock"] .kc-whale-sprite[data-whale-part="head"][data-whale-body-pose="shock"] {
+  opacity: 1;
+}
+
+/* 侧面头部取景比正面窄，同宽会显得头更大，压回同一颗头的大小。 */
+.kc-agent-whale[data-whale-mode="head"] .kc-whale-sprite[data-whale-part="head"][data-whale-body-pose="side"] {
+  width: calc(var(--whale-w) * 0.86);
+  left: calc(50% - var(--whale-w) * 0.43);
+}
+
+/* 全身：按姿态点亮对应的一张。 */
+.kc-agent-whale[data-whale-mode="full"] .kc-whale-sprite[data-whale-part="head"] { opacity: 0; }
+.kc-agent-whale[data-whale-mode="full"][data-whale-pose="front"] .kc-whale-sprite[data-whale-part="body"][data-whale-body-pose="front"],
+.kc-agent-whale[data-whale-mode="full"][data-whale-pose="side"] .kc-whale-sprite[data-whale-part="body"][data-whale-body-pose="side"],
+.kc-agent-whale[data-whale-mode="full"][data-whale-pose="back"] .kc-whale-sprite[data-whale-part="body"][data-whale-body-pose="back"],
+.kc-agent-whale[data-whale-mode="full"][data-whale-pose="shock"] .kc-whale-sprite[data-whale-part="body"][data-whale-body-pose="shock"] {
+  opacity: 1;
+  width: calc(var(--whale-w) * 1.0093);
+  left: calc(50% - var(--whale-w) * 1.0093 / 2);
+}
+
+/* 侧面取景框比正面窄（367 vs 320 高），同宽会显得人更高，压回同一身高。 */
+.kc-agent-whale[data-whale-mode="full"][data-whale-pose="side"] .kc-whale-sprite[data-whale-body-pose="side"] {
+  width: calc(var(--whale-w) * 0.88);
+  left: calc(50% - var(--whale-w) * 0.44);
+}
+
+/* 打盹：整只往下塌一点，头顶飘 Zzz。 */
+.kc-agent-whale[data-whale-napping="true"] .kc-whale-sprite {
+  --whale-lean: 2.5deg;
+  translate: 0 2px;
+}
+
+.kc-whale-zzz {
+  left: calc(50% + var(--whale-w) * 0.3);
+  top: calc(var(--whale-w) * -0.16);
+  width: calc(var(--whale-w) * 0.3);
+  height: calc(var(--whale-w) * 0.4);
+  opacity: 0;
+  color: #9fb6ff;
+  font-size: calc(var(--whale-w) * 0.2);
+  font-weight: 600;
+  line-height: 1;
+  font-style: normal;
+}
+
+.kc-whale-zzz span {
+  position: absolute;
+  animation: kc-whale-zzz 3.2s ease-in-out infinite;
+}
+
+.kc-whale-zzz span:nth-child(1) { left: 0; top: 60%; }
+.kc-whale-zzz span:nth-child(2) { left: 34%; top: 32%; font-size: .82em; animation-delay: .5s; }
+.kc-whale-zzz span:nth-child(3) { left: 62%; top: 4%; font-size: .68em; animation-delay: 1s; }
+
+.kc-agent-whale[data-whale-napping="true"] .kc-whale-zzz { opacity: 1; }
+
+/* 眼神的一点闪光，偶尔亮一下，让她不至于完全定格。
+   类名沿用 .kc-agent-companion-eyes：prefers-reduced-motion 下由
+   styles.css 的既有关闭规则统一熄火，e2e 的动画断言也挂在这。 */
+.kc-agent-whale .kc-whale-glint {
+  left: calc(50% + var(--whale-w) * 0.2);
+  top: calc(var(--whale-w) * 0.12);
+  width: calc(var(--whale-w) * 0.16);
+  height: calc(var(--whale-w) * 0.16);
+  background: #ffe08a;
+  clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%);
+  opacity: 0;
+  animation: kc-whale-twinkle 5.8s ease-in-out infinite;
+}
+
+/* --- 反应特效层 --------------------------------------------------------- */
+
+.kc-whale-fx { inset: 0; }
+
+.kc-whale-heart,
+.kc-whale-spark,
+.kc-whale-sweat,
+.kc-whale-poof {
+  opacity: 0;
+}
+
+.kc-whale-heart {
+  top: calc(var(--whale-w) * 0.2);
+  left: calc(var(--whale-w) * 0.02);
+  width: calc(var(--whale-w) * 0.14);
+  height: calc(var(--whale-w) * 0.14);
+  background: #ff7aa8;
+  rotate: -45deg;
+}
+
+.kc-whale-heart::before,
+.kc-whale-heart::after {
+  content: "";
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: inherit;
+}
+
+.kc-whale-heart::before { top: -50%; left: 0; }
+.kc-whale-heart::after { top: 0; left: 50%; }
+
+.kc-whale-heart--b {
+  top: calc(var(--whale-w) * 0.06);
+  left: calc(var(--whale-w) * 0.86);
+  width: calc(var(--whale-w) * 0.11);
+  height: calc(var(--whale-w) * 0.11);
+}
+
+.kc-whale-spark {
+  top: calc(var(--whale-w) * 0.12);
+  left: calc(var(--whale-w) * 0.08);
+  width: calc(var(--whale-w) * 0.2);
+  height: calc(var(--whale-w) * 0.2);
+  background: #ffe08a;
+  clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%);
+}
+
+.kc-whale-spark--b {
+  top: calc(var(--whale-w) * 0.02);
+  left: calc(var(--whale-w) * 0.78);
+  width: calc(var(--whale-w) * 0.15);
+  height: calc(var(--whale-w) * 0.15);
+}
+
+.kc-whale-sweat {
+  top: calc(var(--whale-w) * 0.16);
+  left: calc(var(--whale-w) * 0.9);
+  width: calc(var(--whale-w) * 0.13);
+  height: calc(var(--whale-w) * 0.13);
+  border-radius: 50% 50% 50% 0;
+  background: linear-gradient(160deg, #cfe4ff, #6aa2ff);
+  rotate: -45deg;
+}
+
+/* 「炸缸」时腾起的一圈热气。 */
+.kc-whale-poof {
+  top: calc(var(--whale-w) * -0.04);
+  left: calc(50% - var(--whale-w) * 0.55);
+  width: calc(var(--whale-w) * 1.1);
+  height: calc(var(--whale-w) * 0.8);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(255 255 255 / 30%), transparent 72%);
+}
+
+/* 停在手边的小鱼干：鼠标靠近才出现，右键投喂。 */
+.kc-whale-fish {
+  right: 0;
+  top: calc(var(--whale-w) * 0.62);
+  font-size: calc(var(--whale-w) * 0.24);
+  line-height: 1;
+  opacity: 0;
+  translate: 0 4px;
+  rotate: 8deg;
+  transition: opacity 180ms ease, translate 220ms cubic-bezier(.2, .9, .2, 1);
+  filter: drop-shadow(0 2px 4px rgb(0 0 0 / 34%));
+}
+
+/* --- 台词气泡：挂在她脚下，避免顶到工具栏 ------------------------------- */
+
+.kc-whale-bubble {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  z-index: 2;
+  width: max-content;
+  max-width: min(232px, 62vw);
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--kc-border-strong) 78%, transparent);
+  border-radius: 10px;
+  color: var(--kc-text);
+  background: color-mix(in srgb, var(--kc-surface-raised) 94%, transparent);
+  box-shadow: 0 8px 22px rgb(0 0 0 / 22%);
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: center;
+  pointer-events: none;
+  opacity: 1;
+  translate: -50% 0;
+  transition: opacity 200ms ease, translate 240ms cubic-bezier(.2, .9, .2, 1);
+}
+
+.kc-whale-bubble:empty {
+  opacity: 0;
+  translate: -50% -4px;
+}
+
+.kc-whale-bubble::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  border-top: 1px solid color-mix(in srgb, var(--kc-border-strong) 78%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--kc-border-strong) 78%, transparent);
+  background: inherit;
+  translate: -50% 0;
+  rotate: 45deg;
+}
+
+.kc-whale-bubble b {
+  display: block;
+  font-weight: 500;
+  animation: kc-whale-say 260ms cubic-bezier(.2, .9, .2, 1);
+}
+
+.kc-whale-bubble[data-tone="happy"] {
+  border-color: color-mix(in srgb, #ff7aa8 46%, var(--kc-border-strong));
+  background: color-mix(in srgb, #ff7aa8 16%, var(--kc-surface-raised));
+}
+
+.kc-whale-bubble[data-tone="worry"] {
+  border-color: color-mix(in srgb, #ffb04d 52%, var(--kc-border-strong));
+  background: color-mix(in srgb, #ffb04d 15%, var(--kc-surface-raised));
+}
+
+.kc-whale-bubble[data-tone="snack"] {
+  border-color: color-mix(in srgb, #4d6bfe 52%, var(--kc-border-strong));
+  background: color-mix(in srgb, #4d6bfe 15%, var(--kc-surface-raised));
+}
+
+/* --- 反应状态 ----------------------------------------------------------- */
+
+/* 深潜思考：气泡密一点，柔光放慢。 */
+.kc-agent-companion[data-companion-style="whale"] .kc-agent-whale[data-whale-reaction="thinking"] .kc-whale-aura { opacity: .9; }
+
+/* （好奇的固定歪头已删：头部转向改由节点注视的动态 --whale-look 负责，
+   固定倾角不认方向，和它叠加会互相抵消。） */
+
+/* 开心：蹦一下，爱心与星星飞出来。 */
+.kc-agent-companion[data-companion-style="whale"] .kc-agent-whale[data-whale-reaction="celebrate"] .kc-whale-sprite { animation: kc-whale-hop 440ms cubic-bezier(.2, .9, .2, 1) 2; }
+.kc-agent-companion[data-companion-style="whale"] .kc-agent-whale[data-whale-reaction="celebrate"] .kc-whale-heart { animation: kc-whale-float-up 1.5s ease-out 2; }
+.kc-agent-companion[data-companion-style="whale"] .kc-agent-whale[data-whale-reaction="celebrate"] .kc-whale-heart--b { animation-delay: .22s; }
+.kc-agent-companion[data-companion-style="whale"] .kc-agent-whale[data-whale-reaction="celebrate"] .kc-whale-spark { animation: kc-whale-twinkle 1.1s ease-in-out 2; }
+.kc-agent-companion[data-companion-style="whale"] .kc-agent-whale[data-whale-reaction="celebrate"] .kc-whale-spark--b { animation-delay: .3s; }
+
+/* 出问题 = 炸毛：抖一抖、冒汗、腾一团热气。 */
+.kc-agent-companion[data-companion-style="whale"] .kc-agent-whale[data-whale-reaction="concerned"] .kc-whale-sprite { animation: kc-whale-shake 300ms ease-in-out 3; }
+.kc-agent-companion[data-companion-style="whale"] .kc-agent-whale[data-whale-reaction="concerned"] .kc-whale-sweat { animation: kc-whale-sweat 1.4s ease-in-out 2; }
+.kc-agent-companion[data-companion-style="whale"] .kc-agent-whale[data-whale-reaction="concerned"] .kc-whale-poof { animation: kc-whale-poof 900ms ease-out 2; }
+
+/* 投喂成功：原地嚼两口。 */
+.kc-agent-companion[data-companion-style="whale"] .kc-agent-whale[data-whale-fed="odd"] .kc-whale-sprite { animation: kc-whale-munch 420ms ease-out; }
+
+/* 鼠标靠近：小鱼干浮出来，她整只轻轻抬一下。 */
+.kc-agent-companion:hover .kc-whale-fish {
+  opacity: 1;
+  translate: 0 0;
+  rotate: -6deg;
+}
+
+/* 投喂的那口：小鱼干凑到嘴边抖两下（key 挂在投喂次数上，每次投喂重放）。 */
+.kc-agent-whale[data-whale-fed="odd"] .kc-whale-fish {
+  animation: kc-whale-nibble 380ms ease-in-out 2;
+}
+
+.kc-agent-companion:hover .kc-whale-sprite {
+  filter: drop-shadow(0 6px 16px rgb(77 107 254 / 34%));
+}
+
+.kc-agent-companion:focus-visible .kc-whale-aura { opacity: .9; }
+
+/* --- 关键帧 ------------------------------------------------------------- */
+
+@keyframes kc-whale-aura {
+  0%, 100% { opacity: .62; scale: 1; }
+  50% { opacity: .92; scale: 1.05; }
+}
+
+@keyframes kc-whale-hop {
+  0%, 100% { translate: 0 0; scale: 1 1; }
+  38% { translate: 0 -12px; scale: .98 1.04; }
+  70% { translate: 0 0; scale: 1.03 .96; }
+}
+
+@keyframes kc-whale-shake {
+  0%, 100% { translate: 0 0; rotate: 0deg; }
+  25% { translate: -3px 0; rotate: -1.6deg; }
+  75% { translate: 3px 0; rotate: 1.6deg; }
+}
+
+@keyframes kc-whale-munch {
+  0%, 100% { scale: 1 1; }
+  35% { scale: 1.02 .97; translate: 0 1px; }
+  70% { scale: .99 1.02; translate: 0 0; }
+}
+
+@keyframes kc-whale-float-up {
+  0% { opacity: 0; translate: 0 6px; scale: .5; }
+  25% { opacity: 1; }
+  100% { opacity: 0; translate: 0 -30px; scale: 1.05; }
+}
+
+@keyframes kc-whale-twinkle {
+  0%, 88%, 100% { opacity: 0; scale: .4; rotate: 0deg; }
+  92% { opacity: 1; scale: 1.1; rotate: 35deg; }
+  96% { opacity: .2; scale: .8; rotate: 20deg; }
+}
+
+@keyframes kc-whale-sweat {
+  0% { opacity: 0; translate: 0 -4px; scale: .6; }
+  30% { opacity: 1; translate: 0 2px; scale: 1; }
+  100% { opacity: 0; translate: 0 22px; scale: .9; }
+}
+
+@keyframes kc-whale-poof {
+  0% { opacity: 0; scale: .5; }
+  35% { opacity: .85; scale: 1; }
+  100% { opacity: 0; scale: 1.5; }
+}
+
+@keyframes kc-whale-say {
+  0% { opacity: 0; translate: 0 3px; scale: .96; }
+  100% { opacity: 1; translate: 0 0; scale: 1; }
+}
+
+/* 被拎起来的时候整个人晃。 */
+@keyframes kc-whale-swing {
+  0%, 100% { rotate: -2.5deg; }
+  50% { rotate: 2.5deg; }
+}
+
+/* 打盹的 Zzz 一个接一个往上飘。 */
+@keyframes kc-whale-zzz {
+  0% { opacity: 0; translate: 0 6px; scale: .7; }
+  30% { opacity: .95; }
+  100% { opacity: 0; translate: 0 -14px; scale: 1.1; }
+}
+
+/* 呼吸：幅度对齐小熊（那边是 translateY(-.7px) 级别）。
+   以前整只上下 1.5~2px 地晃 + 17s 一轮左右摇摆，读起来像「僵硬地左右晃」。
+   现在只留极轻的 0.8px 起伏，摇摆交给眼睛。 */
+@keyframes kc-whale-bob {
+  0%, 42%, 100% { translate: 0 0; }
+  48%, 54% { translate: 0 -0.8px; }
+}
+
+/* 张望：幅度压到 1.2deg 以内、周期更长，像人不必刻意地偏一下头。
+   眼睛的动态只有眨眼（贴片整帧替换，不会裂）；方向性的看由
+   --whale-look / --whale-gaze（刚性平移）承担。 */
+@keyframes kc-whale-look-around {
+  0%, 78%, 100% { rotate: 0deg; }
+  84% { rotate: 1.2deg; }
+  90% { rotate: -0.9deg; }
+  95% { rotate: 0.5deg; }
+}
+
+/* 吃小鱼干：鱼干凑到嘴边抖。 */
+@keyframes kc-whale-nibble {
+  0%, 100% { translate: 0 0; rotate: -6deg; }
+  50% { translate: -3px -5px; rotate: -20deg; }
+}
+
+/* --- 趴在面板上 / 墙壁后探头 -------------------------------------------- */
+
+/* 探头时只有小脑袋探出来——身体藏在面板后面（面板就是那面墙）。
+   遮挡完全由面板自身完成：她的 z-index 比面板低 4，面板真的画在她上面，
+   所以横竖两种面板都不需要蒙版。（曾给竖直抽屉写过一道右缘渐隐，但渐隐带
+   落在 66%~74% 身宽处，正好是面板已经盖住的区域，纯属多余，已删。） */
+
+/* 探头时整只微微朝面板倾，像把下巴搁在边沿上。 */
+.kc-agent-companion.is-peeking .kc-whale-sprite {
+  --whale-lean: 4deg;
+}
+
+/* 探头时搭在墙上的小手：贴片是按钮的**兄弟元素**（她的 z 比面板低，手要比
+   面板高才扶得上墙），left/top/z 由 agent-companion.tsx 按 placement.wall 算。
+   原画里的拳头只有 ~4px，按 2.5 倍画——它是独立贴片，不占一比一 sprite 的账。 */
+.kc-whale-wall-hand {
+  position: absolute;
+  width: 15px;
+  height: 15px;
+  pointer-events: none;
+  background: url("/agent/whale-girl/hand-wall.png") no-repeat center / contain;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 38%));
+}
+
+/* 探头时柔光收小，别糊到面板上。 */
+.kc-agent-companion.is-peeking .kc-whale-aura {
+  opacity: .4;
+  left: calc(50% - var(--whale-w) * 0.5);
+  width: calc(var(--whale-w) * 1);
+}
+
+/* 探头时她贴着面板，气泡挂到左边去，免得压到面板内容。 */
+.kc-agent-companion.is-peeking .kc-whale-bubble {
+  left: auto;
+  right: 50%;
+  translate: 8px 0;
+}
+
+.kc-agent-companion.is-peeking .kc-whale-bubble:empty {
+  translate: 8px -4px;
+}
+
+.kc-agent-companion.is-peeking .kc-whale-bubble::before {
+  left: auto;
+  right: -4px;
+  translate: 0 0;
+  rotate: 135deg;
+}
+
+/* 探头时状态点挪到脑袋左上，不然会漂在面板上。 */
+.kc-agent-companion.is-peeking[data-companion-style="whale"] .kc-agent-companion-state {
+  right: auto;
+  bottom: auto;
+  left: 4px;
+  top: 2px;
+}
+
+/* --- Agent 面板头部的鲸鱼娘徽章 ---------------------------------------- */
+
+.kc-agent-drawer--refined .kc-agent-mark[data-companion-style="whale"] {
+  overflow: hidden;
+  padding: 0;
+  border-color: rgb(77 107 254 / 52%);
+  background: rgb(77 107 254 / 18%);
+}
+
+.kc-agent-mark-whale {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* 往上取一点：脸落在徽章正中，下巴不再贴到圆角方框的底边。 */
+  object-position: 50% 52%;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* --- 窄屏与降级 --------------------------------------------------------- */
+
+@media (max-width: 720px) {
+  .kc-agent-companion[data-companion-style="whale"] {
+    --whale-w: 52px;
+    top: 8px;
+  }
+  .kc-whale-bubble { max-width: min(180px, 58vw); font-size: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kc-whale-aura,
+  .kc-whale-figure,
+  .kc-whale-sprite,
+  .kc-whale-glint,
+  .kc-whale-heart,
+  .kc-whale-spark,
+  .kc-whale-sweat,
+  .kc-whale-poof,
+  .kc-whale-zzz span,
+  .kc-whale-bubble b {
+    animation: none !important;
+  }
+
+  /* 贴片是伪元素，上面那条选择器管不到它；不熄火的话「减少动态」的人
+     还会看到每 6.4 秒眨一次眼。关掉动画后它保持 opacity:0，即不眨眼。 */
+  .kc-whale-eyes::before { animation: none !important; }
+
+  .kc-whale-aura { opacity: .8; }
+  .kc-whale-glint { opacity: .7; }
+  .kc-whale-zzz { opacity: 1; }
+}

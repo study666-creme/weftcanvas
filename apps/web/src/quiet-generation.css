@@ -1,0 +1,166 @@
+/* Quiet generation effect: a calm, restrained motion language for normal
+   media generation. Animate only transform/opacity and never remove truthful
+   stage copy. The ring is a stable untransformed 36px container; only its
+   inner visual layer rotates, so measured geometry never expands. */
+
+.kc-node-loading--quiet {
+  --kc-quiet-warm: color-mix(in srgb, var(--kc-amber) 66%, var(--kc-accent));
+  --kc-quiet-ink: color-mix(in srgb, var(--kc-amber) 52%, var(--kc-text));
+  --kc-quiet-soft: color-mix(in srgb, var(--kc-amber) 34%, var(--kc-text-secondary));
+  --kc-quiet-rail: color-mix(in srgb, var(--kc-amber) 46%, var(--kc-text));
+  background:
+    linear-gradient(118deg,
+      color-mix(in srgb, var(--kc-quiet-warm) 9%, transparent) 0%,
+      transparent 36%,
+      color-mix(in srgb, var(--kc-quiet-warm) 6%, transparent) 64%,
+      transparent 100%),
+    color-mix(in srgb, var(--kc-canvas) 86%, var(--kc-surface-muted));
+  contain: paint;
+}
+
+.kc-node-loading--quiet::after {
+  border-color: color-mix(in srgb, var(--kc-quiet-warm) 26%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--kc-quiet-warm) 20%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--kc-quiet-warm) 14%, transparent);
+}
+
+.kc-quiet-generation-scene {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.kc-quiet-generation-sweep {
+  position: absolute;
+  top: -46%;
+  left: -38%;
+  display: block;
+  width: 30%;
+  height: 192%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--kc-quiet-warm) 7%, transparent) 22%,
+    color-mix(in srgb, var(--kc-quiet-warm) 16%, transparent) 50%,
+    color-mix(in srgb, var(--kc-quiet-warm) 7%, transparent) 78%,
+    transparent 100%
+  );
+  opacity: .5;
+  transform: translate3d(-24%, 0, 0) rotate(-8deg);
+  will-change: transform, opacity;
+  animation: kc-quiet-sweep 9.6s cubic-bezier(.22, .61, .36, 1) -3.4s infinite;
+}
+
+/* Stable 36px ring container: never transformed, so its bounding rect stays
+   constant while the arc layer below rotates inside it. */
+.kc-quiet-ring {
+  position: relative;
+  display: block;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+}
+
+.kc-quiet-ring::after {
+  position: absolute;
+  inset: 0;
+  border: 1.5px solid color-mix(in srgb, var(--kc-quiet-soft) 30%, transparent);
+  border-radius: 50%;
+  content: "";
+  opacity: .82;
+}
+
+.kc-quiet-ring::before {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg,
+    transparent 0 300deg,
+    color-mix(in srgb, var(--kc-quiet-rail) 82%, #fff) 300deg 340deg,
+    transparent 340deg 360deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+  content: "";
+  will-change: transform;
+  animation: kc-quiet-ring-rotate 2.4s linear infinite;
+}
+
+.kc-node-loading--quiet .kc-node-loading-content {
+  gap: 12px;
+  padding: 22px 20px;
+}
+
+.kc-node-loading--quiet .kc-node-loading-label {
+  color: color-mix(in srgb, var(--kc-quiet-ink) 88%, var(--kc-text));
+}
+
+.kc-node-loading--quiet .kc-node-loading-value {
+  color: color-mix(in srgb, var(--kc-quiet-soft) 78%, var(--kc-text-secondary));
+}
+
+/* Thin indeterminate rail, kept separate below the copy. */
+.kc-node-loading--quiet .kc-node-loading-track {
+  width: min(168px, 68%);
+  height: 2px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--kc-quiet-warm) 16%, transparent);
+}
+
+.kc-node-loading--quiet .kc-node-loading-track > span {
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--kc-quiet-rail) 46%, transparent),
+    color-mix(in srgb, var(--kc-quiet-rail) 86%, #fff),
+    color-mix(in srgb, var(--kc-quiet-rail) 46%, transparent));
+  transition: none;
+}
+
+.kc-node-loading--quiet .kc-node-loading-track.is-indeterminate > span {
+  width: 38%;
+  animation: kc-quiet-rail 2.4s cubic-bezier(.45, 0, .2, 1) infinite;
+}
+
+@keyframes kc-quiet-ring-rotate {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes kc-quiet-sweep {
+  0%, 100% { opacity: .28; transform: translate3d(-24%, 0, 0) rotate(-8deg); }
+  46% { opacity: .6; transform: translate3d(330%, 0, 0) rotate(-8deg); }
+  76% { opacity: .34; transform: translate3d(420%, 0, 0) rotate(-8deg); }
+}
+
+@keyframes kc-quiet-rail {
+  from { transform: translate3d(-130%, 0, 0); }
+  to { transform: translate3d(390%, 0, 0); }
+}
+
+/* Pause the sweep while the canvas is being moved or a node dragged. */
+.kc-workspace:is(.is-viewport-moving, .is-node-dragging) .kc-quiet-generation-sweep,
+.kc-workspace:is(.is-viewport-moving, .is-node-dragging) .kc-quiet-ring::before,
+.kc-workspace:is(.is-viewport-moving, .is-node-dragging) .kc-node-loading--quiet .kc-node-loading-track.is-indeterminate > span {
+  animation-play-state: paused !important;
+}
+
+/* Reduced motion keeps every piece of truthful copy and only slows the
+   ring, sweep, and rail instead of stopping the state indicators. */
+@media (prefers-reduced-motion: reduce) {
+  .kc-quiet-generation-sweep,
+  .kc-quiet-ring::before,
+  .kc-node-loading--quiet .kc-node-loading-track.is-indeterminate > span {
+    animation-duration: 9.6s !important;
+    animation-iteration-count: infinite !important;
+  }
+
+  .kc-quiet-generation-sweep {
+    opacity: .4;
+    transform: translate3d(180%, 0, 0) rotate(-8deg);
+  }
+
+  .kc-quiet-ring::before {
+    opacity: .72;
+    transform: rotate(90deg);
+  }
+}

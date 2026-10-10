@@ -1,0 +1,628 @@
+.kc-ui-settings.kc-appearance-toolbar {
+  bottom: calc(82px + env(safe-area-inset-bottom));
+  z-index: 1800;
+  display: grid;
+  width: min(880px, calc(100vw - 28px));
+  max-width: none;
+  height: min(660px, calc(100vh - 132px - env(safe-area-inset-bottom)));
+  grid-template-rows: 44px 40px auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--kc-border-strong) 82%, var(--kc-text-tertiary));
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, var(--kc-surface-raised), color-mix(in srgb, var(--kc-surface) 96%, var(--kc-canvas)));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--kc-text) 9%, transparent),
+    0 16px 36px rgb(0 0 0 / 34%),
+    0 42px 88px -40px rgb(0 0 0 / 82%);
+}
+
+/* API 配置 / 模型 / 本地保存 / 协作板块：没有子 tab 行，内容区直接吃满剩余高度 */
+.kc-ui-settings.kc-appearance-toolbar[data-section="apis"],
+.kc-ui-settings.kc-appearance-toolbar[data-section="models"],
+.kc-ui-settings.kc-appearance-toolbar[data-section="local"],
+.kc-ui-settings.kc-appearance-toolbar[data-section="collaboration"] {
+  grid-template-rows: 44px 40px minmax(0, 1fr);
+}
+
+/* The studio chrome rule sets a fixed toolbar height; this panel owns its content height. */
+:root[data-chrome-style="studio"] .kc-ui-settings.kc-appearance-toolbar {
+  height: min(660px, calc(100vh - 132px - env(safe-area-inset-bottom)));
+}
+
+.kc-ui-settings-header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px 0 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--kc-border) 84%, transparent);
+}
+
+.kc-ui-settings-title {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  color: var(--kc-text);
+  font-size: 12px;
+  font-weight: 680;
+  white-space: nowrap;
+}
+
+.kc-ui-settings-title svg,
+.kc-ui-settings-tabs svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.8;
+}
+
+.kc-ui-settings .kc-ui-settings-close {
+  display: grid;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  color: var(--kc-text-secondary);
+  background: transparent;
+}
+
+.kc-ui-settings .kc-ui-settings-close svg {
+  width: 15px;
+  height: 15px;
+}
+
+.kc-ui-settings-tabs {
+  display: flex;
+  align-items: end;
+  gap: 4px;
+  padding: 5px 12px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--kc-border) 76%, transparent);
+  background: color-mix(in srgb, var(--kc-surface-muted) 52%, transparent);
+}
+
+.kc-ui-settings .kc-ui-settings-tabs button {
+  display: inline-flex;
+  width: auto;
+  min-width: 0;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 4px 4px 0 0;
+  color: var(--kc-text-secondary);
+  background: transparent;
+  font-size: 11.5px;
+  font-weight: 650;
+}
+
+.kc-ui-settings .kc-ui-settings-tabs button[aria-selected="true"] {
+  border-bottom-color: var(--kc-accent);
+  color: var(--kc-text);
+  background: color-mix(in srgb, var(--kc-surface-raised) 74%, transparent);
+  box-shadow: none;
+}
+
+.kc-ui-settings-panel {
+  display: grid;
+  min-height: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 12px 16px;
+  padding: 14px;
+  overflow: hidden auto;
+  scrollbar-width: thin;
+}
+
+/* 嵌入态（API 配置 / 模型 / 本地保存 / 协作）：内容区占满，无面板级 header。
+   高度链必须做到「确定高度 → 内部各自滚动」：这里用 grid 的 minmax(0, 1fr) 给出
+   确定行高，内部的 .kc-model-source-list / .kc-api-profile-editor-body 等自带
+   overflow: auto。此前面板高度靠百分比链传递，内容一变就把面板自身撑出
+   88px 溢出被 overflow: hidden 裁掉，列表底部滚不回来。 */
+.kc-ui-settings-embed {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
+/* 协作板块的嵌入内容是「header + 滚动内容」两个兄弟元素（无 footer），不能沿用
+   上面为自定义 API 设计的 1fr/auto 行模板：auto 行的内容会把 1fr 行压到 0，
+   header 以 min-height 撑出轨道直接叠在内容上。这里换成 auto/1fr 并显式钉行。 */
+.kc-ui-settings.kc-appearance-toolbar[data-section="collaboration"] .kc-ui-settings-embed {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.kc-ui-settings-embed > .kc-collaboration-header {
+  grid-row: 1;
+}
+
+.kc-ui-settings-embed > .kc-collaboration-content {
+  grid-row: 2;
+}
+
+.kc-ui-settings-embed .kc-settings-content {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.kc-ui-settings-embed .kc-collaboration-content {
+  min-height: 0;
+  overflow: auto;
+}
+
+/* 嵌入态 API 配置板块底部提示条 */
+.kc-ui-settings-embed .kc-creation-embed-foot {
+  display: flex;
+  min-height: 42px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--kc-border);
+  color: var(--kc-text-secondary);
+  background: color-mix(in srgb, var(--kc-surface-muted) 46%, transparent);
+  font-size: 11.5px;
+}
+
+.kc-ui-settings-embed .kc-creation-embed-foot > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kc-ui-settings-embed .kc-creation-embed-foot .kc-custom-api-entitlement {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+}
+
+.kc-ui-settings-embed .kc-collaboration-header {
+  min-height: 58px;
+  padding: 8px 14px;
+}
+
+.kc-ui-settings-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 48px 20px;
+  color: var(--kc-text-tertiary);
+  font-size: 11px;
+}
+
+.kc-ui-settings-loading svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* 主导航下的子 tab 行（仅界面板块）：更轻、更小 */
+.kc-ui-settings-tabs--sub {
+  border-top: 0;
+  background: transparent;
+  padding-top: 6px;
+}
+
+.kc-ui-settings .kc-ui-settings-tabs--sub button {
+  min-width: 68px;
+  height: 28px;
+  font-size: 10.5px;
+}
+
+.kc-ui-settings-panel[hidden] {
+  display: none;
+}
+
+.kc-ui-settings-panel--interaction {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.kc-ui-settings .kc-appearance-group {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 7px;
+  padding: 0;
+}
+
+.kc-ui-settings .kc-appearance-group:first-child,
+.kc-ui-settings .kc-appearance-group:last-child {
+  padding: 0;
+}
+
+.kc-ui-settings .kc-appearance-group + .kc-appearance-group::before {
+  display: none;
+}
+
+.kc-ui-settings .kc-appearance-group--previews {
+  grid-column: 1 / -1;
+}
+
+/* 全宽组（背景等）：整行单行分段，不留半行空白 */
+.kc-ui-settings .kc-appearance-group--full {
+  grid-column: 1 / -1;
+}
+
+.kc-ui-settings .kc-appearance-label {
+  min-height: 18px;
+  gap: 6px;
+  color: var(--kc-text-secondary);
+  font-size: 10.5px;
+  font-weight: 660;
+}
+
+.kc-ui-settings .kc-appearance-label svg {
+  width: 13px;
+  height: 13px;
+}
+
+.kc-ui-settings .kc-appearance-segmented,
+.kc-ui-settings .kc-appearance-segmented:not(.kc-appearance-segmented--swatches) {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(4, minmax(54px, 1fr));
+  grid-auto-columns: auto;
+  grid-auto-flow: row;
+  gap: 3px;
+  padding: 3px;
+  overflow: visible;
+  border-color: color-mix(in srgb, var(--kc-border) 88%, transparent);
+  background: color-mix(in srgb, var(--kc-surface-muted) 84%, transparent);
+}
+
+.kc-ui-settings .kc-appearance-segmented--swatches {
+  grid-template-columns: repeat(3, 32px);
+  justify-content: start;
+}
+
+.kc-ui-settings .kc-appearance-segmented.kc-appearance-segmented--ratios {
+  grid-template-columns: repeat(5, minmax(46px, 1fr));
+}
+
+.kc-ui-settings .kc-appearance-segmented.kc-appearance-segmented--nodes {
+  grid-template-columns: repeat(5, minmax(48px, 1fr));
+}
+
+.kc-ui-settings .kc-appearance-segmented.kc-appearance-segmented--full {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.kc-ui-settings .kc-appearance-segmented--previews,
+.kc-ui-settings .kc-appearance-segmented--previews:not(.kc-appearance-segmented--swatches) {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.kc-ui-settings .kc-appearance-segmented > button:not(.kc-generation-effect-choice) {
+  min-width: 0;
+  height: 30px;
+  padding: 0 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kc-ui-settings .kc-generation-effect-choice {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  height: 94px;
+  grid-template-rows: 64px 22px;
+  gap: 4px;
+  padding: 3px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--kc-border-strong) 78%, var(--kc-border));
+  border-radius: 6px;
+  color: var(--kc-text-secondary);
+  background: color-mix(in srgb, var(--kc-surface-muted) 90%, var(--kc-canvas));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--kc-text) 5%, transparent);
+}
+
+.kc-ui-settings .kc-generation-effect-choice:hover {
+  border-color: color-mix(in srgb, var(--kc-text-secondary) 52%, var(--kc-border-strong));
+  color: var(--kc-text);
+  background: color-mix(in srgb, var(--kc-surface-strong) 62%, var(--kc-surface));
+}
+
+.kc-ui-settings .kc-generation-effect-choice.is-active {
+  border-color: color-mix(in srgb, var(--kc-accent) 72%, var(--kc-border-strong));
+  color: var(--kc-text);
+  background: color-mix(in srgb, var(--kc-accent-soft) 54%, var(--kc-surface));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--kc-accent) 16%, transparent),
+    0 0 18px -12px color-mix(in srgb, var(--kc-accent) 44%, transparent);
+}
+
+.kc-generation-effect-preview {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 64px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #05080d;
+  isolation: isolate;
+}
+
+.kc-generation-effect-preview-layer,
+.kc-generation-effect-preview-progress {
+  position: absolute;
+  display: block;
+  pointer-events: none;
+}
+
+.kc-generation-effect-preview-progress {
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 5;
+  height: 1px;
+  background: color-mix(in srgb, var(--kc-accent) 18%, transparent);
+}
+
+.kc-generation-effect-preview-progress > span {
+  display: block;
+  width: 62%;
+  height: 100%;
+  background: color-mix(in srgb, var(--kc-accent) 78%, #f4f8fb);
+  box-shadow: 0 0 7px color-mix(in srgb, var(--kc-accent) 58%, transparent);
+  transform: translate3d(-108%, 0, 0);
+  will-change: transform, opacity;
+  animation: kc-preview-progress 2.8s cubic-bezier(.35, 0, .25, 1) infinite;
+}
+
+.kc-generation-effect-choice.is-beam .kc-generation-effect-preview {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 3%), transparent 42%),
+    #070b10;
+}
+
+.kc-generation-effect-choice.is-beam .is-primary {
+  inset: -30% -70%;
+  background: linear-gradient(108deg, transparent 34%, rgb(210 224 235 / 10%) 43%, rgb(240 246 250 / 58%) 50%, rgb(210 224 235 / 10%) 57%, transparent 66%);
+  transform: translate3d(-26%, 0, 0);
+  animation: kc-preview-beam 3.2s ease-in-out infinite;
+}
+
+.kc-generation-effect-choice.is-beam .is-secondary {
+  inset: 0;
+  background: repeating-linear-gradient(90deg, transparent 0 18px, rgb(255 255 255 / 3%) 18px 19px, transparent 19px 42px);
+}
+
+.kc-generation-effect-choice.is-nebula .kc-generation-effect-preview {
+  background:
+    radial-gradient(ellipse 76% 66% at 48% 46%, color-mix(in srgb, var(--kc-accent) 12%, #101827), #03050b 72%);
+}
+
+.kc-generation-effect-choice.is-nebula .is-primary {
+  inset: -42% -30%;
+  border-radius: 46%;
+  background:
+    radial-gradient(ellipse 28% 54% at 24% 64%, color-mix(in srgb, var(--kc-blue) 72%, transparent), transparent 72%),
+    radial-gradient(ellipse 31% 56% at 68% 29%, color-mix(in srgb, var(--kc-coral) 48%, transparent), transparent 74%),
+    radial-gradient(ellipse 24% 39% at 79% 72%, color-mix(in srgb, var(--kc-amber) 34%, transparent), transparent 72%),
+    radial-gradient(ellipse 38% 24% at 46% 51%, rgb(231 241 249 / 24%), transparent 76%);
+  opacity: .42;
+  transform: translate3d(-8%, 5%, 0) rotate(-9deg) scale(1.22);
+  animation: kc-preview-nebula 4.6s cubic-bezier(.4, 0, .2, 1) infinite;
+}
+
+.kc-generation-effect-choice.is-nebula .is-secondary {
+  inset: 17% 27%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, rgb(247 250 255 / 82%) 0 2%, color-mix(in srgb, var(--kc-accent) 72%, transparent) 6%, color-mix(in srgb, var(--kc-accent) 22%, transparent) 23%, transparent 62%),
+    radial-gradient(ellipse 72% 16% at 50% 50%, color-mix(in srgb, var(--kc-accent) 38%, transparent), transparent 76%),
+    radial-gradient(ellipse 18% 72% at 50% 50%, rgb(227 239 248 / 18%), transparent 78%);
+  opacity: .1;
+  transform: rotate(-7deg) scale(.32);
+  animation: kc-preview-nebula-secondary 3.1s cubic-bezier(.22, .61, .36, 1) -.7s infinite;
+}
+
+.kc-generation-effect-choice.is-water .kc-generation-effect-preview {
+  background:
+    radial-gradient(ellipse 68% 34% at 58% 8%, rgb(225 239 241 / 19%), transparent 68%),
+    radial-gradient(ellipse 42% 36% at 18% 54%, rgb(73 128 132 / 16%), transparent 72%),
+    linear-gradient(180deg, #173036, #08171d 58%, #03080c);
+}
+
+.kc-generation-effect-choice.is-water .is-primary {
+  inset: -32% -24%;
+  background:
+    radial-gradient(ellipse 42% 19% at 20% 64%, transparent 48%, rgb(201 226 228 / 24%) 52% 55%, transparent 61%),
+    radial-gradient(ellipse 36% 17% at 69% 42%, transparent 49%, rgb(139 186 190 / 22%) 53% 56%, transparent 63%),
+    radial-gradient(ellipse 28% 14% at 49% 76%, transparent 47%, rgb(228 240 241 / 18%) 52% 55%, transparent 62%);
+  opacity: .2;
+  transform: translate3d(-5%, 4%, 0) rotate(-4deg) scale(.58);
+  animation: kc-preview-water 3.6s cubic-bezier(.2, .62, .25, 1) infinite;
+}
+
+.kc-generation-effect-choice.is-water .is-secondary {
+  inset: -38% -28%;
+  background:
+    radial-gradient(ellipse 48% 22% at 16% 48%, transparent 50%, rgb(113 170 174 / 16%) 54% 57%, transparent 64%),
+    radial-gradient(ellipse 52% 21% at 84% 68%, transparent 50%, rgb(219 234 235 / 15%) 54% 57%, transparent 64%),
+    radial-gradient(ellipse 46% 18% at 53% 26%, transparent 51%, rgb(174 211 214 / 13%) 55% 58%, transparent 65%),
+    radial-gradient(ellipse 34% 72% at 48% 42%, rgb(232 243 244 / 9%), transparent 72%);
+  opacity: .48;
+  transform: translate3d(5%, -2%, 0) rotate(3deg) scale(1.04);
+  animation: kc-preview-water-current 4.9s cubic-bezier(.4, 0, .2, 1) -1.6s infinite;
+}
+
+.kc-generation-effect-choice.is-quiet .kc-generation-effect-preview {
+  background:
+    linear-gradient(118deg, rgb(214 176 120 / 9%) 0%, transparent 38%, rgb(214 176 120 / 6%) 64%, transparent 100%),
+    #0c0b09;
+}
+
+.kc-generation-effect-choice.is-quiet .is-primary {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  transform: translate3d(-50%, -50%, 0);
+  animation: none;
+}
+
+.kc-generation-effect-choice.is-quiet .is-primary::before {
+  position: absolute;
+  inset: 0;
+  border: 1.5px solid rgb(214 176 120 / 22%);
+  border-radius: 50%;
+  content: "";
+  opacity: .82;
+}
+
+.kc-generation-effect-choice.is-quiet .is-primary::after {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg,
+    transparent 0 300deg,
+    rgb(223 178 116 / 86%) 300deg 340deg,
+    transparent 340deg 360deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+  content: "";
+  will-change: transform;
+  animation: kc-preview-quiet 2.4s linear infinite;
+}
+
+.kc-generation-effect-choice.is-quiet .is-secondary {
+  inset: -42% -28%;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgb(214 176 120 / 7%) 30%,
+    rgb(214 176 120 / 14%) 50%,
+    rgb(214 176 120 / 7%) 70%,
+    transparent 100%);
+  opacity: .5;
+  transform: translate3d(-24%, 0, 0) rotate(-8deg);
+  animation: kc-preview-quiet-sweep 9.6s cubic-bezier(.22, .61, .36, 1) -3.4s infinite;
+}
+
+.kc-generation-effect-label {
+  align-self: center;
+  overflow: hidden;
+  font-size: 10.5px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes kc-preview-beam {
+  0%, 100% { opacity: .48; transform: translate3d(-25%, 0, 0); }
+  50% { opacity: .92; transform: translate3d(25%, 0, 0); }
+}
+
+@keyframes kc-preview-nebula {
+  0%, 100% { opacity: .4; transform: translate3d(-8%, 5%, 0) rotate(-9deg) scale(1.22); }
+  28% { opacity: .76; transform: translate3d(4%, -3%, 0) rotate(4deg) scale(.96); }
+  50% { opacity: 1; transform: translate3d(0, 0, 0) rotate(11deg) scale(.76); }
+  69% { opacity: .82; transform: translate3d(-2%, 2%, 0) rotate(4deg) scale(.93); }
+  86% { opacity: .5; transform: translate3d(6%, -1%, 0) rotate(-3deg) scale(1.14); }
+}
+
+@keyframes kc-preview-nebula-secondary {
+  0%, 100% { opacity: .08; transform: rotate(-7deg) scale(.32); }
+  20% { opacity: .44; transform: rotate(-2deg) scale(.7); }
+  44% { opacity: 1; transform: rotate(4deg) scale(1); }
+  66% { opacity: .24; transform: rotate(9deg) scale(1.45); }
+  84% { opacity: .06; transform: rotate(3deg) scale(.48); }
+}
+
+@keyframes kc-preview-water {
+  0% { opacity: .12; transform: translate3d(-5%, 4%, 0) rotate(-4deg) scale(.58); }
+  24% { opacity: .62; transform: translate3d(2%, -1%, 0) rotate(2deg) scale(.84); }
+  58% { opacity: .86; transform: translate3d(-1%, 1%, 0) rotate(-1deg) scale(1.12); }
+  100% { opacity: 0; transform: translate3d(5%, -3%, 0) rotate(4deg) scale(1.48); }
+}
+
+@keyframes kc-preview-quiet {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes kc-preview-quiet-sweep {
+  0%, 100% { opacity: .28; transform: translate3d(-24%, 0, 0) rotate(-8deg); }
+  46% { opacity: .6; transform: translate3d(330%, 0, 0) rotate(-8deg); }
+  76% { opacity: .34; transform: translate3d(420%, 0, 0) rotate(-8deg); }
+}
+
+@keyframes kc-preview-water-current {
+  0%, 100% { opacity: .34; transform: translate3d(5%, -2%, 0) rotate(3deg) scale(1.04); }
+  31% { opacity: .66; transform: translate3d(-4%, 3%, 0) rotate(-3deg) scale(1.12); }
+  67% { opacity: .48; transform: translate3d(2%, 1%, 0) rotate(1deg) scale(.96); }
+  84% { opacity: .72; transform: translate3d(-2%, -3%, 0) rotate(-1deg) scale(1.08); }
+}
+
+@keyframes kc-preview-progress {
+  0% { opacity: .34; transform: translate3d(-108%, 0, 0); }
+  42% { opacity: 1; }
+  72%, 100% { opacity: .42; transform: translate3d(170%, 0, 0); }
+}
+
+@media (max-width: 620px) {
+  .kc-ui-settings.kc-appearance-toolbar {
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    width: calc(100vw - 16px);
+    max-height: calc(100vh - 132px - env(safe-area-inset-bottom));
+    grid-template-rows: 42px 40px auto minmax(0, 1fr);
+  }
+
+  .kc-ui-settings.kc-appearance-toolbar[data-section="apis"],
+  .kc-ui-settings.kc-appearance-toolbar[data-section="models"],
+  .kc-ui-settings.kc-appearance-toolbar[data-section="local"],
+  .kc-ui-settings.kc-appearance-toolbar[data-section="collaboration"] {
+    grid-template-rows: 42px 40px minmax(0, 1fr);
+  }
+
+  .kc-ui-settings-panel,
+  .kc-ui-settings-panel--interaction {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .kc-ui-settings .kc-appearance-group--previews {
+    grid-column: 1;
+  }
+
+  .kc-ui-settings .kc-generation-effect-choice {
+    height: 86px;
+    grid-template-rows: 56px 22px;
+  }
+
+  .kc-generation-effect-preview {
+    height: 56px;
+  }
+}
+
+.kc-ui-settings:not(.is-open) .kc-generation-effect-preview-layer,
+.kc-ui-settings:not(.is-open) .kc-generation-effect-preview-progress > span,
+.kc-ui-settings:not(.is-open) .kc-generation-effect-choice.is-quiet .is-primary::after {
+  animation-play-state: paused !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kc-generation-effect-preview-layer,
+  .kc-generation-effect-preview-progress > span,
+  .kc-generation-effect-choice.is-quiet .is-primary::after {
+    animation-duration: 7.2s !important;
+    animation-iteration-count: infinite !important;
+  }
+}

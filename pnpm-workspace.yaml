@@ -1,0 +1,15 @@
+packages:
+  - apps/*
+  - packages/*
+allowBuilds:
+  esbuild: true
+supportedArchitectures:
+  os:
+    - current
+    - linux
+  cpu:
+    - x64
+  libc:
+    - glibc
+overrides:
+  use-sync-external-store: 1.6.0

@@ -1,0 +1,363 @@
+/* Canvas boot loader — aligned with the entry gate's monochrome language:
+   near-black field, thin oversized type, hairline progress, no bouncing marks. */
+
+.kc-canvas-entry-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 180;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  padding: clamp(24px, 5vw, 68px) max(28px, calc((100vw - 1180px) / 2)) clamp(22px, 4vw, 52px);
+  overflow: hidden;
+  isolation: isolate;
+  color: var(--kc-text);
+  background:
+    radial-gradient(70% 52% at 50% 0%, color-mix(in srgb, var(--kc-text) 4%, transparent) 0%, transparent 70%),
+    var(--kc-canvas);
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity 320ms ease, transform 420ms cubic-bezier(.2, .7, .2, 1);
+}
+
+.kc-canvas-entry-loader::before {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  content: "";
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--kc-border) 62%, transparent) 1px, transparent 1px) 50% 50% / 72px 72px,
+    linear-gradient(0deg, color-mix(in srgb, var(--kc-border) 48%, transparent) 1px, transparent 1px) 50% 50% / 72px 72px;
+  -webkit-mask-image: radial-gradient(72% 60% at 50% 42%, rgb(0 0 0 / 90%) 0%, transparent 80%);
+  mask-image: radial-gradient(72% 60% at 50% 42%, rgb(0 0 0 / 90%) 0%, transparent 80%);
+  opacity: .14;
+}
+
+.kc-canvas-entry-loader.is-leaving {
+  opacity: 0;
+  transform: scale(1.012);
+  pointer-events: none;
+}
+
+.kc-canvas-entry-loader-brand,
+.kc-canvas-entry-loader-meta,
+.kc-canvas-entry-loader-content {
+  position: relative;
+  z-index: 2;
+}
+
+.kc-canvas-entry-loader-brand {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 10px;
+}
+
+.kc-canvas-entry-loader-mark {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--kc-border) 70%, transparent);
+  border-radius: 7px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--kc-surface) 70%, transparent);
+}
+
+.kc-canvas-entry-loader-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.kc-canvas-entry-loader-brand > span:last-child {
+  display: grid;
+  gap: 3px;
+}
+
+.kc-canvas-entry-loader-brand strong {
+  color: var(--kc-text);
+  font-size: 13px;
+  font-weight: 640;
+  line-height: 1;
+}
+
+.kc-canvas-entry-loader-brand small {
+  color: var(--kc-text-tertiary);
+  font-size: 9px;
+  line-height: 1;
+}
+
+.kc-canvas-entry-loader-content {
+  display: grid;
+  width: min(560px, 100%);
+  margin: auto;
+  justify-items: center;
+  gap: 20px;
+  text-align: center;
+}
+
+.kc-canvas-entry-loader-eyebrow {
+  max-width: 100%;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--kc-text) 46%, transparent);
+  font-family: ui-monospace, "Cascadia Mono", "JetBrains Mono", "SF Mono", Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: .3em;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.kc-canvas-entry-loader-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 18px;
+}
+
+.kc-canvas-entry-loader-title-row h1 {
+  margin: 0;
+  color: var(--kc-text);
+  font-size: clamp(30px, 4.6vw, 46px);
+  font-weight: 280;
+  letter-spacing: .12em;
+  line-height: 1.15;
+}
+
+.kc-canvas-entry-loader-title-row > strong {
+  flex: 0 0 auto;
+  color: color-mix(in srgb, var(--kc-text) 62%, transparent);
+  font-family: ui-monospace, "Cascadia Mono", "JetBrains Mono", "SF Mono", Consolas, monospace;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.kc-canvas-entry-loader-progress {
+  width: min(420px, 100%);
+}
+
+.kc-canvas-entry-loader-progress > i {
+  display: block;
+  width: 100%;
+  height: 1px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--kc-border) 80%, transparent);
+}
+
+.kc-canvas-entry-loader-progress > i > span {
+  display: block;
+  height: 100%;
+  background: var(--kc-text);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--kc-text) 40%, transparent);
+  transform-origin: 0 50%;
+  transition: width 40ms linear;
+}
+
+.kc-canvas-entry-loader-status {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.kc-canvas-entry-loader-status-icon {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  place-items: center;
+  color: color-mix(in srgb, var(--kc-text) 62%, transparent);
+}
+
+.kc-canvas-entry-loader-status-icon svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 1.6;
+}
+
+.kc-canvas-entry-loader-status > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  text-align: left;
+}
+
+.kc-canvas-entry-loader-status strong {
+  color: var(--kc-text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.kc-canvas-entry-loader-status small {
+  overflow: hidden;
+  color: var(--kc-text-tertiary);
+  font-size: 10px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kc-canvas-entry-loader-meta {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  color: color-mix(in srgb, var(--kc-text) 34%, transparent);
+  font-family: ui-monospace, "Cascadia Mono", "JetBrains Mono", "SF Mono", Consolas, monospace;
+  font-size: 9px;
+  letter-spacing: .18em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.kc-canvas-entry-loader-meta > span:nth-child(2) {
+  display: block;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--kc-text) 40%, transparent);
+}
+
+/* Faint node constellation on the right — the canvas motif, kept whisper-quiet. */
+.kc-canvas-entry-loader-grid {
+  position: absolute;
+  top: 50%;
+  right: clamp(36px, 8vw, 160px);
+  width: min(34vw, 480px);
+  height: min(34vw, 480px);
+  z-index: -1;
+  opacity: .2;
+  transform: translateY(-56%);
+}
+
+.kc-canvas-entry-loader-gridline {
+  position: absolute;
+  display: block;
+  background: color-mix(in srgb, var(--kc-border) 70%, transparent);
+  transform-origin: 0 50%;
+}
+
+.kc-canvas-entry-loader-gridline.is-horizontal {
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: 1px;
+}
+
+.kc-canvas-entry-loader-gridline.is-vertical {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+}
+
+.kc-canvas-entry-loader-node {
+  position: absolute;
+  display: block;
+  width: 46px;
+  height: 46px;
+  border: 1px solid color-mix(in srgb, var(--kc-border-strong) 74%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--kc-surface) 64%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--kc-text) 9%, transparent);
+}
+
+.kc-canvas-entry-loader-node::after {
+  position: absolute;
+  inset: 12px;
+  border: 1px solid color-mix(in srgb, var(--kc-text) 34%, transparent);
+  border-radius: 3px;
+  content: "";
+}
+
+.kc-canvas-entry-loader-node.is-origin {
+  top: calc(50% - 23px);
+  left: calc(50% - 23px);
+  border-color: color-mix(in srgb, var(--kc-text) 42%, var(--kc-border));
+  will-change: transform, opacity;
+  animation: kc-canvas-loader-node-origin 2.4s ease-in-out infinite;
+}
+
+.kc-canvas-entry-loader-node.is-upper {
+  top: 15%;
+  right: 12%;
+  transform: scale(.78);
+}
+
+.kc-canvas-entry-loader-node.is-lower {
+  bottom: 13%;
+  left: 10%;
+  transform: scale(.66);
+}
+
+.kc-canvas-entry-loader-link {
+  position: absolute;
+  display: block;
+  height: 1px;
+  background: color-mix(in srgb, var(--kc-text) 26%, var(--kc-border));
+  transform-origin: 0 50%;
+}
+
+.kc-canvas-entry-loader-link.is-upper {
+  top: 37%;
+  right: 49%;
+  width: 31%;
+  transform: rotate(-31deg);
+}
+
+.kc-canvas-entry-loader-link.is-lower {
+  bottom: 38%;
+  left: 32%;
+  width: 28%;
+  transform: rotate(32deg);
+}
+
+.kc-canvas-entry-loader .is-spinning {
+  animation: kc-canvas-loader-spin 900ms linear infinite;
+}
+
+@keyframes kc-canvas-loader-node-origin {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .72; transform: scale(.94); }
+}
+
+@keyframes kc-canvas-loader-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 760px) {
+  .kc-canvas-entry-loader {
+    padding: 24px 22px 26px;
+  }
+
+  .kc-canvas-entry-loader-content {
+    margin: auto 0 10vh;
+  }
+
+  .kc-canvas-entry-loader-grid {
+    top: 40%;
+    right: 0;
+    width: 78vw;
+    height: 78vw;
+    opacity: .14;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kc-canvas-entry-loader,
+  .kc-canvas-entry-loader-progress > i > span {
+    transition-duration: 80ms;
+  }
+
+  .kc-canvas-entry-loader-node.is-origin,
+  .kc-canvas-entry-loader .is-spinning {
+    animation: none;
+  }
+}

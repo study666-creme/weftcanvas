@@ -1,0 +1,210 @@
+/* ------------------------------------------------------------------ */
+/* 剪辑节点预览（画布内）                                               */
+/*                                                                      */
+/* 这份样式必须由节点自己引入，不能挂在剪辑器里：剪辑器是懒加载分包，     */
+/* 用户没双击过节点时那个分包根本不存在，节点就会以无样式的裸文本渲染。   */
+/*                                                                      */
+/* 视觉取向：石墨体系。片段靠明度和细线分层，不靠彩色块——饱和色块在      */
+/* 整片灰阶画布里非常扎眼，也显得廉价。                                  */
+/* ------------------------------------------------------------------ */
+
+.kc-edit-node-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 14px;
+}
+
+/* 序列条：一段一格，宽度按时长占比，格与格之间 1px 缝。 */
+.kc-edit-node-strips {
+  position: relative;
+  display: flex;
+  gap: 1px;
+  align-items: stretch;
+  height: 46px;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 9%);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--kc-canvas) 62%, transparent);
+}
+
+.kc-edit-node-strip {
+  position: relative;
+  display: inline-flex;
+  flex: 0 1 auto;
+  min-width: 5px;
+  background: color-mix(in srgb, var(--kc-text) 8%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--kc-text) 13%, transparent);
+  transition: opacity 160ms ease;
+}
+
+/* 首格略亮，读作"从这里开始"；其余按同一色阶递减排列。 */
+.kc-edit-node-strip:first-child {
+  background: color-mix(in srgb, var(--kc-text) 15%, transparent);
+}
+
+/* 音频格：同一色阶，用细竖纹和居中基线区分，不换成绿色。 */
+.kc-edit-node-strip--audio {
+  background:
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--kc-text) 20%, transparent) 0 1px, transparent 1px 4px),
+    color-mix(in srgb, var(--kc-text) 5%, transparent);
+}
+
+/* 播放头停在 0 点，也就是第一帧的位置。 */
+.kc-edit-node-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  background: color-mix(in srgb, var(--kc-text) 55%, transparent);
+}
+
+.kc-edit-node-playhead::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -2px;
+  width: 5px;
+  height: 3px;
+  background: color-mix(in srgb, var(--kc-text) 62%, transparent);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+/* 音频单独一条细轨，有才画。 */
+.kc-edit-node-audio-lane {
+  display: flex;
+  gap: 1px;
+  align-items: stretch;
+  height: 14px;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 9%);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--kc-canvas) 62%, transparent);
+}
+
+.kc-edit-node-audio-clip {
+  display: inline-flex;
+  flex: 0 1 auto;
+  min-width: 5px;
+  background:
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--kc-text) 22%, transparent) 0 1px, transparent 1px 4px),
+    color-mix(in srgb, var(--kc-text) 5%, transparent);
+}
+
+.kc-edit-node-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--kc-text-secondary);
+}
+
+.kc-edit-node-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.kc-edit-node-meta svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  opacity: 0.72;
+}
+
+.kc-edit-node-meta strong {
+  flex: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--kc-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.kc-edit-node-hint {
+  margin-top: auto;
+  overflow: hidden;
+  font-size: 10.5px;
+  color: var(--kc-text-tertiary);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  letter-spacing: 0;
+}
+
+/* 空时间线：不摆假片段，只留一条虚线基线，诚实表达"这里还没有序列"。 */
+.kc-edit-node-preview[data-empty="true"] .kc-edit-node-strips {
+  border-style: dashed;
+  background: transparent;
+}
+
+.kc-edit-node-empty-baseline {
+  align-self: center;
+  width: 100%;
+  height: 1px;
+  background: color-mix(in srgb, var(--kc-border-strong) 70%, transparent);
+}
+
+/* 缩小到 overview 档位时不退化成裸文本：同色阶的微型序列 + 时长。 */
+.kc-edit-node-preview--overview {
+  flex-direction: row;
+  gap: 9px;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 12px;
+}
+
+.kc-edit-node-overview-strip {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 1px;
+  align-items: stretch;
+  min-width: 0;
+  height: 12px;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 9%);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--kc-canvas) 62%, transparent);
+}
+
+.kc-edit-node-preview--overview[data-empty="true"] .kc-edit-node-overview-strip {
+  border-style: dashed;
+  background: transparent;
+}
+
+.kc-edit-node-overview-block {
+  flex: 0 1 auto;
+  min-width: 4px;
+  height: 100%;
+  background: color-mix(in srgb, var(--kc-text) 12%, transparent);
+}
+
+.kc-edit-node-overview-block:first-child {
+  background: color-mix(in srgb, var(--kc-text) 20%, transparent);
+}
+
+.kc-edit-node-overview-block.is-audio {
+  background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--kc-text) 22%, transparent) 0 1px, transparent 1px 4px);
+}
+
+.kc-edit-node-overview-time {
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--kc-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 剪辑节点的框线用字面值而不是 --kc-border：界面档位（classic）会整组重写主题
+   令牌，节点边框跟着令牌走会在切换界面风格时变色。浅色主题单独给一档。 */
+:root[data-theme="light"] .kc-edit-node-strips,
+:root[data-theme="light"] .kc-edit-node-audio-lane,
+:root[data-theme="light"] .kc-edit-node-overview-strip {
+  border-color: rgb(26 34 31 / 20%);
+}

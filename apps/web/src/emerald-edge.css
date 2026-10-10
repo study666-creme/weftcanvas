@@ -1,0 +1,146 @@
+/*
+ * 翡翠（emerald）线条样式 —— 与「张力」「柔弧」并列的第三种线形。
+ *
+ * 设计目标：参考张力线 + 流光的骨架（细发丝底线 + 流向光 + 端点能量），但把
+ * 全部白光换成"宝石绿"——多层次叠加避免劣质：
+ *   · 底线：低饱和中绿（#3aa17a），避免抢戏
+ *   · 外圈：深绿宽光晕（rgba(46,184,120,0.18)），模拟透明玻璃管
+ *   · 流光：高亮翠绿（#7ee6b3）亮段在底线上滑过，给"通电"感
+ *   · 端点：翡翠环 + 翠绿宝石点，选中时发亮
+ *   · 端点能量：与 ambient 一致但更短促的呼吸
+ * 与 onyx 配色组合最协调（深底衬绿），其它配色下也保持可读（颜色取自自身
+ * 令牌，不依赖配色方案的色板）。
+ *
+ * 选择器挂在 :root[data-edge-path-style="emerald"] 上，与 data-edge-flow-style
+ * 组合控制流光形态。沿用现有 .kc-edge-renderer / .kc-edge-aura / .kc-edge-energy
+ * 节点结构，不动 React 组件。
+ */
+
+:root[data-edge-path-style="emerald"] {
+  /* 绿系令牌——不依赖任何配色方案，单独锁定 */
+  --kc-emerald-base: #3aa17a;
+  --kc-emerald-halo: rgb(46 184 120 / 22%);
+  --kc-emerald-glow: rgb(126 230 179 / 92%);
+  --kc-emerald-gem: #a8ffd4;
+  --kc-emerald-deep: rgb(8 88 58 / 80%);
+  --kc-emerald-track: rgb(46 184 120 / 38%);
+}
+
+:root[data-theme="light"][data-edge-path-style="emerald"] {
+  /* 浅色主题下整体加深一档，避免被白底吃光 */
+  --kc-emerald-base: #147a5e;
+  --kc-emerald-halo: rgb(20 122 94 / 26%);
+  --kc-emerald-glow: rgb(46 184 120 / 92%);
+  --kc-emerald-gem: #2bb888;
+  --kc-emerald-deep: rgb(8 60 44 / 80%);
+  --kc-emerald-track: rgb(20 122 94 / 42%);
+}
+
+/* —— 基底连线（BaseEdge）—— */
+:root[data-edge-path-style="emerald"] .react-flow__edge-path {
+  stroke: var(--kc-emerald-base);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 1.4px var(--kc-emerald-halo));
+}
+
+/* 选中时换高亮绿 + 加粗 */
+:root[data-edge-path-style="emerald"] .react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--kc-emerald-gem);
+  stroke-width: 2;
+}
+
+/* hover：略亮 + 加粗 */
+:root[data-edge-path-style="emerald"] .react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--kc-emerald-glow);
+  stroke-width: 1.8;
+}
+
+/* —— 外圈光晕（.kc-edge-aura）—— */
+:root[data-edge-path-style="emerald"] .kc-edge-aura {
+  stroke: var(--kc-emerald-halo);
+  stroke-width: 6;
+  opacity: .85;
+  filter: blur(0.4px);
+}
+
+:root[data-edge-path-style="emerald"] .react-flow__edge.selected .kc-edge-aura,
+:root[data-edge-path-style="emerald"] .kc-edge-aura[data-selected="true"] {
+  stroke: var(--kc-emerald-halo);
+  opacity: 1;
+  stroke-width: 7.5;
+}
+
+/* —— 流光（.kc-edge-energy）—— dash 节奏调成 6/86，更"通电" */
+:root[data-edge-path-style="emerald"] .kc-edge-energy {
+  stroke: var(--kc-emerald-glow);
+  stroke-width: 1.6;
+  stroke-dasharray: 6 86;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 1.6px var(--kc-emerald-glow));
+}
+
+:root[data-edge-path-style="emerald"] .react-flow__edge.selected .kc-edge-energy,
+:root[data-edge-path-style="emerald"] .kc-edge-energy[data-selected="true"] {
+  stroke: var(--kc-emerald-gem);
+  stroke-width: 2.2;
+  filter: drop-shadow(0 0 2.2px var(--kc-emerald-gem));
+}
+
+/* —— 端点（连接预览）—— */
+:root[data-edge-path-style="emerald"] .kc-connection-preview-base {
+  stroke: var(--kc-emerald-base);
+  stroke-width: 1.4;
+  filter: drop-shadow(0 0 1.4px var(--kc-emerald-halo));
+}
+
+/* —— 星点模式（data-edge-flow-style="stardust）——：宝石点 + 聚焦环全换绿 */
+:root[data-edge-path-style="emerald"][data-edge-flow-style="stardust"] .kc-edge-star-field {
+  stroke: var(--kc-emerald-track);
+  stroke-dasharray: 0.6 5.4;
+  stroke-width: 1.6;
+}
+
+:root[data-edge-path-style="emerald"][data-edge-flow-style="stardust"] .kc-edge-star-inbound {
+  stroke: var(--kc-emerald-glow);
+  stroke-width: 1.4;
+  stroke-dasharray: 4 96;
+  filter: drop-shadow(0 0 1.4px var(--kc-emerald-glow));
+}
+
+:root[data-edge-path-style="emerald"][data-edge-flow-style="stardust"] .kc-edge-star-focus-ring {
+  stroke: var(--kc-emerald-gem);
+  stroke-width: 1.4;
+  fill: none;
+  filter: drop-shadow(0 0 1.4px var(--kc-emerald-halo));
+}
+
+:root[data-edge-path-style="emerald"][data-edge-flow-style="stardust"] .kc-edge-star-focus-core {
+  fill: var(--kc-emerald-gem);
+  filter: drop-shadow(0 0 2px var(--kc-emerald-glow));
+}
+
+/* —— 预览端点的能量场 —— */
+:root[data-edge-path-style="emerald"] .kc-edge-aura--preview {
+  stroke: var(--kc-emerald-halo);
+  opacity: .55;
+  filter: blur(0.4px);
+}
+
+:root[data-edge-path-style="emerald"] .kc-edge-energy--preview {
+  stroke: var(--kc-emerald-glow);
+  filter: drop-shadow(0 0 1.6px var(--kc-emerald-glow));
+}
+
+/* —— ambient（未选中但被识别为"通电"）下保持呼吸节奏 —— */
+:root[data-edge-path-style="emerald"] .kc-edge-effect.is-ambient .kc-edge-energy {
+  stroke: var(--kc-emerald-glow);
+  filter: drop-shadow(0 0 1.2px var(--kc-emerald-halo));
+}
+
+/* 端点箭头收尾：翡翠色细描边 */
+:root[data-edge-path-style="emerald"] .react-flow__arrowhead polyline {
+  stroke: var(--kc-emerald-glow);
+  fill: var(--kc-emerald-glow);
+  filter: drop-shadow(0 0 1px var(--kc-emerald-halo));
+}

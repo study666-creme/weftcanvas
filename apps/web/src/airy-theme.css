@@ -1,0 +1,211 @@
+/*
+ * 疏朗（airy）—— 画布的宽间距、近直角风格。
+ *
+ * 与默认（无界）的差别集中在三处：
+ * 1. 圆角收到 2~3px。大圆角把每个控件都变成一颗胶囊，控件之间互相"顶"着，
+ *    看起来局促；直角边让留白真正成为留白。
+ * 2. 层级靠 1px 边框和间距表达，阴影压平、去掉 backdrop-filter。浮动阴影和
+ *    毛玻璃会让画面显得"挤"且糊，实底更安静，也更省合成开销。
+ * 3. 内距与控件高度整体上调一档，节点标签离画面更远，画布因此显得更宽敞。
+ *
+ * 只覆盖几何、边框、间距与阴影，颜色一律走 --kc-* 令牌，深浅两套主题共用。
+ */
+
+:root[data-node-style="airy"],
+:root[data-chrome-style="airy"] {
+  --kc-airy-radius: 3px;
+  --kc-airy-radius-sm: 2px;
+  --kc-airy-gap: 6px;
+  --kc-airy-pad: 12px;
+  --kc-airy-line: color-mix(in srgb, var(--kc-border) 82%, var(--kc-text) 18%);
+  --kc-airy-line-strong: color-mix(in srgb, var(--kc-border-strong) 70%, var(--kc-text) 30%);
+  /* 节点描边只跟深浅主题走，不跟「界面」档位走。classic 这类界面风格会整组重写
+     --kc-border / --kc-text，节点若直接引用它们，切换界面风格时节点边框会跟着变色，
+     破坏「节点 / 界面 / 背景」三档独立。基线 .kc-node-surface 用的就是字面值，这里沿用。 */
+  --kc-airy-node-line: rgb(255 255 255 / 22%);
+  --kc-airy-node-line-strong: rgb(255 255 255 / 44%);
+  --kc-airy-flat: 0 1px 2px rgb(0 0 0 / 16%);
+  --kc-airy-raise: 0 2px 6px rgb(0 0 0 / 20%);
+}
+
+:root[data-theme="light"][data-node-style="airy"],
+:root[data-theme="light"][data-chrome-style="airy"] {
+  --kc-airy-node-line: rgb(26 34 31 / 20%);
+  --kc-airy-node-line-strong: rgb(26 34 31 / 34%);
+}
+
+/* ---------- 节点 ---------- */
+
+:root[data-node-style="airy"] .kc-node-surface {
+  border: 1px solid var(--kc-airy-node-line);
+  border-radius: var(--kc-airy-radius);
+  box-shadow: var(--kc-airy-flat);
+}
+
+:root[data-node-style="airy"] .react-flow__node-kachang:hover .kc-node-surface,
+:root[data-node-style="airy"] .react-flow__node-kachang.selected .kc-node-surface {
+  border-color: var(--kc-airy-node-line-strong);
+  box-shadow: var(--kc-airy-raise);
+}
+
+:root[data-node-style="airy"] .kc-node-type-label {
+  top: -30px;
+  left: 2px;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 560;
+  line-height: 20px;
+}
+
+:root[data-node-style="airy"] .kc-node-type-label svg {
+  width: 15px;
+  height: 15px;
+}
+
+:root[data-node-style="airy"] .kc-node-media-body,
+:root[data-node-style="airy"] .kc-node-media-frame,
+:root[data-node-style="airy"] .kc-media-empty {
+  border-radius: 0;
+}
+
+:root[data-node-style="airy"] .kc-node-text-preview {
+  padding: 16px 18px;
+  font-size: 13.5px;
+  line-height: 1.72;
+}
+
+:root[data-node-style="airy"] .kc-node-drag-strip {
+  height: 34px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--kc-airy-line);
+  border-radius: 0;
+}
+
+/* 端口保持圆形（它是"点"不是"块"），但离节点边缘更远，避免和画面挤在一起。 */
+:root[data-node-style="airy"] .kc-node-port-zone--compact.kc-node-port-zone--left { left: -50px; }
+:root[data-node-style="airy"] .kc-node-port-zone--compact.kc-node-port-zone--right { right: -50px; }
+
+:root[data-node-style="airy"] .kc-node-quick-add {
+  border-radius: var(--kc-airy-radius-sm);
+}
+
+/* ---------- 剪辑节点 ---------- */
+
+:root[data-node-style="airy"] .kc-edit-node-preview {
+  gap: 12px;
+  padding: 16px;
+}
+
+:root[data-node-style="airy"] .kc-edit-node-strips {
+  height: 52px;
+  border-radius: 2px;
+}
+
+:root[data-node-style="airy"] .kc-edit-node-audio-lane {
+  height: 16px;
+}
+
+:root[data-node-style="airy"] .kc-edit-node-meta {
+  font-size: 12px;
+}
+
+:root[data-node-style="airy"] .kc-edit-node-meta strong {
+  font-size: 13.5px;
+}
+
+:root[data-node-style="airy"] .kc-edit-node-hint {
+  margin-top: 2px;
+  font-size: 11px;
+}
+
+/* ---------- 画布浮层控件 ---------- */
+
+:root[data-chrome-style="airy"] .kc-edit-dock,
+:root[data-chrome-style="airy"] .kc-create-rail {
+  gap: 5px;
+  padding: 8px;
+  border: 1px solid var(--kc-airy-line);
+  border-radius: var(--kc-airy-radius);
+  background: var(--kc-surface-raised);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: var(--kc-airy-raise);
+}
+
+/* 底部编辑坞用 left:50% + translateX(-50%) 居中，改 left 会把它整个推出屏幕，
+   所以这里只调内距与边框，位置保持居中。左侧新建栏是左锚定的，可以放宽 inset。 */
+:root[data-chrome-style="airy"] .kc-create-rail { left: 20px; }
+
+:root[data-chrome-style="airy"] .kc-appearance-toolbar {
+  padding: 14px;
+  border: 1px solid var(--kc-airy-line);
+  border-radius: var(--kc-airy-radius);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: var(--kc-airy-raise);
+}
+
+:root[data-chrome-style="airy"] .kc-appearance-toolbar button,
+:root[data-chrome-style="airy"] .kc-context-menu button,
+:root[data-chrome-style="airy"] .kc-connection-create-option {
+  border-radius: var(--kc-airy-radius-sm);
+}
+
+:root[data-chrome-style="airy"] .kc-appearance-segmented {
+  gap: 4px;
+}
+
+/* 设置面板是两列网格，行与行之间只能靠 row-gap。
+   用 `.group + .group` 加 margin/padding 会把同一行的右列压低一截
+   （`:first-child` 又只豁免左列），这就是之前看到的排版错位。 */
+:root[data-chrome-style="airy"] .kc-ui-settings-panel {
+  row-gap: 22px;
+}
+
+:root[data-chrome-style="airy"] .kc-context-menu {
+  padding: 6px;
+  border: 1px solid var(--kc-airy-line);
+  border-radius: var(--kc-airy-radius);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: var(--kc-airy-raise);
+}
+
+:root[data-chrome-style="airy"] .kc-context-menu button {
+  min-height: 34px;
+  padding: 0 12px;
+}
+
+/* 连线松开后的创建条：疏朗下更宽一档，一排六个也不显拥挤。 */
+:root[data-chrome-style="airy"] .kc-connection-create-menu {
+  padding: 5px;
+  border: 1px solid var(--kc-airy-line);
+  border-radius: var(--kc-airy-radius);
+  box-shadow: var(--kc-airy-raise);
+}
+
+:root[data-chrome-style="airy"] .kc-connection-create-option {
+  height: 38px;
+  padding: 0 13px;
+  font-size: 12px;
+}
+
+:root[data-chrome-style="airy"] .kc-node-overlay-panel,
+:root[data-chrome-style="airy"] .kc-asset-library-panel,
+:root[data-chrome-style="airy"] .kc-card-library-panel,
+:root[data-chrome-style="airy"] .kc-generation-panel,
+:root[data-chrome-style="airy"] .kc-shortcuts-panel {
+  border: 1px solid var(--kc-airy-line);
+  border-radius: var(--kc-airy-radius);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: var(--kc-airy-raise);
+}
+
+/* 顶栏留白更足，标题与按钮拉开。 */
+:root[data-chrome-style="airy"] .kc-topbar {
+  top: 24px;
+  right: 24px;
+  left: 24px;
+  height: 56px;
+}

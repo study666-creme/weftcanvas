@@ -1,0 +1,25 @@
+# Cloudflare Pages header rules for the Canvas Web origin.
+# `_worker.js` sets the immutable Cache-Control itself because advanced mode
+# ignores this file; the rules below mirror the pre-Pages vercel.json contract
+# so the behavior survives if advanced mode is ever dropped.
+#
+# Hashed bundles and the auth-film textures never change under the same URL.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/film/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# MediaPipe 运行时与任务模型（人脸检测 / 人像分割），同上：
+# 换模型或换运行时版本必须换文件名（见 public/mediapipe/NOTICE.txt）。
+/mediapipe/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/*
+  Content-Security-Policy: base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), geolocation=(), microphone=()
+  X-Permitted-Cross-Domain-Policies: none
