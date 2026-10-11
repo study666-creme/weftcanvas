@@ -27,15 +27,8 @@ import { createPostgresApiReadinessProbe } from "./database/readiness.js";
 import { GenerationApiGuard, PostgresFixedWindowRateLimiter } from "./generation/api-rate-limit.js";
 import { MediaGenerationInputAuthorizer } from "./generation/input-authorizer.js";
 import { PostgresGenerationJobStore } from "./generation/postgres-store.js";
-import {
-  JsonPromptHubGenerationStore,
-  JsonPromptHubReferenceStore,
-  PromptHubGenerationService,
-} from "./generation/prompt-hub-service.js";
 import { GenerationJobService } from "./generation/service.js";
 import { PostgresIdentityStore } from "./identity/postgres-store.js";
-import { DevTestAccountProvider } from "./identity/dev-test-provider.js";
-import { PromptHubProvider } from "./identity/prompt-hub-provider.js";
 import { PostgresPrincipalMembershipReader } from "./identity/principal-membership-reader.js";
 import { IdentityService } from "./identity/service.js";
 import { DefaultMediaInspector } from "./media/inspector.js";
@@ -58,21 +51,17 @@ import { CloudProjectService } from "./project/service.js";
 import { CloudProjectCollaborationService } from "./project/collaboration-service.js";
 import { PostgresCloudProjectCollaborationStore } from "./project/postgres-collaboration-store.js";
 import { PostgresCollaborationSeatEntitlementResolver } from "./project/collaboration-seat-entitlements.js";
+import { assembleProviderServices, resolveProviderPlan } from "./spi/assembly.js";
+import type { GenerationProvider, HostedAccountProvider } from "./spi/types.js";
 
 const port = readPort(process.env.PORT, 8787);
-const promptHubApiBaseUrl = process.env.PROMPT_HUB_API_BASE_URL?.trim()
-  || process.env.VITE_CARD_LIBRARY_API_BASE_URL?.trim()
-  || "https://api.prompt-hubs.com";
-const promptHubRequestTimeoutMs = readInteger(
-  process.env.PROMPT_HUB_REQUEST_TIMEOUT_MS,
-  45_000,
-  1_000,
-  10 * 60_000,
-);
+// Provider 装配第一步：解析 CANVAS_API_PROVIDER 与端点计划（kachang 私有
+// 模块如被点名会在此加载）。目录/报价必须先建，端点随计划先到。
+const providerPlan = await resolveProviderPlan(process.env);
 // The source already exposes its own latest validated catalog. Forcing its
 // refresh on every Canvas cold start turns a normal transient into a user-facing
 // model-picker outage, so Canvas refreshes on its own interval instead.
-const sourceUrl = process.env.KACHANG_CATALOG_URL || "https://newapi.prompt-hubs.com/api/model-catalog";
+const sourceUrl = providerPlan.catalogSourceUrl;
 const snapshotPath = resolve(process.env.CATALOG_SNAPSHOT_PATH || ".data/model-catalog.json");
 const pool = createDatabasePool();
 const readiness = pool ? await createPostgresApiReadinessProbe(pool) : undefined;
@@ -83,14 +72,12 @@ const store = pool
 const modelOverrides = new JsonModelOverrideStore(resolve(process.env.MODEL_OVERRIDES_PATH || ".data/model-overrides.json"));
 const catalog = new KachangCatalogAdapter({
   sourceUrl,
-  // 视频准入以**执行器目录**为准：Prompt Hub 的 /api/v1/model-catalog 已经按
-  // 「当前有没有可用渠道」做了 fail-closed 过滤，是「这个模型发不发得出去」的
-  // 权威。卡藏的公开目录只是上架/定价权威，两边实测不一致（2026-10-01：卡藏
-  // 31 条视频 vs 执行器 23 条），差集会让用户选中一个报价能过、点生成才报
-  // 「模型不可用」的模型。见 catalog/video-executability.ts。
-  videoInventoryUrl: process.env.VIDEO_INVENTORY_URL?.trim()
-    || `${promptHubApiBaseUrl}/api/v1/model-catalog`,
+  // 视频准入以**执行器目录**为准（托管模式下由私有 provider 提供端点）。
+  // dev-test 模式没有默认端点：目录走纯快照模式或自托管端点。
+  videoInventoryUrl: providerPlan.catalogVideoInventoryUrl,
   includeKnownModels: true,
+  // 站点策展层（计价/品牌化规则）由私有 overlay 提供；dev-test 无 overlay。
+  ...(providerPlan.kachang ? { overlay: providerPlan.kachang.createCatalogOverlay(process.env) } : {}),
   overrides: modelOverrides,
   store,
 });
@@ -104,46 +91,7 @@ const nativeIdentity = pool ? new IdentityService(new PostgresIdentityStore(pool
   sessionTtlMs,
   initialCreditMicros: readInteger(process.env.REGISTRATION_CREDIT_MICROS, 0, 0, Number.MAX_SAFE_INTEGER),
 }) : undefined;
-const identityMode = readIdentityMode(process.env.IDENTITY_PROVIDER, process.env.NODE_ENV === "production");
-const promptHubAnonKey = process.env.PROMPT_HUB_ANON_KEY?.trim()
-  || process.env.VITE_CARD_LIBRARY_ANON_KEY?.trim();
-if (identityMode === "prompt-hub" && !promptHubAnonKey) {
-  throw new Error("IDENTITY_PROVIDER=prompt-hub requires PROMPT_HUB_ANON_KEY");
-}
-if (process.env.NODE_ENV === "production" && identityMode === "auto" && !promptHubAnonKey) {
-  throw new Error("Production requires PROMPT_HUB_ANON_KEY or an explicit IDENTITY_PROVIDER=native");
-}
 const sessionSecret = identitySessionSecret(process.env.IDENTITY_SESSION_SECRET);
-const promptHub = identityMode !== "native" && promptHubAnonKey
-  ? new PromptHubProvider({
-      apiBaseUrl: promptHubApiBaseUrl,
-      authBaseUrl: process.env.PROMPT_HUB_AUTH_BASE_URL?.trim()
-        || process.env.VITE_CARD_LIBRARY_SUPABASE_URL?.trim()
-        || "https://api.prompt-hubs.com/supabase",
-      anonKey: promptHubAnonKey,
-      siteUrl: process.env.PROMPT_HUB_SITE_URL?.trim()
-        || process.env.VITE_CARD_LIBRARY_SITE_URL?.trim()
-        || "https://prompt-hubs.com",
-      sessionSecret,
-      sessionTtlMs,
-      requestTimeoutMs: promptHubRequestTimeoutMs,
-    })
-  : undefined;
-// 本地开发测试账号：非生产环境默认启用（IDENTITY_DEV_TEST_ACCOUNT=false 可显式
-// 关闭），admin/123456 可在本地直接登录（钱包/会员返回内置假数据），其余账号仍走
-// 真实 Prompt Hub 链路——不再要求每个开发者记得先配环境变量。
-// 生产环境（NODE_ENV=production）默认关闭，显式开启会拒绝启动，确保这条路径线上不存在。
-const devTestAccountEnabled = readBoolean(process.env.IDENTITY_DEV_TEST_ACCOUNT, process.env.NODE_ENV !== "production");
-if (devTestAccountEnabled && process.env.NODE_ENV === "production") {
-  throw new Error("IDENTITY_DEV_TEST_ACCOUNT must not be enabled in production");
-}
-if (devTestAccountEnabled && !promptHub) {
-  console.warn("IDENTITY_DEV_TEST_ACCOUNT is enabled but the Prompt Hub provider is inactive; the dev test account stays disabled.");
-}
-const promptHubAccount = devTestAccountEnabled && promptHub
-  ? new DevTestAccountProvider(promptHub, { sessionSecret, sessionTtlMs })
-  : promptHub;
-const identity = promptHubAccount ?? nativeIdentity;
 const agentRuntimeUrl = process.env.AGENT_RUNTIME_URL?.trim();
 const agentRuntimeToken = process.env.AGENT_RUNTIME_TOKEN?.trim();
 if ((agentRuntimeUrl && !agentRuntimeToken) || (!agentRuntimeUrl && agentRuntimeToken)) {
@@ -168,10 +116,12 @@ const connectors = agentRuntimeUrl && agentRuntimeToken
 // tiered_token，只看目录计费模式会把它们整线漏掉）。AGENT_INCLUDE_TOKEN_MODELS=true
 // 时放开全部文本模型（含纯按量）。
 const agentIncludeTokenModels = readBoolean(process.env.AGENT_INCLUDE_TOKEN_MODELS, false);
-const stationTextPricing = createStationTextPricingLookup({
-  url: process.env.KACHANG_PRICING_URL?.trim()
-    || `${process.env.KACHANG_API_BASE_URL?.trim() || "https://newapi.prompt-hubs.com"}/api/pricing`,
-});
+// Agent 模型选择器的站点定价表：kachang 模式由私有装配给出端点；
+// dev-test 模式只认显式 KACHANG_PRICING_URL，没有配置就不查价（选择器
+// 仍可用，只是没有站点价参考）。
+const stationTextPricing = providerPlan.stationPricingUrl
+  ? createStationTextPricingLookup({ url: providerPlan.stationPricingUrl })
+  : async () => null;
 const agentOptions = {
   ...(agentExecutor ? { executor: agentExecutor } : {}),
   // Agent 模型选择器复用平台文本模型目录，按厂商分组（与模型广场同一口径）。
@@ -197,38 +147,6 @@ const agentOptions = {
 const pairingTokenTtlMs = readInteger(process.env.PAIRING_TOKEN_TTL_DAYS, 30, 1, 365) * 24 * 60 * 60_000;
 const externalConnectors = new ExternalConnectorService({ tokenTtlMs: pairingTokenTtlMs });
 const canvasCommands = new CanvasCommandBroker();
-// Agent 每轮固定扣费：走已登录用户的 Prompt Hub 钱包（同一份积分余额）。
-// 未配置 Prompt Hub 账号（native 身份）时不扣费，仅开发/测试环境会出现。
-const agentBilling: AgentBilling | undefined = promptHubAccount
-  ? {
-      async consume(input) {
-        const result = await promptHubAccount.consumeCredit(input.token, {
-          amount: input.amount,
-          reason: input.reason,
-          refId: input.refId,
-        });
-        return result.data;
-      },
-      async refund(input) {
-        const result = await promptHubAccount.refundCredit(input.token, {
-          amount: input.amount,
-          reason: input.reason,
-          refId: input.refId,
-        });
-        return result.data;
-      },
-    }
-  : undefined;
-const agentOptionsWithConnectors = {
-  ...agentOptions,
-  connectorClients: externalConnectors,
-  ...(agentBilling ? { billing: agentBilling } : {}),
-};
-const agent = pool ? new AgentService(new PostgresAgentStore(pool), agentOptionsWithConnectors) : undefined;
-const anonymousAgent = new AgentService(new MemoryAgentStore({
-  retentionMs: readInteger(process.env.AGENT_ANONYMOUS_RETENTION_SECONDS, 24 * 60 * 60, 300, 7 * 24 * 60 * 60) * 1_000,
-  maxConversations: readInteger(process.env.AGENT_ANONYMOUS_MAX_CONVERSATIONS, 2_000, 10, 100_000),
-}), agentOptionsWithConnectors);
 const mediaObjects = pool ? createMediaObjectStore() : undefined;
 if (mediaObjects) {
   await maintainMediaObjectStore(mediaObjects).catch((error) => console.error("Media temporary cleanup failed", error));
@@ -258,7 +176,7 @@ const signedMedia = process.env.MEDIA_SIGNING_SECRET
     allowInsecureLocalhost: process.env.NODE_ENV !== "production",
   })
   : undefined;
-const nativeGeneration = pool && media && !promptHub ? new GenerationJobService(
+const nativeGeneration = pool && media ? new GenerationJobService(
   quotes,
   catalog,
   new PostgresGenerationJobStore(pool),
@@ -267,52 +185,56 @@ const nativeGeneration = pool && media && !promptHub ? new GenerationJobService(
     maxActiveJobs: readInteger(process.env.GENERATION_MAX_ACTIVE_JOBS, 100, 1, 1000),
   },
 ) : undefined;
-const hostedGeneration = promptHubAccount ? new PromptHubGenerationService(
+// Provider 装配第二步：身份/托管账号/生成服务按计划落位（kachang 私有模块
+// 在此接管托管实现；dev-test 直接用上面的原生服务）。
+const providerServices = await assembleProviderServices(providerPlan, {
+  env: process.env,
+  sessionSecret,
+  sessionTtlMs,
   quotes,
-  promptHubAccount,
-  new JsonPromptHubGenerationStore(resolve(
-    process.env.PROMPT_HUB_GENERATION_STORE_PATH || ".data/prompt-hub-generation-jobs.json",
-  )),
-  {
-    apiBaseUrl: promptHubApiBaseUrl,
-    ...(process.env.APIMART_API_KEY?.trim() ? {
-      apimart: {
-        apiBaseUrl: process.env.APIMART_API_BASE_URL?.trim() || "https://api.apimart.ai",
-        apiKey: process.env.APIMART_API_KEY.trim(),
+  media,
+  signedMedia,
+  nativeIdentity,
+  nativeGeneration,
+});
+const identity = providerServices.identity;
+const hostedAccount: HostedAccountProvider | undefined = providerServices.account;
+const generation: GenerationProvider | undefined = providerServices.hostedGeneration;
+// Agent 每轮固定扣费：走已登录用户的托管钱包（同一份积分余额）。
+// dev-test 身份不扣费，仅开发/测试环境会出现。
+const agentBilling: AgentBilling | undefined = hostedAccount
+  ? {
+      async consume(input) {
+        const result = await hostedAccount.consumeCredit(input.token, {
+          amount: input.amount,
+          reason: input.reason,
+          refId: input.refId,
+        });
+        return result.data;
       },
-    } : {}),
-    ...(process.env.APIMART_MODEL_IDS?.trim()
-      ? { apimartModelIds: process.env.APIMART_MODEL_IDS.split(",").map((value) => value.trim()).filter(Boolean) }
-      : {}),
-    maxActiveJobs: readInteger(process.env.GENERATION_MAX_ACTIVE_JOBS, 100, 1, 1000),
-    requestTimeoutMs: promptHubRequestTimeoutMs,
-    submissionTimeoutMs: readInteger(process.env.PROMPT_HUB_SUBMISSION_TIMEOUT_MS, 120_000, 1_000, 10 * 60_000),
-    // A hosted image task that outlives this budget converges to a retryable
-    // timeout instead of spinning forever; video is exempt (see the service).
-    imageMaxLifetimeMs: readInteger(
-      process.env.PROMPT_HUB_IMAGE_MAX_LIFETIME_MS,
-      10 * 60_000,
-      60_000,
-      60 * 60_000,
-    ),
-    // 归档失败后的冷却：存储故障期间不要再让每次读取都白等一次存储超时。
-    archiveRetryCooldownMs: readInteger(
-      process.env.PROMPT_HUB_ARCHIVE_RETRY_COOLDOWN_MS,
-      2 * 60_000,
-      1_000,
-      60 * 60_000,
-    ),
-    ...(media ? { media } : {}),
-    ...(signedMedia ? { signedAccess: signedMedia } : {}),
-    references: new JsonPromptHubReferenceStore(resolve(
-      process.env.PROMPT_HUB_REFERENCE_STORE_PATH || ".data/prompt-hub-generation-references.json",
-    )),
-  },
-) : undefined;
-const generation = hostedGeneration ?? nativeGeneration;
+      async refund(input) {
+        const result = await hostedAccount.refundCredit(input.token, {
+          amount: input.amount,
+          reason: input.reason,
+          refId: input.refId,
+        });
+        return result.data;
+      },
+    }
+  : undefined;
+const agentOptionsWithConnectors = {
+  ...agentOptions,
+  connectorClients: externalConnectors,
+  ...(agentBilling ? { billing: agentBilling } : {}),
+};
+const agent = pool ? new AgentService(new PostgresAgentStore(pool), agentOptionsWithConnectors) : undefined;
+const anonymousAgent = new AgentService(new MemoryAgentStore({
+  retentionMs: readInteger(process.env.AGENT_ANONYMOUS_RETENTION_SECONDS, 24 * 60 * 60, 300, 7 * 24 * 60 * 60) * 1_000,
+  maxConversations: readInteger(process.env.AGENT_ANONYMOUS_MAX_CONVERSATIONS, 2_000, 10, 100_000),
+}), agentOptionsWithConnectors);
 const cloudProjectPolicy = readCloudProjectPolicy();
-const cloudProjectEntitlements = promptHubAccount
-  ? new MembershipCloudProjectEntitlementResolver(promptHubAccount, cloudProjectPolicy, {
+const cloudProjectEntitlements = hostedAccount
+  ? new MembershipCloudProjectEntitlementResolver(hostedAccount, cloudProjectPolicy, {
       ...(pool ? { principalMembershipReader: new PostgresPrincipalMembershipReader(pool) } : {}),
     })
   : new StaticCloudProjectEntitlementResolver(cloudProjectPolicy.free);
@@ -375,7 +297,7 @@ const app = createApiApp({
     submissionsPerDay: readInteger(process.env.AGENT_ANONYMOUS_SUBMIT_PER_DAY, 60, 1, 1_000_000),
   },
   catalog,
-  cardLibrary: promptHubAccount,
+  cardLibrary: hostedAccount,
   quotes,
   ...(process.env.MODEL_OVERRIDES_ADMIN_SECRET?.trim()
     ? {
@@ -394,8 +316,8 @@ const app = createApiApp({
   generation,
   generationGuard,
   readiness,
-  wallet: promptHubAccount,
-  membershipTasks: promptHubAccount,
+  wallet: hostedAccount,
+  membershipTasks: hostedAccount,
   ...(media && mediaMetadata && pool ? {
     // 每日存储清扫：宽限期到期的 owner 按最旧未绑定素材优先执行配额。
     storageSweep: {
@@ -487,12 +409,6 @@ function readAllowedOrigins(value: string | undefined) {
   return Array.from(new Set([...configured, "http://127.0.0.1:4173", "http://localhost:4173"]));
 }
 
-function readIdentityMode(value: string | undefined, production = false) {
-  const normalized = value?.trim() || (production ? "prompt-hub" : "auto");
-  if (normalized === "auto" || normalized === "native" || normalized === "prompt-hub") return normalized;
-  throw new Error("IDENTITY_PROVIDER must be auto, native, or prompt-hub");
-}
-
 function identitySessionSecret(value: string | undefined) {
   const configured = value?.trim();
   if (configured) {
@@ -502,7 +418,7 @@ function identitySessionSecret(value: string | undefined) {
     return configured;
   }
   if (process.env.NODE_ENV === "production") {
-    throw new Error("IDENTITY_SESSION_SECRET is required for Prompt Hub identity in production");
+    throw new Error("IDENTITY_SESSION_SECRET is required for hosted identity in production");
   }
   return randomBytes(32).toString("base64url");
 }

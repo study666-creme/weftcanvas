@@ -27,7 +27,7 @@ type Category = {
 };
 
 /**
- * Category rules copied from the prompt-hubs console model square.
+ * Category rules copied from the operations console model square.
  * - Image models: 香蕉 / 全能模型2 / 全能模型2.5 / Midjourney / Seedream / 其他.
  *   The console splits the 全能模型 line into its 2 and 2.5 generations, so the
  *   picker does the same instead of hiding both under one "全能模型2" tab.

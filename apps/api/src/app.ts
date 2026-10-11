@@ -113,7 +113,7 @@ import type { ApiReadinessProbe } from "./database/readiness.js";
 import { IdentityProviderError, type IdentityProvider, type IdentityRegistrationResult, type IssuedIdentitySession } from "./identity/provider.js";
 import { GenerationApiGuard, GenerationApiLimitError } from "./generation/api-rate-limit.js";
 import { GenerationJobService, GenerationJobServiceError } from "./generation/service.js";
-import type { HostedGenerationResult } from "./generation/prompt-hub-service.js";
+import type { HostedGenerationResult } from "./generation/hosted-result.js";
 import { MediaService, MediaServiceError } from "./media/service.js";
 import type { CloudResourceService } from "./media/cloud-resource-service.js";
 import type { MediaMultipartService } from "./media/multipart-service.js";
@@ -307,16 +307,13 @@ export function createApiApp(dependencies: ApiDependencies) {
   const anonymousAgentGuard = new AnonymousAgentGuard(dependencies.anonymousAgentLimits);
   const sensitiveActionGuard = new SensitiveActionGuard();
 
-  // The Prompt Hub operations console embeds the model-override admin page in
-  // an iframe (its 画布模型 tab). A blanket X-Frame-Options: DENY made that
-  // page render blank with no error, so this one path is exempted here — where
-  // the header is actually written — and pinned with CSP frame-ancestors
-  // instead: only the known consoles may frame it.
-  const MODEL_OVERRIDES_FRAME_ANCESTORS = [
-    "https://prompt-hubs.com",
-    "https://www.prompt-hubs.com",
-    "https://api.prompt-hubs.com",
-  ];
+  // 运营控制台会把模型覆盖管理页嵌进 iframe。一刀切 X-Frame-Options: DENY 会让
+  // 那个页渲染空白且无报错，所以这一条路径豁免，并改用 CSP frame-ancestors 钉死：
+  // 只有环境变量点名的控制台来源可以 frame 它（部署侧配置，代码不含默认来源）。
+  const MODEL_OVERRIDES_FRAME_ANCESTORS = (process.env.MODEL_OVERRIDES_FRAME_ANCESTORS ?? "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
   app.use("*", async (context, next) => {
     await next();
     context.header("X-Content-Type-Options", "nosniff");

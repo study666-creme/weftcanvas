@@ -626,3 +626,88 @@
     animation-iteration-count: infinite !important;
   }
 }
+
+/* --- 插件管理（设置中心「插件」板块）--- */
+.kc-plugin-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.kc-plugin-settings-intro {
+  margin: 0;
+  color: var(--kc-text-muted, inherit);
+  opacity: 0.72;
+}
+
+.kc-plugin-settings-list,
+.kc-plugin-settings-available {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.kc-plugin-settings-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--kc-border, currentColor) 42%, transparent);
+  border-radius: 10px;
+}
+
+.kc-plugin-settings-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--kc-text, inherit);
+}
+
+.kc-plugin-settings-meta {
+  flex: 1;
+  overflow: hidden;
+  color: var(--kc-text-muted, inherit);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.66;
+}
+
+.kc-plugin-settings-label {
+  color: var(--kc-text-muted, inherit);
+  opacity: 0.66;
+}
+
+.kc-plugin-settings-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border: 1px solid color-mix(in srgb, currentColor 24%, transparent);
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: opacity 140ms ease;
+}
+
+.kc-plugin-settings-action:hover:enabled { opacity: 0.82; }
+.kc-plugin-settings-action:disabled { opacity: 0.45; cursor: default; }
+
+.kc-plugin-settings-empty {
+  margin: 0;
+  color: var(--kc-text-muted, inherit);
+  opacity: 0.6;
+}
+
+.kc-plugin-settings-error {
+  padding: 6px 10px;
+  border: 1px dashed color-mix(in srgb, var(--kc-coral, #e0806b) 45%, transparent);
+  border-radius: 8px;
+  color: var(--kc-text-muted, inherit);
+  opacity: 0.8;
+}

@@ -2,29 +2,40 @@ import { create } from "zustand";
 
 import type { ModelModality } from "@kachang/contracts";
 
+import { isRegisteredAppearanceValue, type AppearanceSlot } from "../lib/appearance-registry";
+// 内置档位必须先于本模块的 normalize 注册（read 在模块求值期执行）。
+import "../lib/builtin-appearance";
 import { isDefaultNodeAspectRatio, type DefaultNodeAspectRatio } from "../lib/node-size";
 
 export type { DefaultNodeAspectRatio } from "../lib/node-size";
 
-export type NodePortStyle = "compact" | "classic";
+/**
+ * 外观档位 ID（docs/PLUGIN-ROADMAP.md §4）：开放注册后从闭合联合放宽为
+ * string 别名。"值是否合法"的唯一判定源是外观注册表——read normalize 拒绝
+ * 未注册值并回落默认；setter 不重复校验（UI 只渲染注册档位，未注册值写了
+ * 也会在下次读取时回落，测试覆盖该行为）。
+ */
+export type StyleOptionId = string;
+
+export type NodePortStyle = StyleOptionId;
 /**
  * 画布界面风格。`airy`（疏朗）是宽间距、近直角的开阔版本；`cosmos`（深空）与
  * `lingjing`（灵境）已下线，历史存档在读取时归一化回默认值，不会白屏也不会
  * 静默套用别的风格。
  */
-export type CanvasVisualStyle = "studio" | "classic" | "airy" | "onyx";
-export type NodeVisualStyle = CanvasVisualStyle | "imax";
-export type CanvasBackgroundStyle = "layered-grid" | "zoom-dots" | "starfield" | "water" | "onyx";
-export type GenerationEffectStyle = "beam" | "nebula" | "water" | "quiet";
-export type EdgePathStyle = "taut" | "gravity" | "emerald";
-export type EdgeFlowStyle = "stream" | "stardust";
+export type CanvasVisualStyle = StyleOptionId;
+export type NodeVisualStyle = StyleOptionId;
+export type CanvasBackgroundStyle = StyleOptionId;
+export type GenerationEffectStyle = StyleOptionId;
+export type EdgePathStyle = StyleOptionId;
+export type EdgeFlowStyle = StyleOptionId;
 /**
  * 画布伙伴样式。`whale` 是 DeepSeek 娘（鲸鱼娘）——蓝发、鲸尾、女仆围裙的默认形象；
  * `bear` / `robot` 是历史样式，保留在选择器里随时可切回。
  */
 export type CompanionStyle = "whale" | "bear" | "robot";
 /** 鼠标样式：classic=质感自定义指针，precision=精确十字指针（原生光标）。 */
-export type CursorStyle = "classic" | "precision";
+export type CursorStyle = StyleOptionId;
 /**
  * 配色方案，与节点/界面样式、深浅主题三者正交。
  * `graphite`（石墨）是现有的灰调版本，偏商业；`ink`（墨黑）把底色压到近纯黑、
@@ -176,31 +187,29 @@ function readUiPreferences(): StoredUiPreferences {
       defaultNodeAspectRatio?: unknown;
       lastMediaGeneration?: unknown;
     } | null;
-    const canvasVisualStyle = normalizeNodeVisualStyle(stored?.canvasVisualStyle, "airy");
-    const legacyChromeFallback = isCanvasVisualStyle(canvasVisualStyle) ? canvasVisualStyle : "airy";
+    const canvasVisualStyle = normalizeStyleOption("canvasVisualStyle", stored?.canvasVisualStyle, "airy");
+    const legacyChromeFallback = isRegisteredAppearanceValue("chromeVisualStyle", canvasVisualStyle)
+      ? canvasVisualStyle as StyleOptionId
+      : "airy" as StyleOptionId;
     return {
-      nodePortStyle: stored?.nodePortStyle === "compact" ? "compact" : "classic",
+      nodePortStyle: normalizeStyleOption("nodePortStyle", stored?.nodePortStyle, "classic"),
       colorScheme: stored?.colorScheme === "ink" || stored?.colorScheme === "onyx" ? stored.colorScheme : "graphite",
       canvasVisualStyle,
       // Older v1 records used one preset for nodes and chrome. Copy it once so
       // the upgrade has no visual jump, then persist both controls separately.
-      chromeVisualStyle: normalizeCanvasVisualStyle(stored?.chromeVisualStyle, legacyChromeFallback),
-      canvasBackgroundStyle: stored?.canvasBackgroundStyle === "zoom-dots" || stored?.canvasBackgroundStyle === "starfield" || stored?.canvasBackgroundStyle === "water" || stored?.canvasBackgroundStyle === "onyx"
-        ? stored.canvasBackgroundStyle
-        : "layered-grid",
-      generationEffectStyle: stored?.generationEffectStyle === "nebula" || stored?.generationEffectStyle === "water" || stored?.generationEffectStyle === "quiet"
-        ? stored.generationEffectStyle
-        : "beam",
-      edgePathStyle: stored?.edgePathStyle === "gravity" || stored?.edgePathStyle === "emerald"
-        ? stored.edgePathStyle
-        : "taut",
-      edgeFlowStyle: stored?.edgeFlowStyle === "stardust" ? "stardust" : "stream",
+      chromeVisualStyle: normalizeStyleOption("chromeVisualStyle", stored?.chromeVisualStyle, legacyChromeFallback),
+      canvasBackgroundStyle: normalizeStyleOption("canvasBackgroundStyle", stored?.canvasBackgroundStyle, "layered-grid"),
+      generationEffectStyle: normalizeStyleOption("generationEffectStyle", stored?.generationEffectStyle, "beam"),
+      edgePathStyle: normalizeStyleOption("edgePathStyle", stored?.edgePathStyle, "taut"),
+      edgeFlowStyle: normalizeStyleOption("edgeFlowStyle", stored?.edgeFlowStyle, "stream"),
       companionStyle: stored?.companionStyle === "robot"
         ? "robot"
         : stored?.companionStyle === "bear"
           ? "bear"
           : "whale",
-      cursorStyle: stored?.cursorStyle === "classic" ? "classic" : "precision",
+      // 默认「质感」：自绘光标接回画布后它就是最像"产品角色"的一档；
+      // 存过的用户偏好原样保留（只认 "precision" 这个显式值）。
+      cursorStyle: normalizeStyleOption("cursorStyle", stored?.cursorStyle, "classic"),
       defaultNodeAspectRatio: isDefaultNodeAspectRatio(stored?.defaultNodeAspectRatio)
         ? stored.defaultNodeAspectRatio
         : "16:9",
@@ -218,7 +227,7 @@ function readUiPreferences(): StoredUiPreferences {
       edgePathStyle: "taut",
       edgeFlowStyle: "stream",
       companionStyle: "whale",
-      cursorStyle: "precision",
+      cursorStyle: "classic",
       defaultNodeAspectRatio: "16:9",
       lastMediaGeneration: {},
       companionAnchor: null,
@@ -266,16 +275,12 @@ function normalizeLastMediaGeneration(value: unknown): Partial<Record<ModelModal
   return normalized;
 }
 
-function normalizeNodeVisualStyle(value: unknown, fallback: NodeVisualStyle): NodeVisualStyle {
-  return value === "imax" || isCanvasVisualStyle(value) ? value : fallback;
-}
-
-function normalizeCanvasVisualStyle(value: unknown, fallback: CanvasVisualStyle): CanvasVisualStyle {
-  return isCanvasVisualStyle(value) ? value : fallback;
-}
-
-function isCanvasVisualStyle(value: unknown): value is CanvasVisualStyle {
-  return value === "classic" || value === "airy" || value === "studio";
+/**
+ * 外观档位的注册表化 normalize：只有当前注册表里存在的值才被接受，
+ * 未知/历史存量值回落默认（cosmos、灵境等下线档即由此消失）。
+ */
+function normalizeStyleOption(slot: AppearanceSlot, value: unknown, fallback: StyleOptionId): StyleOptionId {
+  return isRegisteredAppearanceValue(slot, value) ? (value as StyleOptionId) : fallback;
 }
 
 function writeUiPreferences(preferences: StoredUiPreferences) {

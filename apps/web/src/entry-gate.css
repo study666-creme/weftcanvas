@@ -3024,7 +3024,7 @@
   color: var(--entry-muted);
 }
 
-/* --- Categorized model select (compact prompt-hubs style) --- */
+/* --- Categorized model select (compact operations-console style) --- */
 
 .kc-cat-select {
   position: relative;
@@ -4984,25 +4984,32 @@
   opacity: .55;
 }
 
+/*
+ * 星空在白天模式直接关掉。浅色底上白点阵要么看不见（白点叠近白底），要么在
+ * hero 的彩色渐晕上读作"灰尘/水汽颗粒"——这正是白天模式最违和的一层。层次交给
+ * 上面 .kc-entry-hero 的浅色渐变，这层不再需要。
+ */
 .kc-app[data-theme="light"] .kc-entry-hero-stars,
-.kc-app[data-theme="light"] .kc-entry-hero-stars::before {
-  opacity: .75;
-  background-image:
-    radial-gradient(1.6px 1.6px at 22px 34px, rgb(255 255 255 / 76%) 50%, transparent 51%),
-    radial-gradient(1.3px 1.3px at 78px 96px, rgb(255 255 255 / 64%) 50%, transparent 51%),
-    radial-gradient(1.1px 1.1px at 140px 52px, rgb(255 255 255 / 58%) 50%, transparent 51%),
-    radial-gradient(1.5px 1.5px at 240px 40px, rgb(255 255 255 / 54%) 50%, transparent 51%),
-    radial-gradient(2px 2px at 60px 70px, rgb(255 255 255 / 48%) 50%, transparent 51%),
-    radial-gradient(1.3px 1.3px at 180px 130px, rgb(255 255 255 / 38%) 50%, transparent 51%),
-    radial-gradient(1.6px 1.6px at 250px 60px, rgb(255 255 255 / 44%) 50%, transparent 51%);
+.kc-app[data-theme="light"] .kc-entry-hero-stars::before,
+.kc-app[data-theme="light"] .kc-entry-hero-stars::after {
+  display: none;
 }
 
+/*
+ * 光晕同理：白天模式下 8-14% 的大块彩雾（暖金 + 冷蓝 + 绿）在近白底上就是一层
+ * "发霉的彩色雾气"。浅色 hero 自己的渐晕已经足够，关掉这一层。
+ */
 .kc-app[data-theme="light"] .kc-entry-hero-glow {
-  background:
-    radial-gradient(58% 46% at 16% 88%, rgb(178 148 96 / 12%) 0%, transparent 66%),
-    radial-gradient(64% 52% at 86% 14%, rgb(120 156 190 / 14%) 0%, transparent 64%),
-    radial-gradient(40% 30% at 62% 58%, rgb(150 166 140 / 8%) 0%, transparent 70%),
-    linear-gradient(180deg, transparent 78%, rgb(196 168 118 / 7%) 94%, transparent 100%);
+  display: none;
+}
+
+/*
+ * 深色底用的噪点纹理（canvas-grain.png）在浅色底上是一整页的灰脏/雾感：
+ * 入口页与直连工作台两处都关掉。
+ */
+.kc-app[data-theme="light"] .kc-entry-gate::after,
+.kc-app[data-theme="light"] .kc-direct-page::after {
+  display: none;
 }
 
 /* Light keeps the ink gradient for the accented words: gold would wash out. */

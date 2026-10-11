@@ -272,7 +272,7 @@ def stop_bridge():
 # ---------------------------------------------------------------- 远程模式
 # 插件主动出站连到画布服务端：用户机器不监听任何端口，服务端也不需要装 Blender。
 
-DEFAULT_SERVER_URL = "https://canvas-api.prompt-hubs.com"
+DEFAULT_SERVER_URL = ""  # 由用户在插件设置里填自己的画布服务端
 DEFAULT_INTERVAL_S = 3.0
 # 直接 --python 运行时没有插件偏好，退回这里的模块级设置。
 _FALLBACK_SETTINGS = {

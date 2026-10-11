@@ -9,6 +9,8 @@ import { memo, useContext } from "react";
 
 import { useCanvasStore } from "../state/canvas-store";
 import { useUiPreferencesStore } from "../state/ui-preferences-store";
+import { getAppearanceOption } from "../lib/appearance-registry";
+import "../lib/builtin-appearance";
 import type { KachangEdge } from "../types";
 import { CanvasEdgeRuntimeContext } from "./canvas-node-runtime-context";
 
@@ -60,7 +62,7 @@ export const KachangEdgeComponent = memo(function KachangEdgeComponent({
 
   return (
     <g
-      className={`kc-edge-renderer ${edgePathStyle === "gravity" ? "is-soft-curve" : "is-taut"}`}
+      className={`kc-edge-renderer ${edgeGeometryFor(edgePathStyle) === "gravity" ? "is-soft-curve" : "is-taut"}`}
       data-edge-path-style={edgePathStyle}
       data-edge-flow-style={edgeFlowStyle}
       data-edge-energy-active={energyActive ? "true" : "false"}
@@ -110,7 +112,7 @@ export const KachangConnectionLine = memo(function KachangConnectionLine({
     ? getKachangEdgePath(reversePathInput(pathInput), edgePathStyle).path
     : path;
   return (
-    <g className={`kc-connection-preview ${edgePathStyle === "gravity" ? "is-soft-curve" : "is-taut"} ${statusClass}`} data-edge-path-style={edgePathStyle} data-edge-flow-style={edgeFlowStyle}>
+    <g className={`kc-connection-preview ${edgeGeometryFor(edgePathStyle) === "gravity" ? "is-soft-curve" : "is-taut"} ${statusClass}`} data-edge-path-style={edgePathStyle} data-edge-flow-style={edgeFlowStyle}>
       <path className="kc-connection-preview-base" d={path} />
       {edgeFlowStyle === "stream" ? (
         <g className="kc-edge-effect kc-edge-effect--stream">
@@ -150,8 +152,16 @@ function StardustConvergence({
   );
 }
 
-export function getKachangEdgePath(input: EdgePathInput, style: "taut" | "gravity" | "emerald"): EdgePathGeometry {
-  const curvature = style === "taut" ? 0.42 : style === "gravity" ? 0.25 : 0.32;
+/**
+ * 线形档的几何解析：注册档可声明复用哪种内置几何（琥珀包 = 张力），
+ * 未注册/历史值回落张力。曲率取注册声明的 pathCurvature。
+ */
+function edgeGeometryFor(style: string): "taut" | "gravity" {
+  return getAppearanceOption("edgePathStyle", style)?.geometry ?? "taut";
+}
+
+export function getKachangEdgePath(input: EdgePathInput, style: string): EdgePathGeometry {
+  const curvature = getAppearanceOption("edgePathStyle", style)?.pathCurvature ?? 0.42;
   const [path, focusX, focusY] = getBezierPath({ ...input, curvature });
   return { path, focusX, focusY };
 }

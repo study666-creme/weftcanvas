@@ -388,6 +388,23 @@
 
 .kc-auth-input-shell > input::placeholder { color: var(--entry-faint, #6b716c); }
 
+/*
+ * 浏览器自动填充（autofill）不能沿用全局规则：ui-polish.css 用的是主题令牌
+ * （--kc-text / --kc-surface-muted），而登录页是**钉死的深色页**。白天模式下
+ * 那两个令牌翻成"深字 + 浅底"，Chrome 往里画的就是一个亮白方块 + 深字，
+ * 与深色登录页直接打架——这就是"输入框还是浏览器原始框"的来源。
+ * 这里就地钉死深底浅字（含 hover/focus 三个状态，Chrome 会给每个状态各画一次）。
+ * 过渡时长用 9999s 是标准技巧：让 Chrome 那层内阴影"永远处于过渡中"而不显形。
+ */
+.kc-auth-input-shell > input:-webkit-autofill,
+.kc-auth-input-shell > input:-webkit-autofill:hover,
+.kc-auth-input-shell > input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--entry-text, #f2f4f1);
+  caret-color: var(--entry-text, #f2f4f1);
+  box-shadow: 0 0 0 1000px rgb(10 12 12 / 88%) inset;
+  transition: background-color 9999s ease-out;
+}
+
 .kc-auth-password-toggle {
   display: grid;
   width: 26px;

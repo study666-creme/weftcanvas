@@ -1,0 +1,60 @@
+/*
+ * 琥珀（amber-edge）线形包 —— P1 外观注册化的演示扩展（docs/PLUGIN-ROADMAP.md §4）。
+ *
+ * 它证明一个外观包只需要两件东西：一个注册调用（index.ts）+ 一个 CSS 文件。
+ * 几何复用内置"张力"档（注册项声明 geometry: "taut"），本文件只负责换肤：
+ *   · 底线：低饱和琥珀（#c08a3e），细而不抢戏
+ *   · 外圈：暖金光晕（rgb(212 160 74 / 22%)），玻璃管质感
+ *   · 流光：亮琥珀（#f0c674）亮段滑过
+ *   · 端点：琥珀环 + 蜜色核心
+ * 与石墨/纯黑配色组合最协调；浅色主题加深一档。
+ */
+
+:root[data-edge-path-style="amber-edge"] {
+  --kc-amber-base: #c08a3e;
+  --kc-amber-halo: rgb(212 160 74 / 22%);
+  --kc-amber-glow: rgb(240 198 116 / 92%);
+  --kc-amber-gem: #ffd894;
+  --kc-amber-track: rgb(212 160 74 / 36%);
+}
+
+:root[data-theme="light"][data-edge-path-style="amber-edge"] {
+  --kc-amber-base: #96662a;
+  --kc-amber-halo: rgb(150 102 42 / 26%);
+  --kc-amber-glow: rgb(212 160 74 / 92%);
+  --kc-amber-gem: #c08a3e;
+  --kc-amber-track: rgb(150 102 42 / 40%);
+}
+
+/* —— 基底连线（BaseEdge）—— */
+:root[data-edge-path-style="amber-edge"] .react-flow__edge-path {
+  stroke: var(--kc-amber-base);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 1.4px var(--kc-amber-halo));
+}
+
+:root[data-edge-path-style="amber-edge"] .react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--kc-amber-gem);
+  stroke-width: 2;
+}
+
+:root[data-edge-path-style="amber-edge"] .react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--kc-amber-glow);
+  stroke-width: 1.8;
+}
+
+/* —— 外圈光晕（.kc-edge-aura）—— */
+:root[data-edge-path-style="amber-edge"] .kc-edge-aura {
+  stroke: var(--kc-amber-halo);
+}
+
+:root[data-edge-path-style="amber-edge"] .react-flow__edge.selected .kc-edge-aura,
+:root[data-edge-path-style="amber-edge"] .kc-edge-aura[data-selected="true"] {
+  stroke: var(--kc-amber-track);
+}
+
+/* —— 流向能量段（.kc-edge-energy）—— */
+:root[data-edge-path-style="amber-edge"] .kc-edge-energy {
+  stroke: var(--kc-amber-glow);
+}

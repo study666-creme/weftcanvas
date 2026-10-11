@@ -2,10 +2,10 @@ import type { PublicModel } from "@kachang/contracts";
 import { z } from "zod";
 
 import {
-  CATALOG_NORMALIZATION_VERSION,
-  ensureCanvasFaceCompatibilitySnapshot,
+  catalogNormalizationVersion,
   normalizeSourceCatalog,
   withQuoteAvailability,
+  type CatalogCompatibilityOverlay,
 } from "./normalize.js";
 import { applyModelOverrides, type ModelOverrideStore } from "./overrides.js";
 import type { CatalogSnapshotStore, StoredCatalogSnapshot } from "./store.js";
@@ -30,7 +30,11 @@ export class CatalogUnavailableError extends Error {
 }
 
 type CatalogAdapterOptions = {
-  sourceUrl: string;
+  /**
+   * 上游目录端点。缺省 = 纯快照模式（snapshot-only，dev-test 自托管场景
+   * 没有默认端点，也不该偷偷猜一个）：永不出网刷新，只用已存快照。
+   */
+  sourceUrl?: string;
   videoInventoryUrl?: string;
   store: CatalogSnapshotStore;
   /** Operator visibility/price overrides applied to the published catalog. */
@@ -38,6 +42,8 @@ type CatalogAdapterOptions = {
   fetch?: typeof globalThis.fetch;
   inventoryFetch?: typeof globalThis.fetch;
   includeKnownModels?: boolean;
+  /** 站点策展兼容层（私有 overlay）；公开/自托管缺省不注入。 */
+  overlay?: CatalogCompatibilityOverlay;
   refreshIntervalMs?: number;
   requestTimeoutMs?: number;
   maxQuoteAgeMs?: number;
@@ -82,19 +88,20 @@ export class KachangCatalogAdapter {
     const videoAvailabilityMissing = this.options.videoInventoryUrl && this.snapshot
       ? !hasFreshVideoAvailability(this.snapshot, now, this.refreshIntervalMs)
       : false;
-    const snapshotNeedsNormalization = this.snapshot ? !hasCurrentNormalization(this.snapshot) : false;
+    const snapshotNeedsNormalization = this.snapshot ? !hasCurrentNormalization(this.snapshot, this.options.overlay) : false;
     const mustAwaitRefresh = options.forceRefresh === true
       || !this.snapshot
       || snapshotNeedsNormalization
       || snapshotIncomplete
       || (options.awaitRefresh === true && (snapshotExpired || snapshotIncomplete))
       || (options.awaitVideoAvailability === true && videoAvailabilityMissing);
-    const shouldRefresh = mustAwaitRefresh
+    const shouldRefresh = Boolean(this.options.sourceUrl)
+      && (mustAwaitRefresh
       || now - this.lastCheckedAt >= this.refreshIntervalMs
       || snapshotExpired
       || snapshotIncomplete
       || videoAvailabilityMissing
-      || snapshotNeedsNormalization;
+      || snapshotNeedsNormalization);
     const refreshAllowed = options.forceRefresh === true || now >= this.refreshRetryAt;
     if (shouldRefresh && refreshAllowed) {
       if (mustAwaitRefresh) await this.refreshSafely();
@@ -108,7 +115,7 @@ export class KachangCatalogAdapter {
     const catalog = this.options.overrides && options.includeOverrides !== false
       ? applyModelOverrides(sourceCatalog, await this.options.overrides.load())
       : sourceCatalog;
-    return hasCompleteExecutionRoutes(this.snapshot) && hasCurrentNormalization(this.snapshot)
+    return hasCompleteExecutionRoutes(this.snapshot) && hasCurrentNormalization(this.snapshot, this.options.overlay)
       ? catalog
       : { ...catalog, quoteAvailable: false };
   }
@@ -164,7 +171,9 @@ export class KachangCatalogAdapter {
     if (this.loaded) return;
     if (!this.loadPromise) {
       this.loadPromise = this.options.store.load().then((snapshot) => {
-        const compatible = snapshot ? ensureCanvasFaceCompatibilitySnapshot(snapshot) : null;
+        const compatible = snapshot
+          ? (this.options.overlay?.ensureSnapshotCompatibility?.(snapshot) ?? snapshot)
+          : null;
         this.snapshot = compatible;
         if (compatible && compatible !== snapshot) void this.options.store.save(compatible);
         this.loaded = true;
@@ -203,10 +212,10 @@ export class KachangCatalogAdapter {
     const headers = new Headers({ Accept: "application/json" });
     const canRevalidateSnapshot = this.snapshot
       && hasCompleteExecutionRoutes(this.snapshot)
-      && hasCurrentNormalization(this.snapshot);
+      && hasCurrentNormalization(this.snapshot, this.options.overlay);
     if (this.snapshot?.etag && canRevalidateSnapshot) headers.set("If-None-Match", this.snapshot.etag);
     const [sourceResult, inventoryResult] = await Promise.allSettled([
-      this.fetcher(this.options.sourceUrl, {
+      this.fetcher(this.options.sourceUrl!, {
         headers,
         signal: AbortSignal.timeout(this.requestTimeoutMs),
       }),
@@ -248,6 +257,7 @@ export class KachangCatalogAdapter {
             validatedAt: checkedAt,
             maxQuoteAgeMs: this.maxQuoteAgeMs,
             includeKnownModels: this.options.includeKnownModels,
+            ...(this.options.overlay ? { overlay: this.options.overlay } : {}),
             ...(etag ? { etag } : {}),
           });
         }
@@ -308,8 +318,8 @@ function hasCompleteExecutionRoutes(snapshot: StoredCatalogSnapshot) {
   });
 }
 
-function hasCurrentNormalization(snapshot: StoredCatalogSnapshot) {
-  return snapshot.normalizationVersion === CATALOG_NORMALIZATION_VERSION;
+function hasCurrentNormalization(snapshot: StoredCatalogSnapshot, overlay?: CatalogCompatibilityOverlay) {
+  return snapshot.normalizationVersion === catalogNormalizationVersion(overlay);
 }
 
 function hasFreshVideoAvailability(snapshot: StoredCatalogSnapshot | null, now: number, maxAgeMs: number) {

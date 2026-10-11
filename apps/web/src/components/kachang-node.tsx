@@ -1,7 +1,8 @@
-import { canvasNodeLabels, type CanvasEditData, type CanvasMedia, type CanvasNodeKind } from "@kachang/contracts";
-import { creatableNodeKinds } from "../lib/canvas-features";
+import { type CanvasEditData, type CanvasMedia, type CanvasNodeKind } from "@kachang/contracts";
+import { getNodeDefinition, nodeLabel, useCreatableNodeDefinitions } from "../lib/node-registry";
+import { applyCanvasOps } from "../lib/plugin-host";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { ArrowRight, AlertCircle, Clapperboard, Disc3, ExternalLink, ImagePlus, LoaderCircle, Music2, Plus, Upload, Video } from "lucide-react";
+import { ArrowRight, AlertCircle, Clapperboard, Disc3, ExternalLink, FileText, ImagePlus, LoaderCircle, Music2, Plus, Upload, Video } from "lucide-react";
 import { lazy, memo, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState, type ChangeEvent, type PointerEvent, type RefObject } from "react";
 
 import { useMediaLodThumbUrlForProject, useMediaUrlForProject } from "../hooks/use-media-url";
@@ -22,8 +23,8 @@ import { useGenerationStore } from "../state/generation-store";
 import { useToastStore } from "../state/toast-store";
 import { useUiPreferencesStore } from "../state/ui-preferences-store";
 import type { KachangNode as KachangNodeType } from "../types";
-import { nodeIcons } from "./node-icon";
 import { NodeActionToolbar } from "./node-action-toolbar";
+import { PluginBodyBoundary } from "./plugin-body-boundary";
 import { CanvasNodeRuntimeContext } from "./canvas-node-runtime-context";
 import {
   FaceGridPanel,
@@ -317,6 +318,7 @@ function NodePort({ nodeId, side }: { nodeId: string; side: "left" | "right" }) 
   const magnetFrameRef = useRef<number | null>(null);
   const pendingMagnetRef = useRef<{ port: HTMLElement; x: number; y: number } | null>(null);
   const portStyle = useUiPreferencesStore((state) => state.nodePortStyle);
+  const creatableNodes = useCreatableNodeDefinitions();
 
   const resetMagnet = useCallback(() => {
     if (magnetFrameRef.current !== null) window.cancelAnimationFrame(magnetFrameRef.current);
@@ -480,18 +482,18 @@ function NodePort({ nodeId, side }: { nodeId: string; side: "left" | "right" }) 
             className={`kc-node-quick-add kc-node-quick-add--${side} nodrag nowheel`}
             onPointerDown={(event) => event.stopPropagation()}
           >
-            {creatableNodeKinds.map((kind) => {
-              const Icon = nodeIcons[kind];
+            {creatableNodes.map((definition) => {
+              const Icon = definition.icon;
               return (
                 <button
-                  key={kind}
+                  key={definition.kind}
                   type="button"
-                  className={`kc-quick-add--${kind}`}
-                  aria-label={`添加${canvasNodeLabels[kind]}`}
-                  title={canvasNodeLabels[kind]}
+                  className={`kc-quick-add--${definition.kind}`}
+                  aria-label={`添加${definition.label()}`}
+                  title={definition.label()}
                   onClick={(event) => {
                     event.stopPropagation();
-                    useCanvasStore.getState().addConnectedNode(nodeId, side, kind);
+                    useCanvasStore.getState().addConnectedNode(nodeId, side, definition.kind);
                     setOpen(false);
                   }}
                 >
@@ -864,8 +866,13 @@ export const KachangNode = memo(function KachangNode({ id, data, width, height, 
   // 画质不受影响。
   const { url: mediaThumbUrl } = useMediaLodThumbUrlForProject(data.media, projectId, cloudLinked, canvasZoom);
   const imageDisplayUrl = data.kind === "image" ? (mediaThumbUrl ?? mediaUrl) : null;
-  const Icon = nodeIcons[data.kind];
+  const Icon = getNodeDefinition(data.kind)?.icon ?? FileText;
   const isMedia = data.kind === "image" || data.kind === "video" || data.kind === "audio";
+  const PluginBody = getNodeDefinition(data.kind)?.renderBody;
+  // 插件节点体的 ops 通道：与 Agent 命令同一套校验与执行路径（宿主代发）。
+  const pluginBodyOps = useMemo(() => ({
+    apply: async (ops: { type: string; [key: string]: unknown }[]) => applyCanvasOps(`plugin-body-${id}`, ops),
+  }), [id]);
   // Video accent is a visual type token. Normalize legacy coral values at the
   // render boundary so saved nodes cannot make a normal video look failed.
   const visualAccent = data.kind === "video" ? "blue" : data.accent;
@@ -1295,7 +1302,7 @@ export const KachangNode = memo(function KachangNode({ id, data, width, height, 
       onPointerDownCapture={rememberExpandedPointer}
     >
       {compactOverview ? null : (
-        <span className="kc-node-type-label"><Icon aria-hidden="true" />{canvasNodeLabels[data.kind]}</span>
+        <span className="kc-node-type-label"><Icon aria-hidden="true" />{nodeLabel(data.kind)}</span>
       )}
       {toolbarVisible ? (
         <NodeActionToolbar
@@ -1338,6 +1345,17 @@ export const KachangNode = memo(function KachangNode({ id, data, width, height, 
             priority={selected || hovered || data.status === "running"}
             videoPlayer={videoPlayer}
           />
+        ) : PluginBody ? (
+          <PluginBodyBoundary pluginKind={data.kind}>
+            <PluginBody
+              kind={data.kind}
+              nodeId={id}
+              projectId={projectId}
+              data={data}
+              ops={pluginBodyOps}
+              updateBody={(nextBody) => useCanvasStore.getState().updateNodeData(id, { body: nextBody }, true)}
+            />
+          </PluginBodyBoundary>
         ) : data.kind === "config" ? (
           compactOverview ? (
             <div className="kc-config-node-preview kc-config-node-preview--overview">
@@ -1350,7 +1368,7 @@ export const KachangNode = memo(function KachangNode({ id, data, width, height, 
           <div
             className="kc-node-text-preview nowheel"
             tabIndex={0}
-            aria-label={`${canvasNodeLabels[data.kind]}内容`}
+            aria-label={`${nodeLabel(data.kind)}内容`}
           >
             {data.body || <span>输入创作内容</span>}
           </div>

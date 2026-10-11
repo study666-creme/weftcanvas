@@ -1,6 +1,6 @@
-import { canvasNodeLabels, type CanvasNodeKind } from "@kachang/contracts";
-import { creatableNodeKinds } from "../lib/canvas-features";
-import { ClipboardPaste, Copy, Eraser, Files, FolderPlus, Group, Trash2, Ungroup, Upload } from "lucide-react";
+import type { CanvasNodeKind } from "@kachang/contracts";
+import { useCreatableNodeDefinitions } from "../lib/node-registry";
+import { ClipboardPaste, Copy, Eraser, Files, FolderPlus, Group, Puzzle, Trash2, Ungroup, Upload } from "lucide-react";
 import type { XYPosition } from "@xyflow/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
@@ -9,7 +9,6 @@ import { findOpenNodePosition } from "../lib/node-placement";
 import { useCanvasStore } from "../state/canvas-store";
 import { useProjectAssetStore } from "../state/project-asset-store";
 import { useUiPreferencesStore } from "../state/ui-preferences-store";
-import { nodeIcons } from "./node-icon";
 
 export type CanvasMenuState = {
   clientX: number;
@@ -32,6 +31,7 @@ export function CanvasContextMenu({ menu, onClose, onRequestClear, onRequestUplo
   const canPaste = useCanvasStore((state) => Boolean(state.clipboard?.nodes.length));
   const nodes = useCanvasStore((state) => state.nodes);
   const groups = useCanvasStore((state) => state.groups);
+  const creatableNodes = useCreatableNodeDefinitions();
   const selectedNodes = useMemo(() => nodes.filter((node) => node.selected), [nodes]);
   const selectedCount = selectedNodes.length;
   const occupied = useMemo(() => new Set(groups.flatMap((group) => group.nodeIds)), [groups]);
@@ -47,7 +47,7 @@ export function CanvasContextMenu({ menu, onClose, onRequestClear, onRequestUplo
     ? 1
     : menu.nodeId
       ? 3 + Number(Boolean(libraryCandidate)) + Number(canPaste) + Number(canGroup || canUngroup)
-      : creatableNodeKinds.length + Number(canPaste) + selectionActionCount + 1 + Number(Boolean(onRequestUpload));
+      : creatableNodes.length + Number(canPaste) + selectionActionCount + 1 + Number(Boolean(onRequestUpload));
   const estimatedPosition = useMemo(() => ({
     left: clamp(menu.clientX, 12, window.innerWidth - 196),
     top: clamp(menu.clientY, 12, window.innerHeight - (itemCount * 38 + 32)),
@@ -147,9 +147,9 @@ export function CanvasContextMenu({ menu, onClose, onRequestClear, onRequestUplo
               <span className="kc-context-menu-divider" aria-hidden="true" />
             </>
           ) : null}
-          {creatableNodeKinds.map((kind) => {
-            const Icon = nodeIcons[kind];
-            return <button role="menuitem" key={kind} type="button" onClick={() => add(kind)}><Icon aria-hidden="true" />添加{canvasNodeLabels[kind]}</button>;
+          {creatableNodes.map((definition) => {
+            const Icon = definition.icon ?? Puzzle;
+            return <button role="menuitem" key={definition.kind} type="button" onClick={() => add(definition.kind)}><Icon aria-hidden="true" />添加{definition.label()}</button>;
           })}
           {onRequestUpload ? (
             <>

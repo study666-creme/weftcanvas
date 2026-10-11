@@ -481,7 +481,7 @@ function ApiSettings({
           </div>
 
           <div className="kc-api-profile-editor-actions">
-            <a href={KACHANG_API_SITE_URL} target="_blank" rel="noopener noreferrer">卡藏 API<ExternalLink aria-hidden="true" /></a>
+            {KACHANG_API_SITE_URL ? <a href={KACHANG_API_SITE_URL} target="_blank" rel="noopener noreferrer">卡藏 API<ExternalLink aria-hidden="true" /></a> : null}
             <button
               type="submit"
               className="kc-custom-api-connect"

@@ -9,7 +9,7 @@ test("real browser-owned API completes one canvas text creation", async ({ page 
   await page.addInitScript(({ key }) => {
     localStorage.clear();
     localStorage.setItem("kachang-canvas:custom-api:v1", JSON.stringify({
-      baseUrl: "https://newapi.prompt-hubs.com",
+      baseUrl: "https://gateway.example.com",
       apiKey: key,
     }));
   }, { key: apiKey! });

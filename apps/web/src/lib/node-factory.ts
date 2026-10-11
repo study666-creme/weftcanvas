@@ -3,37 +3,19 @@ import type { CanvasMedia, CanvasNodeData, CanvasNodeKind } from "@kachang/contr
 import type { XYPosition } from "@xyflow/react";
 
 import type { KachangEdge, KachangNode } from "../types";
-import {
-  isDefaultNodeAspectRatio,
-  nodeAspectRatioValue,
-  scaleNodeDimensions,
-  type DefaultNodeAspectRatio,
-  type DefaultNodeSize,
-} from "./node-size";
+import { getNodeDefinition } from "./node-registry";
+import "./builtin-nodes";
+import { scaleNodeDimensions, type DefaultNodeAspectRatio, type DefaultNodeSize } from "./node-size";
 
-const nodeDefaults: Record<CanvasNodeKind, { body: string; accent: string; width: number; height: number }> = {
-  text: { body: "", accent: "jade", width: 308, height: 176 },
-  image: { body: "", accent: "blue", width: 340, height: 214 },
-  video: { body: "", accent: "blue", width: 340, height: 192 },
-  audio: { body: "", accent: "jade", width: 340, height: 164 },
-  config: { body: "", accent: "jade", width: 308, height: 176 },
-  edit: { body: "", accent: "blue", width: 340, height: 192 },
-};
+/** 未注册 kind 的兜底尺寸（正常情况下六种内置节点都在注册表里）。 */
+const FALLBACK_DIMENSIONS = { width: 308, height: 176 } as const;
 
 export function nodeDefaultDimensions(
   kind: CanvasNodeKind,
   aspectRatioOrLegacySize: DefaultNodeAspectRatio | DefaultNodeSize = "16:9",
 ) {
-  const { width, height } = nodeDefaults[kind];
-  if (!isDefaultNodeAspectRatio(aspectRatioOrLegacySize)) {
-    return scaleNodeDimensions({ width, height }, aspectRatioOrLegacySize);
-  }
-  if (kind !== "image" && kind !== "video") return { width, height };
-  const ratio = nodeAspectRatioValue(aspectRatioOrLegacySize);
-  const longEdge = 340;
-  return ratio >= 1
-    ? { width: longEdge, height: Math.round(longEdge / ratio) }
-    : { width: Math.round(longEdge * ratio), height: longEdge };
+  const draft = getNodeDefinition(kind)?.createDraft({ defaultAspectRatio: aspectRatioOrLegacySize });
+  return draft ? { width: draft.width, height: draft.height } : { ...FALLBACK_DIMENSIONS };
 }
 
 export function nodeCreationDimensions(
@@ -48,7 +30,7 @@ export function mediaNodeDimensions(
   media: Pick<CanvasMedia, "width" | "height"> | null,
   size: DefaultNodeSize | number = "standard",
 ) {
-  const fallback = scaleNodeDimensions(nodeDefaults[kind], size);
+  const fallback = scaleNodeDimensions(nodeDefaultDimensions(kind, "standard"), size);
   if ((kind !== "image" && kind !== "video") || !media?.width || !media.height) {
     return fallback;
   }
@@ -86,8 +68,38 @@ export function createCanvasNode(
   creationScale = 1,
 ): KachangNode {
   const now = Date.now();
-  const defaults = nodeDefaults[kind];
-  const dimensions = scaleNodeDimensions(nodeDefaultDimensions(kind, defaultAspectRatio), creationScale);
+  const definition = getNodeDefinition(kind);
+  const draft = definition?.createDraft({ defaultAspectRatio }) ?? { kind, ...FALLBACK_DIMENSIONS };
+  const dimensions = scaleNodeDimensions(draft, creationScale);
+  const data: CanvasNodeData = {
+    kind,
+    body: "",
+    accent: definition?.accent ?? "jade",
+    status: "idle",
+    progress: null,
+    media: null,
+    directorCapture: null,
+    config: null,
+    edit: null,
+    music: null,
+    generation: {
+      modelId: null,
+      parameters: {},
+      referenceImagePurposes: {},
+      maxOutputTokens: null,
+      referenceMode: "auto",
+      referenceNodeIds: [],
+      jobId: null,
+      jobVersion: null,
+      jobCreatedAt: null,
+      jobStatus: null,
+      error: null,
+    },
+    createdAt: now,
+    updatedAt: now,
+    ...draft.data,
+    ...overrides,
+  };
   return {
     id: createId("node"),
     type: "kachang",
@@ -95,34 +107,7 @@ export function createCanvasNode(
     width: dimensions.width,
     height: dimensions.height,
     selected: true,
-    data: {
-      kind,
-      body: defaults.body,
-      accent: defaults.accent,
-      status: "idle",
-      progress: null,
-      media: null,
-      directorCapture: null,
-      config: kind === "config" ? { modality: "image" } : null,
-      edit: kind === "edit" ? { clips: [] } : null,
-      music: null,
-      generation: {
-        modelId: null,
-        parameters: {},
-        referenceImagePurposes: {},
-        maxOutputTokens: null,
-        referenceMode: "auto",
-        referenceNodeIds: [],
-        jobId: null,
-        jobVersion: null,
-        jobCreatedAt: null,
-        jobStatus: null,
-        error: null,
-      },
-      createdAt: now,
-      updatedAt: now,
-      ...overrides,
-    },
+    data,
   };
 }
 

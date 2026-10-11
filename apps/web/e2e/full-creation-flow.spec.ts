@@ -117,8 +117,8 @@ const session = {
 const capabilities = {
   available: true,
   registration: "external" as const,
-  registrationUrl: "https://prompt-hubs.com/register",
-  passwordResetUrl: "https://prompt-hubs.com/forgot-password",
+  registrationUrl: "https://accounts.example.com/register",
+  passwordResetUrl: "https://accounts.example.com/forgot-password",
 };
 
 function model(modality: "image" | "video") {
@@ -412,7 +412,8 @@ test("登录后可连续生成图片、视频并完成积分充值", async ({ pa
   await expect(imageNode.locator('img[data-media-id="image-result"]')).toBeVisible();
   await expect.poll(() => imageReads).toBeGreaterThan(0);
 
-  await page.getByRole("navigation", { name: "创建工具" }).getByLabel("添加视频节点").click();
+  await page.getByRole("navigation", { name: "创建工具" }).locator(".kc-create-rail-plus-wrapper").hover();
+  await page.getByRole("navigation", { name: "创建工具" }).getByRole("menuitem", { name: "添加视频节点" }).click();
   const videoNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="video"])').last();
   const videoComposer = page.locator('[data-node-prompt-composer]').filter({ has: page.locator('[data-generation-model-select]') }).last();
   await expect(videoComposer.locator("[data-generation-model-select]")).toHaveValue("e2e-video-model");
@@ -646,20 +647,23 @@ test("正常创建闭环：新建项目、文本与图片参考连接视频、�
   await projectName.blur();
   await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
 
-  await page.getByRole("navigation", { name: "创建工具" }).getByLabel("添加图片节点").click();
+  await page.getByRole("navigation", { name: "创建工具" }).locator(".kc-create-rail-plus-wrapper").hover();
+  await page.getByRole("navigation", { name: "创建工具" }).getByRole("menuitem", { name: "添加图片节点" }).click();
   const imageRefNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="image"])').last();
   await imageRefNode.locator('input[type="file"]').setInputFiles({ name: "reference.png", mimeType: "image/png", buffer: PIXEL });
   await expect(imageRefNode.locator("img")).toBeVisible();
 
   const textBody = "雨夜站台，低机位跟拍，湿润石板反射零散霓虹";
-  await page.getByRole("navigation", { name: "创建工具" }).getByLabel("添加文本节点").click();
+  await page.getByRole("navigation", { name: "创建工具" }).locator(".kc-create-rail-plus-wrapper").hover();
+  await page.getByRole("navigation", { name: "创建工具" }).getByRole("menuitem", { name: "添加文本节点" }).click();
   const textNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="text"])').last();
   await textNode.locator(".kc-node-drag-strip").click();
   const textComposer = page.locator('[data-node-prompt-composer]').last();
   await textComposer.locator("[data-prompt-editor]").fill(textBody);
   await expect(textComposer.locator("[data-prompt-editor]")).toHaveText(textBody);
 
-  await page.getByRole("navigation", { name: "创建工具" }).getByLabel("添加视频节点").click();
+  await page.getByRole("navigation", { name: "创建工具" }).locator(".kc-create-rail-plus-wrapper").hover();
+  await page.getByRole("navigation", { name: "创建工具" }).getByRole("menuitem", { name: "添加视频节点" }).click();
   const videoNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="video"])').last();
   const edges = page.locator(".react-flow__edge");
   await expect(edges).toHaveCount(0);

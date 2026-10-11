@@ -166,7 +166,8 @@ async function createGenerationNode(page: Page, status: GenerationStatus) {
   const existingNodeIds = await imageNodes.evaluateAll((elements) => elements
     .map((element) => element.getAttribute("data-id"))
     .filter((id): id is string => Boolean(id)));
-  await page.getByRole("navigation", { name: "创建工具" }).getByLabel("添加图片节点").click();
+  await page.getByRole("navigation", { name: "创建工具" }).locator(".kc-create-rail-plus-wrapper").hover();
+  await page.getByRole("navigation", { name: "创建工具" }).getByRole("menuitem", { name: "添加图片节点" }).click();
   await expect(imageNodes).toHaveCount(existingNodeIds.length + 1);
   const currentNodeIds = await imageNodes.evaluateAll((elements) => elements
     .map((element) => element.getAttribute("data-id"))

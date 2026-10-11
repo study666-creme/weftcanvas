@@ -31,7 +31,9 @@ import { useSpacePan } from "../hooks/use-space-pan";
 import { useTouchCanvasNavigation } from "../hooks/use-touch-canvas-navigation";
 import { MAX_CANVAS_ZOOM, MIN_CANVAS_ZOOM } from "../lib/canvas-viewport";
 import { setCanvasConnectionDragging } from "../lib/canvas-connection-state";
+import { connectionPolicyAllows } from "../lib/canvas-connection-rules";
 import { inferCanvasFileKind, layoutCanvasIngestDrafts, type CanvasIngestDraft } from "../lib/canvas-ingest";
+import { loadOfficialPlugins } from "../lib/official-plugins";
 import { removeMedia, storeMedia, uploadMediaToServer } from "../lib/media-store";
 import { createNodeBodyConnection, type NodeBodyConnectionStart } from "../lib/node-body-connection";
 import { nodeCreationDimensions } from "../lib/node-factory";
@@ -48,6 +50,7 @@ import { useUiPreferencesStore } from "../state/ui-preferences-store";
 import type { KachangEdge, KachangNode } from "../types";
 import { AgentCompanion } from "./agent-companion";
 import { ActivityPanel } from "./activity-panel";
+import { AppCursor } from "./app-cursor";
 import { CanvasControlBridge } from "./canvas-control-bridge";
 import { PointerFeedback } from "./pointer-feedback";
 import { BottomToolbar } from "./bottom-toolbar";
@@ -115,7 +118,17 @@ function connectionKeysFor(edges: readonly KachangEdge[]) {
 
 const isValidCanvasConnection: IsValidConnection<KachangEdge> = (connection) => {
   if (!connection.source || !connection.target || connection.source === connection.target) return false;
-  return !connectionKeysFor(useCanvasStore.getState().edges).has(`${connection.source}\u0000${connection.target}`);
+  if (connectionKeysFor(useCanvasStore.getState().edges).has(`${connection.source}\0${connection.target}`)) return false;
+  // 类型级策略由节点定义声明（node-registry），缺省走上面的全局规则。
+  return connectionPolicyAllows(
+    {
+      sourceId: connection.source,
+      targetId: connection.target,
+      sourceHandle: connection.sourceHandle,
+      targetHandle: connection.targetHandle,
+    },
+    useCanvasStore.getState().nodes,
+  );
 };
 
 const canvasNodeClipDefinitions = (
@@ -360,6 +373,10 @@ export function CanvasWorkspace({
   const assetPanelOpen = useProjectAssetStore((state) => state.open);
   useEffect(() => {
     startProjectAssetAutoCapture();
+  }, []);
+  // 官方插件装载（懒加载 chunk）：装好后创建菜单/类型标签经注册表自动出现。
+  useEffect(() => {
+    void loadOfficialPlugins();
   }, []);
 
   useEffect(() => {
@@ -1300,6 +1317,10 @@ export function CanvasWorkspace({
           <ZoomControl miniMapOpen={miniMapOpen} onToggleMiniMap={handleToggleMiniMap} />
         </ReactFlow>
         <EmptyCanvasHint />
+        {/* 自绘光标只挂在工作区：首屏/登录页仍是原生光标（那里主线程最忙，且
+            自绘光标要隐藏系统光标才成立）。panMode 就是空格平移手势，抬头交给
+            它决定是否显示"抓手"。 */}
+        <AppCursor panActive={panMode} />
         </CanvasEdgeRuntimeContext.Provider>
         </CanvasNodeRuntimeContext.Provider>
         {pendingConnectionCreate ? (

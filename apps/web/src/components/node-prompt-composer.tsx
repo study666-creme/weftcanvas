@@ -1,4 +1,5 @@
-import { canvasNodeLabels, type CanvasNodeData } from "@kachang/contracts";
+import type { CanvasNodeData } from "@kachang/contracts";
+import { nodeLabel } from "../lib/node-registry";
 import { AtSign, Check, Image as ImageIcon, Music2, Plus, Video, X } from "lucide-react";
 import {
   memo,
@@ -452,13 +453,12 @@ export const NodePromptComposer = memo(function NodePromptComposer({ nodeId, dat
     persistPromptChange(body, selection);
   };
 
-  const handleBeforeInput = (event: FormEvent<HTMLDivElement>) => {
+  const handleBeforeInput = (event: InputEvent) => {
     if (composingRef.current) return;
-    const inputEvent = event.nativeEvent as InputEvent;
-    const inputType = inputEvent.inputType;
+    const inputType = event.inputType;
     if (inputType === "insertText" || inputType === "insertReplacementText") {
       event.preventDefault();
-      insertPromptText(inputEvent.data ?? "");
+      insertPromptText(event.data ?? "");
       return;
     }
     if (inputType === "deleteContentBackward" || inputType === "deleteContentForward") {
@@ -471,6 +471,20 @@ export const NodePromptComposer = memo(function NodePromptComposer({ nodeId, dat
       insertPromptText("\n");
     }
   };
+
+  // React 19 的合成 onBeforeInput 不携带 inputType（实测恒为 undefined），上面
+  // 的分支在合成路径下永远不会命中：原生插入绕过 store 驱动的路径，DOM 与光标
+  // 各走各路，Enter 后光标被重序列化读回换行符之前（下一个字符插到上一行）。
+  // 改绑原生 beforeinput（可 preventDefault），让所有输入都走 store 驱动的路径。
+  const nativeBeforeInputRef = useRef<(event: InputEvent) => void>(() => {});
+  nativeBeforeInputRef.current = handleBeforeInput;
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const listener = (event: Event) => nativeBeforeInputRef.current(event as InputEvent);
+    editor.addEventListener("beforeinput", listener);
+    return () => editor.removeEventListener("beforeinput", listener);
+  }, []);
 
   const handlePaste = (event: ClipboardEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -540,7 +554,7 @@ export const NodePromptComposer = memo(function NodePromptComposer({ nodeId, dat
         className={`kc-node-prompt-shell ${data.kind === "text" ? "" : "kc-node-prompt-shell--generation"} ${dragging ? "is-node-dragging" : ""}`}
         data-node-prompt-composer
         role="region"
-        aria-label={`${canvasNodeLabels[data.kind]}编辑器`}
+        aria-label={`${nodeLabel(data.kind)}编辑器`}
         onPointerDown={(event) => event.stopPropagation()}
       >
         <div className="kc-node-prompt-composer nodrag nowheel nopan">
@@ -600,7 +614,7 @@ export const NodePromptComposer = memo(function NodePromptComposer({ nodeId, dat
               contentEditable
               suppressContentEditableWarning
               role="textbox"
-              aria-label={`${canvasNodeLabels[data.kind]}提示词`}
+              aria-label={`${nodeLabel(data.kind)}提示词`}
               aria-multiline="true"
               aria-placeholder={promptPlaceholder}
               spellCheck
@@ -616,7 +630,6 @@ export const NodePromptComposer = memo(function NodePromptComposer({ nodeId, dat
                 commitTransaction();
               }}
               onInput={handleInput}
-              onBeforeInput={handleBeforeInput}
               onCompositionStart={() => {
                 composingRef.current = true;
               }}

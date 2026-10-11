@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeSourceCatalog } from "./normalize.js";
+import { normalizeSourceCatalog, type CatalogCompatibilityOverlay } from "./normalize.js";
 
 /**
  * Regression guard for two silent-drop / silent-rewrite bugs found on
@@ -103,12 +103,22 @@ const source = {
     }),
   ],
 };
+/**
+ * 站点计价单位规则现居私有 overlay；公开树用等价的内联 overlay 钉住注入机制
+ * 与两端口径（H3=按秒、S-2.0 等线路=按次）。
+ */
+const stationUnitOverlay: CatalogCompatibilityOverlay = {
+  priceUnitOverride: (model, publishedUnit) =>
+    (model.id === "minimax_h3" && publishedUnit === "request" ? "second" : undefined),
+} as const;
+
 
 function normalize() {
   return normalizeSourceCatalog(source, {
     validatedAt: NOW,
     maxQuoteAgeMs: 3_600_000,
     includeKnownModels: false,
+    overlay: stationUnitOverlay,
   });
 }
 
@@ -173,6 +183,7 @@ describe("source catalog pricing modes and units", () => {
       validatedAt: NOW,
       maxQuoteAgeMs: 3_600_000,
       includeKnownModels: false,
+    overlay: stationUnitOverlay,
     });
     expect(snapshot.catalog.models.find((model) => model.id === "S-2.0-933-线路六")!.pricing.unit)
       .toBe("request");
@@ -222,6 +233,7 @@ describe("seedance presentation", () => {
       validatedAt: NOW,
       maxQuoteAgeMs: 3_600_000,
       includeKnownModels: false,
+    overlay: stationUnitOverlay,
     });
     const seedance = snapshot.catalog.models.find((model) => model.id === "doubao-seedance-2.0")!;
     expect(seedance.label).toBe("Seedance 2.0");
@@ -242,6 +254,7 @@ describe("seedance presentation", () => {
       validatedAt: NOW,
       maxQuoteAgeMs: 3_600_000,
       includeKnownModels: false,
+    overlay: stationUnitOverlay,
     });
     expect(snapshot.catalog.models.find((model) => model.id === "doubao-seedance-2.0")!.label)
       .toBe("Seedance 2.0 官转65折");
@@ -270,6 +283,7 @@ describe("raw-id display labels", () => {
       validatedAt: NOW,
       maxQuoteAgeMs: 3_600_000,
       includeKnownModels: false,
+    overlay: stationUnitOverlay,
     });
     expect(snapshot.catalog.models.find((model) => model.id === "gemini-3.9-flash")!.label)
       .toBe("Gemini 3.9 Flash");
@@ -293,6 +307,7 @@ describe("raw-id display labels", () => {
       validatedAt: NOW,
       maxQuoteAgeMs: 3_600_000,
       includeKnownModels: false,
+    overlay: stationUnitOverlay,
     });
     expect(snapshot.catalog.models.find((model) => model.id === "S-2.0-933-线路六")!.label)
       .toBe("S-2.0-933-线路六");

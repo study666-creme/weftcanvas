@@ -6,6 +6,7 @@ import {
   Maximize2,
   MousePointer2,
   Orbit,
+  Puzzle,
   Palette,
   Server,
   Settings,
@@ -23,29 +24,25 @@ import { createPortal } from "react-dom";
 
 import {
   useUiPreferencesStore,
-  type CanvasBackgroundStyle,
   type ColorScheme,
-  type CanvasVisualStyle,
-  type CursorStyle,
-  type EdgeFlowStyle,
-  type EdgePathStyle,
-  type GenerationEffectStyle,
-  type NodeVisualStyle,
-  type NodePortStyle,
   type DefaultNodeAspectRatio,
+  type GenerationEffectStyle,
 } from "../state/ui-preferences-store";
+import { useAppearanceOptions } from "../lib/appearance-registry";
 
 /** 创作设置面板（自定义 API / 模型 / 本地保存）与协作面板按需加载。 */
 const CustomApiPanel = lazy(async () => ({ default: (await import("./custom-api-dialog")).CustomApiPanel }));
 const CollaborationPanel = lazy(async () => ({ default: (await import("./collaboration-dialog")).CollaborationPanel }));
+const PluginSettingsPanel = lazy(async () => ({ default: (await import("./plugin-settings-panel")).PluginSettingsPanel }));
 
-type SettingsSection = "ui" | "apis" | "models" | "local" | "collaboration";
+type SettingsSection = "ui" | "apis" | "models" | "local" | "collaboration" | "plugins";
 type AppearanceTab = "visual" | "interaction";
 
 /**
  * 配色方案。石墨是沿用的灰调；墨黑把底色压到近纯黑，层级交给描边。
  * 纯黑是质感路线——深而聚的阴影 + 内嵌高光 + 浮起面板，玻璃暗夜观感。
  * 两套都跟随深浅主题，且与节点/界面样式正交，可任意组合。
+ * 配色是产品级三档（带整套 CSS 方案），不走开放注册。
  */
 const colorSchemes: Array<{ id: ColorScheme; label: string }> = [
   { id: "graphite", label: "石墨" },
@@ -53,37 +50,10 @@ const colorSchemes: Array<{ id: ColorScheme; label: string }> = [
   { id: "onyx", label: "纯黑" },
 ];
 
-const chromeStyles: Array<{ id: CanvasVisualStyle; label: string }> = [
-  { id: "airy", label: "疏朗" },
-  { id: "studio", label: "无界" },
-  { id: "classic", label: "经典" },
-  { id: "onyx", label: "纯黑" },
-];
-
-const nodeStyles: Array<{ id: NodeVisualStyle; label: string }> = [
-  ...chromeStyles,
-  { id: "imax", label: "巨幕" },
-];
-
 const defaultAspectRatios: DefaultNodeAspectRatio[] = ["16:9", "9:16", "1:1", "4:3", "3:4"];
 
-const backgroundStyles: Array<{ id: CanvasBackgroundStyle; label: string }> = [
-  { id: "layered-grid", label: "网格" },
-  { id: "zoom-dots", label: "点阵" },
-  { id: "starfield", label: "星空" },
-  { id: "water", label: "水面" },
-  { id: "onyx", label: "纯黑" },
-];
-
-export const generationEffects: Array<{ id: GenerationEffectStyle; label: string }> = [
-  { id: "beam", label: "流光" },
-  { id: "nebula", label: "星云" },
-  { id: "water", label: "水镜" },
-  { id: "quiet", label: "光环" },
-];
-
 /**
- * 设置中心：界面 / API 配置 / 模型 / 本地保存 / 协作 五个一级板块。
+ * 设置中心：界面 / API 配置 / 模型 / 本地保存 / 协作 / 插件 六个一级板块。
  * 顶栏「设置」与 dock 的 UI 设置键都打开这里；界面是默认板块。
  * API 配置 / 模型 / 本地保存由 CustomApiPanel 以受控嵌入形态提供。
  */
@@ -102,6 +72,15 @@ export function AppearanceToolbar({
   const panelRef = useRef<HTMLDivElement>(null);
   const [section, setSection] = useState<SettingsSection>(initialSection);
   const [activeTab, setActiveTab] = useState<AppearanceTab>("visual");
+  // 外观档位从注册表读取（docs/PLUGIN-ROADMAP.md §4）：外观包装/卸后按钮自动增减。
+  const nodeStyleOptions = useAppearanceOptions("canvasVisualStyle");
+  const chromeStyleOptions = useAppearanceOptions("chromeVisualStyle");
+  const backgroundStyleOptions = useAppearanceOptions("canvasBackgroundStyle");
+  const generationEffectOptions = useAppearanceOptions("generationEffectStyle");
+  const edgePathStyleOptions = useAppearanceOptions("edgePathStyle");
+  const edgeFlowStyleOptions = useAppearanceOptions("edgeFlowStyle");
+  const cursorStyleOptions = useAppearanceOptions("cursorStyle");
+  const nodePortStyleOptions = useAppearanceOptions("nodePortStyle");
   const canvasVisualStyle = useUiPreferencesStore((state) => state.canvasVisualStyle);
   const setCanvasVisualStyle = useUiPreferencesStore((state) => state.setCanvasVisualStyle);
   const chromeVisualStyle = useUiPreferencesStore((state) => state.chromeVisualStyle);
@@ -206,6 +185,15 @@ export function AppearanceToolbar({
         >
           <UsersRound aria-hidden="true" />协作
         </button>
+        <button
+          type="button"
+          role="tab"
+          id="kc-settings-section-tab-plugins"
+          aria-selected={section === "plugins"}
+          onClick={() => setSection("plugins")}
+        >
+          <Puzzle aria-hidden="true" />插件
+        </button>
       </div>
 
       {section === "ui" ? (
@@ -241,7 +229,7 @@ export function AppearanceToolbar({
             hidden={activeTab !== "visual"}
           >
             <PreferenceGroup icon={<Frame aria-hidden="true" />} label="节点" ariaLabel="节点样式" variant="nodes">
-              {nodeStyles.map((style) => (
+              {nodeStyleOptions.map((style) => (
                 <PreferenceButton key={style.id} active={canvasVisualStyle === style.id} onClick={() => setCanvasVisualStyle(style.id)}>
                   {style.label}
                 </PreferenceButton>
@@ -249,7 +237,7 @@ export function AppearanceToolbar({
             </PreferenceGroup>
 
             <PreferenceGroup icon={<SlidersHorizontal aria-hidden="true" />} label="界面" ariaLabel="界面与功能栏样式">
-              {chromeStyles.map((style) => (
+              {chromeStyleOptions.map((style) => (
                 <PreferenceButton key={style.id} active={chromeVisualStyle === style.id} onClick={() => setChromeVisualStyle(style.id)}>
                   {style.label}
                 </PreferenceButton>
@@ -273,7 +261,7 @@ export function AppearanceToolbar({
             </PreferenceGroup>
 
             <PreferenceGroup icon={<Grid3x3 aria-hidden="true" />} label="背景" ariaLabel="背景样式" variant="full">
-              {backgroundStyles.map((style) => (
+              {backgroundStyleOptions.map((style) => (
                 <PreferenceButton key={style.id} active={canvasBackgroundStyle === style.id} onClick={() => setCanvasBackgroundStyle(style.id)}>
                   {style.label}
                 </PreferenceButton>
@@ -281,7 +269,7 @@ export function AppearanceToolbar({
             </PreferenceGroup>
 
             <PreferenceGroup icon={<Waves aria-hidden="true" />} label="生成" ariaLabel="生成动效" variant="previews">
-              {generationEffects.map((effect) => (
+              {generationEffectOptions.map((effect) => (
                 <GenerationEffectButton
                   key={effect.id}
                   effect={effect.id}
@@ -301,33 +289,33 @@ export function AppearanceToolbar({
             hidden={activeTab !== "interaction"}
           >
             <PreferenceGroup icon={<MousePointer2 aria-hidden="true" />} label="鼠标" ariaLabel="鼠标样式">
-              {(["classic", "precision"] as CursorStyle[]).map((style) => (
-                <PreferenceButton key={style} active={cursorStyle === style} onClick={() => setCursorStyle(style)}>
-                  {style === "classic" ? "质感" : "精确"}
+              {cursorStyleOptions.map((style) => (
+                <PreferenceButton key={style.id} active={cursorStyle === style.id} onClick={() => setCursorStyle(style.id)}>
+                  {style.label}
                 </PreferenceButton>
               ))}
             </PreferenceGroup>
 
             <PreferenceGroup icon={<Spline aria-hidden="true" />} label="线形" ariaLabel="连线形态">
-              {(["taut", "gravity", "emerald"] as EdgePathStyle[]).map((style) => (
-                <PreferenceButton key={style} active={edgePathStyle === style} onClick={() => setEdgePathStyle(style)}>
-                  {style === "taut" ? "张力" : style === "gravity" ? "柔弧" : "翡翠"}
+              {edgePathStyleOptions.map((style) => (
+                <PreferenceButton key={style.id} active={edgePathStyle === style.id} onClick={() => setEdgePathStyle(style.id)}>
+                  {style.label}
                 </PreferenceButton>
               ))}
             </PreferenceGroup>
 
             <PreferenceGroup icon={<Orbit aria-hidden="true" />} label="流动" ariaLabel="连线光效">
-              {(["stream", "stardust"] as EdgeFlowStyle[]).map((style) => (
-                <PreferenceButton key={style} active={edgeFlowStyle === style} onClick={() => setEdgeFlowStyle(style)}>
-                  {style === "stream" ? "流光" : "星点"}
+              {edgeFlowStyleOptions.map((style) => (
+                <PreferenceButton key={style.id} active={edgeFlowStyle === style.id} onClick={() => setEdgeFlowStyle(style.id)}>
+                  {style.label}
                 </PreferenceButton>
               ))}
             </PreferenceGroup>
 
             <PreferenceGroup icon={<Sparkles aria-hidden="true" />} label="加号" ariaLabel="节点加号样式">
-              {(["classic", "compact"] as NodePortStyle[]).map((style) => (
-                <PreferenceButton key={style} active={nodePortStyle === style} onClick={() => setNodePortStyle(style)}>
-                  {style === "classic" ? "质感" : "简洁"}
+              {nodePortStyleOptions.map((style) => (
+                <PreferenceButton key={style.id} active={nodePortStyle === style.id} onClick={() => setNodePortStyle(style.id)}>
+                  {style.label}
                 </PreferenceButton>
               ))}
             </PreferenceGroup>
@@ -343,7 +331,9 @@ export function AppearanceToolbar({
           }>
             {section === "collaboration"
               ? <CollaborationPanel />
-              : <CustomApiPanel section={section} />}
+              : section === "plugins"
+                ? <PluginSettingsPanel />
+                : <CustomApiPanel section={section} />}
           </Suspense>
         </div>
       )}

@@ -1,10 +1,9 @@
-import { canvasNodeLabels, type CanvasNodeKind } from "@kachang/contracts";
-import { creatableNodeKinds } from "../lib/canvas-features";
+import type { CanvasNodeKind } from "@kachang/contracts";
+import { useCreatableNodeDefinitions } from "../lib/node-registry";
+import { Puzzle } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 
 import type { XYPosition } from "@xyflow/react";
-
-import { nodeIcons } from "./node-icon";
 
 export type PendingConnectionCreate = {
   anchorId: string;
@@ -27,6 +26,7 @@ const VIEWPORT_MARGIN = 16;
 
 export function ConnectionCreateMenu({ pending, onCreate, onClose }: ConnectionCreateMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
+  const creatableNodes = useCreatableNodeDefinitions();
   const position = useMemo(() => {
     const preferredLeft = pending.side === "right"
       ? pending.clientPosition.x + 18
@@ -66,19 +66,19 @@ export function ConnectionCreateMenu({ pending, onCreate, onClose }: ConnectionC
       style={position}
       onPointerDown={(event) => event.stopPropagation()}
     >
-      {creatableNodeKinds.map((kind) => {
-        const Icon = nodeIcons[kind];
+      {creatableNodes.map((definition) => {
+        const Icon = definition.icon ?? Puzzle;
         return (
           <button
-            key={kind}
+            key={definition.kind}
             type="button"
             role="menuitem"
-            className={`kc-connection-create-option kc-quick-add--${kind}`}
-            aria-label={`创建并连接${canvasNodeLabels[kind]}`}
-            onClick={() => onCreate(kind)}
+            className={`kc-connection-create-option kc-quick-add--${definition.kind}`}
+            aria-label={`创建并连接${definition.label()}`}
+            onClick={() => onCreate(definition.kind)}
           >
             <Icon aria-hidden="true" />
-            <span>{canvasNodeLabels[kind].replace("节点", "")}</span>
+            <span>{definition.label().replace("节点", "")}</span>
           </button>
         );
       })}

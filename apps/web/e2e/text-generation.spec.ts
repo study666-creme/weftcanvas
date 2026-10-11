@@ -41,8 +41,8 @@ const session = {
 const capabilities = {
   available: true,
   registration: "external" as const,
-  registrationUrl: "https://prompt-hubs.com/register",
-  passwordResetUrl: "https://prompt-hubs.com/forgot-password",
+  registrationUrl: "https://accounts.example.com/register",
+  passwordResetUrl: "https://accounts.example.com/forgot-password",
 };
 
 const textModel = {
@@ -203,7 +203,8 @@ test("文本节点可通过生成设置使用目录文本模型：报价、提�
   await page.goto("/canvas");
   await expect(page.locator('[data-save-state]')).toBeVisible();
 
-  await page.getByRole("navigation", { name: "创建工具" }).getByLabel("添加文本节点").click();
+  await page.getByRole("navigation", { name: "创建工具" }).locator(".kc-create-rail-plus-wrapper").hover();
+  await page.getByRole("navigation", { name: "创建工具" }).getByRole("menuitem", { name: "添加文本节点" }).click();
   const textNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="text"])').last();
   await textNode.locator(".kc-node-drag-strip").click();
   await expect(page.locator("[data-node-prompt-composer]")).toBeVisible();

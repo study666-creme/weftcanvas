@@ -633,3 +633,44 @@
     animation-iteration-count: infinite !important;
   }
 }
+
+/* ========================================================================
+   白天模式（light）等价物。星空与水面两套背景的底色是硬编码的夜空/深水
+   （#02030a / #071217），浅色主题下会得到一块纯黑或深青的画布，与浅色界面
+   直接打架。这里给出浅色等价物：
+   - 底色跟随画布令牌，不再是黑；
+   - 星点层与深色压角渐晕关掉（浅色底上的白点会读成灰尘/水汽）；
+   - 保留极淡的冷暖氛围罩让"星空"仍有层次；水面换成纯 CSS 光泽。
+   ======================================================================== */
+
+:root[data-theme="light"] .kc-flow-shell[data-canvas-background="starfield"],
+:root[data-theme="light"] .kc-flow-shell[data-canvas-background="starfield"] .react-flow,
+:root[data-theme="light"] .kc-canvas-starfield {
+  background: var(--kc-background-canvas);
+}
+
+:root[data-theme="light"] .kc-canvas-starfield-layer,
+:root[data-theme="light"] .kc-canvas-starfield-dust,
+:root[data-theme="light"] .kc-canvas-starfield::after {
+  display: none;
+}
+
+:root[data-theme="light"] .kc-canvas-starfield::before {
+  background:
+    radial-gradient(ellipse 68% 42% at 18% 72%, rgb(96 132 168 / 8%), transparent 72%),
+    radial-gradient(ellipse 54% 76% at 86% 18%, rgb(186 154 108 / 7%), transparent 74%);
+}
+
+:root[data-theme="light"] .kc-flow-shell[data-canvas-background="water"],
+:root[data-theme="light"] .kc-flow-shell[data-canvas-background="water"] .react-flow,
+:root[data-theme="light"] .kc-canvas-water {
+  background: var(--kc-background-canvas);
+}
+
+/* 深色水面照片在浅色主题里换成纯 CSS 光泽：换底色而不是 invert 反转照片，
+   反相后的水面色会发脏。 */
+:root[data-theme="light"] .kc-canvas-water-material {
+  background:
+    radial-gradient(120% 88% at 50% 0%, rgb(255 255 255 / 62%) 0%, transparent 62%),
+    linear-gradient(180deg, rgb(188 208 218 / 30%) 0%, rgb(212 222 226 / 20%) 52%, rgb(234 238 238 / 14%) 100%);
+}

@@ -38,7 +38,7 @@ export type CardPreviewItem = {
   title: string;
   prompt: string;
   meta: CardPreviewMeta[];
-  /** 信息栏底部的来源说明（如“来自 prompt-hubs 社区”）。 */
+  /** 信息栏底部的来源说明（如“来自社区”）。 */
   footerNote?: string;
   /** 原图加载失败或解析不可得时的缩略图兜底，可为空。 */
   thumbnailUrl: string;

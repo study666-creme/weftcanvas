@@ -21,10 +21,38 @@ import type { StoredCatalogSnapshot } from "./store.js";
 // projection change so a persisted snapshot is refreshed instead of serving
 // stale metadata or stale prices.
 // 21: pricing 带上站点的元/秒参考价与说明（token 计价的视频模型靠它报价）。
-// 22: MiniMax H3 的计价单位按站点口径纠正为按秒（目录发布的是按次，见
-//     PER_SECOND_VIDEO_MODEL_IDS 上的说明）。必须 bump：不 bump 的话已持久化
+// 22: MiniMax H3 的计价单位按站点口径纠正为按秒（目录发布的是按次，站点
+//     overlay 的 priceUnitOverride 负责）。必须 bump：不 bump 的话已持久化
 //     的快照会继续按旧口径（按次）报价，等于修复不生效。
 export const CATALOG_NORMALIZATION_VERSION = 23;
+
+/** 站点 overlay 可以抬高效版本号，让带策展规则的快照独立失效。 */
+export function catalogNormalizationVersion(overlay?: CatalogCompatibilityOverlay) {
+  return CATALOG_NORMALIZATION_VERSION + (overlay?.versionOffset ?? 0);
+}
+
+export type ParsedSourceCatalog = ReturnType<typeof sourceCatalogSchema.parse>;
+
+/**
+ * 站点策展兼容层（docs/PLUGIN-ROADMAP.md §5 P2 遗留项的落点）：私有 overlay
+ * 注入托管站点的策展规则（兼容模型注入、品牌化改写、计价单位口径、旧快照
+ * 迁移）。公开树缺省不注入——归一化只做结构性转换，不携带任何站点策展与
+ * 零售计价规则。
+ */
+export type CatalogCompatibilityOverlay = {
+  /** overlay 的策展规则变化时递增，让带 overlay 的快照独立失效。 */
+  versionOffset?: number;
+  /** 向解析后的 source 注入上游缺失、站点仍提供的兼容模型。 */
+  addKnownModels?(source: ParsedSourceCatalog, options: { includeKnownModels: boolean }): ParsedSourceCatalog;
+  /** 逐模型兼容改写（品牌化、固定输出契约等）。 */
+  applyModelCompatibility?(model: SourceCatalogModel, options: { includeKnownModels: boolean }): SourceCatalogModel;
+  /** 按站点口径修正计价单位（返回 undefined = 沿用上游发布的单位）。 */
+  priceUnitOverride?(model: SourceCatalogModel, publishedUnit: SourceCatalogModel["pricing"]["unit"]): SourceCatalogModel["pricing"]["unit"] | undefined;
+  /** 原始模型行级别的站点兼容注入（sanitize 阶段）。 */
+  ensureRawCompatibilityModels?(models: Array<Record<string, unknown>>): Array<Record<string, unknown>>;
+  /** 旧快照的站点兼容迁移（载入阶段）；未注入 = 原样使用快照。 */
+  ensureSnapshotCompatibility?(snapshot: StoredCatalogSnapshot): StoredCatalogSnapshot;
+};
 
 const MEDIA_REFERENCE_PARAMETER_NAME = /^(?:reference|ref)(image|video|audio)s?(?:url)?s?$/;
 const BARE_MEDIA_PARAMETER_NAME = /^(image|video|audio)(?:s|urls?)?$/;
@@ -37,63 +65,6 @@ const ENDPOINT_BY_MODALITY = {
   image: new Set(["/v1/images/generations", "/v1/midjourney/generations"]),
   video: new Set(["/v1/videos"]),
 } as const;
-const IMAGE2_FAST_4K_PUBLIC_ID = "image2-4k-fast";
-const IMAGE2_FAST_4K_SOURCE_IDS = new Set([
-  IMAGE2_FAST_4K_PUBLIC_ID,
-  "gpt-image-2-4k-fast",
-  "gpt-image-2-4k-adobe",
-]);
-// Keep the operator-facing alias stable even when the upstream catalog changes
-// its marketing label. The 4K fast route belongs to the same 全能模型2 family
-// as the upstream 1K and high-quality 2K/4K entries.
-const IMAGE2_FAST_4K_LABEL = "全能模型2 · 4K";
-const VIDEO_V1_LABEL = "SD 2.0 Fast";
-const CANVAS_FACE_MODEL_ID = "sd2.0 pro 满血九图卡脸版";
-const CANVAS_FACE_MODEL_LABEL = "SD2.0 Pro 720P（九图卡脸版）";
-const CANVAS_FACE_MODEL_DESCRIPTION = "固定 720P，单次 4-30 秒文生视频或最多 9 张参考图。支持 720p、横竖版尺寸与 16:9/9:16 常见写法，网关会自动补齐匹配的画面尺寸和比例；未指定方向时默认横版。参考图必须是可公开访问的 HTTP/HTTPS 地址。";
-
-const CANVAS_FACE_COMPATIBILITY_MODEL: Record<string, unknown> = {
-  id: CANVAS_FACE_MODEL_ID,
-  modality: "video",
-  operation: "generate",
-  protocol: {
-    version: "video.v1",
-    endpoint: { method: "POST", path: "/v1/videos" },
-    media_roles: ["reference"],
-  },
-  order: 55,
-  input: {
-    text: { required: true },
-    images: { min: 0, max: 9, multiple: true },
-    videos: { min: 0, max: 0, multiple: false },
-    audios: { min: 0, max: 0, multiple: false },
-  },
-  output: { type: "video", count: { fixed: 1 } },
-  parameters: [
-    { name: "model", path: "model", type: "string", fixed: CANVAS_FACE_MODEL_ID },
-    { name: "prompt", path: "prompt", type: "string", required: true, min_length: 1, label: "提示词" },
-    { name: "seconds", path: "seconds", type: "integer", min: 4, max: 30, label: "时长（秒）" },
-    { name: "duration", path: "duration", type: "integer", min: 4, max: 30, label: "时长兼容字段（秒）" },
-    { name: "size", path: "size", type: "string", options: ["720p", "1280x720", "720x1280", "16:9", "9:16"], label: "画面尺寸" },
-    { name: "resolution", path: "resolution", type: "string", default: "720p", options: ["720p", "1280x720", "720x1280", "16:9", "9:16"], label: "画面尺寸兼容字段" },
-    { name: "aspect_ratio", path: "aspect_ratio", type: "string", default: "16:9", options: ["16:9", "9:16"], label: "画面比例" },
-    { name: "ratio", path: "ratio", type: "string", options: ["16:9", "9:16"], label: "画面比例兼容字段" },
-    { name: "images", path: "images", type: "array", max_items: 9, format: "public-http-url", label: "参考图" },
-    { name: "n", path: "n", type: "integer", fixed: 1, label: "生成数量" },
-    { name: "async", path: "async", type: "boolean", fixed: true, label: "异步任务" },
-  ],
-  public: { id: CANVAS_FACE_MODEL_ID, label: CANVAS_FACE_MODEL_LABEL, description: CANVAS_FACE_MODEL_DESCRIPTION },
-  selectable: true,
-  pricing: {
-    mode: "fixed",
-    unit: "request",
-    currency: "CNY",
-    credits_per_yuan: 100,
-    credits: 250,
-    yuan: 2.5,
-  },
-  endpoint: { method: "POST", path: "/v1/videos", content_type: "application/json" },
-};
 
 export class CatalogValidationError extends Error {
   constructor(message: string) {
@@ -104,21 +75,27 @@ export class CatalogValidationError extends Error {
 
 export function normalizeSourceCatalog(
   value: unknown,
-  options: { validatedAt: number; maxQuoteAgeMs: number; etag?: string; includeKnownModels?: boolean },
+  options: {
+    validatedAt: number;
+    maxQuoteAgeMs: number;
+    etag?: string;
+    includeKnownModels?: boolean;
+    /** 站点策展兼容层；公开/自托管缺省不注入。 */
+    overlay?: CatalogCompatibilityOverlay;
+  },
 ): StoredCatalogSnapshot {
-  const parsed = applyRawIdLabels(applySeedanceSplitOverlay(sourceCatalogSchema.parse(sanitizeSourceCatalog(value))));
-  const source = options.includeKnownModels
-    ? addKnownMidjourneyModels(addKnownLegacyTextModels(parsed))
-    : parsed;
+  const overlay = options.overlay;
+  const parsed = applyRawIdLabels(applySeedanceSplitOverlay(sourceCatalogSchema.parse(sanitizeSourceCatalog(value, overlay))));
+  const source = overlay?.addKnownModels?.(parsed, { includeKnownModels: Boolean(options.includeKnownModels) })
+    ?? parsed;
   const sourceModels: Record<string, string> = {};
   const routes: StoredCatalogSnapshot["routes"] = {};
   const publicModels: PublicModel[] = [];
   const usedIds = new Set<string>();
 
   for (const sourceModel of source.models) {
-    const model = applyMidjourneyCompatibility(
-      options.includeKnownModels ? applyCatalogCompatibility(sourceModel) : sourceModel,
-    );
+    const model = overlay?.applyModelCompatibility?.(sourceModel, { includeKnownModels: Boolean(options.includeKnownModels) })
+      ?? sourceModel;
     if (model.selectable === false || !model.public) continue;
     let route: StoredCatalogSnapshot["routes"][string];
     try {
@@ -132,7 +109,7 @@ export function normalizeSourceCatalog(
     usedIds.add(publicId);
     sourceModels[publicId] = model.id;
     routes[publicId] = route;
-    publicModels.push(normalizeModel(model, source.credits_per_yuan));
+    publicModels.push(normalizeModel(model, source.credits_per_yuan, overlay));
   }
 
   if (!publicModels.length) throw new CatalogValidationError("Catalog contains no selectable public models");
@@ -158,354 +135,7 @@ export function normalizeSourceCatalog(
     routes,
     etag: options.etag,
     validatedAt: options.validatedAt,
-    normalizationVersion: CATALOG_NORMALIZATION_VERSION,
-  };
-}
-
-/**
- * The upstream pricing and route APIs still expose these text models, but the
- * capability catalog has not published definitions for them yet. Keep the
- * compatibility entries local and deliberately narrow: they are only added
- * when the upstream catalog omits the exact source id, and every price below
- * is the public base price from /api/pricing (CNY per million tokens or per
- * request). Once NewAPI publishes a definition, its live metadata wins.
- */
-const LEGACY_TEXT_MODEL_PRICES = {
-  "claude-3-5-sonnet-20240620": { input: 0.09, output: 0.45 },
-  "claude-haiku-4-5-20251001": { input: 0.03, output: 0.15 },
-  "claude-opus-4-20250514": { input: 0.45, output: 2.25 },
-  "claude-3-5-haiku-20241022": { input: 0.03, output: 0.15 },
-  "claude-3-7-sonnet-20250219": { input: 0.09, output: 0.45 },
-  "claude-opus-4-1-20250805": { input: 0.45, output: 2.25 },
-  "claude-sonnet-4-20250514": { input: 0.09, output: 0.45 },
-  "claude-sonnet-4-5-20250929": { input: 0.09, output: 0.45 },
-  "claude-3-5-sonnet-20241022": { input: 0.09, output: 0.45 },
-} as const;
-
-const LEGACY_TEXT_MODEL_LABELS = {
-  "claude-3-5-sonnet-20240620": "Claude 3.5 Sonnet (2024-06-20)",
-  "deepseek-v4-flash": "DeepSeek V4 Flash",
-  "claude-haiku-4-5-20251001": "Claude Haiku 4.5 (2025-10-01)",
-  "claude-opus-4-20250514": "Claude Opus 4 (2025-05-14)",
-  "claude-3-5-haiku-20241022": "Claude 3.5 Haiku (2024-10-22)",
-  "claude-3-7-sonnet-20250219": "Claude 3.7 Sonnet (2025-02-19)",
-  "claude-opus-4-1-20250805": "Claude Opus 4.1 (2025-08-05)",
-  "claude-sonnet-4-20250514": "Claude Sonnet 4 (2025-05-14)",
-  "claude-sonnet-4-5-20250929": "Claude Sonnet 4.5 (2025-09-29)",
-  "claude-3-5-sonnet-20241022": "Claude 3.5 Sonnet (2024-10-22)",
-} as const;
-
-type LegacyTextModelId = keyof typeof LEGACY_TEXT_MODEL_LABELS;
-
-function addKnownLegacyTextModels(source: ReturnType<typeof sourceCatalogSchema.parse>) {
-  const existing = new Set(source.models.flatMap((model) => [model.id, model.public?.id ?? ""]));
-  const additions = (Object.keys(LEGACY_TEXT_MODEL_LABELS) as LegacyTextModelId[])
-    .filter((id) => !existing.has(id))
-    .map((id) => createLegacyTextModel(id));
-  return additions.length ? { ...source, models: [...source.models, ...additions] } : source;
-}
-
-function createLegacyTextModel(id: LegacyTextModelId): SourceCatalogModel {
-  const label = LEGACY_TEXT_MODEL_LABELS[id];
-  const parameters: SourceCatalogModel["parameters"] = [
-    { name: "model", path: "model", label: "Model", type: "string", required: true, fixed: id },
-    { name: "messages", path: "messages", label: "Messages", type: "array", required: true, min_items: 1, items: { type: "object" } },
-    { name: "stream", path: "stream", label: "Stream", type: "boolean", required: false, default: false },
-    { name: "max_tokens", path: "max_tokens", label: "Max output tokens", type: "integer", required: false, min: 1, max: 131072 },
-  ];
-  if (id === "deepseek-v4-flash") {
-    return {
-      id,
-      modality: "text",
-      operation: "chat",
-      order: 12,
-      input: { text: { required: true }, images: { min: 0, max: 0, multiple: false } },
-      output: { type: "text" },
-      parameters,
-      endpoint: { method: "POST", path: "/v1/chat/completions", content_type: "application/json" },
-      public: { id, label, description: "" },
-      selectable: true,
-      // 兼容项：老项目仍可报价/执行，但不属于模型广场的上架模型。
-      listed: false,
-      tags: "chat,text,deepseek",
-      pricing: { mode: "fixed", unit: "request", currency: "CNY", credits_per_yuan: 100, yuan: 0.002, credits: 0.2 },
-    };
-  }
-  const price = LEGACY_TEXT_MODEL_PRICES[id];
-  return {
-    id,
-    modality: "text",
-    operation: "chat",
-    order: 15,
-    input: { text: { required: true }, images: { min: 0, max: 0, multiple: false } },
-    output: { type: "text" },
-    parameters,
-    endpoint: { method: "POST", path: "/v1/chat/completions", content_type: "application/json" },
-    public: { id, label, description: "" },
-    selectable: true,
-    // 兼容项：老项目仍可报价/执行，但不属于模型广场的上架模型。
-    listed: false,
-    tags: "chat,text,claude",
-    pricing: {
-      mode: "token",
-      unit: "token",
-      currency: "CNY",
-      credits_per_yuan: 100,
-      input_yuan_per_million: price.input,
-      output_yuan_per_million: price.output,
-      input_credits_per_million: price.input * 100,
-      output_credits_per_million: price.output * 100,
-    },
-  };
-}
-
-function applyCatalogCompatibility(model: SourceCatalogModel): SourceCatalogModel {
-  if (!model.public) return model;
-  const sourceId = model.id.trim().toLowerCase();
-  const publicId = model.public.id.trim().toLowerCase();
-  if (IMAGE2_FAST_4K_SOURCE_IDS.has(sourceId) || publicId === IMAGE2_FAST_4K_PUBLIC_ID) {
-    let parameters = upsertSourceParameter(model.parameters, "quality", (parameter) => ({
-      ...parameter,
-      name: "quality",
-      path: "quality",
-      label: "质量",
-      type: "string",
-      required: false,
-      default: undefined,
-      fixed: "standard",
-      options: undefined,
-    }));
-    parameters = upsertSourceParameter(parameters, "resolution", (parameter) => ({
-      ...parameter,
-      name: "resolution",
-      path: "resolution",
-      label: "分辨率",
-      type: "string",
-      required: false,
-      default: undefined,
-      fixed: "4k",
-      options: undefined,
-    }));
-    parameters = upsertSourceParameter(parameters, "n", (parameter) => ({
-      ...parameter,
-      name: "n",
-      path: "n",
-      label: "生成张数",
-      type: "integer",
-      required: false,
-      default: undefined,
-      fixed: 1,
-      options: undefined,
-      min: undefined,
-      max: undefined,
-    }));
-    parameters = upsertSourceParameter(parameters, "image", (parameter) => ({
-      ...parameter,
-      name: "image",
-      path: "image",
-      label: "参考图",
-      type: "string",
-      required: false,
-      default: undefined,
-      fixed: undefined,
-      options: undefined,
-      min_items: undefined,
-      max_items: undefined,
-      format: "uri-or-data-image",
-      items: undefined,
-    }));
-    parameters = upsertSourceParameter(parameters, "images", (parameter) => ({
-      ...parameter,
-      name: "images",
-      path: "images",
-      label: "多张参考图",
-      type: "array",
-      required: false,
-      default: undefined,
-      fixed: undefined,
-      options: undefined,
-      min_items: 1,
-      max_items: 14,
-      format: undefined,
-      items: { type: "string", format: "uri-or-data-image" },
-    }));
-    return {
-      ...model,
-      input: {
-        ...model.input,
-        images: { min: 0, max: 14, multiple: true },
-      },
-      output: {
-        ...model.output,
-        count: { fixed: 1 },
-      },
-      parameters,
-      public: {
-        ...model.public,
-        id: IMAGE2_FAST_4K_PUBLIC_ID,
-        label: IMAGE2_FAST_4K_LABEL,
-      },
-    };
-  }
-  if (sourceId === "video-v1" || publicId === "video-v1") {
-    return { ...model, public: { ...model.public, label: VIDEO_V1_LABEL } };
-  }
-  return model;
-}
-
-type MidjourneyFallbackPricing = {
-  credits_per_yuan: number;
-  credits: number;
-  yuan: number;
-};
-
-// Midjourney 8.1, Midjourney 7, and Niji 7 share the authoritative Canvas
-// product decision (confirmed 2026-08-10): one provider call costs 40 credits /
-// CNY 0.4 with a 100 credit-per-yuan conversion and returns four
-// single-image artifacts; the 40/0.4 sales price itself is the
-// product pricing decision. When the upstream publishes a definition, its live
-// pricing wins over the fallback.
-const MIDJOURNEY_FALLBACK_PRICING: MidjourneyFallbackPricing = {
-  credits_per_yuan: 100,
-  credits: 40,
-  yuan: 0.4,
-};
-
-const MIDJOURNEY_MODELS: readonly SourceCatalogModel[] = [
-  createMidjourneyModel("mj-v81", "Midjourney 8.1", "8.1", 80, "2", false, MIDJOURNEY_FALLBACK_PRICING),
-  createMidjourneyModel("mj-v7", "Midjourney 7", "7", 81, "1", false, MIDJOURNEY_FALLBACK_PRICING),
-  createMidjourneyModel("mj-niji7", "Midjourney Niji 7", "7", 82, "1", true, MIDJOURNEY_FALLBACK_PRICING),
-];
-
-function addKnownMidjourneyModels(source: ReturnType<typeof sourceCatalogSchema.parse>) {
-  const existing = new Set(source.models.flatMap((model) => [model.id, model.public?.id ?? ""]));
-  const additions = MIDJOURNEY_MODELS.filter((model) => !existing.has(model.id) && !existing.has(model.public?.id ?? ""));
-  return additions.length ? { ...source, models: [...source.models, ...additions] } : source;
-}
-
-// A live Midjourney entry keeps its upstream price and parameters authoritative,
-// but the public output contract and the provider submission-count parameter are
-// normalized so the browser can never read the fixed artifact count as a batch
-// of multiple calls. `n` (and a present `count` alias) is the provider submission
-// count and stays fixed at 1; the public output contract reports four
-// delivered artifacts. Private execution routes and pricing are not changed.
-const MIDJOURNEY_PUBLIC_IDS = new Set(["mj-v81", "mj-v7", "mj-niji7"]);
-
-// The station publishes newer stable-series Midjourney ids dotted
-// (`mj-v8.2`, `mj-v8.1`, `mj-v6.1`) with a 4-5 output contract and a cover
-// grid. Without the same normalization (fixed `n=1`, fixed four-image output
-// contract) validateOutputCount computes one output and rejects every quote.
-const DOTTED_MIDJOURNEY_ID = /^mj-v\d/;
-
-function applyMidjourneyCompatibility(model: SourceCatalogModel): SourceCatalogModel {
-  const sourceId = model.id.trim().toLowerCase();
-  const publicId = model.public?.id.trim().toLowerCase() ?? "";
-  if (
-    !MIDJOURNEY_PUBLIC_IDS.has(sourceId)
-    && !MIDJOURNEY_PUBLIC_IDS.has(publicId)
-    && !DOTTED_MIDJOURNEY_ID.test(sourceId)
-    && !DOTTED_MIDJOURNEY_ID.test(publicId)
-  ) return model;
-  let parameters = upsertSourceParameter(model.parameters, "n", (parameter) => ({
-    ...parameter,
-    name: "n",
-    path: "n",
-    label: "调用次数",
-    type: "integer",
-    required: false,
-    fixed: 1,
-    default: undefined,
-    options: undefined,
-    min: undefined,
-    max: undefined,
-  }));
-  if (parameters.some((parameter) => parameter.name.trim().toLowerCase() === "count")) {
-    parameters = upsertSourceParameter(parameters, "count", (parameter) => ({
-      ...parameter,
-      name: "count",
-      path: "count",
-      label: "调用次数兼容字段",
-      type: "integer",
-      required: false,
-      fixed: 1,
-      default: undefined,
-      options: undefined,
-      min: undefined,
-      max: undefined,
-    }));
-  }
-  return {
-    ...model,
-    output: { ...model.output, type: "image", count: { fixed: 4 } },
-    parameters,
-  };
-}
-
-function createMidjourneyModel(
-  id: string,
-  label: string,
-  version: string,
-  order: number,
-  quality: string,
-  niji: boolean,
-  pricing: MidjourneyFallbackPricing,
-): SourceCatalogModel {
-  return {
-    id,
-    modality: "image",
-    operation: "generate",
-    order,
-    input: {
-      text: { required: true },
-      images: { min: 0, max: 14, multiple: true },
-    },
-    output: { type: "image", count: { fixed: 4 } },
-    parameters: [
-      { name: "model", path: "model", type: "string", required: true, fixed: id, label: "模型" },
-      { name: "prompt", path: "prompt", type: "string", required: true, min_length: 1, label: "提示词" },
-      {
-        name: "size",
-        path: "size",
-        type: "string",
-        default: "auto",
-        options: ["auto", "1:1", "16:9", "9:16", "3:4", "4:3", "3:2", "2:3", "5:4", "4:5", "21:9"],
-        label: "画面比例",
-      },
-      { name: "quality", path: "quality", type: "string", default: quality, options: ["1", "2"], label: "清晰度" },
-      { name: "stylize", path: "stylize", type: "integer", default: 0, min: 0, max: 1000, step: 1, label: "风格化" },
-      { name: "chaos", path: "chaos", type: "integer", default: 0, min: 0, max: 100, step: 1, label: "混乱" },
-      { name: "weird", path: "weird", type: "integer", default: 0, min: 0, max: 3000, step: 1, label: "怪异" },
-      { name: "version", path: "version", type: "string", fixed: version, label: "版本" },
-      { name: "speed", path: "speed", type: "string", fixed: "relax", label: "速度" },
-      ...(niji ? [{ name: "niji", path: "niji", type: "boolean" as const, fixed: true, label: "Niji" }] : []),
-      // API-station MJ returns four standalone images from one provider submission. `n`
-      // identifies submission/call count and must remain one; the public
-      // output contract above carries the four delivered artifacts.
-      { name: "n", path: "n", type: "integer", fixed: 1, label: "调用次数" },
-      {
-        name: "image_urls",
-        path: "image_urls",
-        type: "array",
-        max_items: 14,
-        items: { type: "string", format: "public-http-url" },
-        label: "参考图",
-      },
-    ],
-    public: {
-      id,
-      label,
-      description: "Midjourney Imagine 常规版本，单次返回四张图片。",
-    },
-    selectable: true,
-    pricing: {
-      mode: "fixed",
-      unit: "request",
-      currency: "CNY",
-      credits_per_yuan: pricing.credits_per_yuan,
-      credits: pricing.credits,
-      yuan: pricing.yuan,
-    },
-    endpoint: { method: "POST", path: "/v1/midjourney/generations", content_type: "application/json" },
+    normalizationVersion: catalogNormalizationVersion(overlay),
   };
 }
 
@@ -530,28 +160,14 @@ const CANONICAL_PUBLIC_PARAMETER_LABELS: Readonly<Record<string, string>> = {
   resolution: "分辨率",
 };
 
-function upsertSourceParameter(
-  parameters: SourceParameter[],
-  normalizedName: string,
-  normalize: (parameter: SourceParameter | undefined) => SourceParameter,
-) {
-  let found = false;
-  const next = parameters.flatMap((parameter) => {
-    if (parameter.name.trim().toLowerCase() !== normalizedName) return [parameter];
-    if (found) return [];
-    found = true;
-    return [normalize(parameter)];
-  });
-  if (!found) next.push(normalize(undefined));
-  return next;
-}
 
 /** 上游把「同时发布了按次零售价」标记在 tags 里；缺 tags 时视为没有按次价。 */
 function hasPerRequestTag(tags: string | undefined) {
   return (tags ?? "").split(",").some((tag) => tag.trim().toLowerCase() === "per-request");
 }
 
-function normalizeModel(model: SourceCatalogModel, catalogCreditsPerYuan: number) {
+/** 内部导出：站点 overlay 的旧快照迁移复用同一套模型归一化。 */
+export function normalizeModel(model: SourceCatalogModel, catalogCreditsPerYuan: number, overlay?: CatalogCompatibilityOverlay) {
   const sourceParameters = projectPublicParameters(model);
   const parameters = sourceParameters
     .filter((parameter) => parameter.name !== "model" && !isMediaParameter(
@@ -603,7 +219,7 @@ function normalizeModel(model: SourceCatalogModel, catalogCreditsPerYuan: number
       maxCount: fixedCount ?? outputCount?.max ?? 1,
     },
     parameters,
-    pricing: normalizePricing(model, catalogCreditsPerYuan, publicParameterAliases(model)),
+    pricing: normalizePricing(model, catalogCreditsPerYuan, publicParameterAliases(model), overlay),
   });
 }
 
@@ -909,7 +525,8 @@ function normalizeParameter(parameter: SourceCatalogModel["parameters"][number])
   });
 }
 
-function normalizePrivateRoute(model: SourceCatalogModel): StoredCatalogSnapshot["routes"][string] {
+/** 内部导出：站点 overlay 的旧快照迁移复用同一路由归一化。 */
+export function normalizePrivateRoute(model: SourceCatalogModel): StoredCatalogSnapshot["routes"][string] {
   const expectedPath = ENDPOINT_BY_MODALITY[model.modality as keyof typeof ENDPOINT_BY_MODALITY];
   if (!expectedPath || !model.endpoint || !expectedPath.has(model.endpoint.path)) {
     throw new CatalogValidationError(`Unsupported execution endpoint for public model ${model.public?.id ?? model.id}`);
@@ -977,23 +594,17 @@ function normalizeInputCount(model: SourceCatalogModel, kind: "images" | "videos
   };
 }
 
-// 站点计价口径（console.prompt-hubs.com/pricing）与卡藏目录的 unit 字段在一条
-// 线上不一致：MiniMax H3 站点按秒计费，目录却发布 unit:"request"，其中目录写的
-// 「积分/条」那个数其实是**每秒**费率（分档价同理）。若照目录按次收，一条 10 秒
-// 的视频只收一"条"的钱，比应收少一个数量级——这个 bug 已经反复出现过几次
-// （8e84cc05 一刀切改按秒 → 7f97b7c2 收窄 → 20260920 又被整段删掉）。
-// 因此这里按站点口径把 H3 纠正回按秒，并用 source-unit-and-token-modes.test.ts
-// 里的用例钉住：必须同时锁住「H3=按秒」和「S-2.0 等线路=按次」两端，
-// 只放宽一端就会重新变成事故。费率数字以卡藏实时目录为准，不写死在代码里。
-//
-// 只按 id 精确匹配，绝不按「带时长参数」一刀切：S-2.0 满血/线路六、Veo、
-// Kling、Runway、Wan 都带时长参数，但它们是真正的按次计价。
-const PER_SECOND_VIDEO_MODEL_IDS = new Set(["minimax_h3"]);
-
-function normalizePricing(model: SourceCatalogModel, catalogCreditsPerYuan: number, aliases: ReadonlyMap<string, string>) {
+function normalizePricing(
+  model: SourceCatalogModel,
+  catalogCreditsPerYuan: number,
+  aliases: ReadonlyMap<string, string>,
+  overlay?: CatalogCompatibilityOverlay,
+) {
   const pricing = model.pricing;
   const creditsPerYuan = Math.round(pricing.credits_per_yuan ?? catalogCreditsPerYuan);
-  const unit = pricing.unit === "request" && PER_SECOND_VIDEO_MODEL_IDS.has(model.id) ? "second" : pricing.unit;
+  // 站点口径的单位修正（如 MiniMax H3 按秒）由 overlay 注入；缺省时上游发布
+  // 的单位是唯一权威，绝不按 id 猜测改写。
+  const unit = overlay?.priceUnitOverride?.(model, pricing.unit) ?? pricing.unit;
   // The upstream catalog uses `tiered_token` for token models whose rates can
   // vary by context tier.  The public contract currently has one token rate
   // pair, so expose the catalog's base rates (falling back to the first named
@@ -1093,13 +704,13 @@ function mediaBindingFromName(value: string | undefined): MediaBinding | null {
 // One malformed draft model must not invalidate an otherwise usable refresh.
 // The top-level envelope remains strict; only independently invalid model rows
 // are omitted before the complete catalog is parsed and normalized.
-function sanitizeSourceCatalog(value: unknown) {
+function sanitizeSourceCatalog(value: unknown, overlay?: CatalogCompatibilityOverlay) {
   if (!isRecord(value)) return value;
   const sanitizedModels = Array.isArray(value.models)
     ? value.models.map(sanitizeSourceModel).filter((model): model is Record<string, unknown> => model !== null)
     : value.models;
   const models = Array.isArray(sanitizedModels)
-    ? ensureCanvasFaceCompatibilityModel(sanitizedModels)
+    ? (overlay?.ensureRawCompatibilityModels?.(sanitizedModels) ?? sanitizedModels)
     : sanitizedModels;
   return {
     ...value,
@@ -1116,35 +727,6 @@ function normalizeSourcePricingVersion(value: unknown) {
   if (typeof value !== "string") return "";
   const trimmed = value.trim();
   return trimmed.toLowerCase() === "unknown" ? "" : trimmed;
-}
-
-function ensureCanvasFaceCompatibilityModel(models: Array<Record<string, unknown>>) {
-  const hasSeedance2 = models.some((model) => typeof model.id === "string" && /^sd2(?:\.0)?(?:[-\s]|$)/iu.test(model.id));
-  if (!hasSeedance2) return models;
-  const targetIndex = models.findIndex((model) => model.id === CANVAS_FACE_MODEL_ID);
-  if (targetIndex >= 0) {
-    const next = models.slice();
-    next[targetIndex] = { ...CANVAS_FACE_COMPATIBILITY_MODEL };
-    return next;
-  }
-  if (models.some((model) => isRecord(model.public) && model.public.id === CANVAS_FACE_MODEL_ID)) return models;
-  return [...models, { ...CANVAS_FACE_COMPATIBILITY_MODEL }];
-}
-
-export function ensureCanvasFaceCompatibilitySnapshot(snapshot: StoredCatalogSnapshot): StoredCatalogSnapshot {
-  if (!snapshot.catalog.models.some((model) => /^sd2(?:\.0)?(?:[-\s]|$)/iu.test(model.id))) return snapshot;
-  if (snapshot.catalog.models.some((model) => model.id === CANVAS_FACE_MODEL_ID)) return snapshot;
-  const sourceModel = sourceCatalogModelSchema.parse(CANVAS_FACE_COMPATIBILITY_MODEL);
-  const model = normalizeModel(sourceModel, sourceModel.pricing.credits_per_yuan ?? 100);
-  const route = normalizePrivateRoute(sourceModel);
-  const models = [...snapshot.catalog.models, model]
-    .sort((left, right) => left.order - right.order || left.label.localeCompare(right.label, "zh-CN"));
-  return {
-    ...snapshot,
-    catalog: publicModelCatalogSchema.parse({ ...snapshot.catalog, models }),
-    sourceModels: { ...snapshot.sourceModels, [CANVAS_FACE_MODEL_ID]: CANVAS_FACE_MODEL_ID },
-    routes: { ...snapshot.routes, [CANVAS_FACE_MODEL_ID]: route },
-  };
 }
 
 function sanitizeSourceModel(value: unknown): Record<string, unknown> | null {

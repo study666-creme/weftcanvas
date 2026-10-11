@@ -77,19 +77,23 @@ export const AppCursor = memo(function AppCursor({ panActive }: { panActive: boo
     const pointer = pointerRef.current;
     if (!root || !pointer) return;
 
-    document.documentElement.classList.add("has-kc-cursor");
     let lastTarget: EventTarget | null = null;
     let currentMode: CursorMode = "default";
     let pointerDown = false;
     let pointerInsideCanvas = false;
     let visible = false;
 
+    // 原生光标只在自绘光标真的画出来之后才隐藏。挂载即隐藏会让"还没移动鼠标"
+    // 的那段时间屏幕上没有光标——观感就是"光标不见了/发黏"，这是自绘光标最
+    // 容易被误判成卡顿的一处。
     const show = () => {
+      document.documentElement.classList.add("has-kc-cursor");
       if (visible) return;
       visible = true;
       root.classList.add("is-visible");
     };
     const hide = () => {
+      document.documentElement.classList.remove("has-kc-cursor");
       if (!visible) return;
       visible = false;
       root.classList.remove("is-visible");
@@ -106,15 +110,37 @@ export const AppCursor = memo(function AppCursor({ panActive }: { panActive: boo
     };
     syncModeRef.current = syncMode;
 
-    const applyPosition = (event: PointerEvent) => {
+    // 位置写入合并到每帧一次。一帧内可能收到几十条指针事件（高刷鼠标 + coalesced
+    // 采样能到上千 Hz），每条都写 transform 就是让主线程在这个高频回调里排队——
+    // 这正是「光标追不上手」的来源。写入合并后，一帧只有一次合成器属性更新。
+    let pendingX = 0;
+    let pendingY = 0;
+    let frame = 0;
+    const flushPosition = () => {
+      frame = 0;
+      pointer.style.transform = `translate3d(${pendingX - 4}px, ${pendingY - 3}px, 0)`;
+    };
+    const queuePosition = (event: PointerEvent) => {
       const samples = event.getCoalescedEvents?.() ?? [];
       const latest = samples.at(-1) ?? event;
-      pointer.style.transform = `translate3d(${latest.clientX - 4}px, ${latest.clientY - 3}px, 0)`;
+      pendingX = latest.clientX;
+      pendingY = latest.clientY;
+      if (!frame) frame = window.requestAnimationFrame(flushPosition);
+    };
+
+    // Chromium 的 pointerrawupdate 拿得到不受显示刷新节流的高频样本，比
+    // pointermove 更早、更密，是"跟手"的关键；其它内核继续走 pointermove。
+    // （事件名不在标准 DOM 类型里，所以按 Event 收再收窄。）
+    const supportsRawUpdate = "onpointerrawupdate" in window;
+    const rawMove = (event: Event) => {
+      const pointer = event as PointerEvent;
+      if (!isFinePointerEvent(pointer)) return;
+      queuePosition(pointer);
     };
 
     const move = (event: PointerEvent) => {
       if (!isFinePointerEvent(event)) return;
-      applyPosition(event);
+      queuePosition(event);
       if (lastTarget !== event.target) {
         const nextInsideCanvas = event.target instanceof Element && Boolean(event.target.closest(".react-flow"));
         if (!pointerDown || nextInsideCanvas) pointerInsideCanvas = nextInsideCanvas;
@@ -148,6 +174,7 @@ export const AppCursor = memo(function AppCursor({ panActive }: { panActive: boo
       if (document.visibilityState !== "visible") reset();
     };
 
+    if (supportsRawUpdate) window.addEventListener("pointerrawupdate", rawMove, { passive: true });
     window.addEventListener("pointermove", move, { passive: true });
     window.addEventListener("pointerdown", down, { passive: true });
     window.addEventListener("pointerup", release, { passive: true });
@@ -159,7 +186,9 @@ export const AppCursor = memo(function AppCursor({ panActive }: { panActive: boo
 
     return () => {
       syncModeRef.current = null;
+      if (frame) window.cancelAnimationFrame(frame);
       document.documentElement.classList.remove("has-kc-cursor");
+      if (supportsRawUpdate) window.removeEventListener("pointerrawupdate", rawMove);
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerdown", down);
       window.removeEventListener("pointerup", release);

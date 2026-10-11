@@ -91,7 +91,7 @@ export function buildGenerationRuntime(dependencies: AssemblyDependencies): Work
     env.GENERATION_STAGING_PATH || ".data/generation-results",
   ));
   const provider = new KachangGenerationProvider({
-    baseUrl: env.KACHANG_API_BASE_URL || "https://newapi.prompt-hubs.com",
+    baseUrl: required(env, "KACHANG_API_BASE_URL"),
     apiKey,
     staging,
     references,

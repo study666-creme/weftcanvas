@@ -1,19 +1,27 @@
-import { canvasNodeKinds, type CanvasNodeKind } from "@kachang/contracts";
+import type { CanvasNodeKind } from "@kachang/contracts";
+
+import { listCreatableNodes } from "./node-registry";
+import "./builtin-nodes";
 
 /**
- * 剪辑工作台已上线：剪辑节点创建入口随 creatableNodeKinds 恢复；
- * 时间线同时支持本地/服务器媒体和音乐链接解析出的流式音频
- * （见 clip-composition.collectEditAssets 的 sourceUrl 通道）。
+ * 节点目录的兼容出口。真正的清单已内化到节点注册表（docs/PLUGIN-ROADMAP.md
+ * §3）：内置定义在 ./builtin-nodes，装/卸插件后创建菜单经
+ * useCreatableNodeDefinitions() 自动增减；此静态快照仅供非响应式场景
+ * （估算/测试/脚本）使用。
+ *
+ * 剪辑开关 CLIP_EDITOR_AVAILABLE 由 edit 定义自带（builtin-nodes.ts），
+ * 这里转出口保持旧引用可用。
  */
-export const CLIP_EDITOR_AVAILABLE = true;
-
-/** 当前不对外提供的节点类型。只影响"新建"，不影响已存在节点的渲染。 */
-const HIDDEN_NODE_KINDS: CanvasNodeKind[] = CLIP_EDITOR_AVAILABLE ? [] : ["edit"];
+export { CLIP_EDITOR_AVAILABLE } from "./builtin-nodes";
 
 /**
- * 所有"新建节点"入口（底部新建栏、画布右键菜单、连线落点菜单、节点加号）
- * 统一用这份列表，避免漏掉一处又把剪辑节点暴露出去。
+ * 插件本地开发装载路径（docs/PLUGIN-ROADMAP.md §6 P3）：构建时以
+ * VITE_PLUGIN_DEV=1 打开。打开后暴露 window.__kachangPluginHost 调试钩子
+ * （装/卸演练用）；正式装载仍只走随包 chunk，不做 URL 远程加载。
  */
-export const creatableNodeKinds: CanvasNodeKind[] = canvasNodeKinds.filter(
-  (kind) => !HIDDEN_NODE_KINDS.includes(kind),
+export const PLUGIN_DEV = import.meta.env.VITE_PLUGIN_DEV === "1";
+
+/** 静态快照：本模块求值时"可创建"的节点 kind。 */
+export const creatableNodeKinds: CanvasNodeKind[] = listCreatableNodes().map(
+  (definition) => definition.kind,
 );

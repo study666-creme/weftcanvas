@@ -369,7 +369,8 @@ test("default aspect ratio controls new media-node geometry and keeps toolbar cr
   await defaultAspect.getByRole("button", { name: "9:16", exact: true }).click();
   await page.keyboard.press("Escape");
 
-  await page.getByRole("navigation", { name: "创建工具" }).getByLabel("添加图片节点").click();
+  await page.getByRole("navigation", { name: "创建工具" }).locator(".kc-create-rail-plus-wrapper").hover();
+  await page.getByRole("navigation", { name: "创建工具" }).getByRole("menuitem", { name: "添加图片节点" }).click();
   const createdImage = page.locator('.react-flow__node-kachang.selected:has(.kc-node-wrap[data-node-kind="image"])');
   await expect(createdImage).toHaveCount(1);
   await expect.poll(() => createdImage.evaluate((element) => ({
@@ -392,7 +393,8 @@ test("default aspect ratio controls new media-node geometry and keeps toolbar cr
   await settingsTrigger.click();
   await defaultAspect.getByRole("button", { name: "4:3", exact: true }).click();
   await page.keyboard.press("Escape");
-  await page.getByRole("navigation", { name: "创建工具" }).getByLabel("添加视频节点").click();
+  await page.getByRole("navigation", { name: "创建工具" }).locator(".kc-create-rail-plus-wrapper").hover();
+  await page.getByRole("navigation", { name: "创建工具" }).getByRole("menuitem", { name: "添加视频节点" }).click();
   const createdVideo = page.locator('.react-flow__node-kachang.selected:has(.kc-node-wrap[data-node-kind="video"])');
   await expect.poll(() => createdVideo.evaluate((element) => ({
     width: getComputedStyle(element).width,

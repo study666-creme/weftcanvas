@@ -309,26 +309,33 @@ describe("model overrides", () => {
     expect(stored.models["gpt-5.6"]?.price).toEqual({ inputYuanPerMillion: 0.3, outputYuanPerMillion: 0.9 });
   });
 
-  it("lets only the known consoles frame the override admin page", async () => {
+  it("lets only the configured consoles frame the override admin page", async () => {
     const store = new MemoryModelOverrideStore();
-    const app = createApiApp({
-      catalog: createAdapter(store),
-      quotes: new GenerationQuoteService(createAdapter(store), { now: () => NOW }),
-      modelOverrides: store,
-      modelOverridesAdminSecret: "s3cret",
-    });
+    const previous = process.env.MODEL_OVERRIDES_FRAME_ANCESTORS;
+    process.env.MODEL_OVERRIDES_FRAME_ANCESTORS = "https://console.example.com";
+    try {
+      const app = createApiApp({
+        catalog: createAdapter(store),
+        quotes: new GenerationQuoteService(createAdapter(store), { now: () => NOW }),
+        modelOverrides: store,
+        modelOverridesAdminSecret: "s3cret",
+      });
 
-    // The Prompt Hub 画布模型 tab embeds this page; a blanket DENY made it
-    // render blank. Every other route keeps the deny-everything default.
-    const page = await app.request("/admin/model-overrides");
-    expect(page.status).toBe(200);
-    expect(page.headers.get("x-frame-options")).toBeNull();
-    expect(page.headers.get("content-security-policy")).toBe(
-      "frame-ancestors https://prompt-hubs.com https://www.prompt-hubs.com https://api.prompt-hubs.com",
-    );
+      // 运营控制台的画布模型 tab 嵌这个页；一刀切 DENY 会让它渲染空白。
+      // 允许名单完全来自环境变量，其它路由保持 deny-everything 默认。
+      const page = await app.request("/admin/model-overrides");
+      expect(page.status).toBe(200);
+      expect(page.headers.get("x-frame-options")).toBeNull();
+      expect(page.headers.get("content-security-policy")).toBe(
+        "frame-ancestors https://console.example.com",
+      );
 
-    const other = await app.request("/api/v1/model-catalog");
-    expect(other.headers.get("x-frame-options")).toBe("DENY");
+      const other = await app.request("/api/v1/model-catalog");
+      expect(other.headers.get("x-frame-options")).toBe("DENY");
+    } finally {
+      if (previous === undefined) delete process.env.MODEL_OVERRIDES_FRAME_ANCESTORS;
+      else process.env.MODEL_OVERRIDES_FRAME_ANCESTORS = previous;
+    }
   });
 });
 

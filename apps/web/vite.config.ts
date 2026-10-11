@@ -80,7 +80,7 @@ export default defineConfig(({ mode }) => {
           },
         },
         "/card-library-api": {
-          target: "https://api.prompt-hubs.com",
+          target: process.env.CARD_LIBRARY_PROXY_TARGET || "http://127.0.0.1:8787",
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/card-library-api/, ""),
         },

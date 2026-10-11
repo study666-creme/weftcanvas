@@ -8,8 +8,8 @@ const ORDER_STORAGE_KEY = "kachang-canvas:wallet-order:v1";
 const capabilities = {
   available: true,
   registration: "external" as const,
-  registrationUrl: "https://prompt-hubs.com/register",
-  passwordResetUrl: "https://prompt-hubs.com/forgot-password",
+  registrationUrl: "https://accounts.example.com/register",
+  passwordResetUrl: "https://accounts.example.com/forgot-password",
 };
 
 const session = {
@@ -327,7 +327,7 @@ test("画布内注册支持确认密码和待验证邮箱状态", async ({ page 
     available: true,
     registration: "native" as const,
     registrationUrl: null,
-    passwordResetUrl: "https://prompt-hubs.com/forgot-password",
+    passwordResetUrl: "https://accounts.example.com/forgot-password",
   };
   let submitted: unknown = null;
   await page.route("**/api/v1/auth/session", (route) => route.fulfill({

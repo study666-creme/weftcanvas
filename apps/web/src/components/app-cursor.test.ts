@@ -26,4 +26,13 @@ describe("custom cursor compositing", () => {
   it("promotes the pointer element that carries the per-frame transform", () => {
     expect(ruleBody(".kc-app-cursor-pointer {")).toContain("will-change: transform");
   });
+
+  // 根节点曾经铺满视口（inset:0 + opacity 过渡），等于常驻一整屏的合成层，
+  // 而实际只有几十像素在动。守着它别再长回来。
+  it("keeps the cursor root out of the viewport-sized layer budget", () => {
+    const root = ruleBody(".kc-app-cursor {");
+    expect(root).not.toContain("inset: 0");
+    expect(root).toMatch(/width:\s*0/);
+    expect(root).toMatch(/height:\s*0/);
+  });
 });

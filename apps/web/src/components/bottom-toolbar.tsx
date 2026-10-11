@@ -1,8 +1,7 @@
-import { canvasNodeLabels, type CanvasNodeKind } from "@kachang/contracts";
-import { creatableNodeKinds } from "../lib/canvas-features";
+import { type CanvasNodeKind } from "@kachang/contracts";
 import { communityLargeImageUrl, communityPostToInsertable, communityThumbUrl, fetchCommunityPosts, sortCommunityPosts, type CommunitySort } from "../lib/community-client";
 import { useToastStore } from "../state/toast-store";
-import { Clock, Clapperboard, Eraser, Hand, Heart, LoaderCircle, Plus, Redo2, SlidersHorizontal, Trash2, Undo2, Upload, User, Users } from "lucide-react";
+import { Clock, Clapperboard, Eraser, Hand, Heart, LoaderCircle, Plus, Puzzle, Redo2, SlidersHorizontal, Trash2, Undo2, Upload, User, Users } from "lucide-react";
 import { useReactFlow } from "@xyflow/react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 
@@ -12,13 +11,13 @@ import { nodeCreationDimensions } from "../lib/node-factory";
 import { findOpenNodePosition } from "../lib/node-placement";
 import { useCanvasStore } from "../state/canvas-store";
 import { useUiPreferencesStore } from "../state/ui-preferences-store";
+import { useCreatableNodeDefinitions } from "../lib/node-registry";
 import type { InsertableAsset } from "./resource-drawer";
 import type { KachangEdge, KachangNode } from "../types";
 import { AppearanceToolbar } from "./appearance-toolbar";
 import { CardPreviewLightbox, type CardPreviewItem, type CardPreviewMeta } from "./card-preview-lightbox";
 import { CardHoverPreview, type CardHoverPreviewSource } from "./card-hover-preview";
 import { CardThumbnail } from "./card-thumbnail";
-import { nodeIcons } from "./node-icon";
 
 /**
  * 底部 dock + 创建栏。
@@ -65,6 +64,7 @@ export const BottomToolbar = memo(function BottomToolbar({
   const hasContent = useCanvasStore((state) => state.nodes.length > 0 || state.edges.length > 0);
   const deleteSelection = useCanvasStore((state) => state.deleteSelection);
   const defaultNodeAspectRatio = useUiPreferencesStore((state) => state.defaultNodeAspectRatio);
+  const creatableNodes = useCreatableNodeDefinitions();
   const { getZoom, screenToFlowPosition, setCenter } = useReactFlow<KachangNode, KachangEdge>();
   const dockRef = useRef<HTMLElement>(null);
   const showToast = useToastStore((state) => state.show);
@@ -188,7 +188,7 @@ export const BottomToolbar = memo(function BottomToolbar({
         title: (post.title || post.prompt || "社区作品").slice(0, 40),
         prompt: post.prompt || "",
         meta,
-        footerNote: "来自 prompt-hubs 社区",
+        footerNote: "来自社区",
         thumbnailUrl: communityThumbs[post.id] ?? "",
         resolveImages: () => communityLargeImageUrl(post),
       },
@@ -256,18 +256,18 @@ export const BottomToolbar = memo(function BottomToolbar({
             <Plus aria-hidden="true" />
           </button>
           <div className="kc-create-rail-popover" role="menu" aria-label="节点类型">
-            {creatableNodeKinds.map((kind) => {
-              const Icon = nodeIcons[kind];
-              const label = canvasNodeLabels[kind];
+            {creatableNodes.map((definition) => {
+              const Icon = definition.icon ?? Puzzle;
+              const label = definition.label();
               return (
                 <button
-                  key={kind}
+                  key={definition.kind}
                   type="button"
                   role="menuitem"
-                  className={`kc-add-node kc-add-node--${kind}`}
+                  className={`kc-add-node kc-add-node--${definition.kind}`}
                   aria-label={`添加${label}`}
                   title={`添加${label}`}
-                  onClick={() => createAtCenter(kind)}
+                  onClick={() => createAtCenter(definition.kind)}
                 >
                   <Icon aria-hidden="true" />
                   <span className="kc-add-node-label">{label}</span>
@@ -283,7 +283,7 @@ export const BottomToolbar = memo(function BottomToolbar({
         <button type="button" className="kc-director-button" aria-label="打开 3D 导演台" title="3D 导演台" onClick={onOpenDirector}>
           <Clapperboard aria-hidden="true" />
         </button>
-        {/* 社区入口：hover 浮现 prompt-hubs 公开社区卡片，点击卡片放大查看，
+        {/* 社区入口：hover 浮现 社区公开卡片，点击卡片放大查看，
             加入画布走右侧「画布」键或预览层主操作键（与卡片库同一套
             下载→入库→建节点链路）。数据经画布 API 同源代理拉取。 */}
         <span className="kc-create-rail-divider" aria-hidden="true" />
@@ -304,7 +304,7 @@ export const BottomToolbar = memo(function BottomToolbar({
           <div className="kc-create-rail-community-popover" role="menu" aria-label="社区卡片">
             <div className="kc-community-popover-header">
               <strong>社区卡片</strong>
-              <span className="kc-community-popover-hint">来自 prompt-hubs 社区 · 点击卡片放大查看</span>
+              <span className="kc-community-popover-hint">来自社区 · 点击卡片放大查看</span>
               <div className="kc-community-popover-tabs" role="group" aria-label="排序">
                 {([
                   ["random", "随机"],
@@ -335,7 +335,7 @@ export const BottomToolbar = memo(function BottomToolbar({
                 <button type="button" className="kc-community-retry" onClick={() => loadCommunity(true)}>点击重试</button>
               </div>
             ) : sortedCommunityPosts.length === 0 ? (
-              <div className="kc-community-popover-empty">社区还没有作品，去 prompt-hubs 发布第一张吧。</div>
+              <div className="kc-community-popover-empty">社区还没有作品，去社区发布第一张吧。</div>
             ) : (
               <div className="kc-community-popover-list" onMouseLeave={() => setCommunityHover(null)}>
                 {sortedCommunityPosts.map((post) => {

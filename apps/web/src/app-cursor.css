@@ -31,6 +31,11 @@
   cursor: nesw-resize !important;
 }
 
+/*
+ * 根节点不再铺满视口：inset:0 + opacity 过渡会给这个"看不见的光标容器"留下
+ * 一整屏的合成层（永远活在屏幕上，却只有几十像素在动）。改成零尺寸的定位锚，
+ * 子元素各自 position: fixed —— 层的边界就只剩光标本身那点面积。
+ */
 .kc-app-cursor {
   --kc-cursor-accent: var(--kc-selection);
   --kc-cursor-contrast: var(--kc-text);
@@ -38,7 +43,10 @@
   --kc-cursor-fill: color-mix(in srgb, var(--kc-text) 94%, transparent);
   --kc-cursor-shadow: color-mix(in srgb, var(--kc-canvas) 58%, transparent);
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
   z-index: 2147483647;
   opacity: 0;
   pointer-events: none;

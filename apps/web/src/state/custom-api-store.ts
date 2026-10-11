@@ -13,6 +13,7 @@ import {
   createSyntheticCustomRoute,
   customModelKey,
   CustomApiError,
+  DEFAULT_CUSTOM_API_BASE_URL,
   DEFAULT_CUSTOM_API_FORMAT,
   GEMINI_CUSTOM_API_BASE_URL,
   executeCustomGeneration,
@@ -923,9 +924,9 @@ function createProfile(id: string, input: CustomApiProfileInput): CustomApiProfi
   const apiFormat = normalizeCustomApiFormat(input.apiFormat);
   let baseUrl: string;
   try {
-    baseUrl = normalizeCustomApiBaseUrl(input.baseUrl ?? (apiFormat === "gemini" ? GEMINI_CUSTOM_API_BASE_URL : "https://newapi.prompt-hubs.com"));
+    baseUrl = normalizeCustomApiBaseUrl(input.baseUrl ?? (apiFormat === "gemini" ? GEMINI_CUSTOM_API_BASE_URL : DEFAULT_CUSTOM_API_BASE_URL));
   } catch {
-    baseUrl = apiFormat === "gemini" ? GEMINI_CUSTOM_API_BASE_URL : "https://newapi.prompt-hubs.com";
+    baseUrl = apiFormat === "gemini" ? GEMINI_CUSTOM_API_BASE_URL : DEFAULT_CUSTOM_API_BASE_URL;
   }
   return hydrateProfile({
     id,

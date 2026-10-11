@@ -1,4 +1,5 @@
-import { canvasNodeLabels, type CanvasNodeData } from "@kachang/contracts";
+import type { CanvasNodeData } from "@kachang/contracts";
+import { nodeLabel } from "../lib/node-registry";
 import { Minimize2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type ClipboardEvent } from "react";
 import { createPortal } from "react-dom";
@@ -80,7 +81,7 @@ export function NodeOverlay({ mode, data, width, height, mediaUrl, onClose, onBo
   const title = mode === "info"
     ? "节点信息"
     : mode === "edit"
-      ? `编辑${canvasNodeLabels[data.kind]}`
+      ? `编辑${nodeLabel(data.kind)}`
       : data.media?.name || (data.kind === "image" ? "图片预览" : "视频预览");
 
   return createPortal(
@@ -131,7 +132,7 @@ export function NodeOverlay({ mode, data, width, height, mediaUrl, onClose, onBo
 
         {mode === "info" ? (
           <dl className="kc-node-info-list">
-            <div><dt>类型</dt><dd>{canvasNodeLabels[data.kind]}</dd></div>
+            <div><dt>类型</dt><dd>{nodeLabel(data.kind)}</dd></div>
             <div><dt>尺寸</dt><dd>{typeof width === "number" && typeof height === "number" ? `${Math.round(width)} x ${Math.round(height)}` : "测量中"}</dd></div>
             <div><dt>状态</dt><dd>{data.status === "running" ? "处理中" : data.status === "success" ? "已完成" : data.status === "error" ? "失败" : "就绪"}</dd></div>
             {data.media ? <div><dt>文件</dt><dd title={data.media.name}>{data.media.name}</dd></div> : null}

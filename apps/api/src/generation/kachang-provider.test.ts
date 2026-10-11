@@ -507,7 +507,7 @@ describe("video failure parsing", () => {
       id: "task-1",
       status: "failed",
       error: {
-        message: "请查看 https://newapi.prompt-hubs.com/private/tasks/task-1?token=abc123\nBearer server-secret-here 处理进度，账户余额不足",
+        message: "请查看 https://gateway.example.com/private/tasks/task-1?token=abc123\nBearer server-secret-here 处理进度，账户余额不足",
       },
     })]).fetch, new MemoryStagingStore());
 
@@ -545,7 +545,7 @@ describe("video failure parsing", () => {
   it("never leaks a private URL, query token, or Bearer secret from an HTTP 400 body", async () => {
     const provider = createProvider(scriptedFetch([jsonResponse({
       error: {
-        message: "请查看 https://newapi.prompt-hubs.com/private/tasks/task-1?token=super-secret-token 处理进度\nBearer server-secret-here 账户余额不足",
+        message: "请查看 https://gateway.example.com/private/tasks/task-1?token=super-secret-token 处理进度\nBearer server-secret-here 账户余额不足",
       },
     }, 400)]).fetch, new MemoryStagingStore());
 

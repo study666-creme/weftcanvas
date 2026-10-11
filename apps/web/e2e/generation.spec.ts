@@ -185,7 +185,8 @@ test("collapses stale H3 and image2-A aliases into one control and one request f
   });
 
   await page.goto("/canvas");
-  await page.getByRole("navigation", { name: "创建工具" }).getByLabel("添加图片节点").click();
+  await page.getByRole("navigation", { name: "创建工具" }).locator(".kc-create-rail-plus-wrapper").hover();
+  await page.getByRole("navigation", { name: "创建工具" }).getByRole("menuitem", { name: "添加图片节点" }).click();
   const imageNode = page.locator('.react-flow__node-kachang.selected:has(.kc-node-wrap[data-node-kind="image"])');
   await imageNode.locator(".kc-node-drag-strip").click();
   const imagePanel = page.getByLabel("图片节点创作设置");
@@ -203,7 +204,8 @@ test("collapses stale H3 and image2-A aliases into one control and one request f
   expect(quotes.get("image2-A")).not.toHaveProperty("aspectRatio");
   expect(quotes.get("image2-A")).not.toHaveProperty("ratio");
 
-  await page.getByRole("navigation", { name: "创建工具" }).getByLabel("添加视频节点").click();
+  await page.getByRole("navigation", { name: "创建工具" }).locator(".kc-create-rail-plus-wrapper").hover();
+  await page.getByRole("navigation", { name: "创建工具" }).getByRole("menuitem", { name: "添加视频节点" }).click();
   const videoNode = page.locator('.react-flow__node-kachang.selected:has(.kc-node-wrap[data-node-kind="video"])');
   await videoNode.locator(".kc-node-drag-strip").click();
   const videoPanel = page.getByLabel("视频节点创作设置");
@@ -402,7 +404,8 @@ test("keeps all image models while filtering unavailable video ids", async ({ pa
   await page.keyboard.press("Escape");
   await expect(menu).toBeHidden();
 
-  await page.getByRole("navigation", { name: "创建工具" }).getByLabel("添加视频节点").click();
+  await page.getByRole("navigation", { name: "创建工具" }).locator(".kc-create-rail-plus-wrapper").hover();
+  await page.getByRole("navigation", { name: "创建工具" }).getByRole("menuitem", { name: "添加视频节点" }).click();
   const videoNode = page.locator('.react-flow__node-kachang.selected:has(.kc-node-wrap[data-node-kind="video"])');
   await videoNode.locator(".kc-node-drag-strip").click();
   const videoPanel = page.getByLabel("视频节点创作设置");

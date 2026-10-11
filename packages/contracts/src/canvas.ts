@@ -4,10 +4,21 @@ import { generationJobStatusSchema } from "./generation-job.js";
 
 export const CANVAS_SCHEMA_VERSION = 1 as const;
 
-export const canvasNodeKinds = ["text", "image", "video", "audio", "config", "edit"] as const;
-const persistedCanvasNodeKindSchema = z.enum([...canvasNodeKinds, "note", "music"]);
-export const canvasNodeKindSchema = persistedCanvasNodeKindSchema.transform((kind) =>
-  kind === "note" ? "text" : kind === "music" ? "audio" : kind);
+/** 内置节点类型（闭合集合；插件节点走 plugin: 前缀命名空间，不进这里）。 */
+export const builtinCanvasNodeKinds = ["text", "image", "video", "audio", "config", "edit"] as const;
+export type BuiltinCanvasNodeKind = typeof builtinCanvasNodeKinds[number];
+/** 插件注册的节点类型：`plugin:<pluginId>:<name>`（plugin-host 强制命名空间）。 */
+export type PluginNodeKind = `plugin:${string}`;
+/**
+ * 持久化的节点类型：内置闭合枚举 + 插件命名空间。历史 note/music 在读取时
+ * 映射回 text/audio；不认识的 plugin: kind 在宿主渲染层回落通用卡面。
+ */
+const persistedCanvasNodeKindSchema = z.union([
+  z.enum([...builtinCanvasNodeKinds, "note", "music"]),
+  z.string().regex(/^plugin:[a-z0-9][a-z0-9._-]*$/),
+]);
+export const canvasNodeKindSchema = persistedCanvasNodeKindSchema.transform((kind): BuiltinCanvasNodeKind | PluginNodeKind =>
+  kind === "note" ? "text" : kind === "music" ? "audio" : (kind as BuiltinCanvasNodeKind | PluginNodeKind));
 export type CanvasNodeKind = z.infer<typeof canvasNodeKindSchema>;
 
 export const canvasNodeStatusSchema = z.enum(["idle", "running", "success", "error"]);
@@ -235,7 +246,7 @@ export const canvasProjectSchema = z.object({
 });
 export type CanvasProject = z.infer<typeof canvasProjectSchema>;
 
-export const canvasNodeLabels: Record<CanvasNodeKind, string> = {
+export const canvasNodeLabels: Record<BuiltinCanvasNodeKind, string> = {
   text: "文本节点",
   image: "图片节点",
   video: "视频节点",

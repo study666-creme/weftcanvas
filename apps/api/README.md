@@ -86,7 +86,7 @@ reference. Ask for a quote with the public Canvas API identity and include the
 image count in `inputs`:
 
 ```http
-POST https://canvas-api.prompt-hubs.com/api/v1/generation-quotes
+POST https://canvas-api.example.com/api/v1/generation-quotes
 Content-Type: application/json
 ```
 
@@ -116,7 +116,7 @@ characters are supported and are part of the first id. Canvas clients submit
 through the public Prompt Hub image protocol:
 
 ```http
-POST https://api.prompt-hubs.com/api/v1/generate
+POST https://api.example.com/api/v1/generate
 Authorization: Bearer <SESSION_TOKEN>
 Content-Type: application/json
 ```
@@ -158,7 +158,7 @@ four submissions or four charges.
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `PORT` | `8787` | API listen port |
-| `KACHANG_CATALOG_URL` | `https://newapi.prompt-hubs.com/api/model-catalog` | Server-side public catalog source |
+| `KACHANG_CATALOG_URL` | `https://your-gateway.example.com/api/model-catalog`（托管部署由私有 overlay 提供默认值） | Server-side public catalog source |
 | `CATALOG_SNAPSHOT_PATH` | `.data/model-catalog.json` | Last-known-good server snapshot |
 | `DATABASE_URL` | none | PostgreSQL connection used by identity, media, wallets, and jobs |
 | `APP_ORIGINS` | none | Comma-separated exact browser origins accepted for account writes |

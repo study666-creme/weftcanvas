@@ -30,7 +30,7 @@ describe("UI preferences", () => {
     // 配色收敛成 colorScheme 两档（石墨 / 墨黑）。自绘光标仍是可选偏好
     // （appearance-toolbar 提供 classic / precision 两档），必须保留。
     expect(useUiPreferencesStore.getState()).not.toHaveProperty("accentPalette");
-    expect(useUiPreferencesStore.getState().cursorStyle).toBe("precision");
+    expect(useUiPreferencesStore.getState().cursorStyle).toBe("classic");
   });
 
   it("keeps the colour scheme independent of the node and chrome styles", async () => {
@@ -81,7 +81,7 @@ describe("UI preferences", () => {
       companionStyle: "whale",
       companionAnchor: null,
       defaultNodeAspectRatio: "3:4",
-      cursorStyle: "precision",
+      cursorStyle: "classic",
       lastMediaGeneration: {},
     });
 
@@ -307,5 +307,71 @@ describe("companion anchor", () => {
     });
     expect(normalizeCompanionAnchor({ kind: "free", x: Number.NaN, y: 10 })).toBeNull();
     expect(normalizeCompanionAnchor("junk")).toBeNull();
+  });
+});
+
+describe("appearance pack registry (P1)", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    installMemoryStorage();
+  });
+
+  afterEach(() => {
+    Reflect.deleteProperty(globalThis, "localStorage");
+  });
+
+  it("hydrates a registered pack option without rollback", async () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ edgePathStyle: "amber-edge" }));
+    vi.resetModules();
+    const { registerAppearanceOption } = await import("../lib/appearance-registry");
+    registerAppearanceOption("edgePathStyle", { id: "amber-edge", label: "琥珀" });
+    const { useUiPreferencesStore } = await import("./ui-preferences-store");
+
+    expect(useUiPreferencesStore.getState().edgePathStyle).toBe("amber-edge");
+  });
+
+  it("falls back to the builtin default for values nothing registers", async () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ edgePathStyle: "cosmos-curve" }));
+    vi.resetModules();
+    const { useUiPreferencesStore } = await import("./ui-preferences-store");
+
+    expect(useUiPreferencesStore.getState().edgePathStyle).toBe("taut");
+  });
+
+  it("keeps every legacy stored builtin choice after reload (onyx chrome included)", async () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      canvasVisualStyle: "onyx",
+      chromeVisualStyle: "onyx",
+      canvasBackgroundStyle: "onyx",
+      generationEffectStyle: "quiet",
+      nodePortStyle: "compact",
+      cursorStyle: "precision",
+    }));
+    vi.resetModules();
+    const { useUiPreferencesStore } = await import("./ui-preferences-store");
+
+    expect(useUiPreferencesStore.getState()).toMatchObject({
+      canvasVisualStyle: "onyx",
+      chromeVisualStyle: "onyx",
+      canvasBackgroundStyle: "onyx",
+      generationEffectStyle: "quiet",
+      nodePortStyle: "compact",
+      cursorStyle: "precision",
+    });
+  });
+
+  it("falls back to the default on the next load after a pack unregisters", async () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ edgePathStyle: "amber-edge" }));
+    vi.resetModules();
+    const { registerAppearanceOption } = await import("../lib/appearance-registry");
+    const unregister = registerAppearanceOption("edgePathStyle", { id: "amber-edge", label: "琥珀" });
+    const { useUiPreferencesStore } = await import("./ui-preferences-store");
+    expect(useUiPreferencesStore.getState().edgePathStyle).toBe("amber-edge");
+    unregister();
+
+    // 下一"次加载"（重置模块、注册表回到内置集）读取同一份存量偏好。
+    vi.resetModules();
+    const { useUiPreferencesStore: reloaded } = await import("./ui-preferences-store");
+    expect(reloaded.getState().edgePathStyle).toBe("taut");
   });
 });

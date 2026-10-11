@@ -50,11 +50,12 @@ const GROK_VIDEO_RESOLUTIONS = ["480p", "720p"];
 const CUSTOM_VIDEO_POLL_INTERVAL_MS = 5_000;
 const CUSTOM_MJ_POLL_INTERVAL_MS = 5_000;
 
-// This is a public service origin, not a credential. Deployments can override
-// it with a Vite public variable while local builds keep the documented host.
-const DOCUMENTED_KACHANG_API_BASE_URL = "https://newapi.prompt-hubs.com";
+// 服务站点 origin（非凭据）。托管部署用 VITE_KACHANG_API_BASE_URL 注入自己的
+// 文档站点；公开/自托管构建没有默认站点——留空即"设置里自己填自己的网关"，
+// 相应的站点链接在为空时不渲染。
+const DOCUMENTED_KACHANG_API_BASE_URL = import.meta.env.VITE_KACHANG_API_BASE_URL?.trim() || "";
 export const KACHANG_API_SITE_URL = DOCUMENTED_KACHANG_API_BASE_URL;
-export const DEFAULT_CUSTOM_API_BASE_URL = import.meta.env.VITE_KACHANG_API_BASE_URL?.trim() || KACHANG_API_SITE_URL;
+export const DEFAULT_CUSTOM_API_BASE_URL = DOCUMENTED_KACHANG_API_BASE_URL;
 export const DEFAULT_CUSTOM_API_FORMAT: CustomApiFormat = "openai";
 export const GEMINI_CUSTOM_API_BASE_URL = "https://generativelanguage.googleapis.com";
 

@@ -90,12 +90,18 @@ importers:
 
   apps/web:
     dependencies:
+      '@kachang-plugin/split-list':
+        specifier: workspace:*
+        version: link:../../plugins/split-list
       '@kachang/canvas-core':
         specifier: workspace:*
         version: link:../../packages/canvas-core
       '@kachang/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@kachang/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
       '@mediapipe/tasks-vision':
         specifier: 0.10.35
         version: 0.10.35
@@ -183,6 +189,43 @@ importers:
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@types/node@24.13.3)(vite@8.1.4(@types/node@24.13.3)(esbuild@0.28.1)(tsx@4.23.1))
+
+  packages/plugin-sdk:
+    devDependencies:
+      '@types/react':
+        specifier: ^19.2.17
+        version: 19.2.17
+      react:
+        specifier: ^19.2.7
+        version: 19.2.7
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+
+  plugins/split-list:
+    dependencies:
+      '@kachang/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+      lucide-react:
+        specifier: ^1.24.0
+        version: 1.24.0(react@19.2.7)
+    devDependencies:
+      '@types/react':
+        specifier: ^19.2.17
+        version: 19.2.17
+      react:
+        specifier: ^19.2.7
+        version: 19.2.7
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vite:
+        specifier: ^8.1.4
+        version: 8.1.4(@types/node@24.13.3)(esbuild@0.28.1)(tsx@4.23.1)
       vitest:
         specifier: ^4.1.10
         version: 4.1.10(@types/node@24.13.3)(vite@8.1.4(@types/node@24.13.3)(esbuild@0.28.1)(tsx@4.23.1))

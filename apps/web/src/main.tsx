@@ -5,6 +5,8 @@ import "@xyflow/react/dist/style.css";
 import { App } from "./App";
 import { AppStartupBoundary } from "./components/app-startup-boundary";
 import { installCanvasReleaseFreshnessGuard } from "./lib/canvas-release-freshness";
+// 外观包在样式之前注册：注册表就绪后偏好 normalize 才认得扩展档位。
+import "./appearance-packs/amber-edge";
 import "./styles.css";
 import "./entry-gate.css";
 import "./canvas-entry-loader.css";

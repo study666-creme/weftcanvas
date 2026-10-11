@@ -97,7 +97,9 @@ export function generationRequestQuantity(
 
 export function modalityForNodeKind(kind: CanvasNodeKind): ModelModality {
   if (kind === "config" || kind === "edit") return "image";
-  return kind;
+  // 插件节点没有生成面板入口；媒体模态是仅有的四种生成目标。
+  if (kind === "text" || kind === "image" || kind === "video" || kind === "audio") return kind;
+  return "image";
 }
 
 export function isBoundTextParameter(parameter: ModelParameter) {

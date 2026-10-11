@@ -482,7 +482,8 @@ test("nodes created and media dropped at a ten percent overview keep stable intr
   await expect(slider).toHaveValue("10");
 
   const beforeCreate = await nodes.count();
-  await page.getByRole("navigation", { name: "创建工具" }).getByLabel("添加图片节点").click();
+  await page.getByRole("navigation", { name: "创建工具" }).locator(".kc-create-rail-plus-wrapper").hover();
+  await page.getByRole("navigation", { name: "创建工具" }).getByRole("menuitem", { name: "添加图片节点" }).click();
   await expect(nodes).toHaveCount(beforeCreate + 1);
   const overviewBox = await nodes.last().boundingBox();
   expect(overviewBox).not.toBeNull();

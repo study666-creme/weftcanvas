@@ -4,7 +4,7 @@
 
 The only official production entry point is:
 
-`https://canvas.prompt-hubs.com/canvas`
+托管站点域名（部署侧配置）
 
 Vercel deployment URLs, legacy aliases, and local development URLs are not
 production links. The browser and API are exposed through the same-origin
@@ -106,7 +106,7 @@ Generated media is rendered from the protected same-origin media route.
 
 | Profile | Identity and credits | Generation | Intended use |
 | --- | --- | --- | --- |
-| Official hosted | Prompt Hub, one shared ledger | Canvas API -> Prompt Hub -> provider | `canvas.prompt-hubs.com/canvas` |
+| Official hosted | Prompt Hub, one shared ledger | Canvas API -> Prompt Hub -> provider | 托管站点域名（部署侧配置） |
 | Isolated native | Canvas-local adapters | Native worker/provider adapter | Development, tests, explicit self-hosting |
 
 Selecting the isolated profile is an explicit deployment decision. The hosted

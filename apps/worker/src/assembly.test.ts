@@ -37,6 +37,7 @@ const mediaEnvironment: Record<string, string> = {
 const generationEnvironment: Record<string, string> = {
   ...mediaEnvironment,
   KACHANG_API_KEY: "test-generation-key",
+  KACHANG_API_BASE_URL: "https://gateway.example.com",
   GENERATION_MEDIA_HOSTS: "host.invalid",
   GENERATION_STAGING_PATH: join(tmpdir(), "canvas-worker-test-generation-results"),
   GENERATION_DOWNLOAD_PATH: join(tmpdir(), "canvas-worker-test-generation-downloads"),

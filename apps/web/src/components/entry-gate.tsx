@@ -25,6 +25,10 @@ import {
   type DirectMentionCandidate,
 } from "../lib/direct-generation-mentions";
 import { validateImageBlob, validateMediaBlob } from "../lib/media-validation";
+import { KACHANG_API_SITE_URL } from "../lib/custom-api";
+
+/** 卡片库站点由部署注入（custom-api 的 VITE_KACHANG_API_BASE_URL）；为空不渲染外链。 */
+const CARD_LIBRARY_SITE_URL = KACHANG_API_SITE_URL;
 import {
   defaultModelParameters,
   isModelBoundTextParameter,
@@ -380,7 +384,7 @@ export function EntryGate({ onEnter, theme, onToggleTheme }: {
             <a href="/generate/image"><ImageIcon aria-hidden="true" />图片生成</a>
             <a href="/generate/video"><Video aria-hidden="true" />视频生成</a>
             <a href="/canvas">创作画布</a>
-            <a href="https://prompt-hubs.com" target="_blank" rel="noreferrer">卡片库</a>
+            {CARD_LIBRARY_SITE_URL ? <a href={CARD_LIBRARY_SITE_URL} target="_blank" rel="noreferrer">卡片库</a> : null}
           </nav>
           <div className="kc-entry-nav-actions">
             <button
@@ -680,11 +684,13 @@ export function EntryGate({ onEnter, theme, onToggleTheme }: {
                 <span>进入画布</span>
                 <ArrowRight aria-hidden="true" strokeWidth={1.8} />
               </button>
-              <a className="kc-entry-library-link" href="https://prompt-hubs.com" target="_blank" rel="noreferrer">
-                <Library aria-hidden="true" />
-                <span>浏览卡片库</span>
-                <ExternalLink aria-hidden="true" />
-              </a>
+              {CARD_LIBRARY_SITE_URL ? (
+                <a className="kc-entry-library-link" href={CARD_LIBRARY_SITE_URL} target="_blank" rel="noreferrer">
+                  <Library aria-hidden="true" />
+                  <span>浏览卡片库</span>
+                  <ExternalLink aria-hidden="true" />
+                </a>
+              ) : null}
             </div>
           </div>
 

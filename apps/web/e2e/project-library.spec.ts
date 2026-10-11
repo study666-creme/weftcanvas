@@ -166,7 +166,8 @@ test("local project library keeps project graphs isolated through create, switch
 
   await expect(projectName).toHaveValue("卡藏画布 1");
   await expect(page.locator(".react-flow__node-kachang")).toHaveCount(0);
-  await page.getByRole("navigation", { name: "创建工具" }).getByLabel("添加文本节点").click();
+  await page.getByRole("navigation", { name: "创建工具" }).locator(".kc-create-rail-plus-wrapper").hover();
+  await page.getByRole("navigation", { name: "创建工具" }).getByRole("menuitem", { name: "添加文本节点" }).click();
   await expect(page.locator(".react-flow__node-kachang")).toHaveCount(1);
   await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
 

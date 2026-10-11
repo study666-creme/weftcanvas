@@ -38,7 +38,7 @@ export async function fetchCommunityPosts(limit = 30, force = false): Promise<Co
   return pending;
 }
 
-/** 社区排序（对齐 prompt-hubs 社区页：随机 / 热门 / 最新；公开接口在前端排序）。 */
+/** 社区排序（对齐社区页口径：随机 / 热门 / 最新；公开接口在前端排序）。 */
 export type CommunitySort = "random" | "hot" | "new";
 
 export function sortCommunityPosts(posts: CommunityFeedPost[], sort: CommunitySort): CommunityFeedPost[] {

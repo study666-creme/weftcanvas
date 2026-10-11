@@ -42,8 +42,9 @@ test("creates additional API configurations from the settings surface", async ({
   await expect(dialog).toContainText("还没有 API 配置");
 
   await dialog.locator(".kc-api-empty").getByRole("button", { name: "添加配置" }).click();
-  await expect(dialog.getByLabel("服务地址")).toHaveValue("https://newapi.prompt-hubs.com");
-  await expect(dialog.getByRole("link", { name: "卡藏 API" })).toHaveAttribute("href", "https://newapi.prompt-hubs.com");
+  // 公开/自托管构建没有预填站点：输入框为空、站点链接不渲染。
+  await expect(dialog.getByLabel("服务地址")).toHaveValue("");
+  await expect(dialog.getByRole("link", { name: "卡藏 API" })).toHaveCount(0);
 
   await dialog.getByLabel("API Key", { exact: true }).fill("temporary-browser-key");
   await dialog.getByLabel("显示 API Key").click();

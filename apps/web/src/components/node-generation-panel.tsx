@@ -1,6 +1,5 @@
 import {
   type CanvasConfigModality,
-  canvasNodeLabels,
   type CanvasNodeData,
   type GenerationQuote,
   type ModelModality,
@@ -11,6 +10,7 @@ import {
 } from "@kachang/contracts";
 import { AlertCircle, Check, ChevronDown, History, LoaderCircle, Minus, Plus, RotateCcw, Scan, SlidersHorizontal, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
+import { nodeLabel } from "../lib/node-registry";
 import { createPortal } from "react-dom";
 
 import {
@@ -1095,7 +1095,7 @@ export function NodeGenerationPanel({
         className="kc-generation-panel kc-generation-panel--embedded"
         data-generation-modality={modality}
         data-has-reference-roles={references && references.imagePurposes.length > 1 && references.connectedImages.length > 0 ? "true" : undefined}
-        aria-label={`${canvasNodeLabels[data.kind]}创作设置`}
+        aria-label={`${nodeLabel(data.kind)}创作设置`}
         onPointerDown={(event) => event.stopPropagation()}
       >
         <div className="kc-generation-compact-bar">
@@ -1331,7 +1331,7 @@ export function NodeGenerationPanel({
             <span className={`kc-generation-symbol ${isConfiguration ? "is-config" : ""}`}>
               {isConfiguration ? <SlidersHorizontal aria-hidden="true" /> : <Sparkles aria-hidden="true" />}
             </span>
-            <strong>{isConfiguration ? "配置生成参数" : `生成${canvasNodeLabels[data.kind].replace("节点", "")}`}</strong>
+            <strong>{isConfiguration ? "配置生成参数" : `生成${nodeLabel(data.kind).replace("节点", "")}`}</strong>
           </div>
           <button type="button" className="kc-dialog-close" aria-label="关闭" title="关闭" onClick={onClose}><X aria-hidden="true" /></button>
         </header>
@@ -1549,7 +1549,7 @@ export function NodeGenerationPanel({
       className="kc-generation-backdrop"
       role="dialog"
       aria-modal="true"
-      aria-label={isConfiguration ? "配置节点设置" : `${canvasNodeLabels[data.kind]}生成设置`}
+      aria-label={isConfiguration ? "配置节点设置" : `${nodeLabel(data.kind)}生成设置`}
       onPointerDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}

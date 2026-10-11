@@ -3,12 +3,13 @@ import { useEffect, useState } from "react";
 import "./site-announcements.css";
 
 /**
- * 站点公告（画布侧）：拉取 prompt-hub 公告接口里受众为「画布 / 全部」的条目，
+ * 站点公告（画布侧）：拉取部署注入的公告接口里受众为「画布 / 全部」的条目，
  * 右下角非阻塞展示。公告是公开信息，接口匿名可读；已读状态只存本地
  * （当日不再弹），不依赖卡藏登录态。
  */
 
-const ANNOUNCEMENTS_API = "https://api.prompt-hubs.com/api/v1/announcements?scope=canvas";
+// 公告端点由部署注入（VITE_ANNOUNCEMENTS_API_URL）；公开/自托管构建不配即关闭公告。
+const ANNOUNCEMENTS_API = import.meta.env.VITE_ANNOUNCEMENTS_API_URL?.trim() || "";
 const SEEN_PREFIX = "canvas_notice_seen_";
 const MAX_VISIBLE = 3;
 
@@ -38,6 +39,7 @@ export function SiteAnnouncements() {
   const [items, setItems] = useState<AnnouncementItem[]>([]);
 
   useEffect(() => {
+    if (!ANNOUNCEMENTS_API) return;
     let cancelled = false;
     const load = async () => {
       try {

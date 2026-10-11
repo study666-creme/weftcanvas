@@ -189,8 +189,16 @@ export const AgentCompanion = memo(function AgentCompanion({ open, onToggle }: {
   /** 趴在面板上 vs 从 Agent 抽屉边缘探出头——两种贴法的观感完全不同。 */
   const peeking = placement?.dock === "agent-drawer";
 
+  // 台词只对鲸鱼娘有意义（气泡由 WhaleGirlCompanion 渲染）；其余形象拖拽时
+  // 不必白算台词。
+  const sayWhaleLine = (line: WhaleLine) => {
+    if (companionStyle === "whale") setForcedLine(line);
+  };
+
   const handlePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (event.button !== 0 || companionStyle !== "whale") return;
+    // 三种形象都能拖：拖拽/吸附/复位机构本来就是形象无关的，此前只放行鲸鱼娘
+    // 没有技术原因。
+    if (event.button !== 0) return;
     const measured = measure();
     if (!measured) return;
     const rect = event.currentTarget.getBoundingClientRect();
@@ -219,7 +227,7 @@ export const AgentCompanion = memo(function AgentCompanion({ open, onToggle }: {
       drag.moved = true;
       setDragging(true);
       setStartled(true);
-      setForcedLine({ text: whaleDraggedLine(), id: Date.now(), tone: "worry" });
+      sayWhaleLine({ text: whaleDraggedLine(), id: Date.now(), tone: "worry" });
     }
     setDragPlacement(clampPlacement(
       drag.originX + dx,
@@ -249,7 +257,7 @@ export const AgentCompanion = memo(function AgentCompanion({ open, onToggle }: {
     // 1) 拖回出生点附近 = 复位到顶部居中。
     if (shouldResetToDefault(drop.x, drop.y, { width: measured.width }, measured.bounds)) {
       setCompanionAnchor(null);
-      setForcedLine({ text: "回、回到原位了？哼，我自己也会走回去的。", id: Date.now(), tone: "worry" });
+      sayWhaleLine({ text: "回、回到原位了？哼，我自己也会走回去的。", id: Date.now(), tone: "worry" });
       return;
     }
 
@@ -265,7 +273,7 @@ export const AgentCompanion = memo(function AgentCompanion({ open, onToggle }: {
         ? (rect.height > 0 ? Math.min(0.94, Math.max(0.06, (centerY - rect.top) / rect.height)) : 0.72)
         : (rect.width > 0 ? Math.min(0.94, Math.max(0.06, (centerX - rect.left) / rect.width)) : 0.5);
       setCompanionAnchor({ kind: "dock", dock: hit.key, x: fraction });
-      setForcedLine({
+      sayWhaleLine({
         text: hit.key === "agent-drawer" ? whalePeekLine() : whaleDockedLine(),
         id: Date.now(),
         tone: "happy",

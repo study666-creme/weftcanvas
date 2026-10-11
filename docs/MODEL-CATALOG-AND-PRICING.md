@@ -104,7 +104,7 @@ Canvas fields. A public request and its advisory quote therefore contain one
 field per concept:
 
 ```http
-POST https://canvas-api.prompt-hubs.com/api/v1/generation-quotes
+POST https://canvas-api.example.com/api/v1/generation-quotes
 Content-Type: application/json
 ```
 
@@ -182,7 +182,7 @@ new image models without a model-name parameter table.
 Example request:
 
 ```http
-POST https://canvas-api.prompt-hubs.com/api/v1/generation-quotes
+POST https://canvas-api.example.com/api/v1/generation-quotes
 Content-Type: application/json
 ```
 
@@ -250,7 +250,7 @@ The public Canvas entry for the two 8.2 ids uses the provider-neutral image
 protocol. Quote example:
 
 ```http
-POST https://canvas-api.prompt-hubs.com/api/v1/generation-quotes
+POST https://canvas-api.example.com/api/v1/generation-quotes
 Content-Type: application/json
 ```
 
@@ -345,7 +345,7 @@ visibility-only edit keeps the upstream version.
 
 The 卡藏 catalog publishes one price per model, but some 香蕉 lines bill on a
 specific NewAPI group whose standard differs from the published top-level
-price. The group standards (from `newapi.prompt-hubs.com/api/pricing`) are:
+price. The group standards (from the deployment's pricing endpoint) are:
 
 | public id | group | standard (CNY) |
 | --- | --- | --- |

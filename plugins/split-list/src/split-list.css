@@ -1,0 +1,51 @@
+/* 批量拆单插件卡面：安静、预览优先，视觉沿用节点内既有令牌。 */
+.kc-plugin-split-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+}
+
+.kc-plugin-split-list-rows {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--kc-text, inherit);
+  opacity: 0.86;
+}
+
+.kc-plugin-split-list-rows li {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kc-plugin-split-list-empty {
+  margin: 0;
+  color: var(--kc-text-muted, inherit);
+  opacity: 0.6;
+}
+
+.kc-plugin-split-list-overflow {
+  margin: 0;
+  color: var(--kc-text-muted, inherit);
+  opacity: 0.55;
+}
+
+.kc-plugin-split-list-action {
+  align-self: flex-start;
+  padding: 3px 10px;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: opacity 140ms ease;
+}
+
+.kc-plugin-split-list-action:hover:enabled { opacity: 0.82; }
+.kc-plugin-split-list-action:disabled { opacity: 0.4; cursor: default; }
