@@ -291,12 +291,6 @@ test("登录后可连续生成图片、视频并完成积分充值", async ({ pa
     activeSession = session;
     return route.fulfill({ json: { ok: true, data: session, capabilities } });
   });
-  await page.route("**/api/v1/card-library/groups", (route) => route.fulfill({
-    json: { ok: true, data: { groups: [] } },
-  }));
-  await page.route("**/api/v1/card-library/cards**", (route) => route.fulfill({
-    json: { ok: true, data: { cards: [], total: 0, page: 1, limit: 18 } },
-  }));
   await page.route("**/api/v1/model-catalog*", (route) => {
     const modality = new URL(route.request().url()).searchParams.get("modality");
     if (modality !== "image" && modality !== "video") {
@@ -478,12 +472,6 @@ test("正常创建闭环：新建项目、文本与图片参考连接视频、�
 
   await page.route("**/api/v1/auth/session", (route) => route.fulfill({
     json: { ok: true, data: session, capabilities },
-  }));
-  await page.route("**/api/v1/card-library/groups", (route) => route.fulfill({
-    json: { ok: true, data: { groups: [] } },
-  }));
-  await page.route("**/api/v1/card-library/cards**", (route) => route.fulfill({
-    json: { ok: true, data: { cards: [], total: 0, page: 1, limit: 18 } },
   }));
   await page.route("**/api/v1/model-catalog*", (route) => {
     const modality = new URL(route.request().url()).searchParams.get("modality");
@@ -923,12 +911,6 @@ test("submission_unknown 状态保持可见并锁定，不自动重放提交", a
     return route.fulfill({ json: { ok: true, data: unknownJob } });
   });
   await page.route("**/api/v1/wallet", (route) => route.fulfill({ json: { ok: true, data: summary(100) } }));
-  await page.route("**/api/v1/card-library/groups", (route) => route.fulfill({
-    json: { ok: true, data: { groups: [] } },
-  }));
-  await page.route("**/api/v1/card-library/cards**", (route) => route.fulfill({
-    json: { ok: true, data: { cards: [], total: 0, page: 1, limit: 18 } },
-  }));
   await page.addInitScript(({ createdAt }) => {
     localStorage.clear();
     const time = Date.parse(createdAt);

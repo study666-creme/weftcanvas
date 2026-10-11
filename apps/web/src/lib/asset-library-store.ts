@@ -21,7 +21,7 @@ export type AssetLibraryItem = {
   /** 多图卡片除封面外的其余媒体（单图卡为空数组）。 */
   gallery: CanvasMedia[];
   categoryId: string | null;
-  source: "card-library" | "local" | "canvas";
+  source: "local" | "canvas";
   sourceId: string | null;
   createdAt: number;
   updatedAt: number;
@@ -83,34 +83,6 @@ export async function listAssetLibraryCategories() {
   return readAll<AssetLibraryCategory>(CATEGORY_STORE_NAME).then((categories) =>
     categories.sort((left, right) => left.createdAt - right.createdAt),
   );
-}
-
-export async function saveCardLibraryAsset(input: {
-  sourceId: string;
-  name: string;
-  prompt: string;
-  media: CanvasMedia | null;
-  categoryId?: string | null;
-  extraMedia?: CanvasMedia[];
-}) {
-  const items = await listAssetLibraryItems();
-  const existing = items.find((item) => item.source === "card-library" && item.sourceId === input.sourceId);
-  const now = Date.now();
-  const item: AssetLibraryItem = {
-    id: existing?.id ?? createId("asset"),
-    kind: "card",
-    name: input.name.trim() || "未命名卡片",
-    prompt: input.prompt.trim(),
-    media: input.media,
-    gallery: input.media ? input.extraMedia ?? [] : [],
-    categoryId: input.categoryId === undefined ? existing?.categoryId ?? null : input.categoryId,
-    source: "card-library",
-    sourceId: input.sourceId,
-    createdAt: existing?.createdAt ?? now,
-    updatedAt: now,
-  };
-  await putRecord(ASSET_STORE_NAME, item);
-  return item;
 }
 
 export async function ensureMediaAsset(

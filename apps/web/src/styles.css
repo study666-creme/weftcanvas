@@ -5105,7 +5105,7 @@ body.is-canvas-connection-dragging .kc-node-config-shell {
   to { transform: translateX(100%); }
 }
 
-/* 真实社区行卡：与卡片库 .kc-card-library-item 同版式。
+/* 真实社区行卡：版式与内容库行卡一致。
    ⚠️ 选择器带 .kc-create-rail 前缀：通用 ".kc-create-rail button" 规则
    (0,1,1) 会压过单类名 (0,1,0)，吃掉边框/圆角/底色（同一类塌法已第二次）。 */
 .kc-create-rail .kc-community-item {
@@ -5598,82 +5598,6 @@ body.is-canvas-connection-dragging .kc-node-config-shell {
 .kc-resource-close svg,
 .kc-resource-icon-button svg { width: 15px; height: 15px; }
 
-.kc-card-library-panel {
-  display: grid;
-  min-height: 0;
-  grid-template-columns: 154px minmax(0, 1fr);
-}
-
-.kc-card-library-content {
-  display: grid;
-  min-width: 0;
-  min-height: 0;
-  grid-template-rows: 48px minmax(0, 1fr) 38px;
-}
-
-.kc-card-library-groups {
-  display: flex;
-  min-height: 0;
-  flex-direction: column;
-  gap: 3px;
-  padding: 9px 7px;
-  overflow: hidden;
-  border-right: 1px solid color-mix(in srgb, var(--kc-border) 72%, transparent);
-  background: var(--kc-surface-muted);
-}
-
-.kc-card-library-groups > button,
-.kc-card-library-group-list > button {
-  display: grid;
-  width: 100%;
-  height: 32px;
-  min-width: 0;
-  flex: 0 0 auto;
-  grid-template-columns: 16px minmax(0, 1fr);
-  align-items: center;
-  gap: 7px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 5px;
-  color: var(--kc-text-secondary);
-  background: transparent;
-  font-size: 11px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.kc-card-library-groups > button:hover,
-.kc-card-library-group-list > button:hover,
-.kc-card-library-groups button.is-active {
-  color: var(--kc-text);
-  background: var(--kc-surface-strong);
-}
-
-.kc-card-library-groups button svg { width: 14px; height: 14px; }
-.kc-card-library-groups button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.kc-card-library-group-list {
-  min-height: 0;
-  flex: 1;
-  overflow-y: auto;
-  scrollbar-width: thin;
-}
-
-.kc-card-library-group-state {
-  display: flex;
-  min-height: 32px;
-  align-items: center;
-  gap: 7px;
-  padding: 0 8px;
-  color: var(--kc-text-tertiary);
-  font-size: 10px;
-}
-
-.kc-card-library-group-state svg { width: 13px; height: 13px; }
-
-.kc-card-library-group-list > .kc-card-library-group-retry {
-  color: var(--kc-danger);
-}
 
 .kc-resource-toolbar {
   display: flex;
@@ -5760,117 +5684,6 @@ body.is-canvas-connection-dragging .kc-node-config-shell {
   align-content: start;
   gap: 8px;
   padding: 10px;
-}
-
-.kc-card-library-item {
-  position: relative;
-  display: grid;
-  min-width: 0;
-  height: 92px;
-  grid-template-columns: 78px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 9px;
-  padding: 7px;
-  border: 1px solid var(--kc-border);
-  border-radius: 7px;
-  background: var(--kc-surface-muted);
-}
-
-/* 卡片操作组：加入画布（主操作） + 收藏到资产（次操作） */
-.kc-card-library-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.kc-card-library-insert {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 26px;
-  padding: 0 8px;
-  border: 1px solid color-mix(in srgb, var(--kc-accent) 40%, transparent);
-  border-radius: 6px;
-  color: var(--kc-text-secondary);
-  background: color-mix(in srgb, var(--kc-accent-soft) 40%, transparent);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease, transform 120ms ease;
-}
-
-.kc-card-library-insert svg { width: 13px; height: 13px; }
-
-.kc-card-library-insert:hover:not(:disabled) {
-  color: var(--kc-text);
-  border-color: color-mix(in srgb, var(--kc-accent) 52%, transparent);
-  background: color-mix(in srgb, var(--kc-accent) 13%, var(--kc-surface-raised));
-  transform: translateY(-0.5px);
-}
-
-.kc-card-library-insert:disabled { cursor: wait; opacity: .7; }
-
-.kc-card-library-item:hover { border-color: var(--kc-border-strong); }
-
-.kc-card-library-preview {
-  display: grid;
-  width: 78px;
-  height: 76px;
-  place-items: center;
-  overflow: hidden;
-  border-radius: 5px;
-  color: var(--kc-text-tertiary);
-  background: var(--kc-surface-strong);
-}
-
-.kc-card-library-preview img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.kc-card-library-preview svg { width: 20px; height: 20px; stroke-width: 1.5; }
-
-.kc-card-library-preview .kc-card-thumbnail-state {
-  display: grid;
-  width: 100%;
-  height: 100%;
-  place-items: center;
-  color: var(--kc-text-tertiary);
-}
-
-.kc-card-library-preview .kc-card-thumbnail-state svg { width: 20px; height: 20px; stroke-width: 1.5; }
-
-.kc-card-library-copy { min-width: 0; }
-.kc-card-library-copy strong { display: block; overflow: hidden; color: var(--kc-text); font-size: 12px; font-weight: 620; text-overflow: ellipsis; white-space: nowrap; }
-.kc-card-library-copy p { display: -webkit-box; margin: 5px 0 0; overflow: hidden; color: var(--kc-text-tertiary); font-size: 10.5px; line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
-
-.kc-card-library-save {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  place-items: center;
-  border: 0;
-  border-radius: 5px;
-  color: var(--kc-text-tertiary);
-  background: transparent;
-  cursor: pointer;
-}
-
-.kc-card-library-save:hover:not(:disabled) { color: var(--kc-text); background: var(--kc-surface-strong); }
-.kc-card-library-save.is-saved { color: var(--kc-success); }
-.kc-card-library-save:disabled { cursor: default; opacity: .72; }
-.kc-card-library-save svg { width: 15px; height: 15px; }
-
-/* --- 卡片大图预览层（社区卡片弹层 + 卡片库共用）---
-   点击列表卡片只放大查看；加入画布/收藏必须点右侧信息栏的操作键。
-   层级：高于资源抽屉(35)/社区弹层(30)/右键菜单(100)，低于 toast(300)。 */
-
-/* 可点击行卡（点击放大查看）：库卡补指针；两种卡都给键盘焦点环。 */
-.kc-card-library-item { cursor: pointer; }
-
-.kc-card-library-item:focus-visible,
-.kc-create-rail .kc-community-item:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--kc-accent) 72%, transparent);
-  outline-offset: 2px;
 }
 
 .kc-card-preview {
@@ -6311,77 +6124,6 @@ body.is-canvas-connection-dragging .kc-node-config-shell {
 
 .kc-resource-loading svg { width: 19px; height: 19px; }
 
-.kc-card-library-gate {
-  display: flex;
-  min-height: 0;
-  align-items: center;
-  justify-content: center;
-  padding: 16px 24px;
-}
-
-.kc-card-library-gate-content {
-  display: grid;
-  width: min(620px, 100%);
-  grid-template-columns: 36px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-}
-
-.kc-card-library-gate-icon {
-  display: grid;
-  width: 36px;
-  height: 36px;
-  place-items: center;
-  border: 1px solid var(--kc-border);
-  border-radius: 6px;
-  color: var(--kc-text-secondary);
-  background: var(--kc-surface-muted);
-}
-
-.kc-card-library-gate-icon svg { width: 17px; height: 17px; }
-
-.kc-card-library-gate-copy {
-  display: grid;
-  min-width: 0;
-  gap: 3px;
-}
-
-.kc-card-library-gate-copy strong {
-  color: var(--kc-text);
-  font-size: 13px;
-  font-weight: 640;
-}
-
-.kc-card-library-gate-copy p {
-  margin: 0;
-  color: var(--kc-text-tertiary);
-  font-size: 11px;
-  line-height: 1.45;
-}
-
-.kc-card-library-error { color: var(--kc-danger); font-size: 11px; }
-
-.kc-card-library-login {
-  display: inline-flex;
-  height: 36px;
-  min-width: 76px;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 0 12px;
-  border: 1px solid var(--kc-border-strong);
-  border-radius: 6px;
-  color: var(--kc-text);
-  background: var(--kc-surface-muted);
-  font-size: 11.5px;
-  font-weight: 620;
-  cursor: pointer;
-  transition: background-color 120ms ease, transform 90ms ease;
-}
-
-.kc-card-library-login:hover { background: var(--kc-surface-strong); }
-.kc-card-library-login:active { transform: scale(.96); }
-.kc-card-library-login svg { width: 13px; height: 13px; }
 
 .kc-resource-drawer.is-connection-gate {
   height: 160px;
@@ -8142,7 +7884,6 @@ body.is-canvas-connection-dragging .kc-node-config-shell {
     width: min(760px, calc(100vw - 80px));
   }
 
-  .kc-card-library-panel { grid-template-columns: 142px minmax(0, 1fr); }
   .kc-asset-library-panel { grid-template-columns: 154px minmax(0, 1fr); }
   .kc-asset-kind-filter button { padding: 0 6px; }
 

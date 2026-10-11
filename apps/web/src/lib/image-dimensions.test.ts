@@ -10,7 +10,7 @@ const REAL_FIXTURES = [
   { file: "product-canvas.jpg", width: 1600, height: 1000 },
   { file: "canvas-water-surface.jpg", width: 1920, height: 1200 },
   { file: "canvas-grain.png", width: 192, height: 192 },
-  { file: "card-library-logo.png", width: 128, height: 128 },
+  { file: "resource-library-mark.png", width: 128, height: 128 },
 ] as const;
 
 function asciiBytes(value: string) {

@@ -67,29 +67,24 @@ export function CanvasRoute({
     if (identityStatus !== "authenticated" || !identityUserId) return;
 
     let cancelled = false;
-    const warmCardLibrary = () => {
-      // 同时预热资源库面板本体。面板是懒加载分包，只预热数据的话，首次点击
+    const warmResourceDrawer = () => {
+      // 预热资源库面板分包。面板是懒加载分包，只预热数据的话，首次点击
       // 「卡片与资产」仍要等分包下载；这几百毫秒里没有任何反馈，用户会以为点了
       // 没反应而再点一次，而纯 toggle 会把第二下当成关闭，面板就永远打不开。
+      // 内容库（卡片库）的数据预热由面板模块自持（开源 stub 为 no-op）。
       void import("./resource-drawer");
-      void import("../lib/card-library-client").then(({ listCardLibraryCards, listCardLibraryGroups }) => {
-        if (cancelled) return;
-        void Promise.all([
-          listCardLibraryCards({ page: 1, limit: 18, query: "" }, { cacheScope: identityUserId }),
-          listCardLibraryGroups({ cacheScope: identityUserId }),
-        ]).catch(() => undefined);
-      });
+      void cancelled;
     };
 
     if (typeof window.requestIdleCallback === "function") {
-      const idleId = window.requestIdleCallback(warmCardLibrary, { timeout: 1_200 });
+      const idleId = window.requestIdleCallback(warmResourceDrawer, { timeout: 1_200 });
       return () => {
         cancelled = true;
         window.cancelIdleCallback(idleId);
       };
     }
 
-    const timerId = window.setTimeout(warmCardLibrary, 250);
+    const timerId = window.setTimeout(warmResourceDrawer, 250);
     return () => {
       cancelled = true;
       window.clearTimeout(timerId);

@@ -6,7 +6,7 @@ import { mockAuthenticatedBackgroundApis } from "./authenticated-background.fixt
 // 独立生图/视频页的结果媒体必须以原子方式出现：慢速/失效的服务端媒体在完整
 // decode 前只能看到固定尺寸占位，不允许逐块显示、黑框或浏览器破图图标；刷新后
 // 按 job id 恢复同一任务且不产生重复 POST。
-const visiblePng = readFileSync(new URL("../src/assets/card-library-logo.png", import.meta.url));
+const visiblePng = readFileSync(new URL("../src/assets/resource-library-mark.png", import.meta.url));
 const generatedVideoFixture = readFileSync(new URL("./video-frame.mp4", import.meta.url));
 
 const now = new Date();

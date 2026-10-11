@@ -1,15 +1,9 @@
-import type {
-  CardLibraryCardList,
-  CardLibraryGroupList,
-  CardLibraryTagList,
-  CommunityFeedPage,
-  PublicGenerationJob,
-} from "@kachang/contracts";
+import type { PublicGenerationJob } from "@kachang/contracts";
 
 import type { KachangCatalogAdapter } from "../catalog/adapter.js";
 import type { HostedGenerationResult } from "../generation/hosted-result.js";
 import type { MediaService } from "../media/service.js";
-import type { MembershipTaskProvider, WalletProvider, WalletProviderResult } from "../wallet/provider.js";
+import type { MembershipTaskProvider, WalletProvider } from "../wallet/provider.js";
 
 /**
  * 画布 API 的 Provider SPI（docs/PLUGIN-ROADMAP.md §5 P2）。
@@ -34,17 +28,11 @@ export type CatalogProvider = Pick<
 export type MediaProvider = MediaService;
 
 /**
- * 托管账号 bundle：钱包 + 会员任务 + 卡片库/社区出自同一个 provider。
- * 缺省（dev-test）时这些能力以明确的"不可用"状态暴露，app 已内置降级。
+ * 托管账号 bundle：钱包 + 会员任务。收藏卡片/公开社区流不走这里——
+ * 那是账号侧内容库，经 AccountRouteRegistrar 由私有 overlay 挂载
+ * （account-routes/contract.ts），开源构建整体不挂载。
  */
-export type HostedAccountProvider = WalletProvider & MembershipTaskProvider & {
-  listCards(token: string | undefined, input: { page: number; limit: number; query?: string; group?: string; tag?: string }): Promise<WalletProviderResult<CardLibraryCardList>>;
-  listGroups(token: string | undefined): Promise<WalletProviderResult<CardLibraryGroupList>>;
-  listTags(token: string | undefined): Promise<WalletProviderResult<CardLibraryTagList>>;
-  signCardMedia(token: string | undefined, input: { ref: string; variant: "thumb" | "full" }): Promise<WalletProviderResult<{ url: string; expiresIn?: number; cdn?: boolean }>>;
-  getCommunityFeed(input: { limit: number; offset: number }): Promise<WalletProviderResult<CommunityFeedPage>>;
-  communityImageUrl(image: string | null | undefined): string | null;
-};
+export type HostedAccountProvider = WalletProvider & MembershipTaskProvider;
 
 /**
  * 生成服务的结构化接口：原生 durable 任务返回裸 job，托管任务返回

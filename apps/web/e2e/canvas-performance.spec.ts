@@ -798,8 +798,6 @@ async function installCanvasApiMocks(page: Page) {
   await page.route("**/api/v1/cloud-project-invitations*", (route) => route.fulfill({
     json: { ok: true, data: { invitations: [] } },
   }));
-  await page.route("**/api/v1/card-library/groups*", (route) => route.fulfill({ json: { ok: true, data: { groups: [] } } }));
-  await page.route("**/api/v1/card-library/cards*", (route) => route.fulfill({ json: { ok: true, data: { cards: [] } } }));
   await page.route("**/api/v1/media/**", (route) => route.fulfill({ json: { ok: true, data: null } }));
   await page.route("**/api/v1/media*", (route) => route.fulfill({ json: { ok: true, data: null } }));
 }

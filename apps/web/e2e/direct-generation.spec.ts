@@ -6,7 +6,7 @@ import { expect, test } from "./zero-cost-test";
 
 const now = new Date();
 const expiresAt = new Date(now.getTime() + 60 * 60_000).toISOString();
-const visibleGeneratedImage = readFileSync(new URL("../src/assets/card-library-logo.png", import.meta.url));
+const visibleGeneratedImage = readFileSync(new URL("../src/assets/resource-library-mark.png", import.meta.url));
 const generatedVideoFixture = readFileSync(new URL("./video-frame.mp4", import.meta.url));
 // 使用真实可解码的音频夹具，覆盖浏览器完整媒体加载路径。
 const generatedAudioFixture = readFileSync(new URL("./audio-tone.mp3", import.meta.url));

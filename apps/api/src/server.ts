@@ -297,7 +297,7 @@ const app = createApiApp({
     submissionsPerDay: readInteger(process.env.AGENT_ANONYMOUS_SUBMIT_PER_DAY, 60, 1, 1_000_000),
   },
   catalog,
-  cardLibrary: hostedAccount,
+  registerAccountRoutes: providerServices.registerAccountRoutes,
   quotes,
   ...(process.env.MODEL_OVERRIDES_ADMIN_SECRET?.trim()
     ? {

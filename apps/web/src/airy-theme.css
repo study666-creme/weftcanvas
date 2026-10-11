@@ -192,7 +192,6 @@
 
 :root[data-chrome-style="airy"] .kc-node-overlay-panel,
 :root[data-chrome-style="airy"] .kc-asset-library-panel,
-:root[data-chrome-style="airy"] .kc-card-library-panel,
 :root[data-chrome-style="airy"] .kc-generation-panel,
 :root[data-chrome-style="airy"] .kc-shortcuts-panel {
   border: 1px solid var(--kc-airy-line);

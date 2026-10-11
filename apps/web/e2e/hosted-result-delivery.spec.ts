@@ -10,7 +10,7 @@ import { mockAuthenticatedBackgroundApis } from "./authenticated-background.fixt
 // A genuinely non-progressing observation must exit the ordinary animation
 // into the explicit temporarily-unavailable state. All upstream routes are
 // mocked; no real provider or generation request is ever issued.
-const visiblePng = readFileSync(new URL("../src/assets/card-library-logo.png", import.meta.url));
+const visiblePng = readFileSync(new URL("../src/assets/resource-library-mark.png", import.meta.url));
 
 const nowIso = () => new Date().toISOString();
 
@@ -203,10 +203,6 @@ async function mockBaseApis(page: Page) {
     },
   }));
   await page.route("**/api/v1/model-catalog*", (route) => route.fulfill({ json: { ok: true, data: emptyCatalog } }));
-  await page.route("**/api/v1/card-library/groups", (route) => route.fulfill({ json: { ok: true, data: { groups: [] } } }));
-  await page.route("**/api/v1/card-library/cards*", (route) => route.fulfill({
-    json: { ok: true, data: { cards: [], total: 0, page: 1, limit: 18 } },
-  }));
   await page.route((url) => url.pathname.startsWith("/api/v1/media/phm_hosted_") && url.pathname.endsWith("/content"), (route) => {
     return route.fulfill({ body: visiblePng, contentType: "image/png" });
   });

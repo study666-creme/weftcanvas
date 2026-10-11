@@ -33,7 +33,7 @@ import { useMediaThumbUrl, useMediaUrl } from "../hooks/use-media-url";
 import { useCanvasStore } from "../state/canvas-store";
 import { useProjectAssetStore, type ProjectAssetCategoryFilter, type ProjectAssetKindFilter } from "../state/project-asset-store";
 import { useToastStore } from "../state/toast-store";
-import type { InsertableAsset } from "./resource-drawer";
+import type { InsertableAsset } from "../lib/insertable-asset";
 
 const KIND_FILTERS: Array<{ value: ProjectAssetKindFilter; label: string }> = [
   { value: "all", label: "全部" },

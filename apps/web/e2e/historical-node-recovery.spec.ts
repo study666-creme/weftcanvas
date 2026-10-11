@@ -8,7 +8,7 @@ import { mockAuthenticatedBackgroundApis } from "./authenticated-background.fixt
 // idempotency reconciliation (and direct job fetch for capped-list omissions),
 // and a completed media whose fetch/decode/metadata never settles must leave
 // loading into the existing truthful media-load error/retry surface.
-const visiblePng = readFileSync(new URL("../src/assets/card-library-logo.png", import.meta.url));
+const visiblePng = readFileSync(new URL("../src/assets/resource-library-mark.png", import.meta.url));
 
 const nowIso = () => new Date().toISOString();
 
@@ -220,10 +220,6 @@ async function mockBaseApis(page: Page) {
     },
   }));
   await page.route("**/api/v1/model-catalog*", (route) => route.fulfill({ json: { ok: true, data: emptyCatalog } }));
-  await page.route("**/api/v1/card-library/groups", (route) => route.fulfill({ json: { ok: true, data: { groups: [] } } }));
-  await page.route("**/api/v1/card-library/cards*", (route) => route.fulfill({
-    json: { ok: true, data: { cards: [], total: 0, page: 1, limit: 18 } },
-  }));
 }
 
 function routeJobList(page: Page, jobs: unknown[]) {

@@ -266,12 +266,6 @@ test("the compact desktop navigation keeps every action complete on one line", a
   await page.route("**/api/v1/generation-jobs?*", (route) => route.fulfill({
     json: { ok: true, data: [] },
   }));
-  await page.route("**/api/v1/card-library/cards**", (route) => route.fulfill({
-    json: { ok: true, data: { cards: [], total: 0, page: 1, limit: 18 } },
-  }));
-  await page.route("**/api/v1/card-library/groups", (route) => route.fulfill({
-    json: { ok: true, data: { groups: [] } },
-  }));
   await page.setViewportSize({ width: 1_180, height: 800 });
   await page.goto("/");
 

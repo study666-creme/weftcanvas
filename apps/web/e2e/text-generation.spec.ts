@@ -147,12 +147,6 @@ test("文本节点可通过生成设置使用目录文本模型：报价、提�
   await page.route("**/api/v1/auth/session", (route) => route.fulfill({
     json: { ok: true, data: session, capabilities },
   }));
-  await page.route("**/api/v1/card-library/groups", (route) => route.fulfill({
-    json: { ok: true, data: { groups: [] } },
-  }));
-  await page.route("**/api/v1/card-library/cards**", (route) => route.fulfill({
-    json: { ok: true, data: { cards: [], total: 0, page: 1, limit: 18 } },
-  }));
   await page.route("**/api/v1/model-catalog*", (route) => route.fulfill({
     json: { ok: true, data: catalog() },
   }));

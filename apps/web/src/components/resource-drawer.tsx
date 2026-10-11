@@ -1,4 +1,4 @@
-import type { CardLibraryCard, CanvasMedia, CanvasNodeKind } from "@kachang/contracts";
+import type { CanvasMedia, CanvasNodeKind } from "@kachang/contracts";
 import {
   BookmarkCheck,
   BookmarkPlus,
@@ -48,7 +48,6 @@ import {
   removeAssetLibraryCategory,
   removeAssetLibraryItem,
   renameAssetLibraryCategory,
-  saveCardLibraryAsset,
   savePromptAssetItem,
   setAssetLibraryItemCategory,
   updateAssetLibraryItem,
@@ -56,18 +55,6 @@ import {
   type AssetLibraryItem,
   type AssetLibraryKind,
 } from "../lib/asset-library-store";
-import {
-  CardLibraryError,
-  cardLibraryDisplayImageUrls,
-  clearCardLibraryCardsCache,
-  downloadCardLibraryImages,
-  getCachedCardLibraryCards,
-  getCachedCardLibraryGroups,
-  getCachedCardLibraryTags,
-  listCardLibraryCards,
-  listCardLibraryGroups,
-  listCardLibraryTags,
-} from "../lib/card-library-client";
 import { listLocalMedia, readMedia, storeMedia } from "../lib/media-store";
 import { requestConfirmation } from "../lib/confirmation";
 import { useCanvasStore } from "../state/canvas-store";
@@ -75,19 +62,13 @@ import { useIdentityStore } from "../state/identity-store";
 import { useToastStore } from "../state/toast-store";
 import { useMediaUrl } from "../hooks/use-media-url";
 import { useDismissOnOutsideClick } from "../hooks/use-dismiss-on-outside-click";
-import { CardPreviewLightbox, type CardPreviewAction, type CardPreviewItem, type CardPreviewMeta } from "./card-preview-lightbox";
 import { CardHoverPreview, type CardHoverPreviewSource } from "./card-hover-preview";
 import { CanvasSelect } from "./canvas-select";
-import { CardThumbnail } from "./card-thumbnail";
+import { AccountCardsPanel, accountCardsTabAvailable, useAccountCardsWarmth } from "./account-cards-panel";
 
-/** 画布可插入对象：媒体节点（image/video/audio）或纯文本节点。导出给社区弹层等复用。 */
-export type InsertableAsset = {
-  kind: CanvasNodeKind;
-  body: string;
-  media: CanvasMedia | null;
-  /** 多图卡片：其余图片依次排布在主图右侧。 */
-  extraMedia: CanvasMedia[];
-};
+// 画布可插入对象的类型已抽到中立模块；此处转出口保持既有 import 路径可用。
+export type { InsertableAsset } from "../lib/insertable-asset";
+import type { InsertableAsset } from "../lib/insertable-asset";
 
 type LoadState = "idle" | "loading" | "ready" | "error";
 type CategoryFilter = "all" | "uncategorized" | string;
@@ -97,7 +78,6 @@ type ResourceContextTarget =
   | { type: "category"; category: AssetLibraryCategory }
   | { type: "asset"; item: AssetLibraryItem };
 type ResourceContextMenuState = ResourceContextTarget & { clientX: number; clientY: number };
-const DEFAULT_CARD_LIBRARY_FILTERS = { page: 1, limit: 18, query: "" } as const;
 
 export const ResourceDrawer = memo(function ResourceDrawer({
   open,
@@ -118,7 +98,6 @@ export const ResourceDrawer = memo(function ResourceDrawer({
   const assetRefreshInFlight = useRef<Promise<void> | null>(null);
   const assetRefreshQueued = useRef(false);
   const lastAssetMediaSignature = useRef<string | null>(null);
-  const previousIdentityScope = useRef(identityScope);
 
   const refreshAssets = useCallback(() => {
     assetRefreshQueued.current = true;
@@ -169,69 +148,34 @@ export const ResourceDrawer = memo(function ResourceDrawer({
     });
   }, [open, refreshAssets, showToast]);
 
-  useEffect(() => {
-    const previous = previousIdentityScope.current;
-    if (previous && previous !== identityScope) clearCardLibraryCardsCache(previous);
-    previousIdentityScope.current = identityScope;
-  }, [identityScope]);
-
-  useEffect(() => {
-    if (!identityScope) return;
-    const warmCards = () => {
-      void listCardLibraryCards(DEFAULT_CARD_LIBRARY_FILTERS, { cacheScope: identityScope }).catch(() => undefined);
-      void listCardLibraryGroups({ cacheScope: identityScope }).catch(() => undefined);
-    };
-    if (typeof window.requestIdleCallback === "function") {
-      const idleId = window.requestIdleCallback(warmCards, { timeout: 1_200 });
-      return () => window.cancelIdleCallback(idleId);
-    }
-    const timeoutId = window.setTimeout(warmCards, 250);
-    return () => window.clearTimeout(timeoutId);
-  }, [identityScope]);
+  // 卡片库的缓存清理与空闲预热由面板模块自持（开源 stub 为 no-op）。
+  useAccountCardsWarmth(identityScope);
 
   if (!open) return null;
 
   return (
-    <section ref={drawerRef} className={"kc-resource-drawer " + (tab === "cards" && !authenticated ? "is-connection-gate" : "")} role="dialog" aria-label="资源库" aria-modal="false">
+    <section ref={drawerRef} className={"kc-resource-drawer " + (tab === "cards" && accountCardsTabAvailable && !authenticated ? "is-connection-gate" : "")} role="dialog" aria-label="资源库" aria-modal="false">
       <header className="kc-resource-header">
         <span className="kc-resource-mark" aria-hidden="true"><Library /></span>
         <strong>资源库</strong>
         <div className="kc-resource-tabs" role="tablist" aria-label="资源类型">
-          <button type="button" role="tab" aria-selected={tab === "cards"} className={tab === "cards" ? "is-active" : ""} onClick={() => setTab("cards")}>卡片库</button>
+          {accountCardsTabAvailable ? (
+            <button type="button" role="tab" aria-selected={tab === "cards"} className={tab === "cards" ? "is-active" : ""} onClick={() => setTab("cards")}>卡片库</button>
+          ) : null}
           <button type="button" role="tab" aria-selected={tab === "assets"} className={tab === "assets" ? "is-active" : ""} onClick={() => setTab("assets")}>资产库</button>
         </div>
         <button type="button" className="kc-resource-close" aria-label="收起资源库" title="收起" onClick={onClose}><X aria-hidden="true" /></button>
       </header>
-      {tab === "cards" ? (
-        <CardLibraryPanel
+      {tab === "cards" && accountCardsTabAvailable ? (
+        <AccountCardsPanel
           key={identityScope ?? "anonymous"}
           categories={categories}
           assets={assets}
           authenticated={authenticated && Boolean(identityScope)}
           cacheScope={identityScope}
           onAssetSaved={refreshAssets}
-          onInsertCardDirect={(card) => {
-            // 把卡片直接转成画布可插入对象（image 节点 + 媒体，或纯 prompt 转 text 节点）。
-            // 不再要求先收藏到资产库——这是用户最新诉求："以后也可以直接添加进画布使用"。
-            // 返回是否插入成功，预览层据此自动收起；失败时抽屉/预览保持打开。
-            return (async () => {
-              try {
-                const insertable = await cardToInsertable(card);
-                if (!insertable) {
-                  showToast("该卡片暂时无法插入画布", "error");
-                  return false;
-                }
-                onInsert(insertable);
-                onClose();
-                showToast("已加入画布", "success");
-                return true;
-              } catch (err) {
-                console.error("cardToInsertable failed", err);
-                showToast("卡片加入画布失败，请稍后再试", "error");
-                return false;
-              }
-            })();
-          }}
+          onInsertAsset={onInsert}
+          onClose={onClose}
         />
       ) : (
         <AssetLibraryPanel
@@ -257,420 +201,6 @@ export const ResourceDrawer = memo(function ResourceDrawer({
     </section>
   );
 });
-
-function CardLibraryPanel({
-  categories,
-  assets,
-  authenticated,
-  cacheScope,
-  onAssetSaved,
-  onInsertCardDirect,
-}: {
-  categories: AssetLibraryCategory[];
-  assets: AssetLibraryItem[];
-  authenticated: boolean;
-  cacheScope: string | null;
-  onAssetSaved: () => Promise<void>;
-  /** 直接把卡片插入画布（不要求先入资产）；传入卡片原始数据即可。
-      返回（或 resolve）是否成功：预览层成功时自动收起。
-      可以是异步：内部会下载图片 + 写入 IndexedDB 媒体库。 */
-  onInsertCardDirect: (card: CardLibraryCard) => boolean | Promise<boolean>;
-}) {
-  const [initialCache] = useState(() => cacheScope
-    ? getCachedCardLibraryCards(DEFAULT_CARD_LIBRARY_FILTERS, cacheScope)
-    : null);
-  const [initialGroupCache] = useState(() => cacheScope ? getCachedCardLibraryGroups(cacheScope) : null);
-  const [initialTagCache] = useState(() => cacheScope ? getCachedCardLibraryTags(cacheScope) : null);
-  const [cards, setCards] = useState<CardLibraryCard[]>(initialCache?.data.cards ?? []);
-  const [groups, setGroups] = useState<string[]>(initialGroupCache?.data.groups ?? []);
-  const [tags, setTags] = useState<string[]>(initialTagCache?.data.tags ?? []);
-  const [total, setTotal] = useState(initialCache?.data.total ?? 0);
-  const [page, setPage] = useState(1);
-  const [queryDraft, setQueryDraft] = useState("");
-  const [query, setQuery] = useState("");
-  const [groupFilter, setGroupFilter] = useState("");
-  const [tagFilter, setTagFilter] = useState("");
-  const [targetCategoryId, setTargetCategoryId] = useState("");
-  const [status, setStatus] = useState<LoadState>(initialCache ? "ready" : "idle");
-  const [groupStatus, setGroupStatus] = useState<LoadState>(initialGroupCache ? "ready" : "idle");
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [groupError, setGroupError] = useState<string | null>(null);
-  const [savingCardId, setSavingCardId] = useState<string | null>(null);
-  const [insertingCardId, setInsertingCardId] = useState<string | null>(null);
-  // 点击卡片 = 打开大图预览（item 引用稳定，避免 actions 重渲染触发重新解析）。
-  const [previewCard, setPreviewCard] = useState<{ item: CardPreviewItem; card: CardLibraryCard } | null>(null);
-  // 悬停卡片 = 视口右侧浮出大图快览；移出网格即收起，点击仍是完整预览层。
-  const [hoverSource, setHoverSource] = useState<CardHoverPreviewSource | null>(null);
-  const cardLoadVersion = useRef(0);
-  const showToast = useToastStore((state) => state.show);
-  const openAccount = useIdentityStore((state) => state.openDialog);
-
-  const loadCards = useCallback(async (force = false) => {
-    if (!authenticated || !cacheScope) return;
-    const loadVersion = ++cardLoadVersion.current;
-    const filters = { page, limit: 18, query, group: groupFilter, tag: tagFilter };
-    const cached = getCachedCardLibraryCards(filters, cacheScope);
-    if (cached) {
-      setCards(cached.data.cards);
-      setTotal(cached.data.total);
-      setStatus("ready");
-      setRefreshing(false);
-    }
-    setError(null);
-    if (cached?.fresh && !force) return;
-    if (cached) setRefreshing(true);
-    else {
-      setRefreshing(false);
-      setStatus("loading");
-    }
-    try {
-      const result = await listCardLibraryCards(filters, { cacheScope, force });
-      if (loadVersion !== cardLoadVersion.current) return;
-      setCards(result.cards);
-      setTotal(result.total);
-      setStatus("ready");
-    } catch (cause) {
-      const message = errorMessage(cause, "卡片加载失败");
-      if (cause instanceof CardLibraryError && cause.status === 401) {
-        clearCardLibraryCardsCache(cacheScope);
-        setCards([]);
-        setTotal(0);
-        setError(message);
-        setStatus("error");
-        useIdentityStore.getState().expire();
-      } else if (loadVersion !== cardLoadVersion.current) {
-        return;
-      } else if (cached) {
-        showToast(message, "error");
-      } else {
-        setError(message);
-        setStatus("error");
-      }
-    } finally {
-      if (loadVersion === cardLoadVersion.current) setRefreshing(false);
-    }
-  }, [authenticated, cacheScope, groupFilter, page, query, showToast, tagFilter]);
-
-  const loadGroups = useCallback(async (force = false) => {
-    if (!authenticated || !cacheScope) return;
-    const cached = getCachedCardLibraryGroups(cacheScope);
-    if (cached) {
-      setGroups(cached.data.groups);
-      setGroupStatus("ready");
-    }
-    setGroupError(null);
-    if (cached?.fresh && !force) return;
-    if (!cached) setGroupStatus("loading");
-    try {
-      const result = await listCardLibraryGroups({ cacheScope, force });
-      setGroups(result.groups);
-      setGroupStatus("ready");
-    } catch (cause) {
-      const message = errorMessage(cause, "卡片分类加载失败");
-      if (cause instanceof CardLibraryError && cause.status === 401) {
-        clearCardLibraryCardsCache(cacheScope);
-        setGroups([]);
-        setGroupError(message);
-        setGroupStatus("error");
-        useIdentityStore.getState().expire();
-      } else if (cached) {
-        showToast(message, "error");
-      } else {
-        setGroupError(message);
-        setGroupStatus("error");
-      }
-    }
-  }, [authenticated, cacheScope, showToast]);
-
-  // 标签列表在服务端是全量卡片扫描的结果，翻页不会变；失败只降级筛选器，不打扰列表。
-  const loadTags = useCallback(async () => {
-    if (!authenticated || !cacheScope) return;
-    try {
-      const result = await listCardLibraryTags({ cacheScope });
-      setTags(result.tags);
-    } catch {
-      setTags([]);
-    }
-  }, [authenticated, cacheScope]);
-
-  useEffect(() => {
-    void loadCards();
-  }, [loadCards]);
-
-  useEffect(() => {
-    void loadGroups();
-  }, [loadGroups]);
-
-  useEffect(() => {
-    void loadTags();
-  }, [loadTags]);
-
-  useEffect(() => {
-    if (!groupFilter || groupFilter === "uncategorized" || groupStatus !== "ready" || groups.includes(groupFilter)) return;
-    setPage(1);
-    setGroupFilter("");
-  }, [groupFilter, groupStatus, groups]);
-
-  useEffect(() => {
-    if (!tagFilter || tags.length === 0 || tags.includes(tagFilter)) return;
-    setPage(1);
-    setTagFilter("");
-  }, [tagFilter, tags]);
-
-  // 点击卡片打开大图预览：原图 URL 交给预览层解析（media-sign full），缩略图兜底。
-  const openCardPreview = useCallback((card: CardLibraryCard) => {
-    const extras = card.imageRefs?.length ?? 0;
-    const meta: CardPreviewMeta[] = [];
-    if (card.group) meta.push({ icon: <Folder aria-hidden="true" />, text: card.group, title: "分组" });
-    if (card.tags.length) meta.push({ icon: <Tag aria-hidden="true" />, text: card.tags.join(" "), title: "标签" });
-    if (extras > 0) meta.push({ icon: <Images aria-hidden="true" />, text: `共 ${extras + 1} 张图`, title: "图片数量" });
-    setPreviewCard({
-      card,
-      item: {
-        key: card.id,
-        title: card.title || card.prompt.slice(0, 28) || "未命名卡片",
-        prompt: card.prompt || "",
-        meta,
-        thumbnailUrl: card.thumbUrl,
-        resolveImages: () => cardLibraryDisplayImageUrls(card),
-      },
-    });
-  }, []);
-
-  const saveCard = async (card: CardLibraryCard) => {
-    if (savingCardId) return;
-    setSavingCardId(card.id);
-    const mediaList: CanvasMedia[] = [];
-    let imageUnavailable = false;
-    try {
-      const galleryRefs = [card.imageRef.trim(), ...(card.imageRefs ?? []).map((ref) => ref.trim())].filter(Boolean);
-      if (card.hasImage || card.thumbUrl || galleryRefs.length) {
-        try {
-          const blobs = await downloadCardLibraryImages(card);
-          for (const [index, blob] of blobs.entries()) {
-            const file = new File([blob], mediaFileName(card.title || card.id, blob.type, index), { type: blob.type });
-            mediaList.push(await storeMedia(file, "image"));
-          }
-        } catch {
-          imageUnavailable = true;
-        }
-      }
-      await saveCardLibraryAsset({
-        sourceId: card.id,
-        name: card.title || card.prompt.slice(0, 32) || "未命名卡片",
-        prompt: card.prompt || card.title,
-        media: mediaList[0] ?? null,
-        categoryId: targetCategoryId || null,
-        extraMedia: mediaList.slice(1),
-      });
-      await onAssetSaved();
-      if (imageUnavailable || !mediaList.length) {
-        showToast("卡片已收藏，图片暂未同步", "success");
-      } else if (mediaList.length > 1) {
-        showToast(`已收藏卡片（含 ${mediaList.length} 张图片）`, "success");
-      } else {
-        showToast("卡片已收藏到资产库", "success");
-      }
-    } catch (cause) {
-      showToast(errorMessage(cause, "卡片收藏失败"), "error");
-    } finally {
-      setSavingCardId(null);
-    }
-  };
-
-  if (!authenticated) {
-    return (
-      <div className="kc-card-library-gate">
-        <div className="kc-card-library-gate-content">
-          <span className="kc-card-library-gate-icon" aria-hidden="true"><Library /></span>
-          <div className="kc-card-library-gate-copy">
-            <strong>登录后查看卡片库</strong>
-            <p>使用画布账号即可访问，无需重复登录。</p>
-            {error ? <span className="kc-card-library-error" role="alert">{error}</span> : null}
-          </div>
-          <button type="button" className="kc-card-library-login" onClick={() => openAccount("login")}>
-            <LogIn aria-hidden="true" />
-            登录
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const savedCardIds = new Set(assets.filter((item) => item.source === "card-library").map((item) => item.sourceId));
-  const pageCount = Math.max(1, Math.ceil(total / 18));
-
-  // 预览层操作：加入画布（主）+ 收藏到资产库（次）。busy 状态随渲染实时更新，
-  // 成功后预览自动收起（插入成功时抽屉也会一起关掉）。
-  const previewActions: CardPreviewAction[] = [];
-  if (previewCard) {
-    const card = previewCard.card;
-    const saved = savedCardIds.has(card.id);
-    previewActions.push({
-      label: "加入画布",
-      icon: <Plus aria-hidden="true" />,
-      variant: "primary",
-      busy: insertingCardId === card.id,
-      busyLabel: "加入中…",
-      onAction: () => {
-        void Promise.resolve(onInsertCardDirect(card)).then((added) => {
-          if (added) setPreviewCard(null);
-        });
-      },
-    });
-    previewActions.push({
-      label: saved ? "已在资产库" : "收藏到资产库",
-      icon: saved ? <BookmarkCheck aria-hidden="true" /> : <BookmarkPlus aria-hidden="true" />,
-      variant: "secondary",
-      busy: savingCardId === card.id,
-      busyLabel: "收藏中…",
-      disabled: saved || Boolean(savingCardId && savingCardId !== card.id),
-      onAction: () => void saveCard(card),
-    });
-  }
-
-  return (
-    <div className="kc-card-library-panel">
-      <aside className="kc-card-library-groups" aria-label="卡片分组">
-        <button type="button" className={!groupFilter ? "is-active" : ""} onClick={() => { setPage(1); setGroupFilter(""); }}><FolderOpen aria-hidden="true" /><span>全部分组</span></button>
-        <button type="button" className={groupFilter === "uncategorized" ? "is-active" : ""} onClick={() => { setPage(1); setGroupFilter("uncategorized"); }}><Folder aria-hidden="true" /><span>未分类</span></button>
-        <div className="kc-card-library-group-list">
-          {groups.map((group) => (
-            <button type="button" className={groupFilter === group ? "is-active" : ""} key={group} title={group} onClick={() => { setPage(1); setGroupFilter(group); }}><Folder aria-hidden="true" /><span>{group}</span></button>
-          ))}
-          {groupStatus === "loading" ? <span className="kc-card-library-group-state" role="status"><LoaderCircle className="is-spinning" aria-hidden="true" />读取分组</span> : null}
-          {groupStatus === "error" ? <button type="button" className="kc-card-library-group-retry" title={groupError || "卡片分组加载失败"} onClick={() => void loadGroups()}><RefreshCw aria-hidden="true" />重试分组</button> : null}
-        </div>
-      </aside>
-
-      <div className="kc-card-library-content">
-        <div className="kc-resource-toolbar">
-          <form className="kc-resource-search" onSubmit={(event) => {
-            event.preventDefault();
-            setPage(1);
-            setQuery(queryDraft.trim());
-          }}>
-            <Search aria-hidden="true" />
-            <input aria-label="搜索卡片" placeholder="搜索卡片" value={queryDraft} onChange={(event) => setQueryDraft(event.target.value)} />
-          </form>
-          {tags.length ? (
-            <CanvasSelect
-              ariaLabel="筛选标签"
-              value={tagFilter}
-              options={[
-                { value: "", label: "全部标签" },
-                ...tags.map((tag) => ({ value: tag, label: tag, title: `按标签筛选：${tag}` })),
-              ]}
-              onChange={(value) => {
-                setPage(1);
-                setTagFilter(value);
-              }}
-              className="kc-resource-category-select"
-            />
-          ) : null}
-          <CanvasSelect
-            ariaLabel="收藏到资产文件夹"
-            value={targetCategoryId}
-            options={[
-              { value: "", label: "收藏至 未分类" },
-              ...categories.map((category) => ({ value: category.id, label: `收藏至 ${category.name}`, title: `收藏到资产文件夹：${category.name}` })),
-            ]}
-            onChange={setTargetCategoryId}
-            className="kc-resource-category-select"
-          />
-          <span className="kc-resource-count">{total} 张</span>
-          <button type="button" className="kc-resource-icon-button" aria-label="刷新卡片库" title="刷新" disabled={refreshing || status === "loading"} onClick={() => { void loadCards(true); void loadGroups(true); void loadTags(); }}><RefreshCw className={refreshing ? "is-spinning" : ""} aria-hidden="true" /></button>
-        </div>
-
-        <div className="kc-card-grid" aria-busy={status === "loading" || refreshing} onMouseLeave={() => setHoverSource(null)}>
-          {status === "loading" ? <div className="kc-resource-loading" role="status"><LoaderCircle className="is-spinning" aria-hidden="true" /></div> : null}
-          {status === "error" ? (
-            <div className="kc-resource-empty" role="alert"><span>{error}</span><button type="button" onClick={() => void loadCards()}>重试</button></div>
-          ) : null}
-          {status === "ready" && !cards.length ? <div className="kc-resource-empty">没有找到卡片</div> : null}
-          {status === "ready" ? cards.map((card) => {
-            const saved = savedCardIds.has(card.id);
-            const title = card.title || card.prompt.slice(0, 28) || "未命名卡片";
-            return (
-              <article
-                className="kc-card-library-item"
-                key={card.id}
-                tabIndex={0}
-                aria-label={`放大查看 ${title}`}
-                title={[title, "点击放大查看"].join(" · ")}
-                onMouseEnter={() => setHoverSource((current) => current?.key === card.id ? current : {
-                  key: card.id,
-                  title,
-                  thumbnailUrl: card.thumbUrl,
-                  resolveImages: () => cardLibraryDisplayImageUrls(card),
-                })}
-                onClick={() => openCardPreview(card)}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter" && event.key !== " ") return;
-                  event.preventDefault();
-                  openCardPreview(card);
-                }}
-              >
-                <CardThumbnail thumbUrl={card.thumbUrl} title={title} />
-                <div className="kc-card-library-copy">
-                  <strong>{title}</strong>
-                  <p>{card.prompt || "无文字内容"}</p>
-                </div>
-                <div className="kc-card-library-actions">
-                  <button
-                    type="button"
-                    className="kc-card-library-insert"
-                    aria-label={`加入画布 ${title}`}
-                    title="直接加入画布（不需要先收藏）"
-                    disabled={Boolean(insertingCardId)}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      if (insertingCardId) return;
-                      setInsertingCardId(card.id);
-                      Promise.resolve(onInsertCardDirect(card)).finally(() => setInsertingCardId(null));
-                    }}
-                  >
-                    {insertingCardId === card.id ? <LoaderCircle className="is-spinning" aria-hidden="true" /> : <Plus aria-hidden="true" />}
-                    <span>画布</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={saved ? "kc-card-library-save is-saved" : "kc-card-library-save"}
-                    aria-label={saved ? `${title} 已在资产库` : `收藏卡片 ${title}`}
-                    title={saved ? "已在资产库" : "收藏到资产库"}
-                    disabled={saved || Boolean(savingCardId)}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void saveCard(card);
-                    }}
-                  >
-                    {savingCardId === card.id ? <LoaderCircle className="is-spinning" aria-hidden="true" /> : saved ? <BookmarkCheck aria-hidden="true" /> : <BookmarkPlus aria-hidden="true" />}
-                  </button>
-                </div>
-              </article>
-            );
-          }) : null}
-        </div>
-
-        <footer className="kc-resource-pagination">
-          <button type="button" aria-label="上一页" disabled={page <= 1 || status === "loading"} onClick={() => setPage((value) => Math.max(1, value - 1))}><ChevronLeft aria-hidden="true" /></button>
-          <span>{page} / {pageCount}</span>
-          <button type="button" aria-label="下一页" disabled={page >= pageCount || status === "loading"} onClick={() => setPage((value) => Math.min(pageCount, value + 1))}><ChevronRight aria-hidden="true" /></button>
-        </footer>
-      </div>
-
-      {previewCard ? (
-        <CardPreviewLightbox
-          item={previewCard.item}
-          actions={previewActions}
-          onClose={() => setPreviewCard(null)}
-        />
-      ) : null}
-      <CardHoverPreview source={hoverSource} />
-    </div>
-  );
-}
 
 function AssetLibraryPanel({
   categories,
@@ -1260,38 +790,6 @@ function toInsertableAsset(item: AssetLibraryItem): InsertableAsset | null {
   if (item.kind === "prompt") return item.prompt ? { kind: "text", body: item.prompt, media: null, extraMedia: [] } : null;
   if (!item.media) return null;
   return { kind: item.kind, body: item.prompt, media: item.media, extraMedia: item.gallery };
-}
-
-/**
- * 把 CardLibraryCard 直接转成 InsertableAsset：先尝试下载图片（多图支持），
- * 失败则降级成纯 text 节点（只塞 prompt）。和 saveCard 的差异：写资产库这一步跳过。
- */
-async function cardToInsertable(card: CardLibraryCard): Promise<InsertableAsset | null> {
-  const body = card.prompt || card.title || "";
-  const galleryRefs = [card.imageRef.trim(), ...(card.imageRefs ?? []).map((ref) => ref.trim())].filter(Boolean);
-  if (card.hasImage || card.thumbUrl || galleryRefs.length) {
-    try {
-      const blobs = await downloadCardLibraryImages(card);
-      const mediaList: CanvasMedia[] = [];
-      for (const [index, blob] of blobs.entries()) {
-        const file = new File([blob], mediaFileName(card.title || card.id, blob.type, index), { type: blob.type });
-        mediaList.push(await storeMedia(file, "image"));
-      }
-      const [primary, ...rest] = mediaList;
-      if (primary) {
-        return {
-          kind: "image",
-          body,
-          media: primary,
-          extraMedia: rest,
-        };
-      }
-    } catch {
-      // 图片下载失败时降级成 text 节点
-    }
-  }
-  if (body) return { kind: "text", body, media: null, extraMedia: [] };
-  return null;
 }
 
 function kindLabel(kind: KindFilter) {

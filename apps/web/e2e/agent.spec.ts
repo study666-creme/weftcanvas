@@ -104,12 +104,6 @@ async function mockAuthenticatedBackgroundRequests(page: Page) {
       },
     },
   }));
-  await page.route("**/api/v1/card-library/groups", (route) => route.fulfill({
-    json: { ok: true, data: { groups: [] } },
-  }));
-  await page.route("**/api/v1/card-library/cards**", (route) => route.fulfill({
-    json: { ok: true, data: { cards: [], page: 1, limit: 18, total: 0 } },
-  }));
 }
 
 test("top Agent companion reacts and opens a bounded non-modal side workspace", async ({ page }, testInfo) => {

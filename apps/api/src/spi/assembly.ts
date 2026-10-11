@@ -2,6 +2,7 @@ import type { SignedMediaAccess } from "../media/signed-access.js";
 import type { MediaService } from "../media/service.js";
 import type { GenerationQuoteService } from "../catalog/quote.js";
 import type { CatalogCompatibilityOverlay } from "../catalog/normalize.js";
+import type { AccountRouteRegistrar } from "../account-routes/contract.js";
 import type { IdentityProvider } from "../identity/provider.js";
 import type { GenerationJobService } from "../generation/service.js";
 import type { WalletProvider } from "../wallet/provider.js";
@@ -129,6 +130,11 @@ export type ResolvedProviderServices = {
   identity: IdentityProvider | undefined;
   account: (HostedAccountProvider & WalletProvider) | undefined;
   hostedGeneration: GenerationProvider | undefined;
+  /**
+   * 账号侧内容库（收藏卡片/公开社区流）的路由挂载器：由私有 overlay 提供，
+   * 开源构建缺省不注入（account-routes/contract.ts 是公开骨架）。
+   */
+  registerAccountRoutes?: AccountRouteRegistrar;
 };
 
 export async function assembleProviderServices(

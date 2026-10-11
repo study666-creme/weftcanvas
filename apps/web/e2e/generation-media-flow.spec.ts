@@ -5,7 +5,7 @@ import { mockAuthenticatedBackgroundApis } from "./authenticated-background.fixt
 
 // 节点生成面板路径：两个并行节点一个慢速一个失效，媒体在完整 decode 前只显示
 // 固定占位，画布平移缩放保持即时；成功后原子替换、失败保持可重试错误状态。
-const visiblePng = readFileSync(new URL("../src/assets/card-library-logo.png", import.meta.url));
+const visiblePng = readFileSync(new URL("../src/assets/resource-library-mark.png", import.meta.url));
 
 const now = new Date();
 const expiresAt = new Date(now.getTime() + 60 * 60_000).toISOString();
@@ -194,10 +194,6 @@ async function mockNodeMediaApis(page: Page) {
     },
   }));
   await page.route("**/api/v1/model-catalog*", (route) => route.fulfill({ json: { ok: true, data: emptyCatalog } }));
-  await page.route("**/api/v1/card-library/groups", (route) => route.fulfill({ json: { ok: true, data: { groups: [] } } }));
-  await page.route("**/api/v1/card-library/cards*", (route) => route.fulfill({
-    json: { ok: true, data: { cards: [], total: 0, page: 1, limit: 18 } },
-  }));
   await page.route("**/api/v1/generation-jobs?*", (route) => route.fulfill({
     json: {
       ok: true,

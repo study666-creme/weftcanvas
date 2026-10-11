@@ -79,11 +79,6 @@ export default defineConfig(({ mode }) => {
             proxy.on("proxyReq", (request) => request.removeHeader("origin"));
           },
         },
-        "/card-library-api": {
-          target: process.env.CARD_LIBRARY_PROXY_TARGET || "http://127.0.0.1:8787",
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/card-library-api/, ""),
-        },
       },
     },
     preview: {

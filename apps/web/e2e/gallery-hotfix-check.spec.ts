@@ -6,7 +6,7 @@ import { mockAuthenticatedBackgroundApis } from "./authenticated-background.fixt
 // 临时验证：结果卡画廊在多任务（含一直加载中的媒体）下，媒体方块必须保持
 // aspect-ratio 稳定高度，不允许塌缩成纯文字卡（20260904 线上事故的回归验证）。
 
-const visiblePng = readFileSync(new URL("../src/assets/card-library-logo.png", import.meta.url));
+const visiblePng = readFileSync(new URL("../src/assets/resource-library-mark.png", import.meta.url));
 const videoFixture = readFileSync(new URL("./video-frame.mp4", import.meta.url));
 
 const now = new Date();

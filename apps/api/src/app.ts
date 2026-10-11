@@ -1,8 +1,4 @@
 import {
-  cardLibraryCardListResponseSchema,
-  cardLibraryGroupListResponseSchema,
-  cardLibraryMediaSignResponseSchema,
-  cardLibraryTagListResponseSchema,
   cloudProjectDeleteResponseSchema,
   cloudProjectPrincipalIdSchema,
   cloudProjectInvitationListResponseSchema,
@@ -14,7 +10,6 @@ import {
   cloudResourceCleanupRequestSchema,
   cloudResourceCleanupResponseSchema,
   cloudResourceListResponseSchema,
-  communityFeedResponseSchema,
   agentConnectorIdSchema,
   agentConnectorListResponseSchema,
   agentConnectorResponseSchema,
@@ -77,10 +72,6 @@ import {
   walletRedeemResponseSchema,
   walletResponseSchema,
   type GenerationJobStatus,
-  type CardLibraryCardList,
-  type CardLibraryGroupList,
-  type CardLibraryTagList,
-  type CommunityFeedPage,
   type MediaUploadIntent,
   type MusicLinkResolveData,
   type MusicLinkSource,
@@ -126,8 +117,8 @@ import {
   WalletProviderError,
   type MembershipTaskProvider,
   type WalletProvider,
-  type WalletProviderResult,
 } from "./wallet/provider.js";
+import type { AccountRouteRegistrar } from "./account-routes/contract.js";
 
 export type AgentApi = Pick<AgentService,
   | "createConversation"
@@ -232,14 +223,8 @@ type ApiDependencies = {
     now?: () => number;
   };
   catalog: Pick<KachangCatalogAdapter, "getCatalog">;
-  cardLibrary?: {
-    listCards(token: string | undefined, input: { page: number; limit: number; query?: string; group?: string; tag?: string }): Promise<WalletProviderResult<CardLibraryCardList>>;
-    listGroups(token: string | undefined): Promise<WalletProviderResult<CardLibraryGroupList>>;
-    listTags(token: string | undefined): Promise<WalletProviderResult<CardLibraryTagList>>;
-    signCardMedia(token: string | undefined, input: { ref: string; variant: "thumb" | "full" }): Promise<WalletProviderResult<{ url: string; expiresIn?: number; cdn?: boolean }>>;
-    getCommunityFeed(input: { limit: number; offset: number }): Promise<WalletProviderResult<CommunityFeedPage>>;
-    communityImageUrl(image: string | null | undefined): string | null;
-  };
+  /** 账号侧内容库（收藏卡片/社区）的路由挂载器：私有 overlay 提供；开源构建缺省不挂载。 */
+  registerAccountRoutes?: AccountRouteRegistrar;
   quotes: Pick<GenerationQuoteService, "createQuote">;
   identity?: IdentityProvider;
   identityCookie?: {
@@ -287,8 +272,6 @@ type ApiDependencies = {
 
 const DEFAULT_IDENTITY_COOKIE = { name: "kachang_canvas_session", secure: false } as const;
 const DEFAULT_ANONYMOUS_AGENT_COOKIE = { name: "kachang_canvas_agent_guest", secure: false } as const;
-const MEDIA_PROXY_TIMEOUT_MS = 60_000;
-const MEDIA_PROXY_MAX_BYTES = 50 * 1024 * 1024;
 const MEDIA_PROXY_MAX_REDIRECT_HOPS = 5;
 // 音乐链接代拉：流式播放不能整段限时（一首歌 3-5 分钟），超时只管连接与取头；
 // 大小上限与本地上传音频一致（100MB）。
@@ -341,10 +324,6 @@ export function createApiApp(dependencies: ApiDependencies) {
     await next();
     context.header("Cache-Control", "private, no-store");
   });
-  app.use("/api/v1/card-library/*", async (context, next) => {
-    await next();
-    context.header("Cache-Control", "private, no-store");
-  });
   app.use("/api/v1/cloud-projects", async (context, next) => {
     await next();
     context.header("Cache-Control", "private, no-store");
@@ -376,116 +355,11 @@ export function createApiApp(dependencies: ApiDependencies) {
     return errorResponse(context, 503, "SERVICE_NOT_READY", "Service is not ready");
   });
 
-  app.get("/api/v1/card-library/cards", async (context) => {
-    if (!dependencies.cardLibrary) return errorResponse(context, 503, "CARD_LIBRARY_UNAVAILABLE", "卡片库暂时不可用");
-    const input = z.object({
-      page: z.coerce.number().int().min(1).default(1),
-      limit: z.coerce.number().int().min(1).max(48).default(24),
-      q: z.string().trim().max(120).optional(),
-      group: z.string().trim().max(120).optional(),
-      tag: z.string().trim().max(120).optional(),
-    }).parse(context.req.query());
-    const result = await dependencies.cardLibrary.listCards(getCookie(context, identityCookie.name), {
-      page: input.page,
-      limit: input.limit,
-      ...(input.q ? { query: input.q } : {}),
-      ...(input.group ? { group: input.group } : {}),
-      ...(input.tag ? { tag: input.tag } : {}),
-    });
-    refreshIdentityCookie(context, identityCookie, result);
-    return context.json(cardLibraryCardListResponseSchema.parse({ ok: true, data: result.data }));
-  });
-
-  app.get("/api/v1/card-library/groups", async (context) => {
-    if (!dependencies.cardLibrary) return errorResponse(context, 503, "CARD_LIBRARY_UNAVAILABLE", "卡片库暂时不可用");
-    const result = await dependencies.cardLibrary.listGroups(getCookie(context, identityCookie.name));
-    refreshIdentityCookie(context, identityCookie, result);
-    return context.json(cardLibraryGroupListResponseSchema.parse({ ok: true, data: result.data }));
-  });
-
-  app.get("/api/v1/card-library/tags", async (context) => {
-    if (!dependencies.cardLibrary) return errorResponse(context, 503, "CARD_LIBRARY_UNAVAILABLE", "卡片库暂时不可用");
-    const result = await dependencies.cardLibrary.listTags(getCookie(context, identityCookie.name));
-    refreshIdentityCookie(context, identityCookie, result);
-    return context.json(cardLibraryTagListResponseSchema.parse({ ok: true, data: result.data }));
-  });
-
-  app.get("/api/v1/card-library/media-sign", async (context) => {
-    if (!dependencies.cardLibrary) return errorResponse(context, 503, "CARD_LIBRARY_UNAVAILABLE", "卡片库暂时不可用");
-    const input = z.object({
-      ref: z.string().trim().min(1).max(2_048),
-      variant: z.enum(["thumb", "full"]).default("full"),
-    }).parse(context.req.query());
-    const result = await dependencies.cardLibrary.signCardMedia(getCookie(context, identityCookie.name), input);
-    refreshIdentityCookie(context, identityCookie, result);
-    return context.json(cardLibraryMediaSignResponseSchema.parse({ ok: true, data: result.data }));
-  });
-
-  // 远端媒体域不开 CORS，浏览器跨域 fetch 必然失败；收藏下载统一由服务端代拉。
-  app.get("/api/v1/card-library/media-proxy", async (context) => {
-    if (!dependencies.cardLibrary) return errorResponse(context, 503, "CARD_LIBRARY_UNAVAILABLE", "卡片库暂时不可用");
-    const target = String(context.req.query("url") || "").trim();
-    const input = z.string().url().max(2_048).optional().parse(target || undefined);
-    if (!input) return errorResponse(context, 400, "INVALID_MEDIA_URL", "缺少图片地址");
-    const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
-    if (session instanceof Response) return session;
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), MEDIA_PROXY_TIMEOUT_MS);
-    try {
-      // 手动跟随重定向：每一跳都要重新过 SSRF 守卫。redirect:"follow" 只会
-      // 校验初始 URL，攻击者用一个公网 URL 302 到 169.254.169.254 就能绕开。
-      let current = input;
-      let response: Response | null = null;
-      for (let hop = 0; hop <= MEDIA_PROXY_MAX_REDIRECT_HOPS; hop += 1) {
-        const hopBlocked = await isBlockedTargetUrl(current);
-        if (hopBlocked) return errorResponse(context, 400, "MEDIA_URL_BLOCKED", "图片地址不可用");
-        const attempt = await fetch(current, {
-          headers: { Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8" },
-          redirect: "manual",
-          signal: controller.signal,
-        });
-        if (![301, 302, 303, 307, 308].includes(attempt.status)) {
-          response = attempt;
-          break;
-        }
-        await attempt.body?.cancel().catch(() => undefined);
-        const location = attempt.headers.get("location");
-        if (!location) {
-          return errorResponse(context, 503, "MEDIA_FETCH_FAILED", "卡片图片暂时无法读取");
-        }
-        let next: URL;
-        try {
-          next = new URL(location, current);
-        } catch {
-          return errorResponse(context, 400, "MEDIA_URL_BLOCKED", "图片地址不可用");
-        }
-        if (next.protocol !== "http:" && next.protocol !== "https:") {
-          return errorResponse(context, 400, "MEDIA_URL_BLOCKED", "图片地址不可用");
-        }
-        current = next.toString();
-      }
-      if (!response || !response.ok) {
-        return errorResponse(context, 503, "MEDIA_FETCH_FAILED", "卡片图片暂时无法读取");
-      }
-      const contentLength = Number(response.headers.get("Content-Length") || 0);
-      if (contentLength > MEDIA_PROXY_MAX_BYTES) {
-        return errorResponse(context, 413, "MEDIA_TOO_LARGE", "卡片图片过大");
-      }
-      const headers = new Headers();
-      headers.set("Content-Type", response.headers.get("Content-Type") || "application/octet-stream");
-      headers.set("Cache-Control", "private, no-store");
-      headers.set("X-Content-Type-Options", "nosniff");
-      if (contentLength) headers.set("Content-Length", String(contentLength));
-      return new Response(response.body, { status: 200, headers });
-    } catch (error) {
-      if (error instanceof Error && error.name === "AbortError") {
-        return errorResponse(context, 503, "MEDIA_FETCH_TIMEOUT", "卡片图片下载超时");
-      }
-      return errorResponse(context, 503, "MEDIA_FETCH_FAILED", "卡片图片暂时无法读取");
-    } finally {
-      clearTimeout(timer);
-    }
+  // 账号侧内容库（收藏卡片/公开社区流）的路由由私有 overlay 注入；
+  // 开源构建缺省不挂载，这些端点整体不存在（不是"存在但 503"）。
+  dependencies.registerAccountRoutes?.(app, {
+    identity: dependencies.identity,
+    identityCookie,
   });
 
   // —— 音乐链接（画布音乐节点）———————————————————————————————————————————
@@ -682,34 +556,6 @@ export function createApiApp(dependencies: ApiDependencies) {
       return errorResponse(context, 503, "MUSIC_COVER_FAILED", "封面暂时无法读取");
     } finally {
       clearTimeout(timer);
-    }
-  });
-
-  // 公开社区流（画布左栏「社区卡片」弹层）：服务端代理 prompt-hub 公共接口，
-  // 免去浏览器 CORS 依赖；短缓存 + SWR 与上游 Cache-Control 对齐。
-  app.get("/api/v1/community/feed", async (context) => {
-    if (!dependencies.cardLibrary) return errorResponse(context, 503, "COMMUNITY_UNAVAILABLE", "社区暂时不可用");
-    const input = z.object({
-      limit: z.coerce.number().int().min(1).max(60).default(6),
-      offset: z.coerce.number().int().min(0).max(3_000).default(0),
-    }).parse(context.req.query());
-    try {
-      const result = await dependencies.cardLibrary.getCommunityFeed(input);
-      // 富化：给每条帖子补公开 CDN 图 URL（<img> 直用，免签名、无 CORS 依赖）
-      const data: CommunityFeedPage = {
-        ...result.data,
-        posts: result.data.posts.map((post) => ({
-          ...post,
-          imageUrl: dependencies.cardLibrary?.communityImageUrl(post.image) ?? undefined,
-        })),
-      };
-      context.header("Cache-Control", "public, max-age=30, stale-while-revalidate=120");
-      return context.json(communityFeedResponseSchema.parse({ ok: true, data }));
-    } catch (error) {
-      if (error instanceof WalletProviderError) {
-        return errorResponse(context, 503, error.code || "COMMUNITY_UPSTREAM_FAILED", "社区数据暂时不可用");
-      }
-      throw error;
     }
   });
 
@@ -3112,7 +2958,7 @@ function rateLimitedResponse(context: Context, retryAfterSeconds: number) {
   return errorResponse(context, 429, "RATE_LIMITED", "操作太频繁了，请稍后再试");
 }
 
-async function requireIdentitySession(
+export async function requireIdentitySession(
   context: Context,
   identity: IdentityProvider | undefined,
   cookie: NonNullable<ApiDependencies["identityCookie"]>,
@@ -3207,7 +3053,7 @@ function setIdentityCookie(
   });
 }
 
-function refreshIdentityCookie(
+export function refreshIdentityCookie(
   context: Context,
   cookie: NonNullable<ApiDependencies["identityCookie"]>,
   result: { refreshedToken?: string; expiresAt?: string },
