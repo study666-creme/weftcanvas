@@ -2,9 +2,9 @@ import {
   DEFAULT_AGENT_CREATIVE_GUIDANCE,
   agentCreativeGuidanceSchema,
   type AgentCreativeGuidance,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 
-const STORAGE_PREFIX = "kachang-canvas:agent-creative-guidance:v1:";
+const STORAGE_PREFIX = "weftcanvas:agent-creative-guidance:v1:";
 
 export function readAgentCreativeGuidance(projectId: string): AgentCreativeGuidance {
   if (typeof localStorage === "undefined" || !projectId) return defaultGuidance();
@@ -23,7 +23,10 @@ export function readAgentCreativeGuidance(projectId: string): AgentCreativeGuida
   }
 }
 
-export function writeAgentCreativeGuidance(projectId: string, value: AgentCreativeGuidance): AgentCreativeGuidance {
+export function writeAgentCreativeGuidance(
+  projectId: string,
+  value: AgentCreativeGuidance,
+): AgentCreativeGuidance {
   const parsed = agentCreativeGuidanceSchema.safeParse(value);
   const guidance = parsed.success ? normalizeAgentCreativeGuidance(parsed.data) : defaultGuidance();
   if (typeof localStorage === "undefined" || !projectId) return guidance;
@@ -35,14 +38,17 @@ export function writeAgentCreativeGuidance(projectId: string, value: AgentCreati
   return guidance;
 }
 
-export function normalizeAgentCreativeGuidance(value: AgentCreativeGuidance): AgentCreativeGuidance {
+export function normalizeAgentCreativeGuidance(
+  value: AgentCreativeGuidance,
+): AgentCreativeGuidance {
   if (value.mode !== "baseline") return value;
   return { ...value, mode: "professional" };
 }
 
 export function readProfessionalBaselineStatus(value: AgentCreativeGuidance) {
   const guidance = normalizeAgentCreativeGuidance(value);
-  if (guidance.mode !== "professional") return { required: false, ready: true, missing: [] as string[] };
+  if (guidance.mode !== "professional")
+    return { required: false, ready: true, missing: [] as string[] };
   const missing = [
     guidance.baseline.aspectRatio?.trim() ? null : "画面比例",
     guidance.baseline.visualStyle?.trim() ? null : "画风",

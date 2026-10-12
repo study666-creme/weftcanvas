@@ -11,7 +11,7 @@ import {
   type GenerationJobInput,
   type ModelModality,
   type PublicGenerationJob,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 import { z } from "zod";
 
 import { privateModelRouteSchema, type PrivateModelRoute } from "../catalog/execution-route.js";
@@ -63,10 +63,20 @@ export interface GenerationJobStore {
     creditMicros: number,
     options: { maxActiveJobs: number },
   ): Promise<CreateReservedJobResult>;
-  listByOwner(ownerId: string, options: { projectId?: string; limit: number }): Promise<GenerationJobRecord[]>;
+  listByOwner(
+    ownerId: string,
+    options: { projectId?: string; limit: number },
+  ): Promise<GenerationJobRecord[]>;
   save(job: GenerationJobRecord, expectedRevision: number): Promise<GenerationJobRecord | null>;
-  completeWithCapture(job: GenerationJobRecord, expectedRevision: number, creditMicros: number): Promise<GenerationJobRecord | null>;
-  failWithRelease(job: GenerationJobRecord, expectedRevision: number): Promise<GenerationJobRecord | null>;
+  completeWithCapture(
+    job: GenerationJobRecord,
+    expectedRevision: number,
+    creditMicros: number,
+  ): Promise<GenerationJobRecord | null>;
+  failWithRelease(
+    job: GenerationJobRecord,
+    expectedRevision: number,
+  ): Promise<GenerationJobRecord | null>;
 }
 
 export type ProviderExecutionState =
@@ -116,7 +126,10 @@ export class GenerationProviderError extends Error {
 }
 
 export class GenerationArtifactError extends Error {
-  constructor(readonly code: string, message: string) {
+  constructor(
+    readonly code: string,
+    message: string,
+  ) {
     super(message);
     this.name = "GenerationArtifactError";
   }

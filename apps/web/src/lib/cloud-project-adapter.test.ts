@@ -1,10 +1,7 @@
-import type { CanvasProject } from "@kachang/contracts";
+import type { CanvasProject } from "@weftcanvas/contracts";
 import { describe, expect, it } from "vitest";
 
-import {
-  canvasDocumentToProject,
-  projectToCanvasDocument,
-} from "./cloud-project-adapter";
+import { canvasDocumentToProject, projectToCanvasDocument } from "./cloud-project-adapter";
 
 describe("cloud project adapter", () => {
   it("removes canvas-engine state from cloud documents", () => {
@@ -48,38 +45,40 @@ function fixtureProject(): CanvasProject {
     schemaVersion: 1,
     id: "project-1",
     name: "Project",
-    nodes: [{
-      id: "node-1",
-      type: "kachang",
-      position: { x: 10, y: 20 },
-      data: {
-        kind: "image",
-        body: "",
-        accent: "jade",
-        status: "idle",
-        progress: null,
-        media: null,
-        directorCapture: null,
-        config: null,
-      edit: null,
-      music: null,
-        generation: {
-          modelId: null,
-          parameters: {},
-          referenceImagePurposes: {},
-          maxOutputTokens: null,
-          referenceMode: "auto",
-          referenceNodeIds: [],
-          jobId: null,
-          jobVersion: null,
-          jobCreatedAt: null,
-          jobStatus: null,
-          error: null,
+    nodes: [
+      {
+        id: "node-1",
+        type: "weftcanvas",
+        position: { x: 10, y: 20 },
+        data: {
+          kind: "image",
+          body: "",
+          accent: "jade",
+          status: "idle",
+          progress: null,
+          media: null,
+          directorCapture: null,
+          config: null,
+          edit: null,
+          music: null,
+          generation: {
+            modelId: null,
+            parameters: {},
+            referenceImagePurposes: {},
+            maxOutputTokens: null,
+            referenceMode: "auto",
+            referenceNodeIds: [],
+            jobId: null,
+            jobVersion: null,
+            jobCreatedAt: null,
+            jobStatus: null,
+            error: null,
+          },
+          createdAt: 1,
+          updatedAt: 1,
         },
-        createdAt: 1,
-        updatedAt: 1,
       },
-    }],
+    ],
     edges: [],
     groups: [],
     viewport: { x: 0, y: 0, zoom: 1 },

@@ -8,7 +8,7 @@ import {
   imageProtocolResponseSchema,
   type ImageMediaInput,
   type VideoMediaInput,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 
 import type { PrivateModelRoute } from "../catalog/execution-route.js";
 import type { GenerationResultStagingStore, StagedGenerationResult } from "./result-staging.js";
@@ -27,57 +27,117 @@ const EXPECTED_ENDPOINTS = {
   video: new Set(["/v1/videos"]),
 } as const;
 const IMAGE_MEDIA_NAMES = new Set([
-  "image", "images", "image_urls", "reference_image", "reference_images", "referenceImages", "first_image", "last_image",
-  "style_references", "styleImages", "style_images", "element_references", "elementImages", "element_images",
+  "image",
+  "images",
+  "image_urls",
+  "reference_image",
+  "reference_images",
+  "referenceImages",
+  "first_image",
+  "last_image",
+  "style_references",
+  "styleImages",
+  "style_images",
+  "element_references",
+  "elementImages",
+  "element_images",
 ]);
-const VIDEO_MEDIA_NAMES = new Set(["video", "videos", "reference_video", "reference_videos", "referenceVideos", "input_video", "source_video"]);
-const AUDIO_MEDIA_NAMES = new Set(["audio", "audios", "reference_audio", "reference_audios", "referenceAudios"]);
+const VIDEO_MEDIA_NAMES = new Set([
+  "video",
+  "videos",
+  "reference_video",
+  "reference_videos",
+  "referenceVideos",
+  "input_video",
+  "source_video",
+]);
+const AUDIO_MEDIA_NAMES = new Set([
+  "audio",
+  "audios",
+  "reference_audio",
+  "reference_audios",
+  "referenceAudios",
+]);
 const BLOCKED_PATH_SEGMENTS = new Set(["__proto__", "constructor", "prototype"]);
 const ASYNC_IMAGE_TASK_PREFIX = "image-videos:";
 type ImageTaskTransport = "tasks" | "videos";
 
-const usageSchema = z.object({
-  prompt_tokens: z.number().int().nonnegative().optional(),
-  completion_tokens: z.number().int().nonnegative().optional(),
-  input_tokens: z.number().int().nonnegative().optional(),
-  output_tokens: z.number().int().nonnegative().optional(),
-}).passthrough();
+const usageSchema = z
+  .object({
+    prompt_tokens: z.number().int().nonnegative().optional(),
+    completion_tokens: z.number().int().nonnegative().optional(),
+    input_tokens: z.number().int().nonnegative().optional(),
+    output_tokens: z.number().int().nonnegative().optional(),
+  })
+  .passthrough();
 
-const textResponseSchema = z.object({
-  choices: z.array(z.object({
-    message: z.object({ content: z.unknown() }).passthrough(),
-  }).passthrough()).min(1),
-  usage: usageSchema.optional(),
-}).passthrough();
+const textResponseSchema = z
+  .object({
+    choices: z
+      .array(
+        z
+          .object({
+            message: z.object({ content: z.unknown() }).passthrough(),
+          })
+          .passthrough(),
+      )
+      .min(1),
+    usage: usageSchema.optional(),
+  })
+  .passthrough();
 
-const imageLegacyResponseSchema = z.object({
-  data: z.array(z.object({
-    url: z.string().optional(),
-    b64_json: z.string().optional(),
-    revised_prompt: z.string().optional(),
-  }).passthrough()).min(1).max(8),
-  usage: usageSchema.optional(),
-}).passthrough();
+const imageLegacyResponseSchema = z
+  .object({
+    data: z
+      .array(
+        z
+          .object({
+            url: z.string().optional(),
+            b64_json: z.string().optional(),
+            revised_prompt: z.string().optional(),
+          })
+          .passthrough(),
+      )
+      .min(1)
+      .max(8),
+    usage: usageSchema.optional(),
+  })
+  .passthrough();
 const imageResponseSchema = z.union([imageLegacyResponseSchema, imageProtocolResponseSchema]);
 
-const videoResponseSchema = z.object({
-  id: z.string().min(1).optional(),
-  task_id: z.string().min(1).optional(),
-  status: z.string().optional(),
-  progress: z.number().optional(),
-  error: z.union([
-    z.string(),
-    z.object({ code: z.union([z.string(), z.number()]).optional(), message: z.string().optional() }).passthrough(),
-  ]).nullable().optional(),
-}).passthrough();
+const videoResponseSchema = z
+  .object({
+    id: z.string().min(1).optional(),
+    task_id: z.string().min(1).optional(),
+    status: z.string().optional(),
+    progress: z.number().optional(),
+    error: z
+      .union([
+        z.string(),
+        z
+          .object({
+            code: z.union([z.string(), z.number()]).optional(),
+            message: z.string().optional(),
+          })
+          .passthrough(),
+      ])
+      .nullable()
+      .optional(),
+  })
+  .passthrough();
 
 export type GenerationReferenceKind = "image" | "video" | "audio";
 
 export interface GenerationReferenceResolver {
-  resolve(input: { ownerId: string; mediaId: string; kind: GenerationReferenceKind; format?: string }): Promise<string>;
+  resolve(input: {
+    ownerId: string;
+    mediaId: string;
+    kind: GenerationReferenceKind;
+    format?: string;
+  }): Promise<string>;
 }
 
-type KachangGenerationProviderOptions = {
+type WeftcanvasGenerationProviderOptions = {
   baseUrl: string;
   apiKey: string;
   staging: GenerationResultStagingStore;
@@ -88,18 +148,23 @@ type KachangGenerationProviderOptions = {
   pollTimeoutMs?: number;
 };
 
-export class KachangGenerationProvider implements GenerationProvider {
+export class WeftcanvasGenerationProvider implements GenerationProvider {
   private readonly origin: string;
   private readonly apiKey: string;
   private readonly fetcher: typeof globalThis.fetch;
   private readonly submitTimeoutMs: number;
   private readonly pollTimeoutMs: number;
 
-  constructor(private readonly options: KachangGenerationProviderOptions) {
+  constructor(private readonly options: WeftcanvasGenerationProviderOptions) {
     const base = new URL(options.baseUrl);
-    if (base.username || base.password) throw new Error("Generation API URL cannot contain credentials");
-    const localHttp = options.allowInsecureHttp && base.protocol === "http:" && ["127.0.0.1", "localhost", "::1"].includes(base.hostname);
-    if (base.protocol !== "https:" && !localHttp) throw new Error("Generation API URL must use HTTPS");
+    if (base.username || base.password)
+      throw new Error("Generation API URL cannot contain credentials");
+    const localHttp =
+      options.allowInsecureHttp &&
+      base.protocol === "http:" &&
+      ["127.0.0.1", "localhost", "::1"].includes(base.hostname);
+    if (base.protocol !== "https:" && !localHttp)
+      throw new Error("Generation API URL must use HTTPS");
     this.origin = base.origin;
     this.apiKey = options.apiKey.trim();
     if (!this.apiKey) throw new Error("Generation API key is required");
@@ -119,7 +184,7 @@ export class KachangGenerationProvider implements GenerationProvider {
       throw rejected("MODEL_MODALITY_UNAVAILABLE", "当前音频模型暂不支持生成");
     }
     assertExecutionRoute(request.executionRoute, request.modality);
-    const payload = await buildKachangRequestPayload(request, this.options.references);
+    const payload = await buildWeftcanvasRequestPayload(request, this.options.references);
     const asyncImage = request.modality === "image" && isAsyncImageRoute(request.executionRoute);
     const response = await this.requestJson(
       asyncImage ? "/v1/videos" : request.executionRoute.endpoint.path,
@@ -132,9 +197,16 @@ export class KachangGenerationProvider implements GenerationProvider {
     if (request.modality === "image") {
       if (!asyncImage) {
         const synchronous = imageResponseSchema.safeParse(response);
-        if (synchronous.success) return this.stage(request.jobId, parseImageResult(synchronous.data, this.origin));
+        if (synchronous.success)
+          return this.stage(request.jobId, parseImageResult(synchronous.data, this.origin));
       }
-      return this.imageState(request.jobId, response, undefined, "submit", asyncImage ? "videos" : "tasks");
+      return this.imageState(
+        request.jobId,
+        response,
+        undefined,
+        "submit",
+        asyncImage ? "videos" : "tasks",
+      );
     }
     if (request.modality === "video") {
       return this.videoState(request.jobId, response, undefined, "submit");
@@ -148,21 +220,28 @@ export class KachangGenerationProvider implements GenerationProvider {
     }
     assertExecutionRoute(request.executionRoute, request.modality);
     const imageTask = request.modality === "image" ? decodeImageTaskId(taskId) : null;
-    const path = request.modality === "image"
-      ? `/v1/${imageTask!.transport}/${encodeURIComponent(imageTask!.taskId)}`
-      : `/v1/videos/${encodeURIComponent(safeTaskId(taskId))}`;
-    const response = await this.requestJson(
-      path,
-      { method: "GET" },
-      "poll",
-    );
+    const path =
+      request.modality === "image"
+        ? `/v1/${imageTask!.transport}/${encodeURIComponent(imageTask!.taskId)}`
+        : `/v1/videos/${encodeURIComponent(safeTaskId(taskId))}`;
+    const response = await this.requestJson(path, { method: "GET" }, "poll");
     if (request.modality === "image") {
-      return this.imageState(request.jobId, response, imageTask!.taskId, "poll", imageTask!.transport);
+      return this.imageState(
+        request.jobId,
+        response,
+        imageTask!.taskId,
+        "poll",
+        imageTask!.transport,
+      );
     }
     return this.videoState(request.jobId, response, taskId, "poll");
   }
 
-  private async stage(jobId: string, result: StagedGenerationResult, taskId?: string): Promise<ProviderExecutionState> {
+  private async stage(
+    jobId: string,
+    result: StagedGenerationResult,
+    taskId?: string,
+  ): Promise<ProviderExecutionState> {
     const resultRef = await this.options.staging.write(jobId, result);
     return { kind: "output", resultRef, ...(taskId ? { taskId } : {}) };
   }
@@ -187,7 +266,8 @@ export class KachangGenerationProvider implements GenerationProvider {
       if (phase === "submit") return { kind: "queued", taskId, progress: 100 };
       throw new GenerationProviderError("VIDEO_RESULT_PENDING", "视频结果仍在准备中", "transient");
     }
-    if (status === "running") return { kind: "running", taskId, progress: normalizedProgress(response.progress) };
+    if (status === "running")
+      return { kind: "running", taskId, progress: normalizedProgress(response.progress) };
     return { kind: "queued", taskId, progress: normalizedProgress(response.progress) };
   }
 
@@ -205,7 +285,12 @@ export class KachangGenerationProvider implements GenerationProvider {
     const items = imageTaskItems(value, this.origin);
     if (items.length) return this.stage(jobId, { kind: "image", items }, taskId);
     if (status === "failed") {
-      return { kind: "failed", code: "IMAGE_GENERATION_FAILED", message: "图片生成失败", retryable: false };
+      return {
+        kind: "failed",
+        code: "IMAGE_GENERATION_FAILED",
+        message: "图片生成失败",
+        retryable: false,
+      };
     }
     if (status === "completed") {
       if (phase === "submit") return { kind: "queued", taskId, progress: 100 };
@@ -223,7 +308,8 @@ export class KachangGenerationProvider implements GenerationProvider {
     phase: "submit" | "poll",
   ) {
     const url = new URL(path, this.origin);
-    if (url.origin !== this.origin) throw new Error("Generation route escaped the configured origin");
+    if (url.origin !== this.origin)
+      throw new Error("Generation route escaped the configured origin");
     const serialized = request.body === undefined ? undefined : JSON.stringify(request.body);
     if (serialized && Buffer.byteLength(serialized) > MAX_REQUEST_BYTES) {
       throw rejected("GENERATION_REQUEST_TOO_LARGE", "参考素材过大，请减少后重试");
@@ -264,8 +350,12 @@ export class KachangGenerationProvider implements GenerationProvider {
       const upstreamMessage = sanitizedMessage || undefined;
       throw new GenerationProviderError(
         response.status === 429 ? "GENERATION_RATE_LIMITED" : "GENERATION_REQUEST_FAILED",
-        upstreamMessage
-          ?? (response.status === 429 ? "生成请求过于频繁，请稍后重试" : definitive ? "当前参数无法提交" : "生成服务暂时不可用"),
+        upstreamMessage ??
+          (response.status === 429
+            ? "生成请求过于频繁，请稍后重试"
+            : definitive
+              ? "当前参数无法提交"
+              : "生成服务暂时不可用"),
         definitive ? "rejected" : phase === "submit" ? "unknown" : "transient",
       );
     }
@@ -281,17 +371,17 @@ export class KachangGenerationProvider implements GenerationProvider {
   }
 }
 
-export async function buildKachangRequestPayload(
+export async function buildWeftcanvasRequestPayload(
   request: ProviderGenerationRequest,
   references: GenerationReferenceResolver,
 ) {
   const route = request.executionRoute;
   assertExecutionRoute(route, request.modality);
   if (request.modality === "video") {
-    return buildKachangVideoRequestPayload(request, references);
+    return buildWeftcanvasVideoRequestPayload(request, references);
   }
   if (request.modality === "image") {
-    return buildKachangImageRequestPayload(request, references);
+    return buildWeftcanvasImageRequestPayload(request, references);
   }
   const payload: Record<string, unknown> = {};
   for (const parameter of route.parameters) {
@@ -301,10 +391,12 @@ export async function buildKachangRequestPayload(
     }
     if (isMediaParameter(parameter.name)) continue;
     const value = request.parameters[parameter.name];
-    if (parameter.name === "stream" && value === true) throw rejected("STREAMING_UNAVAILABLE", "当前任务暂不支持流式生成");
+    if (parameter.name === "stream" && value === true)
+      throw rejected("STREAMING_UNAVAILABLE", "当前任务暂不支持流式生成");
     if (value !== undefined) setPath(payload, parameter.path, value);
   }
-  if (payload.model !== route.sourceModelId) throw new Error("Private model route is not fixed correctly");
+  if (payload.model !== route.sourceModelId)
+    throw new Error("Private model route is not fixed correctly");
 
   await bindImages(payload, route, request.ownerId, request.inputs.images ?? [], references);
   await bindMedia(
@@ -327,40 +419,99 @@ export async function buildKachangRequestPayload(
     [],
     references,
   );
-  await bindMedia(payload, route, request.ownerId, request.inputs.videos, "video", ["videos", "referenceVideos", "reference_videos"], ["video", "reference_video"], references);
-  await bindMedia(payload, route, request.ownerId, request.inputs.audios, "audio", ["audios", "referenceAudios", "reference_audios"], ["audio", "reference_audio"], references);
+  await bindMedia(
+    payload,
+    route,
+    request.ownerId,
+    request.inputs.videos,
+    "video",
+    ["videos", "referenceVideos", "reference_videos"],
+    ["video", "reference_video"],
+    references,
+  );
+  await bindMedia(
+    payload,
+    route,
+    request.ownerId,
+    request.inputs.audios,
+    "audio",
+    ["audios", "referenceAudios", "reference_audios"],
+    ["audio", "reference_audio"],
+    references,
+  );
   return payload;
 }
 
 const IMAGE_CORE_PARAMETER_NAMES = new Set([
-  "version", "operation", "model", "prompt", "resolution", "size", "aspect_ratio", "aspectRatio", "ratio",
-  "quality", "count", "n", "media_inputs", "options",
+  "version",
+  "operation",
+  "model",
+  "prompt",
+  "resolution",
+  "size",
+  "aspect_ratio",
+  "aspectRatio",
+  "ratio",
+  "quality",
+  "count",
+  "n",
+  "media_inputs",
+  "options",
 ]);
 
-async function buildKachangImageRequestPayload(
+async function buildWeftcanvasImageRequestPayload(
   request: ProviderGenerationRequest,
   references: GenerationReferenceResolver,
 ) {
   const route = request.executionRoute;
   const fixedModel = route.parameters.find((parameter) => parameter.name === "model")?.fixed;
-  if (fixedModel !== route.sourceModelId) throw new Error("Private model route is not fixed correctly");
+  if (fixedModel !== route.sourceModelId)
+    throw new Error("Private model route is not fixed correctly");
 
   const mediaInputs: ImageMediaInput[] = [];
-  await appendImageProtocolMedia(mediaInputs, route, request.ownerId, request.inputs.images ?? [], "reference", references);
-  await appendImageProtocolMedia(mediaInputs, route, request.ownerId, request.inputs.styleImages ?? [], "style_reference", references, "style");
-  await appendImageProtocolMedia(mediaInputs, route, request.ownerId, request.inputs.elementImages ?? [], "element_reference", references, "element");
+  await appendImageProtocolMedia(
+    mediaInputs,
+    route,
+    request.ownerId,
+    request.inputs.images ?? [],
+    "reference",
+    references,
+  );
+  await appendImageProtocolMedia(
+    mediaInputs,
+    route,
+    request.ownerId,
+    request.inputs.styleImages ?? [],
+    "style_reference",
+    references,
+    "style",
+  );
+  await appendImageProtocolMedia(
+    mediaInputs,
+    route,
+    request.ownerId,
+    request.inputs.elementImages ?? [],
+    "element_reference",
+    references,
+    "element",
+  );
 
   const options: Record<string, unknown> = {};
   for (const parameter of route.parameters) {
-    if (IMAGE_CORE_PARAMETER_NAMES.has(parameter.name) || isMediaParameter(parameter.name)) continue;
-    const value = parameter.fixed !== undefined ? parameter.fixed : request.parameters[parameter.name];
+    if (IMAGE_CORE_PARAMETER_NAMES.has(parameter.name) || isMediaParameter(parameter.name))
+      continue;
+    const value =
+      parameter.fixed !== undefined ? parameter.fixed : request.parameters[parameter.name];
     if (value !== undefined) options[parameter.name] = value;
   }
   const protocol = buildImageProtocolRequest({
     model: request.modelId,
     prompt: String(imageScalar(route, request.parameters, ["prompt"]) ?? ""),
     ...optionalImageString("resolution", imageScalar(route, request.parameters, ["resolution"])),
-    ...optionalImageString("aspectRatio", imageScalar(route, request.parameters, ["aspect_ratio", "aspectRatio", "ratio", "size"])),
+    ...optionalImageString(
+      "aspectRatio",
+      imageScalar(route, request.parameters, ["aspect_ratio", "aspectRatio", "ratio", "size"]),
+    ),
     ...optionalImageString("quality", imageScalar(route, request.parameters, ["quality"])),
     ...optionalImageNumber("count", imageScalar(route, request.parameters, ["count", "n"])),
     mediaInputs,
@@ -369,15 +520,22 @@ async function buildKachangImageRequestPayload(
 
   const projected: Record<string, unknown> = { ...protocol.options, prompt: protocol.prompt };
   assignImageScalar(projected, route, ["resolution"], protocol.resolution);
-  assignImageScalar(projected, route, ["aspect_ratio", "aspectRatio", "ratio", "size"], protocol.aspect_ratio);
+  assignImageScalar(
+    projected,
+    route,
+    ["aspect_ratio", "aspectRatio", "ratio", "size"],
+    protocol.aspect_ratio,
+  );
   assignImageScalar(projected, route, ["quality"], protocol.quality);
   assignImageScalar(projected, route, ["count", "n"], protocol.count);
   const payload: Record<string, unknown> = {};
   for (const parameter of route.parameters) {
     if (parameter.fixed !== undefined) setPath(payload, parameter.path, parameter.fixed);
-    else if (!isMediaParameter(parameter.name) && projected[parameter.name] !== undefined) setPath(payload, parameter.path, projected[parameter.name]);
+    else if (!isMediaParameter(parameter.name) && projected[parameter.name] !== undefined)
+      setPath(payload, parameter.path, projected[parameter.name]);
   }
-  if (payload.model !== route.sourceModelId) throw new Error("Private model route is not fixed correctly");
+  if (payload.model !== route.sourceModelId)
+    throw new Error("Private model route is not fixed correctly");
   bindImageProtocolUrls(payload, route, protocol.media_inputs ?? []);
   return payload;
 }
@@ -392,29 +550,55 @@ async function appendImageProtocolMedia(
   position?: "style" | "element",
 ) {
   if (!mediaIds.length) return;
-  const aliases = position === "style"
-    ? ["style_references", "styleImages", "style_images"]
-    : position === "element"
-      ? ["element_references", "elementImages", "element_images"]
-      : ["images", "image_urls", "referenceImages", "reference_images", "image", "reference_image"];
-  const parameter = findMediaParameter(route, aliases, "array") ?? findMediaParameter(route, aliases, "string");
+  const aliases =
+    position === "style"
+      ? ["style_references", "styleImages", "style_images"]
+      : position === "element"
+        ? ["element_references", "elementImages", "element_images"]
+        : [
+            "images",
+            "image_urls",
+            "referenceImages",
+            "reference_images",
+            "image",
+            "reference_image",
+          ];
+  const parameter =
+    findMediaParameter(route, aliases, "array") ?? findMediaParameter(route, aliases, "string");
   if (!parameter) throw rejected("TOO_MANY_REFERENCES", "当前模型不支持参考图");
-  if (parameter.type !== "array" && mediaIds.length > 1) throw rejected("TOO_MANY_REFERENCES", "当前模型不支持多张参考图");
+  if (parameter.type !== "array" && mediaIds.length > 1)
+    throw rejected("TOO_MANY_REFERENCES", "当前模型不支持多张参考图");
   const format = parameter.itemsFormat ?? parameter.format;
   for (const mediaId of mediaIds) {
-    target.push({ kind: "image", role, url: await resolveReference(ownerId, mediaId, "image", format, references) });
+    target.push({
+      kind: "image",
+      role,
+      url: await resolveReference(ownerId, mediaId, "image", format, references),
+    });
   }
 }
 
-function bindImageProtocolUrls(payload: Record<string, unknown>, route: PrivateModelRoute, mediaInputs: ImageMediaInput[]) {
+function bindImageProtocolUrls(
+  payload: Record<string, unknown>,
+  route: PrivateModelRoute,
+  mediaInputs: ImageMediaInput[],
+) {
   for (const role of ["reference", "style_reference", "element_reference"] as const) {
     const values = mediaInputs.filter((input) => input.role === role).map((input) => input.url);
     if (!values.length) continue;
-    const aliases = role === "style_reference"
-      ? ["style_references", "styleImages", "style_images"]
-      : role === "element_reference"
-        ? ["element_references", "elementImages", "element_images"]
-        : ["images", "image_urls", "referenceImages", "reference_images", "image", "reference_image"];
+    const aliases =
+      role === "style_reference"
+        ? ["style_references", "styleImages", "style_images"]
+        : role === "element_reference"
+          ? ["element_references", "elementImages", "element_images"]
+          : [
+              "images",
+              "image_urls",
+              "referenceImages",
+              "reference_images",
+              "image",
+              "reference_image",
+            ];
     const arrayParameter = findMediaParameter(route, aliases, "array");
     const singleParameter = findMediaParameter(route, aliases, "string");
     if (arrayParameter) {
@@ -429,7 +613,9 @@ function bindImageProtocolUrls(payload: Record<string, unknown>, route: PrivateM
 
 function imageScalar(route: PrivateModelRoute, values: Record<string, unknown>, aliases: string[]) {
   for (const alias of aliases) {
-    const parameter = route.parameters.find((candidate) => candidate.name === alias || candidate.path.split(".").at(-1) === alias);
+    const parameter = route.parameters.find(
+      (candidate) => candidate.name === alias || candidate.path.split(".").at(-1) === alias,
+    );
     if (!parameter) continue;
     if (parameter.fixed !== undefined) return parameter.fixed;
     if (values[parameter.name] !== undefined) return values[parameter.name];
@@ -441,9 +627,17 @@ function imageScalar(route: PrivateModelRoute, values: Record<string, unknown>, 
   return undefined;
 }
 
-function assignImageScalar(target: Record<string, unknown>, route: PrivateModelRoute, aliases: string[], value: unknown) {
+function assignImageScalar(
+  target: Record<string, unknown>,
+  route: PrivateModelRoute,
+  aliases: string[],
+  value: unknown,
+) {
   if (value === undefined) return;
-  const parameter = route.parameters.find((candidate) => aliases.includes(candidate.name) || aliases.includes(candidate.path.split(".").at(-1) ?? ""));
+  const parameter = route.parameters.find(
+    (candidate) =>
+      aliases.includes(candidate.name) || aliases.includes(candidate.path.split(".").at(-1) ?? ""),
+  );
   if (parameter && parameter.fixed === undefined) target[parameter.name] = value;
 }
 
@@ -457,20 +651,40 @@ function optionalImageNumber(key: "count", value: unknown) {
 }
 
 const VIDEO_CORE_PARAMETER_NAMES = new Set([
-  "version", "operation", "model", "prompt", "duration_seconds", "duration", "seconds", "resolution", "size", "aspect_ratio", "ratio",
-  "media_inputs", "options", "async", "n",
+  "version",
+  "operation",
+  "model",
+  "prompt",
+  "duration_seconds",
+  "duration",
+  "seconds",
+  "resolution",
+  "size",
+  "aspect_ratio",
+  "ratio",
+  "media_inputs",
+  "options",
+  "async",
+  "n",
 ]);
 
-async function buildKachangVideoRequestPayload(
+async function buildWeftcanvasVideoRequestPayload(
   request: ProviderGenerationRequest,
   references: GenerationReferenceResolver,
 ) {
   const route = request.executionRoute;
   const fixedModel = route.parameters.find((parameter) => parameter.name === "model")?.fixed;
-  if (fixedModel !== route.sourceModelId) throw new Error("Private model route is not fixed correctly");
+  if (fixedModel !== route.sourceModelId)
+    throw new Error("Private model route is not fixed correctly");
 
   const mediaInputs: VideoMediaInput[] = [];
-  await appendVideoImageInputs(mediaInputs, route, request.ownerId, request.inputs.images ?? [], references);
+  await appendVideoImageInputs(
+    mediaInputs,
+    route,
+    request.ownerId,
+    request.inputs.images ?? [],
+    references,
+  );
   await appendResolvedVideoMedia(
     mediaInputs,
     route,
@@ -491,8 +705,16 @@ async function buildKachangVideoRequestPayload(
     ["element_references", "elementImages", "element_images"],
     references,
   );
-  const videoParameter = findMediaParameter(route, ["videos", "referenceVideos", "reference_videos", "video", "reference_video", "input_video"]);
-  const videoRole = videoParameter?.path.split(".").at(-1) === "input_video" ? "source_video" : "reference";
+  const videoParameter = findMediaParameter(route, [
+    "videos",
+    "referenceVideos",
+    "reference_videos",
+    "video",
+    "reference_video",
+    "input_video",
+  ]);
+  const videoRole =
+    videoParameter?.path.split(".").at(-1) === "input_video" ? "source_video" : "reference";
   await appendResolvedVideoMedia(
     mediaInputs,
     route,
@@ -510,19 +732,33 @@ async function buildKachangVideoRequestPayload(
     request.inputs.audios,
     "audio",
     "audio_reference",
-    ["audios", "referenceAudios", "reference_audios", "audio", "reference_audio", "audio_reference"],
+    [
+      "audios",
+      "referenceAudios",
+      "reference_audios",
+      "audio",
+      "reference_audio",
+      "audio_reference",
+    ],
     references,
   );
 
   const options: Record<string, unknown> = {};
   for (const parameter of route.parameters) {
-    if (VIDEO_CORE_PARAMETER_NAMES.has(parameter.name) || isMediaParameter(parameter.name)) continue;
-    const value = parameter.fixed !== undefined ? parameter.fixed : request.parameters[parameter.name];
-    if (parameter.name === "stream" && value === true) throw rejected("STREAMING_UNAVAILABLE", "当前任务暂不支持流式生成");
+    if (VIDEO_CORE_PARAMETER_NAMES.has(parameter.name) || isMediaParameter(parameter.name))
+      continue;
+    const value =
+      parameter.fixed !== undefined ? parameter.fixed : request.parameters[parameter.name];
+    if (parameter.name === "stream" && value === true)
+      throw rejected("STREAMING_UNAVAILABLE", "当前任务暂不支持流式生成");
     if (value !== undefined) options[parameter.name] = value;
   }
 
-  const duration = videoScalar(route, request.parameters, ["duration_seconds", "seconds", "duration"]);
+  const duration = videoScalar(route, request.parameters, [
+    "duration_seconds",
+    "seconds",
+    "duration",
+  ]);
   const resolution = videoScalar(route, request.parameters, ["resolution", "size"]);
   const aspectRatio = videoScalar(route, request.parameters, ["aspect_ratio", "ratio"]);
   const prompt = videoScalar(route, request.parameters, ["prompt"]);
@@ -537,11 +773,7 @@ async function buildKachangVideoRequestPayload(
   });
 }
 
-function videoScalar(
-  route: PrivateModelRoute,
-  values: Record<string, unknown>,
-  names: string[],
-) {
+function videoScalar(route: PrivateModelRoute, values: Record<string, unknown>, names: string[]) {
   for (const name of names) {
     const parameter = route.parameters.find((candidate) => candidate.name === name);
     if (!parameter) continue;
@@ -560,26 +792,55 @@ async function appendVideoImageInputs(
   references: GenerationReferenceResolver,
 ) {
   if (!mediaIds.length) return;
-  const arrayParameter = findMediaParameter(route, ["images", "image_urls", "referenceImages", "reference_images"], "array");
+  const arrayParameter = findMediaParameter(
+    route,
+    ["images", "image_urls", "referenceImages", "reference_images"],
+    "array",
+  );
   if (arrayParameter) {
     const format = arrayParameter.itemsFormat ?? arrayParameter.format;
     for (const mediaId of mediaIds) {
-      target.push({ kind: "image", role: "reference", url: await resolveReference(ownerId, mediaId, "image", format, references) });
+      target.push({
+        kind: "image",
+        role: "reference",
+        url: await resolveReference(ownerId, mediaId, "image", format, references),
+      });
     }
     return;
   }
-  const firstFrame = route.parameters.find((parameter) => ["first_image", "start_frame"].includes(parameter.name));
-  const lastFrame = route.parameters.find((parameter) => ["last_image", "end_frame"].includes(parameter.name));
+  const firstFrame = route.parameters.find((parameter) =>
+    ["first_image", "start_frame"].includes(parameter.name),
+  );
+  const lastFrame = route.parameters.find((parameter) =>
+    ["last_image", "end_frame"].includes(parameter.name),
+  );
   if (!firstFrame && !lastFrame) {
-    await appendResolvedVideoMedia(target, route, ownerId, mediaIds, "image", "reference", ["image", "reference_image"], references);
+    await appendResolvedVideoMedia(
+      target,
+      route,
+      ownerId,
+      mediaIds,
+      "image",
+      "reference",
+      ["image", "reference_image"],
+      references,
+    );
     return;
   }
   if (mediaIds.length > 2) throw rejected("TOO_MANY_REFERENCES", "当前模型最多支持首尾两张参考图");
   if (firstFrame) {
-    target.push({ kind: "image", role: "first_frame", url: await resolveReference(ownerId, mediaIds[0]!, "image", firstFrame.format, references) });
+    target.push({
+      kind: "image",
+      role: "first_frame",
+      url: await resolveReference(ownerId, mediaIds[0]!, "image", firstFrame.format, references),
+    });
   }
   if (lastFrame && mediaIds[1]) {
-    target.push({ kind: "image", role: "last_frame", url: await resolveReference(ownerId, mediaIds.at(-1)!, "image", lastFrame.format, references) });
+    target.push({
+      kind: "image",
+      role: "last_frame",
+      url: await resolveReference(ownerId, mediaIds.at(-1)!, "image", lastFrame.format, references),
+    });
   }
 }
 
@@ -594,14 +855,20 @@ async function appendResolvedVideoMedia(
   references: GenerationReferenceResolver,
 ) {
   if (!mediaIds.length) return;
-  const parameter = findMediaParameter(route, aliases, "array") ?? findMediaParameter(route, aliases, "string");
-  if (!parameter) throw rejected("TOO_MANY_REFERENCES", `当前模型不支持${referenceLabel(kind)}参考`);
+  const parameter =
+    findMediaParameter(route, aliases, "array") ?? findMediaParameter(route, aliases, "string");
+  if (!parameter)
+    throw rejected("TOO_MANY_REFERENCES", `当前模型不支持${referenceLabel(kind)}参考`);
   if (parameter.type !== "array" && mediaIds.length > 1) {
     throw rejected("TOO_MANY_REFERENCES", `当前模型不支持多${referenceLabel(kind)}参考`);
   }
   const format = parameter.itemsFormat ?? parameter.format;
   for (const mediaId of mediaIds) {
-    target.push({ kind, role, url: await resolveReference(ownerId, mediaId, kind, format, references) });
+    target.push({
+      kind,
+      role,
+      url: await resolveReference(ownerId, mediaId, kind, format, references),
+    });
   }
 }
 
@@ -617,16 +884,29 @@ async function bindImages(
   const arrayParameter = findMediaParameter(route, arrayNames, "array");
   if (arrayParameter) {
     const format = arrayParameter.itemsFormat ?? arrayParameter.format;
-    const values = await Promise.all(mediaIds.map((mediaId) => resolveReference(ownerId, mediaId, "image", format, references)));
+    const values = await Promise.all(
+      mediaIds.map((mediaId) => resolveReference(ownerId, mediaId, "image", format, references)),
+    );
     setPath(payload, arrayParameter.path, values);
     return;
   }
   const firstFrame = route.parameters.find((parameter) => parameter.name === "first_image");
   const lastFrame = route.parameters.find((parameter) => parameter.name === "last_image");
   if (firstFrame || lastFrame) {
-    if (firstFrame) setPath(payload, firstFrame.path, await resolveReference(ownerId, mediaIds[0]!, "image", firstFrame.format, references));
-    if (lastFrame && mediaIds[1]) setPath(payload, lastFrame.path, await resolveReference(ownerId, mediaIds.at(-1)!, "image", lastFrame.format, references));
-    if (mediaIds.length > 2) throw rejected("TOO_MANY_REFERENCES", "当前模型最多支持首尾两张参考图");
+    if (firstFrame)
+      setPath(
+        payload,
+        firstFrame.path,
+        await resolveReference(ownerId, mediaIds[0]!, "image", firstFrame.format, references),
+      );
+    if (lastFrame && mediaIds[1])
+      setPath(
+        payload,
+        lastFrame.path,
+        await resolveReference(ownerId, mediaIds.at(-1)!, "image", lastFrame.format, references),
+      );
+    if (mediaIds.length > 2)
+      throw rejected("TOO_MANY_REFERENCES", "当前模型最多支持首尾两张参考图");
     return;
   }
   await bindMedia(
@@ -656,20 +936,35 @@ async function bindMedia(
   const arrayParameter = findMediaParameter(route, aliases, "array");
   const singleParameter = findMediaParameter(route, aliases, "string");
   if (mediaIds.length === 1 && singleParameter) {
-    setPath(payload, singleParameter.path, await resolveReference(ownerId, mediaIds[0]!, kind, singleParameter.format, references));
+    setPath(
+      payload,
+      singleParameter.path,
+      await resolveReference(ownerId, mediaIds[0]!, kind, singleParameter.format, references),
+    );
     return;
   }
-  if (!arrayParameter) throw rejected("TOO_MANY_REFERENCES", `当前模型不支持多${referenceLabel(kind)}参考`);
+  if (!arrayParameter)
+    throw rejected("TOO_MANY_REFERENCES", `当前模型不支持多${referenceLabel(kind)}参考`);
   const format = arrayParameter.itemsFormat ?? arrayParameter.format;
-  const values = await Promise.all(mediaIds.map((mediaId) => resolveReference(ownerId, mediaId, kind, format, references)));
+  const values = await Promise.all(
+    mediaIds.map((mediaId) => resolveReference(ownerId, mediaId, kind, format, references)),
+  );
   setPath(payload, arrayParameter.path, values);
 }
 
-function findMediaParameter(route: PrivateModelRoute, aliases: string[], type?: PrivateModelRoute["parameters"][number]["type"]) {
+function findMediaParameter(
+  route: PrivateModelRoute,
+  aliases: string[],
+  type?: PrivateModelRoute["parameters"][number]["type"],
+) {
   return route.parameters.find((parameter) => {
     const pathTail = parameter.path.split(".").at(-1);
     if (type && parameter.type !== type) return false;
-    return aliases.includes(parameter.name) || aliases.includes(parameter.path) || (pathTail !== undefined && aliases.includes(pathTail));
+    return (
+      aliases.includes(parameter.name) ||
+      aliases.includes(parameter.path) ||
+      (pathTail !== undefined && aliases.includes(pathTail))
+    );
   });
 }
 
@@ -681,7 +976,8 @@ async function resolveReference(
   references: GenerationReferenceResolver,
 ) {
   const value = await references.resolve({ ownerId, mediaId, kind, ...(format ? { format } : {}) });
-  if (format === "public-http-url" && !isHttpUrl(value)) throw rejected("REFERENCE_NOT_PUBLIC", "参考素材暂时无法用于当前模型");
+  if (format === "public-http-url" && !isHttpUrl(value))
+    throw rejected("REFERENCE_NOT_PUBLIC", "参考素材暂时无法用于当前模型");
   if (format === "uri-or-data-image" && !isHttpUrl(value) && !value.startsWith("data:image/")) {
     throw rejected("REFERENCE_FORMAT_INVALID", "参考图片格式不正确");
   }
@@ -697,19 +993,30 @@ function parseTextResult(value: unknown): StagedGenerationResult {
 
 function parseImageResult(value: unknown, origin: string): StagedGenerationResult {
   const response = imageResponseSchema.parse(value);
-  const items: Array<{ url?: string; b64_json?: string; revised_prompt?: string }> = "outputs" in response
-    ? (response.outputs as Array<{ content_url: string }>).map((item) => ({ url: item.content_url }))
-    : response.data;
+  const items: Array<{ url?: string; b64_json?: string; revised_prompt?: string }> =
+    "outputs" in response
+      ? (response.outputs as Array<{ content_url: string }>).map((item) => ({
+          url: item.content_url,
+        }))
+      : response.data;
   const parsedItems = items.map((item) => {
     if (item.b64_json) return base64Image(item.b64_json, item.revised_prompt);
     if (item.url?.startsWith("data:image/")) return base64Image(item.url, item.revised_prompt);
     const url = item.url ? resolveResultUrl(item.url, origin) : null;
     if (url) {
-      return { source: "url" as const, url, ...(item.revised_prompt ? { revisedPrompt: item.revised_prompt } : {}) };
+      return {
+        source: "url" as const,
+        url,
+        ...(item.revised_prompt ? { revisedPrompt: item.revised_prompt } : {}),
+      };
     }
     throw rejected("IMAGE_RESULT_INVALID", "图片生成没有返回可用结果");
   });
-  return { kind: "image", items: parsedItems, ...usageResult("usage" in response ? response.usage : undefined) };
+  return {
+    kind: "image",
+    items: parsedItems,
+    ...usageResult("usage" in response ? response.usage : undefined),
+  };
 }
 
 function base64Image(value: string, revisedPrompt?: string) {
@@ -727,22 +1034,38 @@ function usageResult(usage: z.infer<typeof usageSchema> | undefined) {
   const inputTokens = usage.input_tokens ?? usage.prompt_tokens;
   const outputTokens = usage.output_tokens ?? usage.completion_tokens;
   if (inputTokens === undefined && outputTokens === undefined) return {};
-  return { usage: { ...(inputTokens !== undefined ? { inputTokens } : {}), ...(outputTokens !== undefined ? { outputTokens } : {}) } };
+  return {
+    usage: {
+      ...(inputTokens !== undefined ? { inputTokens } : {}),
+      ...(outputTokens !== undefined ? { outputTokens } : {}),
+    },
+  };
 }
 
 function messageText(value: unknown): string {
   if (typeof value === "string") return value;
   if (!Array.isArray(value)) return "";
-  return value.map((item) => {
-    if (!item || typeof item !== "object") return "";
-    const record = item as Record<string, unknown>;
-    return typeof record.text === "string" ? record.text : "";
-  }).join("");
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") return "";
+      const record = item as Record<string, unknown>;
+      return typeof record.text === "string" ? record.text : "";
+    })
+    .join("");
 }
 
-function assertExecutionRoute(route: PrivateModelRoute, modality: ProviderGenerationRequest["modality"]) {
+function assertExecutionRoute(
+  route: PrivateModelRoute,
+  modality: ProviderGenerationRequest["modality"],
+) {
   const expected = EXPECTED_ENDPOINTS[modality as keyof typeof EXPECTED_ENDPOINTS];
-  if (!expected || route.modality !== modality || route.endpoint.method !== "POST" || !expected.has(route.endpoint.path) || route.endpoint.contentType !== "application/json") {
+  if (
+    !expected ||
+    route.modality !== modality ||
+    route.endpoint.method !== "POST" ||
+    !expected.has(route.endpoint.path) ||
+    route.endpoint.contentType !== "application/json"
+  ) {
     throw rejected("EXECUTION_ROUTE_INVALID", "当前模型执行配置无效");
   }
 }
@@ -764,13 +1087,23 @@ function decodeImageTaskId(taskId: string): { taskId: string; transport: ImageTa
 
 function setPath(target: Record<string, unknown>, path: string, value: unknown) {
   const segments = path.split(".");
-  if (!segments.length || segments.length > 8 || segments.some((segment) => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(segment) || BLOCKED_PATH_SEGMENTS.has(segment))) {
+  if (
+    !segments.length ||
+    segments.length > 8 ||
+    segments.some(
+      (segment) => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(segment) || BLOCKED_PATH_SEGMENTS.has(segment),
+    )
+  ) {
     throw new Error("Unsafe generation parameter path");
   }
   let cursor = target;
   for (const segment of segments.slice(0, -1)) {
     const current = cursor[segment];
-    if (current !== undefined && (!current || typeof current !== "object" || Array.isArray(current))) throw new Error("Conflicting generation parameter paths");
+    if (
+      current !== undefined &&
+      (!current || typeof current !== "object" || Array.isArray(current))
+    )
+      throw new Error("Conflicting generation parameter paths");
     if (current === undefined) cursor[segment] = {};
     cursor = cursor[segment] as Record<string, unknown>;
   }
@@ -801,7 +1134,8 @@ function normalizeVideoStatus(value: string | undefined) {
 function normalizeTaskStatus(value: string | undefined) {
   const status = value?.trim().toLowerCase().replace(/-/g, "_");
   if (["completed", "succeeded", "success", "done"].includes(status ?? "")) return "completed";
-  if (["failed", "failure", "error", "timeout", "cancelled", "canceled"].includes(status ?? "")) return "failed";
+  if (["failed", "failure", "error", "timeout", "cancelled", "canceled"].includes(status ?? ""))
+    return "failed";
   if (["in_progress", "processing", "running"].includes(status ?? "")) return "running";
   return "queued";
 }
@@ -849,10 +1183,22 @@ function imageTaskItems(value: unknown, origin: string) {
       if (typeof record[key] === "string") tiles.push(record[key] as string);
     }
     if (Array.isArray(record.image_urls)) {
-      for (const candidate of record.image_urls) if (typeof candidate === "string") tiles.push(candidate);
+      for (const candidate of record.image_urls)
+        if (typeof candidate === "string") tiles.push(candidate);
     }
     for (const [key, child] of Object.entries(record)) {
-      if (["grid_image_url", "url", "image_url", "output_url", "result_url", "download_url", "image_urls"].includes(key)) continue;
+      if (
+        [
+          "grid_image_url",
+          "url",
+          "image_url",
+          "output_url",
+          "result_url",
+          "download_url",
+          "image_urls",
+        ].includes(key)
+      )
+        continue;
       if (child && typeof child === "object") visit(child, depth + 1);
     }
   };
@@ -866,8 +1212,8 @@ function imageTaskItems(value: unknown, origin: string) {
 
 function videoResultUrl(value: unknown, origin: string) {
   const paths = [
-	"outputs.0.content_url",
-	"outputs.0.download_url",
+    "outputs.0.content_url",
+    "outputs.0.download_url",
     "video.url",
     "url",
     "video_url",
@@ -968,9 +1314,12 @@ function firstStringAtPaths(value: unknown, paths: readonly string[]) {
  */
 function classifyVideoFailure(upstream: { code?: string; message?: string }): string {
   const hint = `${upstream.code ?? ""} ${upstream.message ?? ""}`.toLowerCase();
-  if (/429|rate.?limit|限流|过于频繁|请求过多|try again later|retry later/.test(hint)) return "VIDEO_GENERATION_RATE_LIMITED";
-  if (/balance|insufficient|quota|credit|积分|余额|不足|已用完|已欠费/.test(hint)) return "VIDEO_GENERATION_BALANCE_EXHAUSTED";
-  if (/policy|content|moderat|审核|违规|敏感|风险|rejected|拒绝/.test(hint)) return "VIDEO_GENERATION_CONTENT_REJECTED";
+  if (/429|rate.?limit|限流|过于频繁|请求过多|try again later|retry later/.test(hint))
+    return "VIDEO_GENERATION_RATE_LIMITED";
+  if (/balance|insufficient|quota|credit|积分|余额|不足|已用完|已欠费/.test(hint))
+    return "VIDEO_GENERATION_BALANCE_EXHAUSTED";
+  if (/policy|content|moderat|审核|违规|敏感|风险|rejected|拒绝/.test(hint))
+    return "VIDEO_GENERATION_CONTENT_REJECTED";
   if (/timeout|超时|timed out|expired/.test(hint)) return "VIDEO_GENERATION_TIMED_OUT";
   return "VIDEO_GENERATION_FAILED";
 }
@@ -997,7 +1346,8 @@ function safeUpstreamMessage(text: string): string | undefined {
 
 function safeTaskId(value: string) {
   const taskId = value.trim();
-  if (!taskId || taskId.length > 256 || /[\u0000-\u001f]/.test(taskId)) throw new Error("Invalid generation task id");
+  if (!taskId || taskId.length > 256 || /[\u0000-\u001f]/.test(taskId))
+    throw new Error("Invalid generation task id");
   return taskId;
 }
 
@@ -1028,5 +1378,8 @@ async function readLimitedResponse(response: Response, maxBytes: number) {
     }
     chunks.push(value);
   }
-  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)), total).toString("utf8");
+  return Buffer.concat(
+    chunks.map((chunk) => Buffer.from(chunk)),
+    total,
+  ).toString("utf8");
 }

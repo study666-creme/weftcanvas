@@ -1,4 +1,4 @@
-import type { CanvasEditClip, CanvasNodeData } from "@kachang/contracts";
+import type { CanvasEditClip, CanvasNodeData } from "@weftcanvas/contracts";
 import {
   ChevronLeft,
   Clapperboard,
@@ -62,7 +62,8 @@ const MAX_TIMELINE_ZOOM = TIMELINE_ZOOM_STEPS[TIMELINE_ZOOM_STEPS.length - 1] ??
 function nextZoomStep(current: number, direction: 1 | -1) {
   const index = TIMELINE_ZOOM_STEPS.indexOf(current as (typeof TIMELINE_ZOOM_STEPS)[number]);
   const base = index < 0 ? TIMELINE_ZOOM_STEPS.indexOf(TIMELINE_PX_PER_SECOND) : index;
-  const next = TIMELINE_ZOOM_STEPS[Math.min(TIMELINE_ZOOM_STEPS.length - 1, Math.max(0, base + direction))];
+  const next =
+    TIMELINE_ZOOM_STEPS[Math.min(TIMELINE_ZOOM_STEPS.length - 1, Math.max(0, base + direction))];
   return next ?? TIMELINE_PX_PER_SECOND;
 }
 /** 导出画布尺寸（16:9）。 */
@@ -90,7 +91,13 @@ function drawCover(
   const scale = Math.max(canvas.width / sourceWidth, canvas.height / sourceHeight);
   const drawWidth = sourceWidth * scale;
   const drawHeight = sourceHeight * scale;
-  ctx.drawImage(source, (canvas.width - drawWidth) / 2, (canvas.height - drawHeight) / 2, drawWidth, drawHeight);
+  ctx.drawImage(
+    source,
+    (canvas.width - drawWidth) / 2,
+    (canvas.height - drawHeight) / 2,
+    drawWidth,
+    drawHeight,
+  );
 }
 
 function resolveMediaUrl(assetUrls: Readonly<Record<string, string | null>>, mediaId: string) {
@@ -144,7 +151,9 @@ export const ClipEditorHost = memo(function ClipEditorHost({
   /** AudioContext 与元素一一对应，只能在同一 context 内复用，故随编辑器常驻。 */
   const exportAudioContextRef = useRef<AudioContext | null>(null);
   const exportAudioDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(null);
-  const exportAudioSourcesRef = useRef<WeakMap<HTMLMediaElement, MediaElementAudioSourceNode>>(new WeakMap());
+  const exportAudioSourcesRef = useRef<WeakMap<HTMLMediaElement, MediaElementAudioSourceNode>>(
+    new WeakMap(),
+  );
 
   clipsRef.current = clips;
   assetUrlsRef.current = assetUrls;
@@ -155,22 +164,30 @@ export const ClipEditorHost = memo(function ClipEditorHost({
   const assets = useMemo(() => collectEditAssets(nodes, edges, nodeId), [edges, nodeId, nodes]);
   const totalMs = useMemo(() => compositionDurationMs(clips), [clips]);
 
-  const persistClips = useCallback((next: CanvasEditClip[]) => {
-    if (persistTimerRef.current !== null) window.clearTimeout(persistTimerRef.current);
-    persistTimerRef.current = window.setTimeout(() => {
-      persistTimerRef.current = null;
-      useCanvasStore.getState().updateNodeData(nodeId, { edit: { clips: next } }, false);
-    }, 420);
-  }, [nodeId]);
+  const persistClips = useCallback(
+    (next: CanvasEditClip[]) => {
+      if (persistTimerRef.current !== null) window.clearTimeout(persistTimerRef.current);
+      persistTimerRef.current = window.setTimeout(() => {
+        persistTimerRef.current = null;
+        useCanvasStore.getState().updateNodeData(nodeId, { edit: { clips: next } }, false);
+      }, 420);
+    },
+    [nodeId],
+  );
 
   const onMediaUrl = useCallback((mediaId: string, url: string | null) => {
-    setAssetUrls((previous) => previous[mediaId] === url ? previous : { ...previous, [mediaId]: url });
+    setAssetUrls((previous) =>
+      previous[mediaId] === url ? previous : { ...previous, [mediaId]: url },
+    );
   }, []);
 
-  const applyClips = useCallback((next: CanvasEditClip[], persist = true) => {
-    setClips(next);
-    if (persist) persistClips(next);
-  }, [persistClips]);
+  const applyClips = useCallback(
+    (next: CanvasEditClip[], persist = true) => {
+      setClips(next);
+      if (persist) persistClips(next);
+    },
+    [persistClips],
+  );
 
   /** 合成当前帧（预览与导出共用）。 */
   const paint = useCallback((t: number) => {
@@ -232,7 +249,9 @@ export const ClipEditorHost = memo(function ClipEditorHost({
     }
 
     // 不在时间线上的元素一律暂停，避免切段后旧素材继续出声。
-    pool?.pauseExcept([active?.clip.mediaId, activeAudio?.clip.mediaId].filter((id): id is string => Boolean(id)));
+    pool?.pauseExcept(
+      [active?.clip.mediaId, activeAudio?.clip.mediaId].filter((id): id is string => Boolean(id)),
+    );
 
     if (drawn) {
       hasFrameRef.current = true;
@@ -245,23 +264,29 @@ export const ClipEditorHost = memo(function ClipEditorHost({
     setBuffering(Boolean(active) && !drawn);
   }, []);
 
-  const renderFrame = useCallback((t: number) => {
-    timelineMsRef.current = t;
-    setTimelineMs(t);
-    paint(t);
-  }, [paint]);
+  const renderFrame = useCallback(
+    (t: number) => {
+      timelineMsRef.current = t;
+      setTimelineMs(t);
+      paint(t);
+    },
+    [paint],
+  );
 
-  const seekTo = useCallback((t: number, play = false) => {
-    const clamped = Math.max(0, Math.min(t, compositionDurationMs(clipsRef.current)));
-    if (play) {
-      playbackBaseRef.current = { startedAt: performance.now(), fromMs: clamped };
-      setPlaying(true);
-    } else {
-      setPlaying(false);
-      poolRef.current?.pauseExcept([]);
-      renderFrame(clamped);
-    }
-  }, [renderFrame]);
+  const seekTo = useCallback(
+    (t: number, play = false) => {
+      const clamped = Math.max(0, Math.min(t, compositionDurationMs(clipsRef.current)));
+      if (play) {
+        playbackBaseRef.current = { startedAt: performance.now(), fromMs: clamped };
+        setPlaying(true);
+      } else {
+        setPlaying(false);
+        poolRef.current?.pauseExcept([]);
+        renderFrame(clamped);
+      }
+    },
+    [renderFrame],
+  );
 
   useEffect(() => {
     if (!playing) return;
@@ -338,13 +363,18 @@ export const ClipEditorHost = memo(function ClipEditorHost({
   }, [totalMs, renderFrame]);
 
   // 编辑器卸载前把未落盘的合成补写回去
-  useEffect(() => () => {
-    if (persistTimerRef.current !== null) {
-      window.clearTimeout(persistTimerRef.current);
-      persistTimerRef.current = null;
-      useCanvasStore.getState().updateNodeData(nodeId, { edit: { clips: clipsRef.current } }, false);
-    }
-  }, [nodeId]);
+  useEffect(
+    () => () => {
+      if (persistTimerRef.current !== null) {
+        window.clearTimeout(persistTimerRef.current);
+        persistTimerRef.current = null;
+        useCanvasStore
+          .getState()
+          .updateNodeData(nodeId, { edit: { clips: clipsRef.current } }, false);
+      }
+    },
+    [nodeId],
+  );
 
   const togglePlay = useCallback(() => {
     if (exportingRef.current) return;
@@ -365,43 +395,58 @@ export const ClipEditorHost = memo(function ClipEditorHost({
     setPlaying(true);
   }, [renderFrame, showToast]);
 
-  const addAsset = useCallback(async (asset: EditAsset) => {
-    const url = resolveMediaUrl(assetUrlsRef.current, asset.media.id);
-    if (!url) {
-      showToast("素材仍在加载中，请稍后再试", "error");
-      return;
-    }
-    let durationMs = asset.media.durationMs ?? null;
-    if (asset.kind !== "image" && durationMs === null) {
-      durationMs = await probeMediaDuration(url, asset.kind);
-    }
-    const clip = buildClipFromAsset(asset, durationMs);
-    const next = [...clipsRef.current, clip];
-    applyClips(next);
-    seekTo(clipTimelineStart(next, clip.id));
-    showToast(`${clip.name} 已加入${clip.track === "audio" ? "音频轨" : "时间线"}`, "success");
-  }, [applyClips, seekTo, showToast]);
+  const addAsset = useCallback(
+    async (asset: EditAsset) => {
+      const url = resolveMediaUrl(assetUrlsRef.current, asset.media.id);
+      if (!url) {
+        showToast("素材仍在加载中，请稍后再试", "error");
+        return;
+      }
+      let durationMs = asset.media.durationMs ?? null;
+      if (asset.kind !== "image" && durationMs === null) {
+        durationMs = await probeMediaDuration(url, asset.kind);
+      }
+      const clip = buildClipFromAsset(asset, durationMs);
+      const next = [...clipsRef.current, clip];
+      applyClips(next);
+      seekTo(clipTimelineStart(next, clip.id));
+      showToast(`${clip.name} 已加入${clip.track === "audio" ? "音频轨" : "时间线"}`, "success");
+    },
+    [applyClips, seekTo, showToast],
+  );
 
-  const trimClip = useCallback((clipId: string, range: { inMs?: number; outMs?: number }) => {
-    const current = clipsRef.current.find((clip) => clip.id === clipId);
-    if (!current) return;
-    const nextClip = setClipRange(current, range);
-    applyClips(clipsRef.current.map((clip) => clip.id === clipId ? nextClip : clip), false);
-  }, [applyClips]);
+  const trimClip = useCallback(
+    (clipId: string, range: { inMs?: number; outMs?: number }) => {
+      const current = clipsRef.current.find((clip) => clip.id === clipId);
+      if (!current) return;
+      const nextClip = setClipRange(current, range);
+      applyClips(
+        clipsRef.current.map((clip) => (clip.id === clipId ? nextClip : clip)),
+        false,
+      );
+    },
+    [applyClips],
+  );
 
   const commitTrim = useCallback(() => {
     persistClips(clipsRef.current);
   }, [persistClips]);
 
-  const reorderClip = useCallback((clipId: string, trackIndex: number) => {
-    const next = reorderClipInTrack(clipsRef.current, clipId, trackIndex);
-    applyClips(next);
-  }, [applyClips]);
+  const reorderClip = useCallback(
+    (clipId: string, trackIndex: number) => {
+      const next = reorderClipInTrack(clipsRef.current, clipId, trackIndex);
+      applyClips(next);
+    },
+    [applyClips],
+  );
 
-  const deleteClip = useCallback((clipId: string) => {
-    applyClips(removeClip(clipsRef.current, clipId));
-    setSelectedClipId(null);
-  }, [applyClips]);
+  const deleteClip = useCallback(
+    (clipId: string) => {
+      applyClips(removeClip(clipsRef.current, clipId));
+      setSelectedClipId(null);
+    },
+    [applyClips],
+  );
 
   const clearTimeline = useCallback(async () => {
     if (!clipsRef.current.length || exportingRef.current) return;
@@ -425,7 +470,9 @@ export const ClipEditorHost = memo(function ClipEditorHost({
     if (persistTimerRef.current !== null) {
       window.clearTimeout(persistTimerRef.current);
       persistTimerRef.current = null;
-      useCanvasStore.getState().updateNodeData(nodeId, { edit: { clips: clipsRef.current } }, false);
+      useCanvasStore
+        .getState()
+        .updateNodeData(nodeId, { edit: { clips: clipsRef.current } }, false);
     }
     onClose();
   }, [nodeId, onClose, showToast]);
@@ -434,10 +481,11 @@ export const ClipEditorHost = memo(function ClipEditorHost({
     if (exporting) return;
     const onKey = (event: KeyboardEvent) => {
       const target = event.target;
-      const isTextInput = target instanceof HTMLElement
-        && target.closest("input, textarea, select, [contenteditable='true']");
-      const interactive = isTextInput
-        || (target instanceof HTMLElement && target.closest("button"));
+      const isTextInput =
+        target instanceof HTMLElement &&
+        target.closest("input, textarea, select, [contenteditable='true']");
+      const interactive =
+        isTextInput || (target instanceof HTMLElement && target.closest("button"));
       if (event.key === "Escape" && !isTextInput) {
         event.preventDefault();
         event.stopPropagation();
@@ -446,7 +494,11 @@ export const ClipEditorHost = memo(function ClipEditorHost({
         event.preventDefault();
         event.stopPropagation();
         togglePlay();
-      } else if ((event.key === "Delete" || event.key === "Backspace") && !isTextInput && selectedClipId) {
+      } else if (
+        (event.key === "Delete" || event.key === "Backspace") &&
+        !isTextInput &&
+        selectedClipId
+      ) {
         event.preventDefault();
         deleteClip(selectedClipId);
       }
@@ -458,7 +510,6 @@ export const ClipEditorHost = memo(function ClipEditorHost({
   const exportVideo = useCallback(async () => {
     if (exportingRef.current) return;
     const videoTrack = trackClips(clipsRef.current, "video");
-    const audioTrack = trackClips(clipsRef.current, "audio");
     if (!videoTrack.length) {
       showToast("先把视频或图片素材加入时间线，再导出", "error");
       return;
@@ -470,8 +521,12 @@ export const ClipEditorHost = memo(function ClipEditorHost({
       showToast("当前浏览器不支持视频导出", "error");
       return;
     }
-    const mimeType = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm", "video/mp4"]
-      .find((candidate) => MediaRecorder.isTypeSupported(candidate));
+    const mimeType = [
+      "video/webm;codecs=vp9",
+      "video/webm;codecs=vp8",
+      "video/webm",
+      "video/mp4",
+    ].find((candidate) => MediaRecorder.isTypeSupported(candidate));
     if (!mimeType) {
       showToast("当前浏览器不支持视频导出", "error");
       return;
@@ -496,7 +551,8 @@ export const ClipEditorHost = memo(function ClipEditorHost({
     let audioDestination: MediaStreamAudioDestinationNode | null = null;
     if (soundHandles.length) {
       try {
-        const context = exportAudioContextRef.current ?? (exportAudioContextRef.current = new AudioContext());
+        const context =
+          exportAudioContextRef.current ?? (exportAudioContextRef.current = new AudioContext());
         exportAudioDestinationRef.current?.disconnect();
         audioDestination = context.createMediaStreamDestination();
         exportAudioDestinationRef.current = audioDestination;
@@ -602,7 +658,7 @@ export const ClipEditorHost = memo(function ClipEditorHost({
 
   return createPortal(
     <div
-      className="kc-clip-editor-backdrop"
+      className="wc-clip-editor-backdrop"
       data-testid="clip-editor"
       onPointerDown={(event) => {
         event.stopPropagation();
@@ -610,26 +666,34 @@ export const ClipEditorHost = memo(function ClipEditorHost({
       }}
     >
       <section
-        className="kc-clip-editor"
+        className="wc-clip-editor"
         role="dialog"
         aria-modal="true"
         aria-label="剪辑工作台"
         onPointerDown={(event) => event.stopPropagation()}
       >
-        <header className="kc-clip-editor-header">
-          <div className="kc-clip-editor-title">
-            <button type="button" className="kc-clip-editor-back" aria-label="返回画布" title="返回画布" onClick={close}>
+        <header className="wc-clip-editor-header">
+          <div className="wc-clip-editor-title">
+            <button
+              type="button"
+              className="wc-clip-editor-back"
+              aria-label="返回画布"
+              title="返回画布"
+              onClick={close}
+            >
               <ChevronLeft aria-hidden="true" />
             </button>
-            <span className="kc-clip-editor-mark" aria-hidden="true"><Scissors /></span>
+            <span className="wc-clip-editor-mark" aria-hidden="true">
+              <Scissors />
+            </span>
             <strong>剪辑工作台</strong>
-            <span className="kc-clip-editor-head-meta">
+            <span className="wc-clip-editor-head-meta">
               {clips.length} 段素材 · 总时长 {formatTimecode(totalMs)}
             </span>
           </div>
-          <div className="kc-clip-editor-actions">
+          <div className="wc-clip-editor-actions">
             {exporting ? (
-              <div className="kc-clip-export-progress" role="status">
+              <div className="wc-clip-export-progress" role="status">
                 <LoaderCircle className="is-spinning" aria-hidden="true" />
                 <span>导出中 {exportProgress}%</span>
               </div>
@@ -637,26 +701,28 @@ export const ClipEditorHost = memo(function ClipEditorHost({
               <>
                 <button
                   type="button"
-                  className="kc-clip-editor-secondary"
+                  className="wc-clip-editor-secondary"
                   disabled={!clips.length}
                   onClick={() => void clearTimeline()}
                 >
-                  <Trash2 aria-hidden="true" />清空
+                  <Trash2 aria-hidden="true" />
+                  清空
                 </button>
                 <button
                   type="button"
-                  className="kc-clip-editor-primary"
+                  className="wc-clip-editor-primary"
                   data-testid="clip-export"
                   onClick={() => void exportVideo()}
                 >
-                  <Clapperboard aria-hidden="true" />导出视频
+                  <Clapperboard aria-hidden="true" />
+                  导出视频
                 </button>
               </>
             )}
           </div>
         </header>
 
-        <div className="kc-clip-editor-body">
+        <div className="wc-clip-editor-body">
           <AssetPanel
             assets={assets}
             assetUrls={assetUrls}
@@ -665,28 +731,38 @@ export const ClipEditorHost = memo(function ClipEditorHost({
             onUrl={onMediaUrl}
             onAdd={(asset) => void addAsset(asset)}
           />
-          <div className="kc-clip-editor-main">
-            <div className="kc-clip-stage">
-              <div className="kc-clip-stage-frame" data-testid="clip-stage">
-                <canvas ref={canvasRef} width={960} height={540} className="kc-clip-canvas" aria-label="剪辑预览画面" />
+          <div className="wc-clip-editor-main">
+            <div className="wc-clip-stage">
+              <div className="wc-clip-stage-frame" data-testid="clip-stage">
+                <canvas
+                  ref={canvasRef}
+                  width={960}
+                  height={540}
+                  className="wc-clip-canvas"
+                  aria-label="剪辑预览画面"
+                />
                 {!clips.length ? (
-                  <div className="kc-clip-stage-empty">
+                  <div className="wc-clip-stage-empty">
                     <Scissors aria-hidden="true" />
                     <strong>时间线还是空的</strong>
                     <span>点击左侧素材的 + 号加入时间线</span>
                   </div>
                 ) : null}
                 {buffering && clips.length ? (
-                  <div className="kc-clip-stage-buffering" role="status" data-testid="clip-buffering">
+                  <div
+                    className="wc-clip-stage-buffering"
+                    role="status"
+                    data-testid="clip-buffering"
+                  >
                     <LoaderCircle aria-hidden="true" />
                     <span>素材缓冲中</span>
                   </div>
                 ) : null}
               </div>
-              <div className="kc-clip-transport">
+              <div className="wc-clip-transport">
                 <button
                   type="button"
-                  className="kc-clip-transport-play"
+                  className="wc-clip-transport-play"
                   aria-label={playing ? "暂停" : "播放"}
                   title={playing ? "暂停" : "播放"}
                   data-testid="clip-play"
@@ -694,12 +770,12 @@ export const ClipEditorHost = memo(function ClipEditorHost({
                 >
                   {playing ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}
                 </button>
-                <span className="kc-clip-timecode" data-testid="clip-timecode">
+                <span className="wc-clip-timecode" data-testid="clip-timecode">
                   {formatTimecode(timelineMs)} / {formatTimecode(totalMs)}
                 </span>
                 <input
                   type="range"
-                  className="kc-clip-seek"
+                  className="wc-clip-seek"
                   min={0}
                   max={Math.max(totalMs, 1)}
                   step={40}
@@ -731,7 +807,7 @@ export const ClipEditorHost = memo(function ClipEditorHost({
 
         {/* 常驻媒体池：元素挂在屏幕外但仍留在渲染树里（display:none 会让
             Chrome 停止解码视频帧，drawImage 就只会拿到黑帧）。 */}
-        <div ref={mediaHostRef} className="kc-clip-media-pool" aria-hidden="true" />
+        <div ref={mediaHostRef} className="wc-clip-media-pool" aria-hidden="true" />
       </section>
     </div>,
     document.body,
@@ -758,13 +834,13 @@ function AssetPanel({
   onAdd: (asset: EditAsset) => void;
 }) {
   return (
-    <aside className="kc-clip-assets">
-      <div className="kc-clip-assets-head">
+    <aside className="wc-clip-assets">
+      <div className="wc-clip-assets-head">
         <Layers aria-hidden="true" />
         <span>素材</span>
         <small>来自链接节点</small>
       </div>
-      <div className="kc-clip-assets-list">
+      <div className="wc-clip-assets-list">
         {assets.map((asset) => (
           <AssetRow
             key={asset.media.id}
@@ -776,14 +852,14 @@ function AssetPanel({
           />
         ))}
         {assets.length === 0 ? (
-          <div className="kc-clip-assets-empty">
+          <div className="wc-clip-assets-empty">
             <Layers aria-hidden="true" />
             <strong>还没有素材</strong>
             <span>把图片、视频或音频节点连到剪辑节点左侧，素材会自动出现在这里。</span>
           </div>
         ) : null}
       </div>
-      <div className="kc-clip-assets-legend">
+      <div className="wc-clip-assets-legend">
         <span className={Object.keys(assetUrls).length ? "is-live" : ""}>
           {Object.keys(assetUrls).length} 个可用素材
         </span>
@@ -809,20 +885,28 @@ function AssetRow({
   // 跳过 IndexedDB/服务器媒体解析，URL 直接用 asset.sourceUrl。
   const streamed = typeof asset.sourceUrl === "string" && asset.sourceUrl.length > 0;
   const { url } = useMediaUrlForProject(streamed ? null : asset.media, projectId, cloudLinked);
-  const { url: thumbUrl } = useMediaThumbUrlForProject(streamed ? null : asset.media, projectId, cloudLinked);
+  const { url: thumbUrl } = useMediaThumbUrlForProject(
+    streamed ? null : asset.media,
+    projectId,
+    cloudLinked,
+  );
   const resolvedUrl = streamed ? asset.sourceUrl! : url;
   useEffect(() => {
     onUrl(asset.media.id, resolvedUrl);
   }, [asset.media.id, onUrl, resolvedUrl]);
   const displayUrl = asset.kind === "image" && !streamed ? (thumbUrl ?? url) : resolvedUrl;
   return (
-    <div className="kc-clip-asset" data-testid={`clip-asset-${asset.media.id}`}>
-      <div className={`kc-clip-asset-thumb kc-clip-asset-thumb--${asset.kind}`}>
-        {asset.kind === "image" && displayUrl ? <img src={displayUrl} alt="" draggable={false} /> : null}
-        {asset.kind === "video" && displayUrl ? <video src={displayUrl} muted playsInline preload="metadata" /> : null}
+    <div className="wc-clip-asset" data-testid={`clip-asset-${asset.media.id}`}>
+      <div className={`wc-clip-asset-thumb wc-clip-asset-thumb--${asset.kind}`}>
+        {asset.kind === "image" && displayUrl ? (
+          <img src={displayUrl} alt="" draggable={false} />
+        ) : null}
+        {asset.kind === "video" && displayUrl ? (
+          <video src={displayUrl} muted playsInline preload="metadata" />
+        ) : null}
         {asset.kind === "audio" || !displayUrl ? <Music2 aria-hidden="true" /> : null}
       </div>
-      <div className="kc-clip-asset-info">
+      <div className="wc-clip-asset-info">
         <strong title={asset.media.name}>{asset.media.name}</strong>
         <span>
           {kindLabels[asset.kind]} · {formatDurationMs(asset.media.durationMs)}
@@ -830,7 +914,7 @@ function AssetRow({
       </div>
       <button
         type="button"
-        className="kc-clip-asset-add"
+        className="wc-clip-asset-add"
         title="加入时间线"
         aria-label={`把 ${asset.media.name} 加入时间线`}
         data-testid={`clip-add-${asset.media.id}`}
@@ -889,13 +973,16 @@ function Timeline({
   const seekGestureRef = useRef<{ pointerId: number } | null>(null);
   const zoomAnchorRef = useRef<{ timeMs: number; offsetX: number } | null>(null);
 
-  const seekFromPointer = useCallback((clientX: number) => {
-    const scroll = scrollRef.current;
-    if (!scroll) return;
-    const rect = scroll.getBoundingClientRect();
-    const x = clientX - rect.left + scroll.scrollLeft;
-    onSeek(Math.max(0, Math.round((x / pxPerSecond) * 1000)));
-  }, [onSeek, pxPerSecond]);
+  const seekFromPointer = useCallback(
+    (clientX: number) => {
+      const scroll = scrollRef.current;
+      if (!scroll) return;
+      const rect = scroll.getBoundingClientRect();
+      const x = clientX - rect.left + scroll.scrollLeft;
+      onSeek(Math.max(0, Math.round((x / pxPerSecond) * 1000)));
+    },
+    [onSeek, pxPerSecond],
+  );
 
   const beginSeek = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || exporting) return;
@@ -920,24 +1007,36 @@ function Timeline({
   };
 
   /** 以指针（或视口中心）为锚点切换缩放档位，缩放后该处的时间点保持不动。 */
-  const applyZoom = useCallback((next: number, anchorClientX?: number) => {
-    const scroll = scrollRef.current;
-    if (!scroll || next === pxPerSecond) return;
-    const rect = scroll.getBoundingClientRect();
-    const offsetX = anchorClientX === undefined ? rect.width / 2 : Math.max(0, anchorClientX - rect.left);
-    zoomAnchorRef.current = { timeMs: ((offsetX + scroll.scrollLeft) / pxPerSecond) * 1000, offsetX };
-    onZoomChange(next);
-  }, [onZoomChange, pxPerSecond]);
+  const applyZoom = useCallback(
+    (next: number, anchorClientX?: number) => {
+      const scroll = scrollRef.current;
+      if (!scroll || next === pxPerSecond) return;
+      const rect = scroll.getBoundingClientRect();
+      const offsetX =
+        anchorClientX === undefined ? rect.width / 2 : Math.max(0, anchorClientX - rect.left);
+      zoomAnchorRef.current = {
+        timeMs: ((offsetX + scroll.scrollLeft) / pxPerSecond) * 1000,
+        offsetX,
+      };
+      onZoomChange(next);
+    },
+    [onZoomChange, pxPerSecond],
+  );
 
-  const stepZoom = useCallback((direction: 1 | -1) => {
-    applyZoom(nextZoomStep(pxPerSecond, direction));
-  }, [applyZoom, pxPerSecond]);
+  const stepZoom = useCallback(
+    (direction: 1 | -1) => {
+      applyZoom(nextZoomStep(pxPerSecond, direction));
+    },
+    [applyZoom, pxPerSecond],
+  );
 
   const fitZoom = useCallback(() => {
     const scroll = scrollRef.current;
     const seconds = Math.max(1, compositionDurationMs(clips) / 1000);
     const available = (scroll?.clientWidth ?? 960) - 24;
-    const target = [...TIMELINE_ZOOM_STEPS].reverse().find((step) => step * seconds <= available) ?? MIN_TIMELINE_ZOOM;
+    const target =
+      [...TIMELINE_ZOOM_STEPS].reverse().find((step) => step * seconds <= available) ??
+      MIN_TIMELINE_ZOOM;
     applyZoom(target);
   }, [applyZoom, clips]);
 
@@ -970,12 +1069,12 @@ function Timeline({
   const scalePercent = Math.round((pxPerSecond / TIMELINE_PX_PER_SECOND) * 100);
 
   return (
-    <div className="kc-clip-timeline" data-testid="clip-timeline">
-      <div className="kc-clip-timeline-head">
+    <div className="wc-clip-timeline" data-testid="clip-timeline">
+      <div className="wc-clip-timeline-head">
         <span>时间线</span>
         <small>{formatTimecode(total)}</small>
         <em>拖动标尺定位 · 拖动片段排序 · 拖动边缘裁剪 · Ctrl+滚轮缩放</em>
-        <div className="kc-clip-zoom" role="group" aria-label="时间线缩放">
+        <div className="wc-clip-zoom" role="group" aria-label="时间线缩放">
           <button
             type="button"
             aria-label="缩小时间线"
@@ -985,7 +1084,9 @@ function Timeline({
           >
             <Minus aria-hidden="true" />
           </button>
-          <span className="kc-clip-zoom-value" data-testid="clip-zoom-value">{scalePercent}%</span>
+          <span className="wc-clip-zoom-value" data-testid="clip-zoom-value">
+            {scalePercent}%
+          </span>
           <button
             type="button"
             aria-label="放大时间线"
@@ -995,18 +1096,20 @@ function Timeline({
           >
             <Plus aria-hidden="true" />
           </button>
-          <button type="button" className="kc-clip-zoom-fit" onClick={fitZoom}>适应</button>
+          <button type="button" className="wc-clip-zoom-fit" onClick={fitZoom}>
+            适应
+          </button>
         </div>
       </div>
-      <div className="kc-clip-timeline-scroll" ref={scrollRef}>
+      <div className="wc-clip-timeline-scroll" ref={scrollRef}>
         <div
-          className="kc-clip-timeline-content"
-          style={{ width: contentWidth, "--kc-clip-ppx": `${pxPerSecond}px` } as CSSProperties}
+          className="wc-clip-timeline-content"
+          style={{ width: contentWidth, "--wc-clip-ppx": `${pxPerSecond}px` } as CSSProperties}
         >
-          <div className="kc-clip-ruler-zone" onPointerDown={beginSeek}>
+          <div className="wc-clip-ruler-zone" onPointerDown={beginSeek}>
             <TimelineRuler totalMs={total} pxPerSecond={pxPerSecond} />
           </div>
-          <div className="kc-clip-timeline-lanes">
+          <div className="wc-clip-timeline-lanes">
             <TrackLane
               label="视频轨"
               trackKind="video"
@@ -1036,8 +1139,12 @@ function Timeline({
               onDelete={onDelete}
             />
           </div>
-          <div className="kc-clip-playhead" style={{ transform: `translateX(${playheadX}px)` }} aria-hidden="true">
-            <span className="kc-clip-playhead-cap" />
+          <div
+            className="wc-clip-playhead"
+            style={{ transform: `translateX(${playheadX}px)` }}
+            aria-hidden="true"
+          >
+            <span className="wc-clip-playhead-cap" />
           </div>
         </div>
       </div>
@@ -1053,11 +1160,11 @@ function TimelineRuler({ totalMs, pxPerSecond }: { totalMs: number; pxPerSecond:
   const ticks: number[] = [];
   for (let second = 0; second <= seconds; second += tickStep) ticks.push(second);
   return (
-    <div className="kc-clip-ruler" data-testid="clip-ruler">
+    <div className="wc-clip-ruler" data-testid="clip-ruler">
       {ticks.map((second) => (
         <span
           key={second}
-          className={`kc-clip-ruler-tick ${second % labelStep === 0 ? "is-major" : ""}`}
+          className={`wc-clip-ruler-tick ${second % labelStep === 0 ? "is-major" : ""}`}
           style={{ left: second * pxPerSecond }}
         >
           {second % labelStep === 0 ? <em>{formatTimecode(second * 1000)}</em> : null}
@@ -1095,10 +1202,12 @@ function TrackLane({
   onDelete: (clipId: string) => void;
 }) {
   return (
-    <div className={`kc-clip-lane kc-clip-lane--${trackKind}`}>
-      <span className="kc-clip-lane-label">{label}</span>
-      <div className="kc-clip-lane-clips">
-        {track.length === 0 ? <span className="kc-clip-lane-empty">点击左侧素材的 + 加入</span> : null}
+    <div className={`wc-clip-lane wc-clip-lane--${trackKind}`}>
+      <span className="wc-clip-lane-label">{label}</span>
+      <div className="wc-clip-lane-clips">
+        {track.length === 0 ? (
+          <span className="wc-clip-lane-empty">点击左侧素材的 + 加入</span>
+        ) : null}
         {track.map((clip, index) => (
           <ClipBlock
             key={clip.id}
@@ -1164,73 +1273,79 @@ function ClipBlock({
   const widthPx = Math.max(28, (durationMs / 1000) * pxPerSecond);
   const leftPx = (startMs / 1000) * pxPerSecond;
 
-  const beginGesture = (mode: "move" | "trim-left" | "trim-right") => (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0 || exporting) return;
-    event.preventDefault();
-    event.stopPropagation();
-    onSelect(clip.id);
-    gestureRef.current = {
-      pointerId: event.pointerId,
-      mode,
-      originX: event.clientX,
-      originClientX: event.clientX,
-      moved: false,
-      originRange: { inMs: clip.inMs, outMs: clip.outMs },
-      originLeftContent: leftPx,
-    };
-    if (mode === "move") blockRef.current?.classList.add("is-dragging");
-    else blockRef.current?.classList.add("is-trimming");
+  const beginGesture =
+    (mode: "move" | "trim-left" | "trim-right") => (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0 || exporting) return;
+      event.preventDefault();
+      event.stopPropagation();
+      onSelect(clip.id);
+      gestureRef.current = {
+        pointerId: event.pointerId,
+        mode,
+        originX: event.clientX,
+        originClientX: event.clientX,
+        moved: false,
+        originRange: { inMs: clip.inMs, outMs: clip.outMs },
+        originLeftContent: leftPx,
+      };
+      if (mode === "move") blockRef.current?.classList.add("is-dragging");
+      else blockRef.current?.classList.add("is-trimming");
 
-    const handleMove = (next: globalThis.PointerEvent) => {
-      const gesture = gestureRef.current;
-      if (!gesture || gesture.pointerId !== next.pointerId) return;
-      const deltaX = next.clientX - gesture.originX;
-      if (Math.abs(deltaX) > 3) gesture.moved = true;
-      if (gesture.mode === "trim-left") {
-        onTrim(clip.id, { inMs: gesture.originRange.inMs + Math.round((deltaX / pxPerSecond) * 1000) });
-      } else if (gesture.mode === "trim-right") {
-        onTrim(clip.id, { outMs: gesture.originRange.outMs + Math.round((deltaX / pxPerSecond) * 1000) });
-      } else if (blockRef.current) {
-        blockRef.current.style.setProperty("--kc-clip-shift", `${deltaX}px`);
-      }
-    };
-    const handleFinish = (next: globalThis.PointerEvent) => {
-      const gesture = gestureRef.current;
-      if (!gesture || gesture.pointerId !== next.pointerId) return;
-      gestureRef.current = null;
-      blockRef.current?.classList.remove("is-dragging");
-      blockRef.current?.classList.remove("is-trimming");
-      blockRef.current?.style.removeProperty("--kc-clip-shift");
-      window.removeEventListener("pointermove", handleMove);
-      window.removeEventListener("pointerup", handleFinish);
-      window.removeEventListener("pointercancel", handleFinish);
-
-      if (gesture.mode === "move" && gesture.moved) {
-        // 指针内容坐标 = 片段原始左缘（内容坐标）+ 指针位移
-        const pointerContentX = gesture.originLeftContent + (next.clientX - gesture.originClientX);
-        let targetIndex = 0;
-        for (let cursor = 0; cursor < track.length; cursor += 1) {
-          const candidate = track[cursor]!;
-          if (candidate.id === clip.id) continue;
-          const candidateStart = clipStartMs(track, cursor);
-          const centerX = ((candidateStart + clipDurationMs(candidate) / 2) / 1000) * pxPerSecond;
-          if (pointerContentX > centerX) targetIndex = cursor + 1;
+      const handleMove = (next: globalThis.PointerEvent) => {
+        const gesture = gestureRef.current;
+        if (!gesture || gesture.pointerId !== next.pointerId) return;
+        const deltaX = next.clientX - gesture.originX;
+        if (Math.abs(deltaX) > 3) gesture.moved = true;
+        if (gesture.mode === "trim-left") {
+          onTrim(clip.id, {
+            inMs: gesture.originRange.inMs + Math.round((deltaX / pxPerSecond) * 1000),
+          });
+        } else if (gesture.mode === "trim-right") {
+          onTrim(clip.id, {
+            outMs: gesture.originRange.outMs + Math.round((deltaX / pxPerSecond) * 1000),
+          });
+        } else if (blockRef.current) {
+          blockRef.current.style.setProperty("--wc-clip-shift", `${deltaX}px`);
         }
-        onReorder(clip.id, targetIndex);
-      } else if (gesture.mode !== "move" && gesture.moved) {
-        onCommitTrim();
-      }
+      };
+      const handleFinish = (next: globalThis.PointerEvent) => {
+        const gesture = gestureRef.current;
+        if (!gesture || gesture.pointerId !== next.pointerId) return;
+        gestureRef.current = null;
+        blockRef.current?.classList.remove("is-dragging");
+        blockRef.current?.classList.remove("is-trimming");
+        blockRef.current?.style.removeProperty("--wc-clip-shift");
+        window.removeEventListener("pointermove", handleMove);
+        window.removeEventListener("pointerup", handleFinish);
+        window.removeEventListener("pointercancel", handleFinish);
+
+        if (gesture.mode === "move" && gesture.moved) {
+          // 指针内容坐标 = 片段原始左缘（内容坐标）+ 指针位移
+          const pointerContentX =
+            gesture.originLeftContent + (next.clientX - gesture.originClientX);
+          let targetIndex = 0;
+          for (let cursor = 0; cursor < track.length; cursor += 1) {
+            const candidate = track[cursor]!;
+            if (candidate.id === clip.id) continue;
+            const candidateStart = clipStartMs(track, cursor);
+            const centerX = ((candidateStart + clipDurationMs(candidate) / 2) / 1000) * pxPerSecond;
+            if (pointerContentX > centerX) targetIndex = cursor + 1;
+          }
+          onReorder(clip.id, targetIndex);
+        } else if (gesture.mode !== "move" && gesture.moved) {
+          onCommitTrim();
+        }
+      };
+      window.addEventListener("pointermove", handleMove);
+      window.addEventListener("pointerup", handleFinish);
+      window.addEventListener("pointercancel", handleFinish);
     };
-    window.addEventListener("pointermove", handleMove);
-    window.addEventListener("pointerup", handleFinish);
-    window.addEventListener("pointercancel", handleFinish);
-  };
 
   return (
     <div
       ref={blockRef}
-      className={`kc-clip kc-clip--${clip.kind} ${selected ? "is-selected" : ""}`}
-      style={{ left: leftPx, width: widthPx, "--kc-clip-shift": "0px" } as CSSProperties}
+      className={`wc-clip wc-clip--${clip.kind} ${selected ? "is-selected" : ""}`}
+      style={{ left: leftPx, width: widthPx, "--wc-clip-shift": "0px" } as CSSProperties}
       data-clip-id={clip.id}
       data-testid={`timeline-clip-${clip.id}`}
       onPointerDown={beginGesture("move")}
@@ -1244,7 +1359,7 @@ function ClipBlock({
       ) : null}
       <button
         type="button"
-        className="kc-clip-remove"
+        className="wc-clip-remove"
         aria-label={`删除 ${clip.name}`}
         title="删除片段"
         data-testid={`clip-delete-${clip.id}`}
@@ -1255,13 +1370,19 @@ function ClipBlock({
       >
         <X aria-hidden="true" />
       </button>
-      <div className="kc-clip-caption">
-        <span className={`kc-clip-kind kc-clip-kind--${clip.kind}`}>{kindLabels[clip.kind]}</span>
+      <div className="wc-clip-caption">
+        <span className={`wc-clip-kind wc-clip-kind--${clip.kind}`}>{kindLabels[clip.kind]}</span>
         <strong title={clip.name}>{clip.name}</strong>
       </div>
-      <div className="kc-clip-duration">{formatTimecode(durationMs)}</div>
-      <div className={`kc-clip-trim kc-clip-trim--left ${selected ? "is-visible" : ""}`} onPointerDown={beginGesture("trim-left")} />
-      <div className={`kc-clip-trim kc-clip-trim--right ${selected ? "is-visible" : ""}`} onPointerDown={beginGesture("trim-right")} />
+      <div className="wc-clip-duration">{formatTimecode(durationMs)}</div>
+      <div
+        className={`wc-clip-trim wc-clip-trim--left ${selected ? "is-visible" : ""}`}
+        onPointerDown={beginGesture("trim-left")}
+      />
+      <div
+        className={`wc-clip-trim wc-clip-trim--right ${selected ? "is-visible" : ""}`}
+        onPointerDown={beginGesture("trim-right")}
+      />
     </div>
   );
 }
@@ -1270,7 +1391,15 @@ function ClipBlock({
  * 音频切片的波峰层：8kHz 峰值桶按片段裁剪区间映射到切片宽度。
  * 峰值未就绪/解码失败时不渲染（退回纯色块），绝不阻塞时间线交互。
  */
-function ClipWaveform({ clip, url, widthPx }: { clip: CanvasEditClip; url: string | null; widthPx: number }) {
+function ClipWaveform({
+  clip,
+  url,
+  widthPx,
+}: {
+  clip: CanvasEditClip;
+  url: string | null;
+  widthPx: number;
+}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [peaks, setPeaks] = useState<AudioPeaks | null>(() => readCachedAudioPeaks(clip.mediaId));
 
@@ -1303,7 +1432,10 @@ function ClipWaveform({ clip, url, widthPx }: { clip: CanvasEditClip; url: strin
     ctx.fillStyle = "rgb(12 14 13 / 0.32)";
     const buckets = peaks.mins.length;
     const from = Math.floor((clip.inMs / peaks.durationMs) * buckets);
-    const to = Math.min(buckets, Math.max(from + 1, Math.ceil((clip.outMs / peaks.durationMs) * buckets)));
+    const to = Math.min(
+      buckets,
+      Math.max(from + 1, Math.ceil((clip.outMs / peaks.durationMs) * buckets)),
+    );
     const bars = Math.max(6, Math.floor(width / 2.5));
     const barWidth = width / bars;
     const mid = canvas.height / 2;
@@ -1318,5 +1450,5 @@ function ClipWaveform({ clip, url, widthPx }: { clip: CanvasEditClip; url: strin
   }, [peaks, clip.inMs, clip.outMs, widthPx]);
 
   if (!url) return null;
-  return <canvas ref={canvasRef} className="kc-clip-wave" aria-hidden="true" />;
+  return <canvas ref={canvasRef} className="wc-clip-wave" aria-hidden="true" />;
 }

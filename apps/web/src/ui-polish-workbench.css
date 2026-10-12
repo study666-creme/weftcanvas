@@ -1,0 +1,141 @@
+.wc-face-grid-range input[type="range"],
+.wc-director-range input[type="range"] {
+  width: 100%;
+  height: 18px;
+  margin: 0;
+  appearance: none;
+  outline: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.wc-face-grid-range input[type="range"]::-webkit-slider-runnable-track,
+.wc-director-range input[type="range"]::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--wc-accent) 74%, var(--wc-text-secondary)) 0
+      var(--wc-range-progress, 50%),
+    color-mix(in srgb, var(--wc-border-strong) 64%, transparent) var(--wc-range-progress, 50%) 100%
+  );
+  box-shadow: inset 0 1px 1px rgb(0 0 0 / 28%);
+}
+
+.wc-face-grid-range input[type="range"]::-webkit-slider-thumb,
+.wc-director-range input[type="range"]::-webkit-slider-thumb {
+  width: 13px;
+  height: 13px;
+  margin-top: -5px;
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--wc-text-secondary) 76%, var(--wc-border-strong));
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--wc-surface-raised) 84%, var(--wc-text-secondary));
+  box-shadow:
+    0 1px 4px rgb(0 0 0 / 46%),
+    inset 0 1px 0 color-mix(in srgb, var(--wc-text) 22%, transparent);
+}
+
+.wc-face-grid-range input[type="range"]::-moz-range-track,
+.wc-director-range input[type="range"]::-moz-range-track {
+  height: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--wc-border-strong) 64%, transparent);
+}
+
+.wc-face-grid-range input[type="range"]::-moz-range-progress,
+.wc-director-range input[type="range"]::-moz-range-progress {
+  height: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--wc-accent) 74%, var(--wc-text-secondary));
+}
+
+.wc-face-grid-range input[type="range"]::-moz-range-thumb,
+.wc-director-range input[type="range"]::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border: 1px solid color-mix(in srgb, var(--wc-text-secondary) 76%, var(--wc-border-strong));
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--wc-surface-raised) 84%, var(--wc-text-secondary));
+  box-shadow: 0 1px 4px rgb(0 0 0 / 46%);
+}
+
+.wc-face-grid-range input[type="range"]:focus-visible::-webkit-slider-thumb,
+.wc-director-range input[type="range"]:focus-visible::-webkit-slider-thumb {
+  border-color: var(--wc-accent);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--wc-accent) 18%, transparent),
+    0 1px 4px rgb(0 0 0 / 46%);
+}
+
+.wc-director-range input[type="number"] {
+  appearance: textfield;
+}
+
+.wc-director-range input[type="number"]::-webkit-inner-spin-button,
+.wc-director-range input[type="number"]::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+/* A compatible connection is a positive action, never a node-accent/error color. */
+.react-flow__node-weftcanvas.is-connection-drop-target .wc-node-surface,
+.react-flow__node-weftcanvas.is-connection-drop-success .wc-node-surface {
+  outline-color: color-mix(in srgb, var(--wc-success) 76%, var(--wc-text));
+}
+
+.wc-empty-canvas-hint > strong {
+  color: var(--wc-text);
+  font-size: 14px;
+  font-weight: 620;
+  letter-spacing: 0;
+}
+
+.wc-empty-canvas-hint > p {
+  margin: 0;
+  max-width: 368px;
+  color: var(--wc-text-tertiary);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.wc-empty-canvas-hint-steps {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.wc-empty-canvas-hint-steps span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--wc-text-tertiary);
+  font-size: 11.5px;
+  font-weight: 550;
+  white-space: nowrap;
+}
+
+.wc-empty-canvas-hint-steps svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 1.8;
+}
+
+.wc-empty-canvas-hint-steps i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--wc-border-strong);
+}
+
+/* --- 插件节点体错误占位（PluginBodyBoundary）--- */
+.wc-plugin-body-error {
+  margin: 8px 10px;
+  padding: 6px 10px;
+  border: 1px dashed color-mix(in srgb, var(--wc-coral, #e0806b) 45%, transparent);
+  border-radius: 8px;
+  color: var(--wc-text-muted, inherit);
+  font-size: 11px;
+  opacity: 0.75;
+}

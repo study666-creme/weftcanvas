@@ -25,14 +25,16 @@ const entitlements = {
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
-    if (sessionStorage.getItem("kachang-cloud-quota-e2e-seeded")) return;
+    if (sessionStorage.getItem("weftcanvas-cloud-quota-e2e-seeded")) return;
     localStorage.clear();
-    sessionStorage.setItem("kachang-cloud-quota-e2e-seeded", "1");
+    sessionStorage.setItem("weftcanvas-cloud-quota-e2e-seeded", "1");
   });
   await mockAuthenticatedShell(page);
 });
 
-test("quota exhaustion keeps edits local and requires an explicit retry", async ({ page }, testInfo) => {
+test("quota exhaustion keeps edits local and requires an explicit retry", async ({
+  page,
+}, testInfo) => {
   let createCalls = 0;
   await page.route("**/api/v1/cloud-projects**", async (route) => {
     const request = route.request();
@@ -83,7 +85,9 @@ test("quota exhaustion keeps edits local and requires an explicit retry", async 
   await expect(sidebar).toContainText("项目 3/3");
   await sidebar.getByRole("button", { name: "保存到云端" }).click();
 
-  const localOnly = sidebar.getByRole("button", { name: /云空间已满，当前内容仍保存在本地，点击重试/ });
+  const localOnly = sidebar.getByRole("button", {
+    name: /云空间已满，当前内容仍保存在本地，点击重试/,
+  });
   await expect(localOnly).toBeVisible();
   expect(createCalls).toBe(1);
 
@@ -98,7 +102,9 @@ test("quota exhaustion keeps edits local and requires an explicit retry", async 
   await page.reload();
   await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
   sidebar = await openProjectLibrary(page);
-  await expect(sidebar.getByRole("button", { name: /云空间已满，当前内容仍保存在本地，点击重试/ })).toBeVisible();
+  await expect(
+    sidebar.getByRole("button", { name: /云空间已满，当前内容仍保存在本地，点击重试/ }),
+  ).toBeVisible();
   await sidebar.getByLabel("关闭项目栏").click();
   const reloadedProjectName = page.getByLabel("项目名称");
   await reloadedProjectName.fill("刷新后继续本地编辑");
@@ -140,7 +146,9 @@ test("quota exhaustion keeps edits local and requires an explicit retry", async 
   expect(buttonBox!.x + buttonBox!.width).toBeLessThanOrEqual(sidebarBox!.x + sidebarBox!.width);
 });
 
-test("collaboration shows the free five-person account limit without a paid seat entry", async ({ page }, testInfo) => {
+test("collaboration shows the free five-person account limit without a paid seat entry", async ({
+  page,
+}, testInfo) => {
   let projectId = "";
   let productReads = 0;
   await page.route("**/api/v1/wallet/products", (route) => {
@@ -148,19 +156,23 @@ test("collaboration shows the free five-person account limit without a paid seat
     return route.fulfill({
       json: {
         ok: true,
-        data: [{
-          kind: "collaboration_seat",
-          id: "canvas-collaboration-seat-1",
-          amount: 15,
-          seats: 1,
-        }],
+        data: [
+          {
+            kind: "collaboration_seat",
+            id: "canvas-collaboration-seat-1",
+            amount: 15,
+            seats: 1,
+          },
+        ],
         customCreditTopUp: null,
       },
     });
   });
-  await page.route("**/api/v1/wallet/ledger**", (route) => route.fulfill({
-    json: { ok: true, data: { items: [] } },
-  }));
+  await page.route("**/api/v1/wallet/ledger**", (route) =>
+    route.fulfill({
+      json: { ok: true, data: { items: [] } },
+    }),
+  );
   await page.route("**/api/v1/cloud-projects**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -187,7 +199,12 @@ test("collaboration shows the free five-person account limit without a paid seat
           data: {
             members: [
               { projectId, principalId: USER_ID, role: "owner", createdAt: NOW },
-              { projectId, principalId: "22222222-2222-4222-8222-222222222222", role: "member", createdAt: NOW },
+              {
+                projectId,
+                principalId: "22222222-2222-4222-8222-222222222222",
+                role: "member",
+                createdAt: NOW,
+              },
             ],
             invitations: [],
             seatUsage: { limit: 4, used: 4 },
@@ -195,7 +212,11 @@ test("collaboration shows the free five-person account limit without a paid seat
         },
       });
     }
-    if (projectId && path === `/api/v1/cloud-projects/${projectId}/members/invitations` && request.method() === "POST") {
+    if (
+      projectId &&
+      path === `/api/v1/cloud-projects/${projectId}/members/invitations` &&
+      request.method() === "POST"
+    ) {
       return route.fulfill({
         status: 403,
         json: {
@@ -209,23 +230,31 @@ test("collaboration shows the free five-person account limit without a paid seat
     }
     return route.fallback();
   });
-  await page.route("**/api/v1/cloud-project-invitations", (route) => route.fulfill({
-    json: { ok: true, data: { invitations: [] } },
-  }));
+  await page.route("**/api/v1/cloud-project-invitations", (route) =>
+    route.fulfill({
+      json: { ok: true, data: { invitations: [] } },
+    }),
+  );
 
   await page.goto("/canvas");
   await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
-  projectId = await page.evaluate(() => localStorage.getItem("kachang-canvas:active-project:v1") ?? "");
+  projectId = await page.evaluate(() => localStorage.getItem("weftcanvas:active-project:v1") ?? "");
   expect(projectId).not.toBe("");
-  await page.evaluate(({ ownerId, id }) => {
-    const key = `kachang-canvas:cloud-link:v1:${encodeURIComponent(ownerId)}:${encodeURIComponent(id)}`;
-    localStorage.setItem(key, JSON.stringify({
-      ownerId,
-      projectId: id,
-      revision: 1,
-      lastSyncedFingerprint: "a".repeat(64),
-    }));
-  }, { ownerId: USER_ID, id: projectId });
+  await page.evaluate(
+    ({ ownerId, id }) => {
+      const key = `weftcanvas:cloud-link:v1:${encodeURIComponent(ownerId)}:${encodeURIComponent(id)}`;
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          ownerId,
+          projectId: id,
+          revision: 1,
+          lastSyncedFingerprint: "a".repeat(64),
+        }),
+      );
+    },
+    { ownerId: USER_ID, id: projectId },
+  );
   await page.reload();
 
   await page.getByLabel("项目协作").click();
@@ -254,7 +283,10 @@ test("collaboration shows the free five-person account limit without a paid seat
   await page.setViewportSize({ width: 390, height: 844 });
   const [mobileDialogBox, viewport] = await Promise.all([
     dialog.boundingBox(),
-    page.evaluate(() => ({ clientWidth: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth })),
+    page.evaluate(() => ({
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+    })),
   ]);
   expect(mobileDialogBox).not.toBeNull();
   expect(viewport.scrollWidth).toBe(viewport.clientWidth);
@@ -265,70 +297,78 @@ test("collaboration shows the free five-person account limit without a paid seat
 
 async function openProjectLibrary(page: Page) {
   await page.getByLabel("项目菜单").click();
-  const sidebar = page.locator(".kc-project-sidebar");
+  const sidebar = page.locator(".wc-project-sidebar");
   await expect(sidebar).toBeVisible();
   return sidebar;
 }
 
 async function mockAuthenticatedShell(page: Page) {
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({
-    json: { ok: true, data: session },
-  }));
-  await page.route("**/api/v1/wallet", (route) => route.fulfill({
-    json: {
-      ok: true,
-      data: {
-        credits: 100,
-        creditsPermanent: 100,
-        dailyCredits: 0,
-        creditGrantMode: null,
-        dailyCreditsNote: null,
-        membership: {
-          tier: "pro",
-          until: EXPIRES_AT,
-          active: true,
-          queuedTier: null,
-          queuedUntil: null,
-          genDiscount: null,
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      json: { ok: true, data: session },
+    }),
+  );
+  await page.route("**/api/v1/wallet", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        data: {
+          credits: 100,
+          creditsPermanent: 100,
+          dailyCredits: 0,
+          creditGrantMode: null,
+          dailyCreditsNote: null,
+          membership: {
+            tier: "pro",
+            until: EXPIRES_AT,
+            active: true,
+            queuedTier: null,
+            queuedUntil: null,
+            genDiscount: null,
+          },
+          lifetimeCreditsSpent: 0,
         },
-        lifetimeCreditsSpent: 0,
       },
-    },
-  }));
-  await page.route("**/api/v1/model-catalog**", (route) => route.fulfill({
-    json: {
-      ok: true,
-      data: {
-        version: "quota-e2e-catalog",
-        capabilityVersion: "quota-e2e-capability",
-        pricingVersion: "quota-e2e-pricing",
-        fetchedAt: NOW,
-        expiresAt: EXPIRES_AT,
-        quoteAvailable: false,
-        models: [],
+    }),
+  );
+  await page.route("**/api/v1/model-catalog**", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        data: {
+          version: "quota-e2e-catalog",
+          capabilityVersion: "quota-e2e-capability",
+          pricingVersion: "quota-e2e-pricing",
+          fetchedAt: NOW,
+          expiresAt: EXPIRES_AT,
+          quoteAvailable: false,
+          models: [],
+        },
       },
-    },
-  }));
+    }),
+  );
   await page.route("**/api/v1/generation-jobs**", emptyList);
-  await page.route("**/api/v1/membership/tasks", (route) => route.fulfill({
-    json: {
-      ok: true,
-      data: {
-        items: [],
-        lifetimeCreditsSpent: 0,
-        nextSpendMilestone: 1_000,
-        hub: {
+  await page.route("**/api/v1/membership/tasks", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        data: {
+          items: [],
+          lifetimeCreditsSpent: 0,
+          nextSpendMilestone: 1_000,
+          hub: {
+            phoneVerified: true,
+            signStreak: 0,
+            checkedInToday: true,
+            daysToStreakBonus: 7,
+            dailyBonus: { key: "daily_bonus_2099-07-21", claimed: true, ready: false },
+            memberDaily: null,
+          },
           phoneVerified: true,
-          signStreak: 0,
-          checkedInToday: true,
-          daysToStreakBonus: 7,
-          dailyBonus: { key: "daily_bonus_2099-07-21", claimed: true, ready: false },
-          memberDaily: null,
         },
-        phoneVerified: true,
       },
-    },
-  }));
+    }),
+  );
 }
 
 function emptyList(route: Route) {
@@ -339,7 +379,7 @@ function projectSummary(id: string) {
   return {
     schemaVersion: 1,
     id,
-    title: "卡藏画布 1",
+    title: "纬线画布 1",
     revision: 1,
     documentBytes: 512,
     localMediaCount: 0,

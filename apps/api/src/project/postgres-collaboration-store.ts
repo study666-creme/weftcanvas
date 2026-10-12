@@ -3,7 +3,7 @@ import {
   cloudProjectMemberRoleSchema,
   type CloudProjectInvitation,
   type CloudProjectMember,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 import type { Pool, PoolClient } from "pg";
 
 import { ensureCloudPrincipal } from "./principal.js";
@@ -142,7 +142,9 @@ export class PostgresCloudProjectCollaborationStore implements CloudProjectColla
     });
   }
 
-  async createInvitation(input: CreateCloudProjectInvitationInput): Promise<CreateCloudProjectInvitationResult> {
+  async createInvitation(
+    input: CreateCloudProjectInvitationInput,
+  ): Promise<CreateCloudProjectInvitationResult> {
     return withTransaction(this.pool, async (client) => {
       await lockOwner(client, input.ownerId);
       const memberLimit = await transactionalMemberLimit(client, input.ownerId, input.memberLimit);
@@ -177,7 +179,8 @@ export class PostgresCloudProjectCollaborationStore implements CloudProjectColla
          FOR UPDATE`,
         [input.ownerId, input.projectId, input.inviteeId],
       );
-      if (existing.rows[0]) return { kind: "duplicate", invitation: invitationRecord(existing.rows[0]) };
+      if (existing.rows[0])
+        return { kind: "duplicate", invitation: invitationRecord(existing.rows[0]) };
 
       const occupied = await client.query<{ count: number | string; already_occupies: boolean }>(
         `SELECT COUNT(*)::INTEGER AS count,
@@ -234,17 +237,25 @@ export class PostgresCloudProjectCollaborationStore implements CloudProjectColla
     });
   }
 
-  async acceptInvitation(invitationId: string, principalId: string, now: string, memberLimit: number): Promise<AcceptCloudProjectInvitationResult> {
+  async acceptInvitation(
+    invitationId: string,
+    principalId: string,
+    now: string,
+    memberLimit: number,
+  ): Promise<AcceptCloudProjectInvitationResult> {
     return withTransaction(this.pool, async (client) => {
-      const initial = await client.query<InvitationRow>(
-        `${invitationSelect()} WHERE id = $1`,
-        [invitationId],
-      );
+      const initial = await client.query<InvitationRow>(`${invitationSelect()} WHERE id = $1`, [
+        invitationId,
+      ]);
       const invitation = initial.rows[0];
       if (!invitation) return { kind: "not_found" };
       if (invitation.invitee_id !== principalId) return { kind: "not_target" };
       await lockOwner(client, invitation.owner_id);
-      const effectiveMemberLimit = await transactionalMemberLimit(client, invitation.owner_id, memberLimit);
+      const effectiveMemberLimit = await transactionalMemberLimit(
+        client,
+        invitation.owner_id,
+        memberLimit,
+      );
 
       const locked = await client.query<InvitationRow>(
         `${invitationSelect()} WHERE id = $1 FOR UPDATE`,
@@ -253,7 +264,10 @@ export class PostgresCloudProjectCollaborationStore implements CloudProjectColla
       const current = locked.rows[0];
       if (!current) return { kind: "not_found" };
       if (current.invitee_id !== principalId) return { kind: "not_target" };
-      if (current.status === "pending" && Date.parse(dateIso(current.expires_at)) <= Date.parse(now)) {
+      if (
+        current.status === "pending" &&
+        Date.parse(dateIso(current.expires_at)) <= Date.parse(now)
+      ) {
         await client.query(
           `UPDATE canvas_cloud_project_invitations SET status = 'expired' WHERE id = $1`,
           [invitationId],
@@ -290,10 +304,14 @@ export class PostgresCloudProjectCollaborationStore implements CloudProjectColla
          RETURNING owner_id, project_id, principal_id, role, created_at`,
         [current.owner_id, current.project_id, principalId, now],
       );
-      const member = inserted.rows[0] ?? (await client.query<MemberRow>(
-        `${memberSelect()} WHERE owner_id = $1 AND project_id = $2 AND principal_id = $3`,
-        [current.owner_id, current.project_id, principalId],
-      )).rows[0];
+      const member =
+        inserted.rows[0] ??
+        (
+          await client.query<MemberRow>(
+            `${memberSelect()} WHERE owner_id = $1 AND project_id = $2 AND principal_id = $3`,
+            [current.owner_id, current.project_id, principalId],
+          )
+        ).rows[0];
       if (!member) return { kind: "invalid_status" };
       await client.query(
         `UPDATE canvas_cloud_project_invitations
@@ -337,7 +355,11 @@ export class PostgresCloudProjectCollaborationStore implements CloudProjectColla
     });
   }
 
-  async removeMember(ownerId: string, projectId: string, principalId: string): Promise<RemoveCloudProjectMemberResult> {
+  async removeMember(
+    ownerId: string,
+    projectId: string,
+    principalId: string,
+  ): Promise<RemoveCloudProjectMemberResult> {
     return withTransaction(this.pool, async (client) => {
       await lockOwner(client, ownerId);
       const result = await client.query(
@@ -410,11 +432,16 @@ async function lockOwner(client: QueryClient, ownerId: string) {
   await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [ownerId]);
 }
 
-async function transactionalMemberLimit(client: QueryClient, ownerId: string, requestedLimit: number) {
+async function transactionalMemberLimit(
+  client: QueryClient,
+  ownerId: string,
+  requestedLimit: number,
+) {
   if (COLLABORATION_FREE_ACCESS_ENABLED) return FREE_COLLABORATOR_LIMIT;
-  const requested = Number.isSafeInteger(requestedLimit) && requestedLimit >= INCLUDED_COLLABORATOR_LIMIT
-    ? Math.min(requestedLimit, MAX_COLLABORATOR_LIMIT)
-    : INCLUDED_COLLABORATOR_LIMIT;
+  const requested =
+    Number.isSafeInteger(requestedLimit) && requestedLimit >= INCLUDED_COLLABORATOR_LIMIT
+      ? Math.min(requestedLimit, MAX_COLLABORATOR_LIMIT)
+      : INCLUDED_COLLABORATOR_LIMIT;
   const relation = await client.query<{ relation_name: string | null }>(
     "SELECT to_regclass('public.canvas_collaboration_seat_purchases')::text AS relation_name",
   );

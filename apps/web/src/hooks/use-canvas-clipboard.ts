@@ -2,8 +2,8 @@ import type { XYPosition } from "@xyflow/react";
 import { useEffect } from "react";
 
 import {
-  KACHANG_CANVAS_CLIPBOARD_MIME,
-  KACHANG_CANVAS_CLIPBOARD_TEXT,
+  WEFTCANVAS_CANVAS_CLIPBOARD_MIME,
+  WEFTCANVAS_CANVAS_CLIPBOARD_TEXT,
   parseCanvasClipboard,
   serializeCanvasClipboard,
 } from "../lib/canvas-clipboard";
@@ -17,17 +17,29 @@ type CanvasClipboardOptions = {
   onPasteText: (text: string, anchor: XYPosition) => void;
 };
 
-export function useCanvasClipboard({ getAnchor, onPasteFiles, onPasteText }: CanvasClipboardOptions) {
+export function useCanvasClipboard({
+  getAnchor,
+  onPasteFiles,
+  onPasteText,
+}: CanvasClipboardOptions) {
   useEffect(() => {
     const writeSelection = (event: ClipboardEvent) => {
-      if (shouldIgnoreCanvasCommand(event.target) || hasNativeTextSelection() || !event.clipboardData) return false;
+      if (
+        shouldIgnoreCanvasCommand(event.target) ||
+        hasNativeTextSelection() ||
+        !event.clipboardData
+      )
+        return false;
       const store = useCanvasStore.getState();
       if (!store.nodes.some((node) => node.selected)) return false;
       store.copySelection();
       const snapshot = useCanvasStore.getState().clipboard;
       if (!snapshot?.nodes.length) return false;
-      event.clipboardData.setData(KACHANG_CANVAS_CLIPBOARD_MIME, serializeCanvasClipboard(snapshot));
-      event.clipboardData.setData("text/plain", KACHANG_CANVAS_CLIPBOARD_TEXT);
+      event.clipboardData.setData(
+        WEFTCANVAS_CANVAS_CLIPBOARD_MIME,
+        serializeCanvasClipboard(snapshot),
+      );
+      event.clipboardData.setData("text/plain", WEFTCANVAS_CANVAS_CLIPBOARD_TEXT);
       event.preventDefault();
       return true;
     };
@@ -41,7 +53,7 @@ export function useCanvasClipboard({ getAnchor, onPasteFiles, onPasteText }: Can
     const onPaste = (event: ClipboardEvent) => {
       if (shouldIgnoreCanvasCommand(event.target) || !event.clipboardData) return;
       const anchor = getAnchor();
-      const encoded = event.clipboardData.getData(KACHANG_CANVAS_CLIPBOARD_MIME);
+      const encoded = event.clipboardData.getData(WEFTCANVAS_CANVAS_CLIPBOARD_MIME);
       const graph = parseCanvasClipboard(encoded);
       if (graph) {
         event.preventDefault();
@@ -55,7 +67,7 @@ export function useCanvasClipboard({ getAnchor, onPasteFiles, onPasteText }: Can
         return;
       }
       const text = event.clipboardData.getData("text/plain");
-      if (text && text !== KACHANG_CANVAS_CLIPBOARD_TEXT) {
+      if (text && text !== WEFTCANVAS_CANVAS_CLIPBOARD_TEXT) {
         event.preventDefault();
         onPasteText(text, anchor);
         return;
@@ -86,5 +98,7 @@ function hasNativeTextSelection() {
 function collectClipboardFiles(data: DataTransfer) {
   const files = Array.from(data.files);
   if (files.length) return files;
-  return Array.from(data.items).flatMap((item) => item.kind === "file" ? item.getAsFile() ?? [] : []);
+  return Array.from(data.items).flatMap((item) =>
+    item.kind === "file" ? (item.getAsFile() ?? []) : [],
+  );
 }

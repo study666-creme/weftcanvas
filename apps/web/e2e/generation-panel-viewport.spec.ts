@@ -3,9 +3,9 @@ import { expect, test, type Locator, type Page, type TestInfo } from "@playwrigh
 type NetworkState = { unmocked: string[]; external: string[] };
 
 const REFERENCE_SVG = Buffer.from(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540">'
-  + '<rect width="960" height="540" fill="#151515"/>'
-  + '<circle cx="480" cy="270" r="96" fill="#f4f4f4"/></svg>',
+  '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540">' +
+    '<rect width="960" height="540" fill="#151515"/>' +
+    '<circle cx="480" cy="270" r="96" fill="#f4f4f4"/></svg>',
 );
 
 const VIDEO_MODEL = {
@@ -18,9 +18,33 @@ const VIDEO_MODEL = {
   input: { textRequired: true, images: { min: 0, max: 1, multiple: false } },
   output: { type: "video", minCount: 1, maxCount: 1 },
   parameters: [
-    { name: "aspect_ratio", label: "画面比例", type: "string", required: false, default: "16:9", options: ["16:9", "9:16"], mutuallyExclusiveWith: [] },
-    { name: "duration", label: "时长（秒）", type: "integer", required: false, default: 5, options: [5, 10], mutuallyExclusiveWith: [] },
-    { name: "resolution", label: "分辨率", type: "string", required: false, default: "720p", options: ["720p", "1080p"], mutuallyExclusiveWith: [] },
+    {
+      name: "aspect_ratio",
+      label: "画面比例",
+      type: "string",
+      required: false,
+      default: "16:9",
+      options: ["16:9", "9:16"],
+      mutuallyExclusiveWith: [],
+    },
+    {
+      name: "duration",
+      label: "时长（秒）",
+      type: "integer",
+      required: false,
+      default: 5,
+      options: [5, 10],
+      mutuallyExclusiveWith: [],
+    },
+    {
+      name: "resolution",
+      label: "分辨率",
+      type: "string",
+      required: false,
+      default: "720p",
+      options: ["720p", "1080p"],
+      mutuallyExclusiveWith: [],
+    },
   ],
   pricing: {
     mode: "fixed",
@@ -33,25 +57,29 @@ const VIDEO_MODEL = {
   },
 };
 
-test("generation panel geometry holds with one real reference connection at 1440x900 and 1024x768", async ({ page }, testInfo) => {
+test("generation panel geometry holds with one real reference connection at 1440x900 and 1024x768", async ({
+  page,
+}, testInfo) => {
   const network: NetworkState = { unmocked: [], external: [] };
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await installNetworkGuard(page, network);
   await installCanvasApiMocks(page);
   await page.addInitScript(() => {
-    if (sessionStorage.getItem("kachang-geometry-viewport-e2e-cleaned")) return;
+    if (sessionStorage.getItem("weftcanvas-geometry-viewport-e2e-cleaned")) return;
     localStorage.clear();
-    sessionStorage.setItem("kachang-geometry-viewport-e2e-cleaned", "1");
+    sessionStorage.setItem("weftcanvas-geometry-viewport-e2e-cleaned", "1");
   });
   await page.addInitScript(seedStarterGraph);
 
   await page.goto("/canvas");
-  await expect(page.locator(".kc-canvas-entry-loader")).toHaveCount(0, { timeout: 5_000 });
-  const nodes = page.locator(".react-flow__node-kachang");
+  await expect(page.locator(".wc-canvas-entry-loader")).toHaveCount(0, { timeout: 5_000 });
+  const nodes = page.locator(".react-flow__node-weftcanvas");
   await expect(nodes).toHaveCount(3);
 
-  const imageNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="image"])');
+  const imageNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="image"])',
+  );
   await imageNode.locator('input[type="file"]').setInputFiles({
     name: "geometry-reference.svg",
     mimeType: "image/svg+xml",
@@ -65,12 +93,14 @@ test("generation panel geometry holds with one real reference connection at 1440
   await expect(nodes).toHaveCount(4);
   await expect(edges).toHaveCount(2);
 
-  const videoNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="video"])');
-  const sourceCore = imageNode.locator(".kc-node-port-zone--right .kc-node-port-core");
+  const videoNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="video"])',
+  );
+  const sourceCore = imageNode.locator(".wc-node-port-zone--right .wc-node-port-core");
   await imageNode.hover();
   await expect(sourceCore).toBeVisible();
   const sourceBox = await sourceCore.boundingBox();
-  const targetSurface = videoNode.locator(".kc-node-surface");
+  const targetSurface = videoNode.locator(".wc-node-surface");
   const targetBox = await targetSurface.boundingBox();
   expect(sourceBox).not.toBeNull();
   expect(targetBox).not.toBeNull();
@@ -89,19 +119,19 @@ test("generation panel geometry holds with one real reference connection at 1440
 
   await expect(edges).toHaveCount(3);
 
-  await videoNode.locator(".kc-node-drag-strip").click();
+  await videoNode.locator(".wc-node-drag-strip").click();
   const settings = page.getByLabel("视频节点创作设置");
   await expect(settings).toBeVisible();
   await expect(settings.locator("[data-generation-model-select]")).toHaveValue("geometry-video-1");
 
-  const rail = page.locator(".kc-node-reference-chips");
+  const rail = page.locator(".wc-node-reference-chips");
   await expect(rail).toBeVisible();
-  await expect(rail.locator(".kc-node-reference-chip")).toHaveCount(1);
-  await expect(settings.locator(".kc-generation-compact-status.is-linked")).toBeVisible();
+  await expect(rail.locator(".wc-node-reference-chip")).toHaveCount(1);
+  await expect(settings.locator(".wc-generation-compact-status.is-linked")).toBeVisible();
 
   const composer = page.getByLabel("视频节点编辑器");
   await composer.locator("[data-prompt-editor]").fill("雨夜霓虹，人物在渡口奔跑");
-  await expect(settings.locator(".kc-generation-compact-credit")).toBeVisible();
+  await expect(settings.locator(".wc-generation-compact-credit")).toBeVisible();
 
   await assertGenerationPanelGeometry(page, composer, { width: 1440, height: 900 }, testInfo);
   await assertGenerationPanelGeometry(page, composer, { width: 1024, height: 768 }, testInfo);
@@ -122,10 +152,17 @@ async function assertGenerationPanelGeometry(
   await page.waitForTimeout(200);
 
   const geometry = await readGenerationPanelGeometry(composer);
-  expect(geometry.documentOverflowX, `horizontal document overflow at ${viewport.width}x${viewport.height}`).toBe(false);
-  expect(geometry.clippedLabels, `clipped labels at ${viewport.width}x${viewport.height}`).toEqual([]);
-  expect(geometry.overlaps, `incoherent overlaps at ${viewport.width}x${viewport.height}`).toEqual([]);
-  expect(geometry.controls[".kc-node-reference-chip"], "reference chip count").toHaveLength(1);
+  expect(
+    geometry.documentOverflowX,
+    `horizontal document overflow at ${viewport.width}x${viewport.height}`,
+  ).toBe(false);
+  expect(geometry.clippedLabels, `clipped labels at ${viewport.width}x${viewport.height}`).toEqual(
+    [],
+  );
+  expect(geometry.overlaps, `incoherent overlaps at ${viewport.width}x${viewport.height}`).toEqual(
+    [],
+  );
+  expect(geometry.controls[".wc-node-reference-chip"], "reference chip count").toHaveLength(1);
 
   for (const [selector, controls] of Object.entries(geometry.controls)) {
     for (const [index, control] of controls.entries()) {
@@ -138,16 +175,19 @@ async function assertGenerationPanelGeometry(
   }
 
   if (viewport.width === 1024 && viewport.height === 768) {
-    const submit = geometry.controls[".kc-generation-submit--compact"][0];
-    const quick = geometry.controls[".kc-generation-quick-controls"][0];
-    const bar = geometry.controls[".kc-generation-compact-bar"][0];
+    const submit = geometry.controls[".wc-generation-submit--compact"][0];
+    const quick = geometry.controls[".wc-generation-quick-controls"][0];
+    const bar = geometry.controls[".wc-generation-compact-bar"][0];
     expect(submit, "submit button measured").toBeDefined();
     expect(quick, "quick controls measured").toBeDefined();
     expect(bar, "compact bar measured").toBeDefined();
     expect(submit.box.bottom, "submit bottom at 1024x768").toBeLessThanOrEqual(768);
     expect(quick.box.bottom, "quick-control bottom at 1024x768").toBeLessThanOrEqual(768);
     expect(768 - submit.box.bottom, "submit bottom margin at 1024x768").toBeGreaterThanOrEqual(8);
-    expect(768 - quick.box.bottom, "quick-control bottom margin at 1024x768").toBeGreaterThanOrEqual(8);
+    expect(
+      768 - quick.box.bottom,
+      "quick-control bottom margin at 1024x768",
+    ).toBeGreaterThanOrEqual(8);
     expect(768 - bar.box.bottom, "compact-bar bottom margin at 1024x768").toBeGreaterThanOrEqual(8);
   }
 
@@ -161,56 +201,76 @@ async function readGenerationPanelGeometry(composer: Locator) {
   return composer.evaluate((root) => {
     const viewport = { width: window.innerWidth, height: window.innerHeight };
     const controlSelectors = [
-      ".kc-node-reference-chips",
-      ".kc-node-reference-chip",
-      ".kc-generation-compact-bar",
-      ".kc-generation-model-control",
-      ".kc-generation-quick-controls",
-      ".kc-generation-parameter-control",
-      ".kc-generation-more-wrap",
-      ".kc-generation-submit-area",
-      ".kc-generation-submit--compact",
-      ".kc-generation-compact-status",
+      ".wc-node-reference-chips",
+      ".wc-node-reference-chip",
+      ".wc-generation-compact-bar",
+      ".wc-generation-model-control",
+      ".wc-generation-quick-controls",
+      ".wc-generation-parameter-control",
+      ".wc-generation-more-wrap",
+      ".wc-generation-submit-area",
+      ".wc-generation-submit--compact",
+      ".wc-generation-compact-status",
     ];
     const labelSelectors = [
-      ".kc-generation-model-control .kc-canvas-select-label",
-      ".kc-generation-quick-controls small",
-      ".kc-generation-quick-controls .kc-canvas-select-label",
-      ".kc-generation-compact-credit",
-      ".kc-generation-submit--compact span",
-      ".kc-generation-compact-status span",
-      ".kc-node-reference-chips-header",
-      ".kc-node-reference-chip b",
+      ".wc-generation-model-control .wc-canvas-select-label",
+      ".wc-generation-quick-controls small",
+      ".wc-generation-quick-controls .wc-canvas-select-label",
+      ".wc-generation-compact-credit",
+      ".wc-generation-submit--compact span",
+      ".wc-generation-compact-status span",
+      ".wc-node-reference-chips-header",
+      ".wc-node-reference-chip b",
     ];
     const isVisible = (element: Element) => {
       const rect = element.getBoundingClientRect();
       const style = getComputedStyle(element);
-      return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.visibility !== "hidden" &&
+        style.display !== "none"
+      );
     };
-    const controls: Record<string, Array<{
-      box: { left: number; top: number; right: number; bottom: number; width: number; height: number };
-      inside: boolean;
-      clickable: boolean;
-    }>> = {};
+    const controls: Record<
+      string,
+      Array<{
+        box: {
+          left: number;
+          top: number;
+          right: number;
+          bottom: number;
+          width: number;
+          height: number;
+        };
+        inside: boolean;
+        clickable: boolean;
+      }>
+    > = {};
     for (const selector of controlSelectors) {
-      controls[selector] = [...root.querySelectorAll(selector)]
-        .filter(isVisible)
-        .map((element) => {
-          const rect = element.getBoundingClientRect();
-          const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-          return {
-            box: {
-              left: rect.left,
-              top: rect.top,
-              right: rect.right,
-              bottom: rect.bottom,
-              width: rect.width,
-              height: rect.height,
-            },
-            inside: rect.left >= -1 && rect.top >= -1 && rect.right <= viewport.width + 1 && rect.bottom <= viewport.height + 1,
-            clickable: hit !== null && (element === hit || element.contains(hit)),
-          };
-        });
+      controls[selector] = [...root.querySelectorAll(selector)].filter(isVisible).map((element) => {
+        const rect = element.getBoundingClientRect();
+        const hit = document.elementFromPoint(
+          rect.left + rect.width / 2,
+          rect.top + rect.height / 2,
+        );
+        return {
+          box: {
+            left: rect.left,
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom,
+            width: rect.width,
+            height: rect.height,
+          },
+          inside:
+            rect.left >= -1 &&
+            rect.top >= -1 &&
+            rect.right <= viewport.width + 1 &&
+            rect.bottom <= viewport.height + 1,
+          clickable: hit !== null && (element === hit || element.contains(hit)),
+        };
+      });
     }
 
     const allControls = [...root.querySelectorAll(controlSelectors.join(","))].filter(isVisible);
@@ -235,7 +295,9 @@ async function readGenerationPanelGeometry(composer: Locator) {
       for (const element of [...root.querySelectorAll(selector)]) {
         if (!isVisible(element)) continue;
         if (element.scrollWidth > element.clientWidth + 1) {
-          clippedLabels.push(`${selector}: ${(element.textContent || "").trim() || element.className}`);
+          clippedLabels.push(
+            `${selector}: ${(element.textContent || "").trim() || element.className}`,
+          );
         }
       }
     }
@@ -275,23 +337,31 @@ async function installCanvasApiMocks(page: Page) {
   const fetchedAt = new Date(now.getTime() - 1_000);
   const expiresAt = new Date(now.getTime() + 60_000);
 
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({ json: { ok: true, data: null } }));
-  await page.route("**/api/v1/model-catalog*", (route) => route.fulfill({
-    json: {
-      ok: true,
-      data: {
-        version: "geometry-viewport-catalog",
-        capabilityVersion: "geometry-viewport-capability",
-        pricingVersion: "geometry-viewport-pricing",
-        fetchedAt: fetchedAt.toISOString(),
-        expiresAt: expiresAt.toISOString(),
-        quoteAvailable: true,
-        models: [VIDEO_MODEL],
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({ json: { ok: true, data: null } }),
+  );
+  await page.route("**/api/v1/model-catalog*", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        data: {
+          version: "geometry-viewport-catalog",
+          capabilityVersion: "geometry-viewport-capability",
+          pricingVersion: "geometry-viewport-pricing",
+          fetchedAt: fetchedAt.toISOString(),
+          expiresAt: expiresAt.toISOString(),
+          quoteAvailable: true,
+          models: [VIDEO_MODEL],
+        },
       },
-    },
-  }));
+    }),
+  );
   await page.route("**/api/v1/generation-quotes", async (route) => {
-    const body = route.request().postDataJSON() as { modelId?: string; parameters?: Record<string, unknown>; quantity?: number };
+    const body = route.request().postDataJSON() as {
+      modelId?: string;
+      parameters?: Record<string, unknown>;
+      quantity?: number;
+    };
     await route.fulfill({
       json: {
         ok: true,
@@ -316,72 +386,92 @@ async function installCanvasApiMocks(page: Page) {
       },
     });
   });
-  await page.route("**/api/v1/generation-jobs*", (route) => route.fulfill({ json: { ok: true, data: [] } }));
-  await page.route("**/api/v1/wallet", (route) => route.fulfill({
-    json: {
-      ok: true,
-      data: {
-        credits: 100,
-        creditsPermanent: 100,
-        dailyCredits: 0,
-        creditGrantMode: "bundle",
-        dailyCreditsNote: "",
-        membership: { tier: null, until: null, active: false, genDiscount: null },
-        lifetimeCreditsSpent: 0,
-      },
-    },
-  }));
-  await page.route("**/api/v1/wallet/products", (route) => route.fulfill({ json: { ok: true, data: { items: [] } } }));
-  await page.route("**/api/v1/wallet/ledger*", (route) => route.fulfill({ json: { ok: true, data: { items: [] } } }));
-  await page.route("**/api/v1/membership/tasks/canvas-create-node*", (route) => route.fulfill({
-    json: { ok: true, data: { message: "Node task recorded by the fixture", granted: false } },
-  }));
-  await page.route("**/api/v1/membership/tasks*", (route) => route.fulfill({
-    json: {
-      ok: true,
-      data: {
-        items: [],
-        lifetimeCreditsSpent: 0,
-        nextSpendMilestone: null,
-        hub: {
-          phoneVerified: false,
-          signStreak: 0,
-          checkedInToday: false,
-          daysToStreakBonus: 7,
-          dailyBonus: { key: "daily_bonus_2099-01-01", claimed: false, ready: false },
-          memberDaily: null,
+  await page.route("**/api/v1/generation-jobs*", (route) =>
+    route.fulfill({ json: { ok: true, data: [] } }),
+  );
+  await page.route("**/api/v1/wallet", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        data: {
+          credits: 100,
+          creditsPermanent: 100,
+          dailyCredits: 0,
+          creditGrantMode: "bundle",
+          dailyCreditsNote: "",
+          membership: { tier: null, until: null, active: false, genDiscount: null },
+          lifetimeCreditsSpent: 0,
         },
-        phoneVerified: false,
       },
-    },
-  }));
-  await page.route("**/api/v1/cloud-projects*", (route) => route.fulfill({
-    json: {
-      ok: true,
-      data: {
-        projects: [],
-        sharedProjects: [],
-        usage: {
-          projectCount: 0,
-          projectStorageBytes: 0,
-          mediaStorageBytes: 0,
-          entitlements: {
-            tier: "free",
-            cloudProjectLimit: 3,
-            projectStorageBytes: 10 * 1024 * 1024,
-            mediaStorageBytes: 300 * 1024 * 1024,
-            revisionRetentionCount: 3,
-            multiDeviceSync: true,
+    }),
+  );
+  await page.route("**/api/v1/wallet/products", (route) =>
+    route.fulfill({ json: { ok: true, data: { items: [] } } }),
+  );
+  await page.route("**/api/v1/wallet/ledger*", (route) =>
+    route.fulfill({ json: { ok: true, data: { items: [] } } }),
+  );
+  await page.route("**/api/v1/membership/tasks/canvas-create-node*", (route) =>
+    route.fulfill({
+      json: { ok: true, data: { message: "Node task recorded by the fixture", granted: false } },
+    }),
+  );
+  await page.route("**/api/v1/membership/tasks*", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        data: {
+          items: [],
+          lifetimeCreditsSpent: 0,
+          nextSpendMilestone: null,
+          hub: {
+            phoneVerified: false,
+            signStreak: 0,
+            checkedInToday: false,
+            daysToStreakBonus: 7,
+            dailyBonus: { key: "daily_bonus_2099-01-01", claimed: false, ready: false },
+            memberDaily: null,
+          },
+          phoneVerified: false,
+        },
+      },
+    }),
+  );
+  await page.route("**/api/v1/cloud-projects*", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        data: {
+          projects: [],
+          sharedProjects: [],
+          usage: {
+            projectCount: 0,
+            projectStorageBytes: 0,
+            mediaStorageBytes: 0,
+            entitlements: {
+              tier: "free",
+              cloudProjectLimit: 3,
+              projectStorageBytes: 10 * 1024 * 1024,
+              mediaStorageBytes: 300 * 1024 * 1024,
+              revisionRetentionCount: 3,
+              multiDeviceSync: true,
+            },
           },
         },
       },
-    },
-  }));
-  await page.route("**/api/v1/cloud-project-invitations*", (route) => route.fulfill({
-    json: { ok: true, data: { invitations: [] } },
-  }));
-  await page.route("**/api/v1/media/**", (route) => route.fulfill({ json: { ok: true, data: null } }));
-  await page.route("**/api/v1/media*", (route) => route.fulfill({ json: { ok: true, data: null } }));
+    }),
+  );
+  await page.route("**/api/v1/cloud-project-invitations*", (route) =>
+    route.fulfill({
+      json: { ok: true, data: { invitations: [] } },
+    }),
+  );
+  await page.route("**/api/v1/media/**", (route) =>
+    route.fulfill({ json: { ok: true, data: null } }),
+  );
+  await page.route("**/api/v1/media*", (route) =>
+    route.fulfill({ json: { ok: true, data: null } }),
+  );
 }
 
 function seedStarterGraph() {
@@ -399,7 +489,10 @@ function seedStarterGraph() {
     jobStatus: null,
     error: null,
   };
-  const nodeData = (kind: "text" | "config" | "image", overrides: Record<string, unknown> = {}) => ({
+  const nodeData = (
+    kind: "text" | "config" | "image",
+    overrides: Record<string, unknown> = {},
+  ) => ({
     kind,
     body: "",
     accent: kind === "image" ? "blue" : "jade",
@@ -420,7 +513,7 @@ function seedStarterGraph() {
     nodes: [
       {
         id: "starter-text",
-        type: "kachang",
+        type: "weftcanvas",
         position: { x: 40, y: 40 },
         width: 308,
         height: 176,
@@ -428,7 +521,7 @@ function seedStarterGraph() {
       },
       {
         id: "starter-config",
-        type: "kachang",
+        type: "weftcanvas",
         position: { x: 40, y: 260 },
         width: 308,
         height: 176,
@@ -436,7 +529,7 @@ function seedStarterGraph() {
       },
       {
         id: "starter-image",
-        type: "kachang",
+        type: "weftcanvas",
         position: { x: 440, y: 42 },
         width: 340,
         height: 191,
@@ -452,10 +545,24 @@ function seedStarterGraph() {
     createdAt: now,
     updatedAt: now,
   };
-  localStorage.setItem("kachang-canvas:active-project:v1", project.id);
-  localStorage.setItem(`kachang-canvas:project-data:v1:${encodeURIComponent(project.id)}`, JSON.stringify(project));
-  localStorage.setItem("kachang-canvas:projects:v1", JSON.stringify({
-    version: 1,
-    projects: [{ id: project.id, name: project.name, createdAt: now, updatedAt: now, nodeCount: project.nodes.length }],
-  }));
+  localStorage.setItem("weftcanvas:active-project:v1", project.id);
+  localStorage.setItem(
+    `weftcanvas:project-data:v1:${encodeURIComponent(project.id)}`,
+    JSON.stringify(project),
+  );
+  localStorage.setItem(
+    "weftcanvas:projects:v1",
+    JSON.stringify({
+      version: 1,
+      projects: [
+        {
+          id: project.id,
+          name: project.name,
+          createdAt: now,
+          updatedAt: now,
+          nodeCount: project.nodes.length,
+        },
+      ],
+    }),
+  );
 }

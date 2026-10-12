@@ -1,5 +1,5 @@
 import { ListChecks } from "lucide-react";
-import { definePlugin } from "@kachang/plugin-sdk";
+import { definePlugin } from "@weftcanvas/plugin-sdk";
 
 import { SplitListBody } from "./body";
 import "./split-list.css";
@@ -15,7 +15,13 @@ export default definePlugin({
   version: "0.1.0",
   description: "把多行文本拆成一串相连的文本节点（官方示例插件）",
   setup(ctx) {
+    // 演示存储命名空间与对称卸载：宿主按插件隔离 kv（其它插件读不到这块前缀）；
+    // init 写标记，onDispose 对称清掉。
     const kv = ctx.storage("usage");
+    kv.set("loaded", "1");
+    ctx.onDispose(() => {
+      kv.remove("loaded");
+    });
 
     ctx.nodes.registerNode({
       name: "board",
@@ -26,12 +32,5 @@ export default definePlugin({
       createDraft: () => ({ width: 308, height: 190 }),
       renderBody: SplitListBody,
     });
-
-    // 演示存储命名空间：记录拆分次数（其它插件读不到这块前缀）。
-    let splitCount = Number(kv.get("splits") ?? "0") || 0;
-    ctx.onDispose(() => {
-      splitCount = 0;
-    });
-    void kv;
   },
 });

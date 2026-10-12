@@ -14,35 +14,36 @@ import type { GenerationProvider, HostedAccountProvider } from "./types.js";
  * `CANVAS_API_PROVIDER` 声明用哪套 provider：
  * - `dev-test`（默认，零外部依赖）：原生 PostgreSQL 身份 + durable 生成任务，
  *   目录/定价端点全部从环境变量读取、没有默认值；
- * - `kachang`：托管商业实现（私有 overlay 模块 spi/kachang.ts，公开树不含）；
- * - `auto`：按配置自动落一边（托管凭据存在 → kachang，否则 dev-test）。
+ * - `weftcanvas`：托管商业实现（私有 overlay 模块 spi/weftcanvas.ts，公开树不含）；
+ * - `auto`：按配置自动落一边（托管凭据存在 → weftcanvas，否则 dev-test）。
  *
- * 未知 provider 名直接拒绝启动；点名 kachang 而当前构建不含私有 overlay 时
+ * 未知 provider 名直接拒绝启动；点名 weftcanvas 而当前构建不含私有 overlay 时
  * 给出明确错误，绝不静默降级。
  */
-export type CanvasApiProviderName = "dev-test" | "kachang" | "auto";
+export type CanvasApiProviderName = "dev-test" | "weftcanvas" | "auto";
 export type ResolvedCanvasApiProviderName = Exclude<CanvasApiProviderName, "auto">;
 
 export function readCanvasApiProviderName(value: string | undefined): CanvasApiProviderName {
   const normalized = value?.trim() || "auto";
-  if (normalized === "auto" || normalized === "dev-test" || normalized === "kachang") return normalized;
-  throw new Error("CANVAS_API_PROVIDER must be auto, dev-test, or kachang");
+  if (normalized === "auto" || normalized === "dev-test" || normalized === "weftcanvas")
+    return normalized;
+  throw new Error("CANVAS_API_PROVIDER must be auto, dev-test, or weftcanvas");
 }
 
-/** kachang 私有模块的公开形状（公开树只知道签名，不知道实现）。 */
-export type KachangProviderModule = {
-  resolveKachangEndpoints(env: Record<string, string | undefined>): {
+/** weftcanvas 私有模块的公开形状（公开树只知道签名，不知道实现）。 */
+export type WeftcanvasProviderModule = {
+  resolveWeftcanvasEndpoints(env: Record<string, string | undefined>): {
     catalogSourceUrl: string;
     catalogVideoInventoryUrl: string | undefined;
     stationPricingUrl: string;
   };
   /** 站点策展兼容层（计价/品牌化规则只在私有侧）。 */
   createCatalogOverlay(env: Record<string, string | undefined>): CatalogCompatibilityOverlay;
-  assembleKachangProviders(inputs: ProviderServiceInputs): Promise<ResolvedProviderServices>;
+  assembleWeftcanvasProviders(inputs: ProviderServiceInputs): Promise<ResolvedProviderServices>;
 };
 
 /**
- * 装配第一阶段：解析 provider 名、端点计划，并在点名 kachang 时加载私有
+ * 装配第一阶段：解析 provider 名、端点计划，并在点名 weftcanvas 时加载私有
  * 模块（端点随模块提供，因为目录/报价必须先于服务装配建立）。
  */
 export type ProviderPlan = {
@@ -51,21 +52,21 @@ export type ProviderPlan = {
   catalogVideoInventoryUrl: string | undefined;
   stationPricingUrl: string | undefined;
   /** dev-test 下为 null。 */
-  kachang: KachangProviderModule | null;
+  weftcanvas: WeftcanvasProviderModule | null;
 };
 
 /**
- * kachang 私有模块的加载器。specifier 用计算字符串，公开树的类型检查不依赖
+ * weftcanvas 私有模块的加载器。specifier 用计算字符串，公开树的类型检查不依赖
  * 该文件存在；运行时缺失则给出明确错误（绝不静默降级）。
  */
-const KACHANG_MODULE_SPECIFIER = "./kachang.js";
+const WEFTCANVAS_MODULE_SPECIFIER = "./weftcanvas.js";
 
-async function loadKachangAssembly(): Promise<KachangProviderModule> {
+async function loadWeftcanvasAssembly(): Promise<WeftcanvasProviderModule> {
   try {
-    return await import(KACHANG_MODULE_SPECIFIER);
+    return await import(WEFTCANVAS_MODULE_SPECIFIER);
   } catch (error) {
     throw new Error(
-      "CANVAS_API_PROVIDER=kachang 需要私有 overlay 模块 apps/api/src/spi/kachang.ts（当前构建不包含它）",
+      "CANVAS_API_PROVIDER=weftcanvas 需要私有 overlay 模块 apps/api/src/spi/weftcanvas.ts（当前构建不包含它）",
       { cause: error },
     );
   }
@@ -73,42 +74,46 @@ async function loadKachangAssembly(): Promise<KachangProviderModule> {
 
 export async function resolveProviderPlan(env: {
   CANVAS_API_PROVIDER?: string;
-  /** 旧变量名，向后兼容：native → dev-test，prompt-hub → kachang。 */
+  /** 旧变量名，向后兼容：native → dev-test，prompt-hub → weftcanvas。 */
   IDENTITY_PROVIDER?: string;
   PROMPT_HUB_ANON_KEY?: string;
   VITE_CARD_LIBRARY_ANON_KEY?: string;
   NODE_ENV?: string;
   CATALOG_SOURCE_URL?: string;
   VIDEO_INVENTORY_URL?: string;
-  KACHANG_PRICING_URL?: string;
+  WEFTCANVAS_PRICING_URL?: string;
 }): Promise<ProviderPlan> {
   const requestedRaw = env.CANVAS_API_PROVIDER?.trim() || env.IDENTITY_PROVIDER?.trim();
-  const requested = requestedRaw === "native"
-    ? "dev-test"
-    : requestedRaw === "prompt-hub"
-      ? "kachang"
-      : readCanvasApiProviderName(requestedRaw);
-  const hostedConfigured = Boolean((env.PROMPT_HUB_ANON_KEY ?? env.VITE_CARD_LIBRARY_ANON_KEY)?.trim());
+  const requested =
+    requestedRaw === "native"
+      ? "dev-test"
+      : requestedRaw === "prompt-hub"
+        ? "weftcanvas"
+        : readCanvasApiProviderName(requestedRaw);
+  const hostedConfigured = Boolean(
+    (env.PROMPT_HUB_ANON_KEY ?? env.VITE_CARD_LIBRARY_ANON_KEY)?.trim(),
+  );
   if (requested === "auto" && env.NODE_ENV === "production" && !hostedConfigured) {
-    // 生产环境必须显式表态：要么配置托管凭据（kachang），要么明确 dev-test。
-    throw new Error("Production requires PROMPT_HUB_ANON_KEY or an explicit CANVAS_API_PROVIDER=dev-test");
+    // 生产环境必须显式表态：要么配置托管凭据（weftcanvas），要么明确 dev-test。
+    throw new Error(
+      "Production requires PROMPT_HUB_ANON_KEY or an explicit CANVAS_API_PROVIDER=dev-test",
+    );
   }
-  const providerName: ResolvedCanvasApiProviderName = requested === "auto"
-    ? (hostedConfigured ? "kachang" : "dev-test")
-    : requested;
+  const providerName: ResolvedCanvasApiProviderName =
+    requested === "auto" ? (hostedConfigured ? "weftcanvas" : "dev-test") : requested;
   if (providerName === "dev-test") {
     return {
       providerName,
       // dev-test 只认显式配置的自托管端点（OpenAI-compatible 网关等），没有默认值。
       catalogSourceUrl: env.CATALOG_SOURCE_URL?.trim() || undefined,
       catalogVideoInventoryUrl: env.VIDEO_INVENTORY_URL?.trim() || undefined,
-      stationPricingUrl: env.KACHANG_PRICING_URL?.trim() || undefined,
-      kachang: null,
+      stationPricingUrl: env.WEFTCANVAS_PRICING_URL?.trim() || undefined,
+      weftcanvas: null,
     };
   }
-  const kachang = await loadKachangAssembly();
-  const endpoints = kachang.resolveKachangEndpoints(env);
-  return { providerName, ...endpoints, kachang };
+  const weftcanvas = await loadWeftcanvasAssembly();
+  const endpoints = weftcanvas.resolveWeftcanvasEndpoints(env);
+  return { providerName, ...endpoints, weftcanvas };
 }
 
 /** 装配第二阶段的输入：server.ts 已建好的共享服务。 */
@@ -141,7 +146,7 @@ export async function assembleProviderServices(
   plan: ProviderPlan,
   inputs: ProviderServiceInputs,
 ): Promise<ResolvedProviderServices> {
-  if (plan.providerName === "dev-test" || !plan.kachang) {
+  if (plan.providerName === "dev-test" || !plan.weftcanvas) {
     return {
       providerName: "dev-test",
       identity: inputs.nativeIdentity,
@@ -149,5 +154,5 @@ export async function assembleProviderServices(
       hostedGeneration: inputs.nativeGeneration,
     };
   }
-  return plan.kachang.assembleKachangProviders(inputs);
+  return plan.weftcanvas.assembleWeftcanvasProviders(inputs);
 }

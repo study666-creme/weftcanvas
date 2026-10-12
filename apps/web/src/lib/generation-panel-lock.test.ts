@@ -1,4 +1,4 @@
-import type { PublicGenerationJob } from "@kachang/contracts";
+import type { PublicGenerationJob } from "@weftcanvas/contracts";
 import { describe, expect, it } from "vitest";
 
 import { resolveGenerationPanelLock } from "./generation-panel-lock";
@@ -16,11 +16,13 @@ describe("generation panel lock", () => {
 
   it("locks a node while an active job is running", () => {
     const active = generationJob("job-active", "queued");
-    const lock = resolveGenerationPanelLock(input({
-      nodeStatus: "running",
-      nodeJobs: [active],
-      newestNodeJob: active,
-    }));
+    const lock = resolveGenerationPanelLock(
+      input({
+        nodeStatus: "running",
+        nodeJobs: [active],
+        newestNodeJob: active,
+      }),
+    );
 
     expect(lock).toMatchObject({
       activeJob: true,
@@ -30,10 +32,12 @@ describe("generation panel lock", () => {
   });
 
   it("locks a node stuck on submission_unknown with no known job", () => {
-    const lock = resolveGenerationPanelLock(input({
-      nodeStatus: "running",
-      nodeJobStatus: "submission_unknown",
-    }));
+    const lock = resolveGenerationPanelLock(
+      input({
+        nodeStatus: "running",
+        nodeJobStatus: "submission_unknown",
+      }),
+    );
 
     expect(lock).toMatchObject({
       activeJob: true,
@@ -49,13 +53,15 @@ describe("generation panel lock", () => {
     // the node must stay protected from a fresh submit and expose the pending
     // surface instead of implying completion.
     const olderCompleted = generationJob("job-older-completed", "completed");
-    const lock = resolveGenerationPanelLock(input({
-      nodeStatus: "success",
-      nodeJobStatus: "completed",
-      nodeJobs: [olderCompleted],
-      newestNodeJob: olderCompleted,
-      pendingAmbiguousIdentity: true,
-    }));
+    const lock = resolveGenerationPanelLock(
+      input({
+        nodeStatus: "success",
+        nodeJobStatus: "completed",
+        nodeJobs: [olderCompleted],
+        newestNodeJob: olderCompleted,
+        pendingAmbiguousIdentity: true,
+      }),
+    );
 
     expect(lock).toMatchObject({
       activeJob: false,
@@ -69,12 +75,14 @@ describe("generation panel lock", () => {
     // browser submission is in flight, so the pending message must not claim a
     // pre-refresh acceptance; the node is locked by the running optimistic
     // state instead.
-    const lock = resolveGenerationPanelLock(input({
-      nodeStatus: "running",
-      nodeJobStatus: "submitting",
-      pendingAmbiguousIdentity: true,
-      browserSubmissionInFlight: true,
-    }));
+    const lock = resolveGenerationPanelLock(
+      input({
+        nodeStatus: "running",
+        nodeJobStatus: "submitting",
+        pendingAmbiguousIdentity: true,
+        browserSubmissionInFlight: true,
+      }),
+    );
 
     expect(lock).toMatchObject({
       activeJob: true,
@@ -85,13 +93,15 @@ describe("generation panel lock", () => {
 
   it("unlocks a node with a resolved submission and no lingering identity", () => {
     const completed = generationJob("job-completed", "completed");
-    const lock = resolveGenerationPanelLock(input({
-      nodeStatus: "success",
-      nodeJobStatus: "completed",
-      nodeJobs: [completed],
-      newestNodeJob: completed,
-      pendingAmbiguousIdentity: false,
-    }));
+    const lock = resolveGenerationPanelLock(
+      input({
+        nodeStatus: "success",
+        nodeJobStatus: "completed",
+        nodeJobs: [completed],
+        newestNodeJob: completed,
+        pendingAmbiguousIdentity: false,
+      }),
+    );
 
     expect(lock).toMatchObject({
       activeJob: false,
@@ -101,13 +111,17 @@ describe("generation panel lock", () => {
   });
 
   it("never locks configuration nodes through generation state", () => {
-    const lock = resolveGenerationPanelLock(input({ isConfiguration: true, pendingAmbiguousIdentity: true }));
+    const lock = resolveGenerationPanelLock(
+      input({ isConfiguration: true, pendingAmbiguousIdentity: true }),
+    );
 
     expect(lock.generationLocked).toBe(false);
   });
 });
 
-function input(overrides: Partial<Parameters<typeof resolveGenerationPanelLock>[0]> = {}): Parameters<typeof resolveGenerationPanelLock>[0] {
+function input(
+  overrides: Partial<Parameters<typeof resolveGenerationPanelLock>[0]> = {},
+): Parameters<typeof resolveGenerationPanelLock>[0] {
   return {
     isConfiguration: false,
     nodeJobs: [],

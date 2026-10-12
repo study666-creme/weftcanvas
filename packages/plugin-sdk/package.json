@@ -1,5 +1,5 @@
 {
-  "name": "@kachang/plugin-sdk",
+  "name": "@weftcanvas/plugin-sdk",
   "version": "0.1.0",
   "private": true,
   "type": "module",

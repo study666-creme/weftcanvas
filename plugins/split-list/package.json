@@ -1,5 +1,5 @@
 {
-  "name": "@kachang-plugin/split-list",
+  "name": "@weftcanvas-plugin/split-list",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -16,7 +16,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@kachang/plugin-sdk": "workspace:*",
+    "@weftcanvas/plugin-sdk": "workspace:*",
     "lucide-react": "^1.24.0"
   },
   "devDependencies": {

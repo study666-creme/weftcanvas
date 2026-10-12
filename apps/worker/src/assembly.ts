@@ -7,7 +7,7 @@ import {
   GenerationResultMaterializer,
   GenerationWorkerRuntime,
   JsonGenerationResultStagingStore,
-  KachangGenerationProvider,
+  WeftcanvasGenerationProvider,
   MediaMultipartWorkerRuntime,
   MediaService,
   PostgresGenerationJobStore,
@@ -20,8 +20,8 @@ import {
   ValidatedGenerationArtifactStore,
   createMediaObjectStore,
   maintainMediaObjectStore,
-} from "@kachang/canvas-api/worker";
-import type { MediaObjectStore } from "@kachang/canvas-api/worker";
+} from "@weftcanvas/canvas-api/worker";
+import type { MediaObjectStore } from "@weftcanvas/canvas-api/worker";
 import type { Pool } from "pg";
 
 import type { WorkerMode } from "./mode.js";
@@ -46,7 +46,10 @@ export type AssemblyDependencies = {
   cleanupGenerationDownloads?: (directory: string, olderThanMs: number) => Promise<number>;
 };
 
-export function buildWorkerRuntime(dependencies: AssemblyDependencies, mode: WorkerMode): WorkerRun {
+export function buildWorkerRuntime(
+  dependencies: AssemblyDependencies,
+  mode: WorkerMode,
+): WorkerRun {
   if (mode === "media-multipart") return buildMediaMultipartRuntime(dependencies);
   return buildGenerationRuntime(dependencies);
 }
@@ -59,7 +62,13 @@ export function buildMediaMultipartRuntime(dependencies: AssemblyDependencies): 
   const queue = new PostgresMediaMultipartUploadStore(pool);
   const runtime = new MediaMultipartWorkerRuntime(queue, media, {
     owner: workerId,
-    leaseDurationMs: readInteger(env, "MEDIA_MULTIPART_WORKER_LEASE_MS", 60_000, 10_000, 10 * 60_000),
+    leaseDurationMs: readInteger(
+      env,
+      "MEDIA_MULTIPART_WORKER_LEASE_MS",
+      60_000,
+      10_000,
+      10 * 60_000,
+    ),
     heartbeatMs: readInteger(env, "MEDIA_MULTIPART_WORKER_HEARTBEAT_MS", 20_000, 1_000, 5 * 60_000),
     idleDelayMs: readInteger(env, "MEDIA_MULTIPART_WORKER_IDLE_DELAY_MS", 1_000, 100, 60_000),
   });
@@ -76,9 +85,10 @@ export function buildMediaMultipartRuntime(dependencies: AssemblyDependencies): 
 
 export function buildGenerationRuntime(dependencies: AssemblyDependencies): WorkerRun {
   const { pool, workerId, env } = dependencies;
-  const apiKey = required(env, "KACHANG_API_KEY");
+  const apiKey = required(env, "WEFTCANVAS_API_KEY");
   const resultHosts = list(env, "GENERATION_MEDIA_HOSTS");
-  if (!resultHosts.length) throw new Error("GENERATION_MEDIA_HOSTS must list trusted result hostnames");
+  if (!resultHosts.length)
+    throw new Error("GENERATION_MEDIA_HOSTS must list trusted result hostnames");
   const inspector = new DefaultMediaInspector();
   const objects = createMediaObjectStore(env);
   const maintain = dependencies.maintainMediaObjects ?? defaultMaintainMediaObjects;
@@ -87,11 +97,11 @@ export function buildGenerationRuntime(dependencies: AssemblyDependencies): Work
   const references = new StoredGenerationReferenceResolver(media, {
     ...(signedAccess ? { signedAccess } : {}),
   });
-  const staging = new JsonGenerationResultStagingStore(resolve(
-    env.GENERATION_STAGING_PATH || ".data/generation-results",
-  ));
-  const provider = new KachangGenerationProvider({
-    baseUrl: required(env, "KACHANG_API_BASE_URL"),
+  const staging = new JsonGenerationResultStagingStore(
+    resolve(env.GENERATION_STAGING_PATH || ".data/generation-results"),
+  );
+  const provider = new WeftcanvasGenerationProvider({
+    baseUrl: required(env, "WEFTCANVAS_API_BASE_URL"),
     apiKey,
     staging,
     references,
@@ -111,7 +121,13 @@ export function buildGenerationRuntime(dependencies: AssemblyDependencies): Work
   const processor = new GenerationJobProcessor(jobs, provider, artifacts, {
     // Image tasks converge to a retryable timeout once they outlive the
     // budget; video keeps its unbounded (long-render) polling.
-    imageLifetimeMs: readInteger(env, "GENERATION_IMAGE_MAX_LIFETIME_MS", 10 * 60_000, 60_000, 60 * 60_000),
+    imageLifetimeMs: readInteger(
+      env,
+      "GENERATION_IMAGE_MAX_LIFETIME_MS",
+      10 * 60_000,
+      60_000,
+      60 * 60_000,
+    ),
   });
   const queue = new PostgresGenerationWorkQueue(pool);
   const runtime = new GenerationWorkerRuntime(queue, processor, {
@@ -122,26 +138,37 @@ export function buildGenerationRuntime(dependencies: AssemblyDependencies): Work
   });
   const cleanup = dependencies.cleanupGenerationDownloads ?? cleanupGeneratedDownloads;
   const downloadsPath = resolve(env.GENERATION_DOWNLOAD_PATH || ".data/generation-downloads");
-  const retentionMs = readInteger(env, "WORKER_TEMP_RETENTION_MS", 24 * 60 * 60_000, 60_000, 30 * 24 * 60 * 60_000);
+  const retentionMs = readInteger(
+    env,
+    "WORKER_TEMP_RETENTION_MS",
+    24 * 60 * 60_000,
+    60_000,
+    30 * 24 * 60 * 60_000,
+  );
   return {
     kind: "generation",
     runtime,
     run: async (signal) => {
       await maintain(objects);
-      await cleanup(downloadsPath, retentionMs).catch((error) => console.error("Generation download cleanup failed", error));
+      await cleanup(downloadsPath, retentionMs).catch((error) =>
+        console.error("Generation download cleanup failed", error),
+      );
       await runtime.run(signal);
     },
   };
 }
 
 const defaultMaintainMediaObjects = (objects: MediaObjectStore) =>
-  maintainMediaObjectStore(objects).catch((error) => console.error("Media temporary cleanup failed", error));
+  maintainMediaObjectStore(objects).catch((error) =>
+    console.error("Media temporary cleanup failed", error),
+  );
 
 function signedMediaAccess(env: NodeJS.ProcessEnv) {
   const secret = env.MEDIA_SIGNING_SECRET?.trim();
   const baseUrl = env.MEDIA_PUBLIC_BASE_URL?.trim();
   if (!secret && !baseUrl) return undefined;
-  if (!secret || !baseUrl) throw new Error("MEDIA_SIGNING_SECRET and MEDIA_PUBLIC_BASE_URL must be configured together");
+  if (!secret || !baseUrl)
+    throw new Error("MEDIA_SIGNING_SECRET and MEDIA_PUBLIC_BASE_URL must be configured together");
   return new SignedMediaAccess({
     secret,
     baseUrl,
@@ -156,10 +183,19 @@ function required(env: NodeJS.ProcessEnv, name: string) {
 }
 
 function list(env: NodeJS.ProcessEnv, name: string) {
-  return (env[name] || "").split(",").map((value) => value.trim()).filter(Boolean);
+  return (env[name] || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
 }
 
-function readInteger(env: NodeJS.ProcessEnv, name: string, fallback: number, min: number, max: number) {
+function readInteger(
+  env: NodeJS.ProcessEnv,
+  name: string,
+  fallback: number,
+  min: number,
+  max: number,
+) {
   const value = env[name];
   if (!value) return fallback;
   const parsed = Number(value);
@@ -171,16 +207,19 @@ function readInteger(env: NodeJS.ProcessEnv, name: string, fallback: number, min
 
 export async function cleanupGeneratedDownloads(directory: string, olderThanMs: number) {
   const cutoff = Date.now() - olderThanMs;
-  const entries = await readdir(directory, { withFileTypes: true }).catch((error: NodeJS.ErrnoException) => {
-    if (error.code === "ENOENT") return [];
-    throw error;
-  });
+  const entries = await readdir(directory, { withFileTypes: true }).catch(
+    (error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return [];
+      throw error;
+    },
+  );
   let removed = 0;
   for (const entry of entries) {
     if (!entry.isFile() || !/^[A-Za-z0-9_-]{8,128}\.media$/.test(entry.name)) continue;
     const path = resolve(directory, entry.name);
     const metadata = await lstat(path).catch(() => null);
-    if (!metadata || metadata.isSymbolicLink() || !metadata.isFile() || metadata.mtimeMs > cutoff) continue;
+    if (!metadata || metadata.isSymbolicLink() || !metadata.isFile() || metadata.mtimeMs > cutoff)
+      continue;
     await rm(path, { force: true });
     removed += 1;
   }

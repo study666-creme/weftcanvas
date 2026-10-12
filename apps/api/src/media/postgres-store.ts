@@ -38,15 +38,30 @@ export class PostgresMediaMetadataStore implements MediaMetadataStore, CloudReso
   private readonly maxCreatedRecordsPerWindow: number;
   private readonly creationWindowMs: number;
 
-  constructor(private readonly pool: Pool, options: PostgresMediaMetadataStoreOptions = {}) {
-    this.maxActiveRecords = positiveInteger(options.maxActiveRecords ?? DEFAULT_MAX_ACTIVE_RECORDS, "maxActiveRecords");
-    this.maxFailedRecords = positiveInteger(options.maxFailedRecords ?? DEFAULT_MAX_FAILED_RECORDS, "maxFailedRecords");
-    this.failedRetentionMs = positiveInteger(options.failedRetentionMs ?? DEFAULT_FAILED_RETENTION_MS, "failedRetentionMs");
+  constructor(
+    private readonly pool: Pool,
+    options: PostgresMediaMetadataStoreOptions = {},
+  ) {
+    this.maxActiveRecords = positiveInteger(
+      options.maxActiveRecords ?? DEFAULT_MAX_ACTIVE_RECORDS,
+      "maxActiveRecords",
+    );
+    this.maxFailedRecords = positiveInteger(
+      options.maxFailedRecords ?? DEFAULT_MAX_FAILED_RECORDS,
+      "maxFailedRecords",
+    );
+    this.failedRetentionMs = positiveInteger(
+      options.failedRetentionMs ?? DEFAULT_FAILED_RETENTION_MS,
+      "failedRetentionMs",
+    );
     this.maxCreatedRecordsPerWindow = positiveInteger(
       options.maxCreatedRecordsPerWindow ?? DEFAULT_MAX_CREATED_RECORDS_PER_WINDOW,
       "maxCreatedRecordsPerWindow",
     );
-    this.creationWindowMs = positiveInteger(options.creationWindowMs ?? DEFAULT_CREATION_WINDOW_MS, "creationWindowMs");
+    this.creationWindowMs = positiveInteger(
+      options.creationWindowMs ?? DEFAULT_CREATION_WINDOW_MS,
+      "creationWindowMs",
+    );
   }
 
   async findByIdempotency(ownerId: string, idempotencyKey: string) {
@@ -97,7 +112,14 @@ export class PostgresMediaMetadataStore implements MediaMetadataStore, CloudReso
                    WHEN canvas_storage_grace.deadline > $6::TIMESTAMPTZ THEN canvas_storage_grace.deadline
                    ELSE EXCLUDED.deadline
                  END`,
-          [ownerId, fromTier, quotaBytes, usedBytes, new Date(now + graceMs).toISOString(), new Date(now).toISOString()],
+          [
+            ownerId,
+            fromTier,
+            quotaBytes,
+            usedBytes,
+            new Date(now + graceMs).toISOString(),
+            new Date(now).toISOString(),
+          ],
         );
       } else {
         await client.query("DELETE FROM canvas_storage_grace WHERE owner_id = $1", [ownerId]);
@@ -112,9 +134,17 @@ export class PostgresMediaMetadataStore implements MediaMetadataStore, CloudReso
   }
 
   /** 读取一个 owner 的活跃宽限记录（usage 查询用；无则 null）。 */
-  async readStorageGrace(ownerId: string): Promise<{ fromTier: string; quotaBytes: number; usageBytes: number; deadline: string } | null> {
+  async readStorageGrace(ownerId: string): Promise<{
+    fromTier: string;
+    quotaBytes: number;
+    usageBytes: number;
+    deadline: string;
+  } | null> {
     const result = await this.pool.query<{
-      from_tier: string; quota_bytes: string | number; usage_bytes: string | number; deadline: Date;
+      from_tier: string;
+      quota_bytes: string | number;
+      usage_bytes: string | number;
+      deadline: Date;
     }>(
       "SELECT from_tier, quota_bytes, usage_bytes, deadline FROM canvas_storage_grace WHERE owner_id = $1",
       [ownerId],
@@ -150,12 +180,24 @@ export class PostgresMediaMetadataStore implements MediaMetadataStore, CloudReso
       const evicted: MediaEvictionItem[] = [];
       if (remaining > 0) {
         // 阶段一：未绑定素材，最旧优先（生成结果先于上传，同 evictOldestForQuota 语义）。
-        remaining = await deleteOldestMedia(client, ownerId, remaining, /* boundOnly */ false, evicted);
+        remaining = await deleteOldestMedia(
+          client,
+          ownerId,
+          remaining,
+          /* boundOnly */ false,
+          evicted,
+        );
       }
       if (remaining > 0) {
         // 阶段二：绑定素材按其所在项目 updated_at 最早的优先——项目近期
         // 还在编辑的尽量保住，最久不动的画布先让出超额部分。
-        remaining = await deleteOldestMedia(client, ownerId, remaining, /* boundOnly */ true, evicted);
+        remaining = await deleteOldestMedia(
+          client,
+          ownerId,
+          remaining,
+          /* boundOnly */ true,
+          evicted,
+        );
       }
       await client.query(
         remaining > 0
@@ -220,7 +262,8 @@ export class PostgresMediaMetadataStore implements MediaMetadataStore, CloudReso
   async create(value: MediaRecord, quotaValue?: MediaStorageQuota): Promise<CreateMediaResult> {
     const media = mediaRecordSchema.parse(value);
     const quota = quotaValue ? mediaStorageQuotaSchema.parse(quotaValue) : undefined;
-    if (media.status !== "pending" || media.revision !== 0) throw new Error("New media must start pending at revision zero");
+    if (media.status !== "pending" || media.revision !== 0)
+      throw new Error("New media must start pending at revision zero");
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
@@ -241,7 +284,10 @@ export class PostgresMediaMetadataStore implements MediaMetadataStore, CloudReso
         `SELECT COUNT(*)::BIGINT AS count
          FROM canvas_media
          WHERE owner_id = $1 AND created_at >= $2::TIMESTAMPTZ`,
-        [media.ownerId, new Date(Date.parse(media.createdAt) - this.creationWindowMs).toISOString()],
+        [
+          media.ownerId,
+          new Date(Date.parse(media.createdAt) - this.creationWindowMs).toISOString(),
+        ],
       );
       const recentRecords = safeBytes(recent.rows[0]?.count ?? 0);
       await pruneFailedRecords(
@@ -252,7 +298,11 @@ export class PostgresMediaMetadataStore implements MediaMetadataStore, CloudReso
       );
       if (recentRecords >= this.maxCreatedRecordsPerWindow) {
         await client.query("COMMIT");
-        return { kind: "intent_limit", currentRecords: recentRecords, limit: this.maxCreatedRecordsPerWindow };
+        return {
+          kind: "intent_limit",
+          currentRecords: recentRecords,
+          limit: this.maxCreatedRecordsPerWindow,
+        };
       }
       const active = await client.query<CountRow>(
         `SELECT COUNT(*)::BIGINT AS count
@@ -263,7 +313,11 @@ export class PostgresMediaMetadataStore implements MediaMetadataStore, CloudReso
       const activeRecords = safeBytes(active.rows[0]?.count ?? 0);
       if (activeRecords >= this.maxActiveRecords) {
         await client.query("COMMIT");
-        return { kind: "intent_limit", currentRecords: activeRecords, limit: this.maxActiveRecords };
+        return {
+          kind: "intent_limit",
+          currentRecords: activeRecords,
+          limit: this.maxActiveRecords,
+        };
       }
       if (quota) {
         let evicted: MediaEvictionItem[] = [];
@@ -287,7 +341,8 @@ export class PostgresMediaMetadataStore implements MediaMetadataStore, CloudReso
         }
         if (evicted.length) {
           const insert = await this.insertMedia(client, media);
-          if (!insert) throw new Error("Media insert conflict did not resolve to an idempotent record");
+          if (!insert)
+            throw new Error("Media insert conflict did not resolve to an idempotent record");
           await client.query("COMMIT");
           return { kind: "created", media: parseMedia(insert), evicted };
         }
@@ -319,7 +374,11 @@ export class PostgresMediaMetadataStore implements MediaMetadataStore, CloudReso
    * 的本地上传），为新增记录腾出空间。被云项目绑定的素材绝不自动淘汰。
    */
   private async evictOldestForQuota(client: PoolClient, ownerId: string, neededBytes: number) {
-    const candidates = await client.query<{ id: string; object_key: string; bytes: string | number }>(
+    const candidates = await client.query<{
+      id: string;
+      object_key: string;
+      bytes: string | number;
+    }>(
       `SELECT id, object_key, COALESCE(size, expected_size, 0)::BIGINT AS bytes
        FROM canvas_media
        WHERE owner_id = $1 AND status = 'ready'
@@ -416,7 +475,10 @@ export class PostgresMediaMetadataStore implements MediaMetadataStore, CloudReso
       );
       await client.query("COMMIT");
       if (!result.rows[0]) {
-        const owned = await client.query("SELECT id FROM canvas_media WHERE id = $1 AND owner_id = $2", [id, ownerId]);
+        const owned = await client.query(
+          "SELECT id FROM canvas_media WHERE id = $1 AND owner_id = $2",
+          [id, ownerId],
+        );
         if (!owned.rows.length) return { kind: "missing" };
         return { kind: "bound" };
       }
@@ -431,7 +493,9 @@ export class PostgresMediaMetadataStore implements MediaMetadataStore, CloudReso
 
   /** 列出账号下全部素材及其云项目绑定，供“清理云端资源”自选删除。 */
   async listOwnedResources(ownerId: string): Promise<OwnedCloudMedia[]> {
-    const result = await this.pool.query<MediaRow & { project_ids: string[] | null; orphaned: boolean }>(
+    const result = await this.pool.query<
+      MediaRow & { project_ids: string[] | null; orphaned: boolean }
+    >(
       `SELECT media.record, media.revision,
         COALESCE((
           SELECT array_agg(binding.project_id ORDER BY binding.project_id)
@@ -524,25 +588,34 @@ export class PostgresMediaMetadataStore implements MediaMetadataStore, CloudReso
     }
   }
 
-  async claimUpload(id: string, ownerId: string, expectedRevision: number, updatedAt: string) {    const current = await this.getOwned(id, ownerId);
-    if (!current || current.revision !== expectedRevision || current.status !== "pending") return null;
-    return this.save({
-      ...current,
-      status: "uploading",
-      revision: current.revision + 1,
-      updatedAt,
-    }, expectedRevision);
+  async claimUpload(id: string, ownerId: string, expectedRevision: number, updatedAt: string) {
+    const current = await this.getOwned(id, ownerId);
+    if (!current || current.revision !== expectedRevision || current.status !== "pending")
+      return null;
+    return this.save(
+      {
+        ...current,
+        status: "uploading",
+        revision: current.revision + 1,
+        updatedAt,
+      },
+      expectedRevision,
+    );
   }
 
   async resetUpload(id: string, ownerId: string, expectedRevision: number, updatedAt: string) {
     const current = await this.getOwned(id, ownerId);
-    if (!current || current.revision !== expectedRevision || current.status !== "uploading") return null;
-    return this.save({
-      ...current,
-      status: "pending",
-      revision: current.revision + 1,
-      updatedAt,
-    }, expectedRevision);
+    if (!current || current.revision !== expectedRevision || current.status !== "uploading")
+      return null;
+    return this.save(
+      {
+        ...current,
+        status: "pending",
+        revision: current.revision + 1,
+        updatedAt,
+      },
+      expectedRevision,
+    );
   }
 
   async markReady(value: MediaRecord, expectedRevision: number) {
@@ -553,7 +626,8 @@ export class PostgresMediaMetadataStore implements MediaMetadataStore, CloudReso
 
   async markFailed(value: MediaRecord, expectedRevision: number) {
     const media = mediaRecordSchema.parse(value);
-    if (media.status !== "failed") throw new Error("Only failed media can persist an upload failure");
+    if (media.status !== "failed")
+      throw new Error("Only failed media can persist an upload failure");
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
@@ -577,7 +651,11 @@ export class PostgresMediaMetadataStore implements MediaMetadataStore, CloudReso
     }
   }
 
-  private async getOwned(id: string, ownerId: string, client: Pick<PoolClient, "query"> = this.pool) {
+  private async getOwned(
+    id: string,
+    ownerId: string,
+    client: Pick<PoolClient, "query"> = this.pool,
+  ) {
     const result = await client.query<MediaRow>(
       "SELECT record, revision FROM canvas_media WHERE id = $1 AND owner_id = $2",
       [id, ownerId],
@@ -590,7 +668,8 @@ export class PostgresMediaMetadataStore implements MediaMetadataStore, CloudReso
     expectedRevision: number,
     client: Pick<PoolClient, "query"> = this.pool,
   ) {
-    if (media.revision !== expectedRevision + 1) throw new Error("Media revision must increment exactly once");
+    if (media.revision !== expectedRevision + 1)
+      throw new Error("Media revision must increment exactly once");
     const current = await this.getOwned(media.id, media.ownerId, client);
     if (!current || current.revision !== expectedRevision) return null;
     assertImmutable(current, media);
@@ -696,7 +775,8 @@ async function expireQuotaReservations(
 
 function parseMedia(row: MediaRow) {
   const media = mediaRecordSchema.parse(row.record);
-  if (media.revision !== row.revision) throw new Error("Media revision does not match its stored record");
+  if (media.revision !== row.revision)
+    throw new Error("Media revision does not match its stored record");
   return media;
 }
 
@@ -743,21 +823,23 @@ async function deleteOldestMedia(
     if (freed >= neededBytes) break;
   }
   if (!chosen.length) return neededBytes;
-  await client.query(
-    "DELETE FROM canvas_media WHERE owner_id = $1 AND id = ANY($2::TEXT[])",
-    [ownerId, chosen],
-  );
+  await client.query("DELETE FROM canvas_media WHERE owner_id = $1 AND id = ANY($2::TEXT[])", [
+    ownerId,
+    chosen,
+  ]);
   return Math.max(0, neededBytes - freed);
 }
 
 function safeBytes(value: string | number) {
   const parsed = typeof value === "number" ? value : Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed < 0) throw new Error("Media storage usage is invalid");
+  if (!Number.isSafeInteger(parsed) || parsed < 0)
+    throw new Error("Media storage usage is invalid");
   return parsed;
 }
 
 function positiveInteger(value: number, name: string) {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${name} must be a positive safe integer`);
+  if (!Number.isSafeInteger(value) || value <= 0)
+    throw new Error(`${name} must be a positive safe integer`);
   return value;
 }
 
@@ -766,18 +848,19 @@ function serialize(media: MediaRecord) {
 }
 
 function assertImmutable(current: MediaRecord, next: MediaRecord) {
-  const stable = current.id === next.id
-    && current.ownerId === next.ownerId
-    && current.projectId === next.projectId
-    && current.source === next.source
-    && current.idempotencyKey === next.idempotencyKey
-    && current.objectKey === next.objectKey
-    && current.kind === next.kind
-    && current.name === next.name
-    && current.declaredMimeType === next.declaredMimeType
-    && current.expectedSize === next.expectedSize
-    && current.expectedSha256 === next.expectedSha256
-    && current.createdAt === next.createdAt
-    && current.uploadExpiresAt === next.uploadExpiresAt;
+  const stable =
+    current.id === next.id &&
+    current.ownerId === next.ownerId &&
+    current.projectId === next.projectId &&
+    current.source === next.source &&
+    current.idempotencyKey === next.idempotencyKey &&
+    current.objectKey === next.objectKey &&
+    current.kind === next.kind &&
+    current.name === next.name &&
+    current.declaredMimeType === next.declaredMimeType &&
+    current.expectedSize === next.expectedSize &&
+    current.expectedSha256 === next.expectedSha256 &&
+    current.createdAt === next.createdAt &&
+    current.uploadExpiresAt === next.uploadExpiresAt;
   if (!stable) throw new Error("Immutable media fields cannot change after upload intent creation");
 }

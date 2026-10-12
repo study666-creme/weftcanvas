@@ -1,8 +1,4 @@
-import type {
-  CanvasProject,
-  CloudProjectSummary,
-  CloudProjectUsage,
-} from "@kachang/contracts";
+import type { CanvasProject, CloudProjectSummary, CloudProjectUsage } from "@weftcanvas/contracts";
 import { create } from "zustand";
 
 import {
@@ -32,7 +28,8 @@ import { useProjectLibraryStore } from "./project-library-store";
 import { useStorageTipStore } from "./storage-tip-store";
 import { useToastStore } from "./toast-store";
 
-export type CloudSyncStatus = "idle" | "syncing" | "synced" | "conflict" | "error" | "unavailable" | "local-only";
+export type CloudSyncStatus =
+  "idle" | "syncing" | "synced" | "conflict" | "error" | "unavailable" | "local-only";
 
 export type SharedCloudProjectSummary = CloudProjectSummary & {
   ownerId: string;
@@ -60,18 +57,26 @@ type CloudProjectState = {
   statusByProject: Record<string, CloudSyncStatus>;
   errorByProject: Record<string, string | null>;
   refresh: (ownerId: string, force?: boolean) => Promise<void>;
-  enableProject: (ownerId: string, project: CanvasProject, options?: { silent?: boolean }) => Promise<boolean>;
+  enableProject: (
+    ownerId: string,
+    project: CanvasProject,
+    options?: { silent?: boolean },
+  ) => Promise<boolean>;
   ensureAutoSync: (ownerId: string, project: CanvasProject) => void;
   scheduleSync: (ownerId: string, project: CanvasProject, immediate?: boolean) => void;
   retrySync: (ownerId: string, project: CanvasProject) => void;
-  openRemoteProject: (ownerId: string, projectId: string, projectOwnerId?: string) => Promise<boolean>;
+  openRemoteProject: (
+    ownerId: string,
+    projectId: string,
+    projectOwnerId?: string,
+  ) => Promise<boolean>;
   deleteProject: (ownerId: string, projectId: string) => Promise<boolean>;
   reset: () => void;
 };
 
-const LINK_KEY_PREFIX = "kachang-canvas:cloud-link:v1:";
-const TERMINAL_LOCAL_KEY_PREFIX = "kachang-canvas:cloud-terminal-local:v1:";
-const CONFLICT_PRESERVED_KEY_PREFIX = "kachang-canvas:cloud-conflict-preserved:v1:";
+const LINK_KEY_PREFIX = "weftcanvas:cloud-link:v1:";
+const TERMINAL_LOCAL_KEY_PREFIX = "weftcanvas:cloud-terminal-local:v1:";
+const CONFLICT_PRESERVED_KEY_PREFIX = "weftcanvas:cloud-conflict-preserved:v1:";
 const SYNC_DELAY_MS = 3_000;
 const TERMINAL_LOCAL_ERROR_CODES = new Set([
   "MEDIA_STORAGE_LIMIT_REACHED",
@@ -80,10 +85,7 @@ const TERMINAL_LOCAL_ERROR_CODES = new Set([
   "CLOUD_PROJECT_DOCUMENT_TOO_LARGE",
   "MEDIA_TOO_LARGE",
 ]);
-const SIZE_LIMIT_ERROR_CODES = new Set([
-  "CLOUD_PROJECT_DOCUMENT_TOO_LARGE",
-  "MEDIA_TOO_LARGE",
-]);
+const SIZE_LIMIT_ERROR_CODES = new Set(["CLOUD_PROJECT_DOCUMENT_TOO_LARGE", "MEDIA_TOO_LARGE"]);
 const timers = new Map<string, number>();
 const pending = new Map<string, CanvasProject>();
 const inFlight = new Map<string, Promise<void>>();
@@ -113,13 +115,15 @@ export const useCloudProjectStore = create<CloudProjectState>((set, get) => ({
       ownerId,
       loading: true,
       links: readCloudLinks(ownerId),
-      ...(ownerChanged ? {
-        projects: [],
-        sharedProjects: [],
-        usage: null,
-        statusByProject: terminalLocal?.statusByProject ?? {},
-        errorByProject: terminalLocal?.errorByProject ?? {},
-      } : {}),
+      ...(ownerChanged
+        ? {
+            projects: [],
+            sharedProjects: [],
+            usage: null,
+            statusByProject: terminalLocal?.statusByProject ?? {},
+            errorByProject: terminalLocal?.errorByProject ?? {},
+          }
+        : {}),
     });
     const version = ++refreshVersion;
     const promise = (async () => {
@@ -136,7 +140,8 @@ export const useCloudProjectStore = create<CloudProjectState>((set, get) => ({
         useStorageTipStore.getState().reevaluate(result.usage, result.usage.storageGrace ?? null);
       } catch (cause) {
         if (!operationIsCurrent(ownerId, epoch, get) || refreshVersion !== version) return;
-        if (cause instanceof CanvasApiError && cause.status === 401) useIdentityStore.getState().expire();
+        if (cause instanceof CanvasApiError && cause.status === 401)
+          useIdentityStore.getState().expire();
         set({ loading: false });
       } finally {
         if (refreshVersion === version) refreshRequest = null;
@@ -161,7 +166,8 @@ export const useCloudProjectStore = create<CloudProjectState>((set, get) => ({
         if (!operationIsCurrent(ownerId, epoch, get)) return false;
       } catch (cause) {
         if (!operationIsCurrent(ownerId, epoch, get)) return false;
-        if (!(cause instanceof CanvasApiError) || cause.code !== "CLOUD_PROJECT_EXISTS") throw cause;
+        if (!(cause instanceof CanvasApiError) || cause.code !== "CLOUD_PROJECT_EXISTS")
+          throw cause;
         const existing = await fetchCloudProject(project.id, ownerId);
         if (!operationIsCurrent(ownerId, epoch, get)) return false;
         const [existingFingerprint, documentFingerprint] = await Promise.all([
@@ -173,7 +179,12 @@ export const useCloudProjectStore = create<CloudProjectState>((set, get) => ({
           // 静默自动开通遇同名云端项目：不打断用户（无 toast、无冲突态），
           // 直接放弃自动开通；手动入口仍会显示冲突提示。
           if (silent) return false;
-          setProjectState(set, project.id, "conflict", "云端已有同名项目，请先打开云端版本确认内容");
+          setProjectState(
+            set,
+            project.id,
+            "conflict",
+            "云端已有同名项目，请先打开云端版本确认内容",
+          );
           return false;
         }
         cloud = existing;
@@ -192,11 +203,15 @@ export const useCloudProjectStore = create<CloudProjectState>((set, get) => ({
       const preparedFingerprint = await canvasDocumentFingerprint(preparedDocument);
       if (!operationIsCurrent(ownerId, epoch, get)) return false;
       if (preparedFingerprint !== initialLink.lastSyncedFingerprint) {
-        cloud = await saveCloudProject(project.id, {
-          baseRevision: initialLink.revision,
-          document: preparedDocument,
-          checkpoint: false,
-        }, initialLink.projectOwnerId);
+        cloud = await saveCloudProject(
+          project.id,
+          {
+            baseRevision: initialLink.revision,
+            document: preparedDocument,
+            checkpoint: false,
+          },
+          initialLink.projectOwnerId,
+        );
         if (!operationIsCurrent(ownerId, epoch, get)) return false;
       }
 
@@ -232,7 +247,8 @@ export const useCloudProjectStore = create<CloudProjectState>((set, get) => ({
     if (status === "local-only" || status === "conflict") return;
     // 首次编辑静默开通云端项目；进行中/失败的自动开通不重复触发。
     if (autoEnableInFlight.has(project.id)) return;
-    const request = get().enableProject(ownerId, project, { silent: true })
+    const request = get()
+      .enableProject(ownerId, project, { silent: true })
       .catch(() => false)
       .finally(() => autoEnableInFlight.delete(project.id));
     autoEnableInFlight.set(project.id, request);
@@ -271,8 +287,9 @@ export const useCloudProjectStore = create<CloudProjectState>((set, get) => ({
         ]);
         if (!operationIsCurrent(ownerId, epoch, get)) return false;
         const link = get().links[projectId];
-        preserveLocal = localFingerprint !== remoteFingerprint
-          && (!link || localFingerprint !== link.lastSyncedFingerprint);
+        preserveLocal =
+          localFingerprint !== remoteFingerprint &&
+          (!link || localFingerprint !== link.lastSyncedFingerprint);
       }
       const nextLink = await linkFromCloud(ownerId, cloud, projectOwnerId);
       if (!operationIsCurrent(ownerId, epoch, get)) return false;
@@ -315,7 +332,9 @@ export const useCloudProjectStore = create<CloudProjectState>((set, get) => ({
         removeCloudLink(ownerId, projectId);
         set((state) => ({
           projects: state.projects.filter((item) => item.id !== projectId),
-          links: Object.fromEntries(Object.entries(state.links).filter(([key]) => key !== projectId)),
+          links: Object.fromEntries(
+            Object.entries(state.links).filter(([key]) => key !== projectId),
+          ),
           statusByProject: Object.fromEntries(
             Object.entries(state.statusByProject).filter(([key]) => key !== projectId),
           ),
@@ -328,13 +347,14 @@ export const useCloudProjectStore = create<CloudProjectState>((set, get) => ({
       void get().refresh(ownerId, true);
       return true;
     } catch (cause) {
-      const message = cause instanceof CanvasApiError
-        ? cause.status === 409
-          ? "云端项目已更新，请刷新后重试"
-          : cause.status === 404
-            ? "云端项目不存在或已删除"
-            : "删除失败，请稍后重试"
-        : "删除失败，请稍后重试";
+      const message =
+        cause instanceof CanvasApiError
+          ? cause.status === 409
+            ? "云端项目已更新，请刷新后重试"
+            : cause.status === 404
+              ? "云端项目不存在或已删除"
+              : "删除失败，请稍后重试"
+          : "删除失败，请稍后重试";
       useToastStore.getState().show(message, "error");
       void get().refresh(ownerId, true);
       return false;
@@ -376,10 +396,13 @@ async function drainSync(
   const request = performSync(ownerId, project, epoch, get, set).finally(() => {
     inFlight.delete(key);
     if (pending.has(key) && get().statusByProject[projectId] !== "local-only") {
-      timers.set(key, window.setTimeout(() => {
-        timers.delete(key);
-        void drainSync(ownerId, projectId, get, set);
-      }, 0));
+      timers.set(
+        key,
+        window.setTimeout(() => {
+          timers.delete(key);
+          void drainSync(ownerId, projectId, get, set);
+        }, 0),
+      );
     }
   });
   inFlight.set(key, request);
@@ -409,23 +432,48 @@ async function performSync(
       setProjectState(set, project.id, "synced", null);
       return;
     }
-    const cloud = await saveCloudProject(project.id, {
-      baseRevision: link.revision,
-      document,
-      checkpoint: false,
-    }, link.projectOwnerId);
+    const cloud = await saveCloudProject(
+      project.id,
+      {
+        baseRevision: link.revision,
+        document,
+        checkpoint: false,
+      },
+      link.projectOwnerId,
+    );
     if (!operationIsCurrent(ownerId, epoch, get)) return;
-    await acceptSyncedCloud(ownerId, project, prepared, cloud, link.projectOwnerId, epoch, get, set, true);
+    await acceptSyncedCloud(
+      ownerId,
+      project,
+      prepared,
+      cloud,
+      link.projectOwnerId,
+      epoch,
+      get,
+      set,
+      true,
+    );
   } catch (cause) {
     if (!operationIsCurrent(ownerId, epoch, get)) return;
     if (
-      cause instanceof CanvasApiError
-      && cause.code === "CLOUD_PROJECT_REVISION_CONFLICT"
-      && prepared
-      && document
-      && fingerprint
+      cause instanceof CanvasApiError &&
+      cause.code === "CLOUD_PROJECT_REVISION_CONFLICT" &&
+      prepared &&
+      document &&
+      fingerprint
     ) {
-      await resolveConflict(ownerId, project, prepared, document, fingerprint, link, epoch, get, set, true);
+      await resolveConflict(
+        ownerId,
+        project,
+        prepared,
+        document,
+        fingerprint,
+        link,
+        epoch,
+        get,
+        set,
+        true,
+      );
       return;
     }
     handleSyncFailure(set, project.id, cause, ownerId, epoch, get);
@@ -445,7 +493,8 @@ async function resolveConflict(
   allowFastForwardRetry: boolean,
 ) {
   try {
-    const projectOwnerId = get().links[local.id]?.projectOwnerId ?? baseLink.projectOwnerId ?? ownerId;
+    const projectOwnerId =
+      get().links[local.id]?.projectOwnerId ?? baseLink.projectOwnerId ?? ownerId;
     const cloud = await fetchCloudProject(local.id, projectOwnerId);
     if (!operationIsCurrent(ownerId, epoch, get)) return;
     const remoteFingerprint = await canvasDocumentFingerprint(cloud.document);
@@ -477,19 +526,33 @@ async function resolveConflict(
       if (!operationIsCurrent(ownerId, epoch, get)) return;
       if (allowFastForwardRetry) {
         try {
-          const saved = await saveCloudProject(local.id, {
-            baseRevision: cloud.revision,
-            document: localDocument,
-            checkpoint: false,
-          }, projectOwnerId);
+          const saved = await saveCloudProject(
+            local.id,
+            {
+              baseRevision: cloud.revision,
+              document: localDocument,
+              checkpoint: false,
+            },
+            projectOwnerId,
+          );
           if (!operationIsCurrent(ownerId, epoch, get)) return;
-          await acceptSyncedCloud(ownerId, local, prepared, saved, projectOwnerId, epoch, get, set, true);
+          await acceptSyncedCloud(
+            ownerId,
+            local,
+            prepared,
+            saved,
+            projectOwnerId,
+            epoch,
+            get,
+            set,
+            true,
+          );
           return;
         } catch (cause) {
           if (
-            cause instanceof CanvasApiError
-            && cause.code === "CLOUD_PROJECT_REVISION_CONFLICT"
-            && operationIsCurrent(ownerId, epoch, get)
+            cause instanceof CanvasApiError &&
+            cause.code === "CLOUD_PROJECT_REVISION_CONFLICT" &&
+            operationIsCurrent(ownerId, epoch, get)
           ) {
             await resolveConflict(
               ownerId,
@@ -539,7 +602,8 @@ async function resolveConflict(
     // the remote version has replaced the local project.
     dropPendingSync(ownerId, local.id);
     writeProject(remote);
-    if (useCanvasStore.getState().projectId === local.id) useCanvasStore.getState().replaceProject(remote);
+    if (useCanvasStore.getState().projectId === local.id)
+      useCanvasStore.getState().replaceProject(remote);
     useProjectLibraryStore.getState().refresh();
     persistCloudLink(link);
     useCloudProjectStore.setState((state) => ({
@@ -620,12 +684,15 @@ async function linkFromCloud(
     projectOwnerId,
     projectId: cloud.id,
     revision: cloud.revision,
-    lastSyncedFingerprint: knownFingerprint ?? await canvasDocumentFingerprint(cloud.document),
+    lastSyncedFingerprint: knownFingerprint ?? (await canvasDocumentFingerprint(cloud.document)),
   };
 }
 
 function setProjectState(
-  set: (partial: Partial<CloudProjectState> | ((state: CloudProjectState) => Partial<CloudProjectState>)) => void,
+  set: (
+    partial:
+      Partial<CloudProjectState> | ((state: CloudProjectState) => Partial<CloudProjectState>),
+  ) => void,
   projectId: string,
   status: CloudSyncStatus,
   error: string | null,
@@ -656,7 +723,8 @@ function handleSyncFailure(
     void get().refresh(ownerId, true);
     return;
   }
-  const unavailable = cause instanceof CanvasApiError && (cause.status === 0 || cause.status >= 500);
+  const unavailable =
+    cause instanceof CanvasApiError && (cause.status === 0 || cause.status >= 500);
   const status = unavailable ? "unavailable" : "error";
   const message = cause instanceof Error ? cause.message : "云端保存没有完成";
   setProjectState(set, projectId, status, message);
@@ -673,10 +741,16 @@ function enqueueSync(
   pending.set(key, structuredClone(project));
   const existing = timers.get(key);
   if (existing !== undefined) window.clearTimeout(existing);
-  timers.set(key, window.setTimeout(() => {
-    timers.delete(key);
-    void drainSync(ownerId, project.id, get, set);
-  }, immediate ? 0 : SYNC_DELAY_MS));
+  timers.set(
+    key,
+    window.setTimeout(
+      () => {
+        timers.delete(key);
+        void drainSync(ownerId, project.id, get, set);
+      },
+      immediate ? 0 : SYNC_DELAY_MS,
+    ),
+  );
 }
 
 function suspendPendingSync(ownerId: string, projectId: string) {
@@ -692,7 +766,8 @@ function dropPendingSync(ownerId: string, projectId: string) {
 }
 
 function terminalLocalFailure(cause: unknown) {
-  if (!(cause instanceof CanvasApiError) || !TERMINAL_LOCAL_ERROR_CODES.has(cause.code)) return null;
+  if (!(cause instanceof CanvasApiError) || !TERMINAL_LOCAL_ERROR_CODES.has(cause.code))
+    return null;
   return { code: cause.code, message: terminalLocalMessage(cause.code) };
 }
 
@@ -716,7 +791,9 @@ function applyPreparedMediaToCanvas(
     if (!media?.serverId) return;
     const current = useCanvasStore.getState().nodes.find((item) => item.id === node.id)?.data.media;
     if (current?.id === media.id && current.serverId !== media.serverId) {
-      useCanvasStore.getState().updateNodeData(node.id, { media: { ...current, serverId: media.serverId } }, false);
+      useCanvasStore
+        .getState()
+        .updateNodeData(node.id, { media: { ...current, serverId: media.serverId } }, false);
     }
   });
 }
@@ -745,8 +822,10 @@ function upsertSummary(
   cloud: Awaited<ReturnType<typeof fetchCloudProject>>,
 ) {
   const { document: _document, ...summary } = cloud;
-  return [...projects.filter((project) => project.id !== summary.id), summary]
-    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt) || left.id.localeCompare(right.id));
+  return [...projects.filter((project) => project.id !== summary.id), summary].sort(
+    (left, right) =>
+      right.updatedAt.localeCompare(left.updatedAt) || left.id.localeCompare(right.id),
+  );
 }
 
 function upsertSharedSummary(
@@ -756,12 +835,15 @@ function upsertSharedSummary(
 ) {
   const { document: _document, ...summary } = cloud;
   const shared = { ...summary, ownerId, role: "member" as const };
-  return [...projects.filter((project) => project.id !== shared.id || project.ownerId !== ownerId), shared]
-    .sort((left, right) => (
-      right.updatedAt.localeCompare(left.updatedAt)
-      || left.ownerId.localeCompare(right.ownerId)
-      || left.id.localeCompare(right.id)
-    ));
+  return [
+    ...projects.filter((project) => project.id !== shared.id || project.ownerId !== ownerId),
+    shared,
+  ].sort(
+    (left, right) =>
+      right.updatedAt.localeCompare(left.updatedAt) ||
+      left.ownerId.localeCompare(right.ownerId) ||
+      left.id.localeCompare(right.id),
+  );
 }
 
 function syncKey(ownerId: string, projectId: string) {
@@ -825,7 +907,9 @@ function parseTerminalLocalCode(raw: string | null) {
   if (!raw) return null;
   try {
     const value = JSON.parse(raw) as { code?: unknown };
-    return typeof value.code === "string" && TERMINAL_LOCAL_ERROR_CODES.has(value.code) ? value.code : null;
+    return typeof value.code === "string" && TERMINAL_LOCAL_ERROR_CODES.has(value.code)
+      ? value.code
+      : null;
   } catch {
     return null;
   }
@@ -864,9 +948,14 @@ function parseCloudLink(raw: string | null): CloudProjectLink | null {
   try {
     const value = JSON.parse(raw) as Record<string, unknown>;
     if (typeof value.ownerId !== "string" || typeof value.projectId !== "string") return null;
-    const projectOwnerId = typeof value.projectOwnerId === "string" ? value.projectOwnerId : value.ownerId;
+    const projectOwnerId =
+      typeof value.projectOwnerId === "string" ? value.projectOwnerId : value.ownerId;
     if (!Number.isSafeInteger(value.revision) || Number(value.revision) < 1) return null;
-    if (typeof value.lastSyncedFingerprint !== "string" || !/^[a-f0-9]{16,64}$/.test(value.lastSyncedFingerprint)) return null;
+    if (
+      typeof value.lastSyncedFingerprint !== "string" ||
+      !/^[a-f0-9]{16,64}$/.test(value.lastSyncedFingerprint)
+    )
+      return null;
     return {
       ownerId: value.ownerId,
       projectOwnerId,
@@ -887,7 +976,9 @@ function readConflictPreserved(ownerId: string, projectId: string): string | nul
   try {
     const raw = localStorage.getItem(conflictPreservedKey(ownerId, projectId));
     const value = JSON.parse(raw ?? "null") as { fingerprint?: unknown } | null;
-    return typeof value?.fingerprint === "string" && /^[a-f0-9]{16,64}$/.test(value.fingerprint) ? value.fingerprint : null;
+    return typeof value?.fingerprint === "string" && /^[a-f0-9]{16,64}$/.test(value.fingerprint)
+      ? value.fingerprint
+      : null;
   } catch {
     return null;
   }

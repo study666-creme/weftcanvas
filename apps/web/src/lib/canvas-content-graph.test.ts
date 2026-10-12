@@ -11,10 +11,7 @@ describe("canvas content graph selector", () => {
     const selected = selectCanvasContentGraph({ nodes: [source, target], edges: [edge] });
 
     const layoutOnly = selectCanvasContentGraph({
-      nodes: [
-        { ...source, position: { x: 48, y: 24 }, selected: true, dragging: true },
-        target,
-      ],
+      nodes: [{ ...source, position: { x: 48, y: 24 }, selected: true, dragging: true }, target],
       edges: [{ ...edge, selected: true }],
     });
 
@@ -45,12 +42,13 @@ describe("canvas content graph selector", () => {
     const edge = createCanvasEdge(source.id, target.id);
     const selected = selectCanvasContentGraph({ nodes: [source, target], edges: [edge] });
     let reads = 0;
-    const countReads = <Value extends object>(value: Value) => new Proxy(value, {
-      get(targetValue, property, receiver) {
-        reads += 1;
-        return Reflect.get(targetValue, property, receiver);
-      },
-    });
+    const countReads = <Value extends object>(value: Value) =>
+      new Proxy(value, {
+        get(targetValue, property, receiver) {
+          reads += 1;
+          return Reflect.get(targetValue, property, receiver);
+        },
+      });
     const nodes = countReads([
       { ...source, position: { x: 48, y: 24 }, selected: true, dragging: true },
       target,

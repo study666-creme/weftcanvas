@@ -1,6 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { AgentService, AgentServiceError, AGENT_TURN_CREDITS, AGENT_TURN_REASON, AGENT_TURN_REFUND_REASON, type AgentBilling, type AgentBillingCharge, type AgentBillingResult } from "./service.js";
+import {
+  AgentService,
+  AgentServiceError,
+  AGENT_TURN_CREDITS,
+  AGENT_TURN_REASON,
+  AGENT_TURN_REFUND_REASON,
+  type AgentBilling,
+  type AgentBillingCharge,
+  type AgentBillingResult,
+} from "./service.js";
 import { MemoryAgentStore } from "./memory-store.js";
 import type { AgentExecutor } from "./types.js";
 
@@ -13,18 +22,22 @@ const runtimeCatalog = {
 };
 
 function createService(options: {
-  textModels?: () => Promise<ReadonlyArray<{
-    id: string;
-    label: string;
-    description?: string;
-    group?: string;
-    thinking?: { levels: string[]; default: string };
-  }>>;
+  textModels?: () => Promise<
+    ReadonlyArray<{
+      id: string;
+      label: string;
+      description?: string;
+      group?: string;
+      thinking?: { levels: string[]; default: string };
+    }>
+  >;
   models?: typeof runtimeCatalog;
 }) {
   const executor: AgentExecutor = {
     getModels: async () => options.models ?? runtimeCatalog,
-    execute: async () => { throw new Error("not used"); },
+    execute: async () => {
+      throw new Error("not used");
+    },
   };
   return new AgentService(new MemoryAgentStore(), {
     executor,
@@ -36,9 +49,29 @@ describe("AgentService model catalog", () => {
   it("merges platform text models with the runtime catalog and keeps the default first", async () => {
     const service = createService({
       textModels: async () => [
-        { id: "glm-5.1", label: "GLM-5.1", group: "GLM", description: "GLM-5.1 文本模型", meta: "2 积分/次", billing: "request" },
-        { id: "gpt-5.4", label: "GPT-5.4 平台名", group: "OpenAI", meta: "25/150 积分 · 每M", billing: "token", thinking: { levels: ["low", "medium", "high"], default: "medium" } },
-        { id: "kimi-k3", label: "Kimi K3", group: "Kimi", meta: "420/2100 积分 · 每M", billing: "token" },
+        {
+          id: "glm-5.1",
+          label: "GLM-5.1",
+          group: "GLM",
+          description: "GLM-5.1 文本模型",
+          meta: "2 积分/次",
+          billing: "request",
+        },
+        {
+          id: "gpt-5.4",
+          label: "GPT-5.4 平台名",
+          group: "OpenAI",
+          meta: "25/150 积分 · 每M",
+          billing: "token",
+          thinking: { levels: ["low", "medium", "high"], default: "medium" },
+        },
+        {
+          id: "kimi-k3",
+          label: "Kimi K3",
+          group: "Kimi",
+          meta: "420/2100 积分 · 每M",
+          billing: "token",
+        },
       ],
     });
 
@@ -69,7 +102,11 @@ describe("AgentService model catalog", () => {
     const service = createService({
       textModels: async () => [
         { id: "glm-5.1", label: "GLM-5.1", thinking: { levels: [], default: "nope" } },
-        { id: "kimi-k3", label: "Kimi K3", thinking: { levels: ["medium", "medium", "  "], default: "高" } },
+        {
+          id: "kimi-k3",
+          label: "Kimi K3",
+          thinking: { levels: ["medium", "medium", "  "], default: "高" },
+        },
       ],
     });
 
@@ -85,7 +122,9 @@ describe("AgentService model catalog", () => {
 
   it("falls back to the runtime catalog when the platform catalog is unavailable", async () => {
     const service = createService({
-      textModels: async () => { throw new Error("catalog offline"); },
+      textModels: async () => {
+        throw new Error("catalog offline");
+      },
     });
 
     const catalog = await service.getModels();
@@ -124,16 +163,32 @@ function canvasContextFixture() {
 }
 
 function billingMock() {
-  const consume = vi.fn(async (_input: AgentBillingCharge): Promise<AgentBillingResult> => ({ balance: 100, replayed: false }));
-  const refund = vi.fn(async (_input: AgentBillingCharge): Promise<AgentBillingResult> => ({ balance: 100, replayed: false }));
+  const consume = vi.fn(async (_input: AgentBillingCharge): Promise<AgentBillingResult> => ({
+    balance: 100,
+    replayed: false,
+  }));
+  const refund = vi.fn(async (_input: AgentBillingCharge): Promise<AgentBillingResult> => ({
+    balance: 100,
+    replayed: false,
+  }));
   return { billing: { consume, refund } as AgentBilling, consume, refund };
 }
 
-function createBillingHarness(options: { billing: AgentBilling; execute?: AgentExecutor["execute"] }) {
+function createBillingHarness(options: {
+  billing: AgentBilling;
+  execute?: AgentExecutor["execute"];
+}) {
   const store = new MemoryAgentStore();
   const executor: AgentExecutor = {
     getModels: async () => runtimeCatalog,
-    execute: options.execute ?? (async () => ({ content: "完成", actions: [], executionMode: "none" as const, proposal: null })),
+    execute:
+      options.execute ??
+      (async () => ({
+        content: "完成",
+        actions: [],
+        executionMode: "none" as const,
+        proposal: null,
+      })),
   };
   const service = new AgentService(store, { executor, billing: options.billing });
   return { service, store };
@@ -151,7 +206,12 @@ describe("AgentService credit billing", () => {
     const { service } = createBillingHarness({ billing });
     const conversation = await service.createConversation(OWNER_ID, { projectId: PROJECT_ID });
 
-    const detail = await service.submitMessage(OWNER_ID, conversation.id, submitFixture("key-charge-1"), "session-token");
+    const detail = await service.submitMessage(
+      OWNER_ID,
+      conversation.id,
+      submitFixture("key-charge-1"),
+      "session-token",
+    );
 
     expect(consume).toHaveBeenCalledTimes(1);
     const input = consume.mock.calls[0][0];
@@ -164,19 +224,23 @@ describe("AgentService credit billing", () => {
 
   it("blocks the run and creates nothing when the balance is insufficient", async () => {
     const { billing, consume, refund } = billingMock();
-    consume.mockRejectedValue(Object.assign(new Error("insufficient_credits"), {
-      code: "INSUFFICIENT_CREDITS",
-      status: 402,
-    }));
+    consume.mockRejectedValue(
+      Object.assign(new Error("insufficient_credits"), {
+        code: "INSUFFICIENT_CREDITS",
+        status: 402,
+      }),
+    );
     const { service } = createBillingHarness({ billing });
     const conversation = await service.createConversation(OWNER_ID, { projectId: PROJECT_ID });
 
-    await expect(service.submitMessage(
-      OWNER_ID,
-      conversation.id,
-      submitFixture("key-insufficient"),
-      "session-token",
-    )).rejects.toMatchObject({
+    await expect(
+      service.submitMessage(
+        OWNER_ID,
+        conversation.id,
+        submitFixture("key-insufficient"),
+        "session-token",
+      ),
+    ).rejects.toMatchObject({
       name: "AgentServiceError",
       code: "INSUFFICIENT_CREDITS",
       message: "积分不足，请充值后重试",
@@ -193,10 +257,17 @@ describe("AgentService credit billing", () => {
     const { billing, consume, refund } = billingMock();
     const { service } = createBillingHarness({
       billing,
-      execute: async () => { throw new Error("upstream boom"); },
+      execute: async () => {
+        throw new Error("upstream boom");
+      },
     });
     const conversation = await service.createConversation(OWNER_ID, { projectId: PROJECT_ID });
-    const submitted = await service.submitMessage(OWNER_ID, conversation.id, submitFixture("key-fail-1"), "session-token");
+    const submitted = await service.submitMessage(
+      OWNER_ID,
+      conversation.id,
+      submitFixture("key-fail-1"),
+      "session-token",
+    );
     await flush();
 
     expect(consume).toHaveBeenCalledTimes(1);
@@ -215,12 +286,21 @@ describe("AgentService credit billing", () => {
     const { billing, consume, refund } = billingMock();
     const { service } = createBillingHarness({ billing });
     const conversation = await service.createConversation(OWNER_ID, { projectId: PROJECT_ID });
-    const submitted = await service.submitMessage(OWNER_ID, conversation.id, submitFixture("key-success-1"), "session-token");
+    const submitted = await service.submitMessage(
+      OWNER_ID,
+      conversation.id,
+      submitFixture("key-success-1"),
+      "session-token",
+    );
     await flush();
 
     const runId = submitted.latestRun!.id;
-    expect((await service.getDetail(OWNER_ID, conversation.id)).latestRun?.status).toBe("completed");
-    await expect(service.cancelRun(OWNER_ID, runId, "session-token")).rejects.toBeInstanceOf(AgentServiceError);
+    expect((await service.getDetail(OWNER_ID, conversation.id)).latestRun?.status).toBe(
+      "completed",
+    );
+    await expect(service.cancelRun(OWNER_ID, runId, "session-token")).rejects.toBeInstanceOf(
+      AgentServiceError,
+    );
     expect(consume).toHaveBeenCalledTimes(1);
     expect(refund).not.toHaveBeenCalled();
   });
@@ -229,12 +309,18 @@ describe("AgentService credit billing", () => {
     const { billing, consume, refund } = billingMock();
     const { service } = createBillingHarness({
       billing,
-      execute: (_request, signal) => new Promise((_resolve, reject) => {
-        signal.addEventListener("abort", () => reject(new Error("aborted")));
-      }),
+      execute: (_request, signal) =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener("abort", () => reject(new Error("aborted")));
+        }),
     });
     const conversation = await service.createConversation(OWNER_ID, { projectId: PROJECT_ID });
-    await service.submitMessage(OWNER_ID, conversation.id, submitFixture("key-cancel-1"), "session-token");
+    await service.submitMessage(
+      OWNER_ID,
+      conversation.id,
+      submitFixture("key-cancel-1"),
+      "session-token",
+    );
     const runId = consume.mock.calls[0][0].refId.replace("agent-run:", "");
 
     await service.cancelRun(OWNER_ID, runId, "session-token");
@@ -243,7 +329,9 @@ describe("AgentService credit billing", () => {
     expect(refund).toHaveBeenCalledTimes(1);
     expect(refund.mock.calls[0][0].refId).toBe(`agent-run:${runId}`);
     // 已取消的任务再取消：RUN_NOT_FOUND，不产生第二次退款。
-    await expect(service.cancelRun(OWNER_ID, runId, "session-token")).rejects.toBeInstanceOf(AgentServiceError);
+    await expect(service.cancelRun(OWNER_ID, runId, "session-token")).rejects.toBeInstanceOf(
+      AgentServiceError,
+    );
     expect(refund).toHaveBeenCalledTimes(1);
   });
 

@@ -16,12 +16,12 @@ button,
 }
 
 ::selection {
-  color: var(--kc-text);
-  background: color-mix(in srgb, var(--kc-accent) 34%, transparent);
+  color: var(--wc-text);
+  background: color-mix(in srgb, var(--wc-accent) 34%, transparent);
 }
 
 * {
-  scrollbar-color: color-mix(in srgb, var(--kc-text-tertiary) 48%, transparent) transparent;
+  scrollbar-color: color-mix(in srgb, var(--wc-text-tertiary) 48%, transparent) transparent;
   scrollbar-width: thin;
 }
 
@@ -39,12 +39,12 @@ button,
   min-height: 32px;
   border: 2px solid transparent;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--kc-text-tertiary) 48%, transparent);
+  background: color-mix(in srgb, var(--wc-text-tertiary) 48%, transparent);
   background-clip: padding-box;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--kc-text-secondary) 68%, transparent);
+  background: color-mix(in srgb, var(--wc-text-secondary) 68%, transparent);
   background-clip: padding-box;
 }
 
@@ -56,55 +56,60 @@ textarea::placeholder {
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus {
-  -webkit-text-fill-color: var(--kc-text);
-  caret-color: var(--kc-text);
-  box-shadow: 0 0 0 1000px var(--kc-surface-muted) inset;
+  -webkit-text-fill-color: var(--wc-text);
+  caret-color: var(--wc-text);
+  box-shadow: 0 0 0 1000px var(--wc-surface-muted) inset;
   transition: background-color 9999s ease-out;
 }
 
-.kc-global-tooltip {
+.wc-global-tooltip {
   position: fixed;
   top: 0;
   left: 0;
   z-index: 10000;
   max-width: min(280px, calc(100vw - 16px));
   padding: 6px 8px;
-  border: 1px solid color-mix(in srgb, var(--kc-border-strong) 82%, var(--kc-text-tertiary));
+  border: 1px solid color-mix(in srgb, var(--wc-border-strong) 82%, var(--wc-text-tertiary));
   border-radius: 4px;
-  color: var(--kc-text);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--kc-surface-raised) 98%, transparent), color-mix(in srgb, var(--kc-surface) 98%, var(--kc-canvas)));
+  color: var(--wc-text);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--wc-surface-raised) 98%, transparent),
+    color-mix(in srgb, var(--wc-surface) 98%, var(--wc-canvas))
+  );
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--kc-text) 8%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--wc-text) 8%, transparent),
     0 8px 22px rgb(0 0 0 / 32%);
   opacity: 0;
   pointer-events: none;
-  transform: translateY(2px) scale(.985);
-  transition: opacity 90ms ease, transform 110ms cubic-bezier(.2, .8, .2, 1);
+  transform: translateY(2px) scale(0.985);
+  transition:
+    opacity 90ms ease,
+    transform 110ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.kc-global-tooltip::after {
+.wc-global-tooltip::after {
   position: absolute;
   left: 50%;
   width: 6px;
   height: 6px;
-  border-right: 1px solid var(--kc-border-strong);
-  border-bottom: 1px solid var(--kc-border-strong);
-  background: var(--kc-surface);
+  border-right: 1px solid var(--wc-border-strong);
+  border-bottom: 1px solid var(--wc-border-strong);
+  background: var(--wc-surface);
   content: "";
   transform: translateX(-50%) rotate(45deg);
 }
 
-.kc-global-tooltip[data-placement="top"]::after {
+.wc-global-tooltip[data-placement="top"]::after {
   bottom: -4px;
 }
 
-.kc-global-tooltip[data-placement="bottom"]::after {
+.wc-global-tooltip[data-placement="bottom"]::after {
   top: -4px;
   transform: translateX(-50%) rotate(225deg);
 }
 
-.kc-global-tooltip > span {
+.wc-global-tooltip > span {
   display: block;
   overflow-wrap: anywhere;
   font-size: 10.5px;
@@ -112,13 +117,13 @@ input:-webkit-autofill:focus {
   line-height: 1.45;
 }
 
-.kc-global-tooltip.is-visible {
+.wc-global-tooltip.is-visible {
   opacity: 1;
   transform: translateY(0) scale(1);
 }
 
-.kc-confirm-backdrop,
-.kc-lazy-dialog-backdrop {
+.wc-confirm-backdrop,
+.wc-lazy-dialog-backdrop {
   position: fixed;
   inset: 0;
   z-index: 9200;
@@ -126,62 +131,65 @@ input:-webkit-autofill:focus {
   padding: 20px;
   place-items: center;
   background: rgb(3 6 7 / 68%);
-  animation: kc-polish-backdrop-in 130ms ease-out both;
+  animation: wc-polish-backdrop-in 130ms ease-out both;
 }
 
-.kc-confirm-dialog {
+.wc-confirm-dialog {
   width: min(420px, 100%);
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--kc-border-strong) 86%, var(--kc-text-tertiary));
+  border: 1px solid color-mix(in srgb, var(--wc-border-strong) 86%, var(--wc-text-tertiary));
   border-radius: 8px;
-  color: var(--kc-text);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--kc-surface-raised) 98%, transparent), color-mix(in srgb, var(--kc-surface) 98%, var(--kc-canvas)));
+  color: var(--wc-text);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--wc-surface-raised) 98%, transparent),
+    color-mix(in srgb, var(--wc-surface) 98%, var(--wc-canvas))
+  );
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--kc-text) 9%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--wc-text) 9%, transparent),
     0 28px 72px -28px rgb(0 0 0 / 92%);
-  animation: kc-polish-dialog-in 170ms cubic-bezier(.2, .78, .24, 1) both;
+  animation: wc-polish-dialog-in 170ms cubic-bezier(0.2, 0.78, 0.24, 1) both;
 }
 
-.kc-confirm-dialog > header {
+.wc-confirm-dialog > header {
   display: grid;
   min-height: 62px;
   grid-template-columns: 34px minmax(0, 1fr) 30px;
   align-items: center;
   gap: 10px;
   padding: 10px 10px 10px 14px;
-  border-bottom: 1px solid var(--kc-border);
+  border-bottom: 1px solid var(--wc-border);
 }
 
-.kc-confirm-mark {
+.wc-confirm-mark {
   display: grid;
   width: 34px;
   height: 34px;
   place-items: center;
-  border: 1px solid color-mix(in srgb, var(--kc-amber) 44%, var(--kc-border));
+  border: 1px solid color-mix(in srgb, var(--wc-amber) 44%, var(--wc-border));
   border-radius: 6px;
-  color: var(--kc-amber);
-  background: color-mix(in srgb, var(--kc-amber-soft) 62%, var(--kc-surface-muted));
+  color: var(--wc-amber);
+  background: color-mix(in srgb, var(--wc-amber-soft) 62%, var(--wc-surface-muted));
 }
 
-.kc-confirm-dialog.is-danger .kc-confirm-mark {
-  border-color: color-mix(in srgb, var(--kc-danger) 46%, var(--kc-border));
-  color: var(--kc-danger);
-  background: var(--kc-danger-soft);
+.wc-confirm-dialog.is-danger .wc-confirm-mark {
+  border-color: color-mix(in srgb, var(--wc-danger) 46%, var(--wc-border));
+  color: var(--wc-danger);
+  background: var(--wc-danger-soft);
 }
 
-.kc-confirm-mark svg {
+.wc-confirm-mark svg {
   width: 17px;
   height: 17px;
 }
 
-.kc-confirm-dialog > header > span:nth-child(2) {
+.wc-confirm-dialog > header > span:nth-child(2) {
   display: grid;
   min-width: 0;
   gap: 2px;
 }
 
-.kc-confirm-dialog > header strong {
+.wc-confirm-dialog > header strong {
   overflow: hidden;
   font-size: 13px;
   font-weight: 700;
@@ -189,12 +197,12 @@ input:-webkit-autofill:focus {
   white-space: nowrap;
 }
 
-.kc-confirm-dialog > header small {
-  color: var(--kc-text-tertiary);
+.wc-confirm-dialog > header small {
+  color: var(--wc-text-tertiary);
   font-size: 10px;
 }
 
-.kc-confirm-dialog > header button {
+.wc-confirm-dialog > header button {
   display: grid;
   width: 30px;
   height: 30px;
@@ -202,226 +210,161 @@ input:-webkit-autofill:focus {
   place-items: center;
   border: 0;
   border-radius: 5px;
-  color: var(--kc-text-secondary);
+  color: var(--wc-text-secondary);
   background: transparent;
   cursor: pointer;
 }
 
-.kc-confirm-dialog > header button:hover {
-  color: var(--kc-text);
-  background: var(--kc-surface-strong);
+.wc-confirm-dialog > header button:hover {
+  color: var(--wc-text);
+  background: var(--wc-surface-strong);
 }
 
-.kc-confirm-dialog > header button svg {
+.wc-confirm-dialog > header button svg {
   width: 15px;
   height: 15px;
 }
 
-.kc-confirm-content {
+.wc-confirm-content {
   display: grid;
   gap: 10px;
   padding: 18px;
 }
 
-.kc-confirm-content p {
+.wc-confirm-content p {
   margin: 0;
-  color: var(--kc-text-secondary);
+  color: var(--wc-text-secondary);
   font-size: 12px;
   line-height: 1.7;
 }
 
-.kc-confirm-content small {
+.wc-confirm-content small {
   min-width: 0;
   padding: 8px 10px;
   overflow: hidden;
-  border-left: 2px solid color-mix(in srgb, var(--kc-text-tertiary) 46%, transparent);
-  color: var(--kc-text-tertiary);
-  background: color-mix(in srgb, var(--kc-surface-muted) 76%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--wc-text-tertiary) 46%, transparent);
+  color: var(--wc-text-tertiary);
+  background: color-mix(in srgb, var(--wc-surface-muted) 76%, transparent);
   font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.kc-confirm-dialog > footer {
+.wc-confirm-dialog > footer {
   display: flex;
   min-height: 56px;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
   padding: 10px 14px;
-  border-top: 1px solid var(--kc-border);
-  background: color-mix(in srgb, var(--kc-surface-muted) 72%, transparent);
+  border-top: 1px solid var(--wc-border);
+  background: color-mix(in srgb, var(--wc-surface-muted) 72%, transparent);
 }
 
-.kc-confirm-dialog > footer button {
+.wc-confirm-dialog > footer button {
   min-width: 84px;
   height: 34px;
   padding: 0 13px;
-  border: 1px solid var(--kc-border-strong);
+  border: 1px solid var(--wc-border-strong);
   border-radius: 5px;
-  color: var(--kc-text-secondary);
-  background: var(--kc-surface-raised);
+  color: var(--wc-text-secondary);
+  background: var(--wc-surface-raised);
   font-size: 11px;
   font-weight: 670;
   cursor: pointer;
 }
 
-.kc-confirm-dialog > footer button:hover {
-  color: var(--kc-text);
-  background: var(--kc-surface-strong);
+.wc-confirm-dialog > footer button:hover {
+  color: var(--wc-text);
+  background: var(--wc-surface-strong);
 }
 
-.kc-confirm-dialog > footer .is-confirm {
-  border-color: color-mix(in srgb, var(--kc-amber) 54%, var(--kc-border-strong));
-  color: color-mix(in srgb, var(--kc-amber) 76%, var(--kc-text));
-  background: color-mix(in srgb, var(--kc-amber-soft) 70%, var(--kc-surface-raised));
+.wc-confirm-dialog > footer .is-confirm {
+  border-color: color-mix(in srgb, var(--wc-amber) 54%, var(--wc-border-strong));
+  color: color-mix(in srgb, var(--wc-amber) 76%, var(--wc-text));
+  background: color-mix(in srgb, var(--wc-amber-soft) 70%, var(--wc-surface-raised));
 }
 
-.kc-confirm-dialog.is-danger > footer .is-confirm {
-  border-color: color-mix(in srgb, var(--kc-danger) 54%, var(--kc-border-strong));
-  color: color-mix(in srgb, var(--kc-danger) 76%, var(--kc-text));
-  background: color-mix(in srgb, var(--kc-danger-soft) 72%, var(--kc-surface-raised));
+.wc-confirm-dialog.is-danger > footer .is-confirm {
+  border-color: color-mix(in srgb, var(--wc-danger) 54%, var(--wc-border-strong));
+  color: color-mix(in srgb, var(--wc-danger) 76%, var(--wc-text));
+  background: color-mix(in srgb, var(--wc-danger-soft) 72%, var(--wc-surface-raised));
 }
 
-.kc-lazy-dialog-backdrop {
+.wc-lazy-dialog-backdrop {
   z-index: 9100;
   background: rgb(3 6 7 / 42%);
 }
 
-.kc-lazy-dialog-backdrop > span {
+.wc-lazy-dialog-backdrop > span {
   width: 22px;
   height: 22px;
-  border: 1px solid color-mix(in srgb, var(--kc-text-tertiary) 30%, transparent);
-  border-top-color: var(--kc-accent);
+  border: 1px solid color-mix(in srgb, var(--wc-text-tertiary) 30%, transparent);
+  border-top-color: var(--wc-accent);
   border-radius: 50%;
-  animation: kc-polish-spin 720ms linear infinite;
+  animation: wc-polish-spin 720ms linear infinite;
 }
 
 /* Route hand-off screen: hairline sweep + monospace label, matching the
    entry gate's monochrome language instead of the generic spinner. */
-.kc-route-loading {
+.wc-route-loading {
   display: grid;
   width: 100%;
   height: 100%;
   place-content: center;
   justify-items: center;
   gap: 18px;
-  color: color-mix(in srgb, var(--kc-text) 46%, transparent);
+  color: color-mix(in srgb, var(--wc-text) 46%, transparent);
   background:
-    radial-gradient(70% 52% at 50% 0%, color-mix(in srgb, var(--kc-text) 4%, transparent) 0%, transparent 70%),
-    var(--kc-canvas);
+    radial-gradient(
+      70% 52% at 50% 0%,
+      color-mix(in srgb, var(--wc-text) 4%, transparent) 0%,
+      transparent 70%
+    ),
+    var(--wc-canvas);
 }
 
-.kc-route-loading > span {
+.wc-route-loading > span {
   position: relative;
   width: 180px;
   height: 1px;
   overflow: hidden;
   border: 0;
   border-radius: 0;
-  background: color-mix(in srgb, var(--kc-border) 80%, transparent);
+  background: color-mix(in srgb, var(--wc-border) 80%, transparent);
   animation: none;
 }
 
-.kc-route-loading > span::after {
+.wc-route-loading > span::after {
   position: absolute;
   inset: 0;
   content: "";
-  background: linear-gradient(90deg, transparent, var(--kc-text), transparent);
-  animation: kc-route-loading-sweep 1.4s ease-in-out infinite;
+  background: linear-gradient(90deg, transparent, var(--wc-text), transparent);
+  animation: wc-route-loading-sweep 1.4s ease-in-out infinite;
 }
 
-.kc-route-loading small {
+.wc-route-loading small {
   font-family: ui-monospace, "Cascadia Mono", "JetBrains Mono", "SF Mono", Consolas, monospace;
   font-size: 10px;
   font-weight: 500;
-  letter-spacing: .28em;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
 }
 
-@keyframes kc-route-loading-sweep {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
+@keyframes wc-route-loading-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
 }
 
-.kc-face-grid-range input[type="range"],
-.kc-director-range input[type="range"] {
-  width: 100%;
-  height: 18px;
-  margin: 0;
-  appearance: none;
-  outline: 0;
-  background: transparent;
-  cursor: pointer;
-}
-
-.kc-face-grid-range input[type="range"]::-webkit-slider-runnable-track,
-.kc-director-range input[type="range"]::-webkit-slider-runnable-track {
-  height: 3px;
-  border-radius: 999px;
-  background: linear-gradient(90deg,
-    color-mix(in srgb, var(--kc-accent) 74%, var(--kc-text-secondary)) 0 var(--kc-range-progress, 50%),
-    color-mix(in srgb, var(--kc-border-strong) 64%, transparent) var(--kc-range-progress, 50%) 100%);
-  box-shadow: inset 0 1px 1px rgb(0 0 0 / 28%);
-}
-
-.kc-face-grid-range input[type="range"]::-webkit-slider-thumb,
-.kc-director-range input[type="range"]::-webkit-slider-thumb {
-  width: 13px;
-  height: 13px;
-  margin-top: -5px;
-  appearance: none;
-  border: 1px solid color-mix(in srgb, var(--kc-text-secondary) 76%, var(--kc-border-strong));
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--kc-surface-raised) 84%, var(--kc-text-secondary));
-  box-shadow: 0 1px 4px rgb(0 0 0 / 46%), inset 0 1px 0 color-mix(in srgb, var(--kc-text) 22%, transparent);
-}
-
-.kc-face-grid-range input[type="range"]::-moz-range-track,
-.kc-director-range input[type="range"]::-moz-range-track {
-  height: 3px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--kc-border-strong) 64%, transparent);
-}
-
-.kc-face-grid-range input[type="range"]::-moz-range-progress,
-.kc-director-range input[type="range"]::-moz-range-progress {
-  height: 3px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--kc-accent) 74%, var(--kc-text-secondary));
-}
-
-.kc-face-grid-range input[type="range"]::-moz-range-thumb,
-.kc-director-range input[type="range"]::-moz-range-thumb {
-  width: 13px;
-  height: 13px;
-  border: 1px solid color-mix(in srgb, var(--kc-text-secondary) 76%, var(--kc-border-strong));
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--kc-surface-raised) 84%, var(--kc-text-secondary));
-  box-shadow: 0 1px 4px rgb(0 0 0 / 46%);
-}
-
-.kc-face-grid-range input[type="range"]:focus-visible::-webkit-slider-thumb,
-.kc-director-range input[type="range"]:focus-visible::-webkit-slider-thumb {
-  border-color: var(--kc-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--kc-accent) 18%, transparent), 0 1px 4px rgb(0 0 0 / 46%);
-}
-
-.kc-director-range input[type="number"] {
-  appearance: textfield;
-}
-
-.kc-director-range input[type="number"]::-webkit-inner-spin-button,
-.kc-director-range input[type="number"]::-webkit-outer-spin-button {
-  margin: 0;
-  appearance: none;
-}
-
-.kc-agent-guidance-lock {
+.wc-agent-guidance-lock {
   position: relative;
 }
 
-.kc-agent-guidance-lock input {
+.wc-agent-guidance-lock input {
   position: absolute;
   top: 50%;
   left: 0;
@@ -434,60 +377,64 @@ input:-webkit-autofill:focus {
   transform: translateY(-50%);
 }
 
-.kc-agent-guidance-lock > i {
+.wc-agent-guidance-lock > i {
   position: relative;
   width: 15px;
   height: 15px;
   flex: 0 0 auto;
-  border: 1px solid var(--kc-border-strong);
+  border: 1px solid var(--wc-border-strong);
   border-radius: 4px;
-  background: var(--kc-surface-muted);
+  background: var(--wc-surface-muted);
   box-shadow: inset 0 1px 2px rgb(0 0 0 / 22%);
   pointer-events: none;
 }
 
-.kc-agent-guidance-lock > i::after {
+.wc-agent-guidance-lock > i::after {
   position: absolute;
   top: 2px;
   left: 4px;
   width: 4px;
   height: 7px;
-  border-right: 1.5px solid var(--kc-on-accent);
-  border-bottom: 1.5px solid var(--kc-on-accent);
+  border-right: 1.5px solid var(--wc-on-accent);
+  border-bottom: 1.5px solid var(--wc-on-accent);
   content: "";
   opacity: 0;
-  transform: rotate(45deg) scale(.7);
-  transition: opacity 100ms ease, transform 120ms ease;
+  transform: rotate(45deg) scale(0.7);
+  transition:
+    opacity 100ms ease,
+    transform 120ms ease;
 }
 
-.kc-agent-guidance-lock input:checked + i {
-  border-color: color-mix(in srgb, var(--kc-accent) 76%, var(--kc-border-strong));
-  background: var(--kc-accent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 24%, transparent), 0 0 0 1px color-mix(in srgb, var(--kc-accent) 14%, transparent);
+.wc-agent-guidance-lock input:checked + i {
+  border-color: color-mix(in srgb, var(--wc-accent) 76%, var(--wc-border-strong));
+  background: var(--wc-accent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 24%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--wc-accent) 14%, transparent);
 }
 
-.kc-agent-guidance-lock input:checked + i::after {
+.wc-agent-guidance-lock input:checked + i::after {
   opacity: 1;
   transform: rotate(45deg) scale(1);
 }
 
-.kc-agent-guidance-lock input:focus-visible + i {
-  outline: 2px solid color-mix(in srgb, var(--kc-accent) 58%, transparent);
+.wc-agent-guidance-lock input:focus-visible + i {
+  outline: 2px solid color-mix(in srgb, var(--wc-accent) 58%, transparent);
   outline-offset: 2px;
 }
 
-.kc-workspace:is(.is-viewport-moving, .is-node-dragging) .kc-video-generation-scene::before,
-.kc-workspace:is(.is-viewport-moving, .is-node-dragging) .kc-video-generation-field,
-.kc-workspace:is(.is-viewport-moving, .is-node-dragging) .kc-video-generation-sweep,
-.kc-workspace:is(.is-viewport-moving, .is-node-dragging) .kc-video-generation-glint,
-.kc-workspace:is(.is-viewport-moving, .is-node-dragging) .kc-video-generation-scan,
-.kc-workspace:is(.is-viewport-moving, .is-node-dragging) .kc-video-generation-rail > span,
-.kc-workspace:is(.is-viewport-moving, .is-node-dragging) .kc-node-loading-beam::before {
+.wc-workspace:is(.is-viewport-moving, .is-node-dragging) .wc-video-generation-scene::before,
+.wc-workspace:is(.is-viewport-moving, .is-node-dragging) .wc-video-generation-field,
+.wc-workspace:is(.is-viewport-moving, .is-node-dragging) .wc-video-generation-sweep,
+.wc-workspace:is(.is-viewport-moving, .is-node-dragging) .wc-video-generation-glint,
+.wc-workspace:is(.is-viewport-moving, .is-node-dragging) .wc-video-generation-scan,
+.wc-workspace:is(.is-viewport-moving, .is-node-dragging) .wc-video-generation-rail > span,
+.wc-workspace:is(.is-viewport-moving, .is-node-dragging) .wc-node-loading-beam::before {
   animation-play-state: paused !important;
 }
 
 /* Selection feedback stays neutral and legible regardless of the chosen accent or node material. */
-.react-flow__node-kachang.selected::after {
+.react-flow__node-weftcanvas.selected::after {
   position: absolute;
   inset: -4px;
   z-index: 40;
@@ -499,12 +446,12 @@ input:-webkit-autofill:focus {
     0 10px 24px -14px rgb(0 0 0 / 84%);
   content: "";
   pointer-events: none;
-  animation: kc-selection-feedback-in 140ms cubic-bezier(.2, .9, .2, 1) both;
+  animation: wc-selection-feedback-in 140ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
 }
 
 /* A moving node keeps an obvious white selection edge without repainting the
    large shadow stack on every transform. */
-.kc-workspace.is-node-dragging .react-flow__node-kachang.selected::after {
+.wc-workspace.is-node-dragging .react-flow__node-weftcanvas.selected::after {
   inset: -3px;
   border-width: 1.5px;
   box-shadow: 0 0 0 1px rgb(0 0 0 / 72%);
@@ -531,65 +478,81 @@ input:-webkit-autofill:focus {
     0 10px 26px -16px rgb(0 0 0 / 82%) !important;
 }
 
-:root[data-theme="light"] .react-flow__node-kachang.selected::after,
+:root[data-theme="light"] .react-flow__node-weftcanvas.selected::after,
 :root[data-theme="light"] .react-flow__selection,
 :root[data-theme="light"] .react-flow__nodesselection-rect {
   border-color: rgb(31 36 33 / 78%) !important;
 }
 
-/* A compatible connection is a positive action, never a node-accent/error color. */
-.react-flow__node-kachang.is-connection-drop-target .kc-node-surface,
-.react-flow__node-kachang.is-connection-drop-success .kc-node-surface {
-  outline-color: color-mix(in srgb, var(--kc-success) 76%, var(--kc-text));
-}
-
-.react-flow__node-kachang.is-connection-drop-target[data-connection-drop-side="left"] .kc-node-port-zone--left .kc-node-port-core,
-.react-flow__node-kachang.is-connection-drop-target[data-connection-drop-side="right"] .kc-node-port-zone--right .kc-node-port-core,
-.kc-node-port.valid .kc-node-port-core {
-  border-color: color-mix(in srgb, var(--kc-success) 76%, var(--kc-text));
-  color: var(--kc-text);
-  background: color-mix(in srgb, var(--kc-surface-strong) 76%, var(--kc-success) 24%);
+.react-flow__node-weftcanvas.is-connection-drop-target[data-connection-drop-side="left"]
+  .wc-node-port-zone--left
+  .wc-node-port-core,
+.react-flow__node-weftcanvas.is-connection-drop-target[data-connection-drop-side="right"]
+  .wc-node-port-zone--right
+  .wc-node-port-core,
+.wc-node-port.valid .wc-node-port-core {
+  border-color: color-mix(in srgb, var(--wc-success) 76%, var(--wc-text));
+  color: var(--wc-text);
+  background: color-mix(in srgb, var(--wc-surface-strong) 76%, var(--wc-success) 24%);
   box-shadow:
-    0 0 0 4px color-mix(in srgb, var(--kc-success) 20%, transparent),
+    0 0 0 4px color-mix(in srgb, var(--wc-success) 20%, transparent),
     0 7px 18px rgb(0 0 0 / 28%);
   opacity: 1;
 }
 
-.kc-connection-preview.is-valid .kc-connection-preview-base,
-.kc-workspace:has(.is-connection-drop-target) .kc-connection-preview-base {
-  stroke: color-mix(in srgb, var(--kc-success) 76%, var(--kc-text));
+.wc-connection-preview.is-valid .wc-connection-preview-base,
+.wc-workspace:has(.is-connection-drop-target) .wc-connection-preview-base {
+  stroke: color-mix(in srgb, var(--wc-success) 76%, var(--wc-text));
   stroke-width: 2.2;
 }
 
-.kc-connection-preview.is-valid .kc-edge-energy--preview,
-.kc-workspace:has(.is-connection-drop-target) .kc-edge-energy--preview,
-.kc-connection-preview.is-valid .kc-edge-star-inbound--target,
-.kc-workspace:has(.is-connection-drop-target) .kc-edge-star-inbound--target {
-  stroke: color-mix(in srgb, var(--kc-success) 72%, var(--kc-text));
+.wc-connection-preview.is-valid .wc-edge-energy--preview,
+.wc-workspace:has(.is-connection-drop-target) .wc-edge-energy--preview,
+.wc-connection-preview.is-valid .wc-edge-star-inbound--target,
+.wc-workspace:has(.is-connection-drop-target) .wc-edge-star-inbound--target {
+  stroke: color-mix(in srgb, var(--wc-success) 72%, var(--wc-text));
 }
 
-@keyframes kc-selection-feedback-in {
-  from { opacity: 0; transform: scale(.992); }
-  to { opacity: 1; transform: scale(1); }
+@keyframes wc-selection-feedback-in {
+  from {
+    opacity: 0;
+    transform: scale(0.992);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
-@keyframes kc-polish-backdrop-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+@keyframes wc-polish-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
-@keyframes kc-polish-dialog-in {
-  from { opacity: 0; transform: translateY(6px) scale(.986); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+@keyframes wc-polish-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.986);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
-@keyframes kc-polish-spin {
-  to { transform: rotate(360deg); }
+@keyframes wc-polish-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Empty canvas first-run hint: quiet, centered, never intercepts pointer
    input, and disappears as soon as the first node, edge, or group exists. */
-.kc-empty-canvas-hint {
+.wc-empty-canvas-hint {
   position: absolute;
   top: 44%;
   left: 50%;
@@ -599,145 +562,106 @@ input:-webkit-autofill:focus {
   justify-items: center;
   gap: 7px;
   background: transparent;
-  color: var(--kc-text-secondary);
+  color: var(--wc-text-secondary);
   text-align: center;
   pointer-events: none;
   transform: translate(-50%, -50%);
-  animation: kc-empty-hint-in 240ms cubic-bezier(.2, .8, .2, 1) both;
-}
-
-.kc-empty-canvas-hint > strong {
-  color: var(--kc-text);
-  font-size: 14px;
-  font-weight: 620;
-  letter-spacing: 0;
-}
-
-.kc-empty-canvas-hint > p {
-  margin: 0;
-  max-width: 368px;
-  color: var(--kc-text-tertiary);
-  font-size: 12px;
-  line-height: 1.65;
-}
-
-.kc-empty-canvas-hint-steps {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 4px;
-}
-
-.kc-empty-canvas-hint-steps span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--kc-text-tertiary);
-  font-size: 11.5px;
-  font-weight: 550;
-  white-space: nowrap;
-}
-
-.kc-empty-canvas-hint-steps svg {
-  width: 13px;
-  height: 13px;
-  stroke-width: 1.8;
-}
-
-.kc-empty-canvas-hint-steps i {
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: var(--kc-border-strong);
+  animation: wc-empty-hint-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 /* Global graphite scrollbars: every app surface shares the same thin,
    quiet thumb instead of mixing OS-default square scrollbars with the
    graphite chrome. Light chrome themes stay readable (var-driven). */
-.kc-app * {
+.wc-app * {
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--kc-border-strong) 86%, var(--kc-border)) transparent;
+  scrollbar-color: color-mix(in srgb, var(--wc-border-strong) 86%, var(--wc-border)) transparent;
 }
 
-.kc-app ::-webkit-scrollbar {
+.wc-app ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 
-.kc-app ::-webkit-scrollbar-track {
+.wc-app ::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.kc-app ::-webkit-scrollbar-thumb {
+.wc-app ::-webkit-scrollbar-thumb {
   border: 3px solid transparent;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--kc-border-strong) 86%, var(--kc-border));
+  background: color-mix(in srgb, var(--wc-border-strong) 86%, var(--wc-border));
   background-clip: padding-box;
 }
 
-.kc-app ::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--kc-text-tertiary) 72%, var(--kc-border-strong));
+.wc-app ::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--wc-text-tertiary) 72%, var(--wc-border-strong));
   background-clip: padding-box;
 }
 
-.kc-app ::-webkit-scrollbar-corner {
+.wc-app ::-webkit-scrollbar-corner {
   background: transparent;
 }
 
-@keyframes kc-empty-hint-in {
-  from { opacity: 0; transform: translate(-50%, calc(-50% + 6px)); }
-  to { opacity: 1; transform: translate(-50%, -50%); }
+@keyframes wc-empty-hint-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 6px));
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
 }
 
-[data-kc-motion="lite"] .kc-empty-canvas-hint {
+[data-wc-motion="lite"] .wc-empty-canvas-hint {
   animation: none;
 }
 
 @media (max-width: 560px) {
-  .kc-confirm-backdrop {
+  .wc-confirm-backdrop {
     padding: 8px;
     padding-bottom: calc(8px + env(safe-area-inset-bottom));
   }
 
-  .kc-confirm-dialog > footer {
+  .wc-confirm-dialog > footer {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 
-  .kc-confirm-dialog > footer button {
+  .wc-confirm-dialog > footer button {
     width: 100%;
     min-width: 0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .kc-global-tooltip,
-  .kc-confirm-backdrop,
-  .kc-confirm-dialog,
-  .kc-lazy-dialog-backdrop,
-  .kc-route-loading > span,
-  .kc-route-loading > span::after,
-  .kc-empty-canvas-hint {
+  .wc-global-tooltip,
+  .wc-confirm-backdrop,
+  .wc-confirm-dialog,
+  .wc-lazy-dialog-backdrop,
+  .wc-route-loading > span,
+  .wc-route-loading > span::after,
+  .wc-empty-canvas-hint {
     animation: none !important;
     transition: none !important;
   }
 }
 
 /* 工作台上传素材：一键清空按钮（字段标题右侧操作区）。 */
-.kc-direct-field-label-actions {
+.wc-direct-field-label-actions {
   display: inline-flex;
   align-items: center;
   gap: 10px;
   min-width: 0;
 }
 
-.kc-direct-field-label-actions > small {
+.wc-direct-field-label-actions > small {
   color: var(--entry-faint);
   font-size: 9px;
   white-space: nowrap;
 }
 
-.kc-direct-clear-materials {
+.wc-direct-clear-materials {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -751,31 +675,35 @@ input:-webkit-autofill:focus {
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;
-  transition: border-color 150ms ease, color 150ms ease, background-color 150ms ease, opacity 150ms ease;
+  transition:
+    border-color 150ms ease,
+    color 150ms ease,
+    background-color 150ms ease,
+    opacity 150ms ease;
 }
 
-.kc-direct-clear-materials:hover:not(:disabled) {
+.wc-direct-clear-materials:hover:not(:disabled) {
   border-color: rgb(214 140 130 / 55%);
   color: #d68c82;
   background: rgb(214 140 130 / 9%);
 }
 
-.kc-direct-clear-materials:disabled {
+.wc-direct-clear-materials:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
 
-.kc-direct-clear-materials svg {
+.wc-direct-clear-materials svg {
   width: 11px;
   height: 11px;
 }
 
 /* 结果卡片为竖长布局：媒体容器自身保持 aspect-ratio:1 的稳定高度，
    加载/失败框是媒体容器内部的绝对定位覆盖层（见 entry-gate.css 的
-   .kc-direct-result-media .kc-direct-result-loading）。绝不能用 height:100%
+   .wc-direct-result-media .wc-direct-result-loading）。绝不能用 height:100%
    让加载框作为 figure 的弹性子项参与布局——高度会与卡片高度互相引用，
    把媒体区挤压塌缩、整行卡片退化为只剩文字（20260904 线上事故）。 */
-.kc-direct-result-tile .kc-direct-result-loading {
+.wc-direct-result-tile .wc-direct-result-loading {
   min-height: 0;
   max-height: 100%;
 }
@@ -783,19 +711,8 @@ input:-webkit-autofill:focus {
 /* 浅色主题：清除素材按钮 hover 的浅珊瑚是深色底用色，浅色下加深才可见。
    覆盖必须写在本文件——ui-polish 在打包顺序里晚于 entry-gate.css，
    写在那边的同名覆盖会被本文件的基类压掉。 */
-.kc-app[data-theme="light"] .kc-direct-clear-materials:hover:not(:disabled) {
+.wc-app[data-theme="light"] .wc-direct-clear-materials:hover:not(:disabled) {
   border-color: rgb(168 71 60 / 55%);
   color: #a8473c;
   background: rgb(168 71 60 / 9%);
-}
-
-/* --- 插件节点体错误占位（PluginBodyBoundary）--- */
-.kc-plugin-body-error {
-  margin: 8px 10px;
-  padding: 6px 10px;
-  border: 1px dashed color-mix(in srgb, var(--kc-coral, #e0806b) 45%, transparent);
-  border-radius: 8px;
-  color: var(--kc-text-muted, inherit);
-  font-size: 11px;
-  opacity: 0.75;
 }

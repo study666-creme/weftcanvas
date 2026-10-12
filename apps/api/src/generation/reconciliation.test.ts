@@ -16,10 +16,17 @@ describe("generation submission reconciliation", () => {
   it("records and applies an explicit provider state idempotently", async () => {
     const store = new MemoryReconciliationStore();
     let calls = 0;
-    const service = new GenerationReconciliationService(store, {
-      reconcileSubmission: async () => { calls += 1; return job("queued"); },
-      process: async () => job("queued"),
-    }, options());
+    const service = new GenerationReconciliationService(
+      store,
+      {
+        reconcileSubmission: async () => {
+          calls += 1;
+          return job("queued");
+        },
+        process: async () => job("queued"),
+      },
+      options(),
+    );
 
     const first = await service.reconcile(request());
     const second = await service.reconcile(request());
@@ -33,47 +40,70 @@ describe("generation submission reconciliation", () => {
     const store = new MemoryReconciliationStore();
     const service = new GenerationReconciliationService(store, processor("queued"), options());
     await service.reconcile(request());
-    await expect(service.reconcile({
-      ...request(),
-      state: { kind: "failed", code: "NOT_FOUND", message: "not found" },
-    })).rejects.toMatchObject({ code: "RECONCILIATION_IDEMPOTENCY_CONFLICT" });
+    await expect(
+      service.reconcile({
+        ...request(),
+        state: { kind: "failed", code: "NOT_FOUND", message: "not found" },
+      }),
+    ).rejects.toMatchObject({ code: "RECONCILIATION_IDEMPOTENCY_CONFLICT" });
   });
 
   it("marks a fresh non-reconcilable request rejected", async () => {
     const store = new MemoryReconciliationStore();
-    const service = new GenerationReconciliationService(store, {
-      reconcileSubmission: async () => { throw new GenerationJobServiceError("JOB_NOT_RECONCILABLE", "当前任务不需要核对"); },
-      process: async () => job("completed"),
-    }, options());
+    const service = new GenerationReconciliationService(
+      store,
+      {
+        reconcileSubmission: async () => {
+          throw new GenerationJobServiceError("JOB_NOT_RECONCILABLE", "当前任务不需要核对");
+        },
+        process: async () => job("completed"),
+      },
+      options(),
+    );
 
-    await expect(service.reconcile(request())).rejects.toMatchObject({ code: "JOB_NOT_RECONCILABLE" });
-    expect(store.records[0]).toMatchObject({ status: "rejected", error: { code: "JOB_NOT_RECONCILABLE" } });
+    await expect(service.reconcile(request())).rejects.toMatchObject({
+      code: "JOB_NOT_RECONCILABLE",
+    });
+    expect(store.records[0]).toMatchObject({
+      status: "rejected",
+      error: { code: "JOB_NOT_RECONCILABLE" },
+    });
   });
 
   it("recovers a pending audit when the job transition happened before acknowledgement", async () => {
     const store = new MemoryReconciliationStore();
     let first = true;
-    const service = new GenerationReconciliationService(store, {
-      reconcileSubmission: async () => {
-        if (first) {
-          first = false;
-          throw new Error("audit database unavailable");
-        }
-        throw new GenerationJobServiceError("JOB_NOT_RECONCILABLE", "already moved");
+    const service = new GenerationReconciliationService(
+      store,
+      {
+        reconcileSubmission: async () => {
+          if (first) {
+            first = false;
+            throw new Error("audit database unavailable");
+          }
+          throw new GenerationJobServiceError("JOB_NOT_RECONCILABLE", "already moved");
+        },
+        process: async () => job("completed"),
       },
-      process: async () => job("completed"),
-    }, options());
+      options(),
+    );
 
     await expect(service.reconcile(request())).rejects.toThrow("audit database unavailable");
     expect(store.records[0]?.status).toBe("pending");
-    await expect(service.reconcile(request())).resolves.toMatchObject({ status: "applied", resultStatus: "completed" });
+    await expect(service.reconcile(request())).resolves.toMatchObject({
+      status: "applied",
+      resultStatus: "completed",
+    });
   });
 
   it("re-reads an applied audit when finalization response is lost", async () => {
     const store = new MemoryReconciliationStore();
     store.commitAppliedThenThrow = true;
     const service = new GenerationReconciliationService(store, processor("running"), options());
-    await expect(service.reconcile(request())).resolves.toMatchObject({ status: "applied", resultStatus: "running" });
+    await expect(service.reconcile(request())).resolves.toMatchObject({
+      status: "applied",
+      resultStatus: "running",
+    });
   });
 });
 
@@ -82,7 +112,9 @@ class MemoryReconciliationStore implements GenerationReconciliationStore {
   commitAppliedThenThrow = false;
 
   async begin(record: GenerationReconciliationRecord) {
-    const existing = this.records.find((item) => item.jobId === record.jobId && item.idempotencyKey === record.idempotencyKey);
+    const existing = this.records.find(
+      (item) => item.jobId === record.jobId && item.idempotencyKey === record.idempotencyKey,
+    );
     if (existing) return { kind: "existing" as const, record: structuredClone(existing) };
     this.records.push(structuredClone(record));
     return { kind: "created" as const, record: structuredClone(record) };

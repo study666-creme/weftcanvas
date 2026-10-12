@@ -55,8 +55,13 @@ export function connectorHostRejectionReason(endpoint: string): string | null {
   }
   const ipv6 = host.replace(/^\[|\]$/g, "");
   if (ipv6.includes(":")) {
-    if (ipv6 === "::" || ipv6.startsWith("fe8") || ipv6.startsWith("fe9")
-      || ipv6.startsWith("fea") || ipv6.startsWith("feb")) {
+    if (
+      ipv6 === "::" ||
+      ipv6.startsWith("fe8") ||
+      ipv6.startsWith("fe9") ||
+      ipv6.startsWith("fea") ||
+      ipv6.startsWith("feb")
+    ) {
       return "禁止访问链路本地 IPv6 地址";
     }
     if (ipv6.startsWith("ff")) return "禁止访问多播 IPv6 地址";
@@ -71,49 +76,59 @@ export const agentConnectorStates = ["disabled", "unavailable", "ready", "error"
 export const agentConnectorStateSchema = z.enum(agentConnectorStates);
 export type AgentConnectorState = z.infer<typeof agentConnectorStateSchema>;
 
-export const agentConnectorSchema = z.object({
-  id: agentConnectorIdSchema,
-  label: z.string().trim().min(1).max(64),
-  /** 一句话说明这个连接用来做什么。 */
-  summary: z.string().trim().min(1).max(240),
-  enabled: z.boolean(),
-  state: agentConnectorStateSchema,
-  /** 状态原因的补充说明；不可用时给出可执行的下一步。 */
-  detail: z.string().trim().min(1).max(500).nullable().default(null),
-  /** 连接目标（Blender 为 host:port；Codex 为空表示走本机 PATH）。 */
-  endpoint: z.string().trim().max(240).nullable().default(null),
-  /** 连接可用时 Agent 获得的能力，中文短句，逐条展示。 */
-  capabilities: z.array(z.string().trim().min(1).max(120)).max(12).default([]),
-  /** 供用户在本机完成接入的配置提示（不含任何密钥）。 */
-  setup: z.string().trim().max(800).nullable().default(null),
-  checkedAt: z.string().datetime({ offset: true }).nullable().default(null),
-}).strict();
+export const agentConnectorSchema = z
+  .object({
+    id: agentConnectorIdSchema,
+    label: z.string().trim().min(1).max(64),
+    /** 一句话说明这个连接用来做什么。 */
+    summary: z.string().trim().min(1).max(240),
+    enabled: z.boolean(),
+    state: agentConnectorStateSchema,
+    /** 状态原因的补充说明；不可用时给出可执行的下一步。 */
+    detail: z.string().trim().min(1).max(500).nullable().default(null),
+    /** 连接目标（Blender 为 host:port；Codex 为空表示走本机 PATH）。 */
+    endpoint: z.string().trim().max(240).nullable().default(null),
+    /** 连接可用时 Agent 获得的能力，中文短句，逐条展示。 */
+    capabilities: z.array(z.string().trim().min(1).max(120)).max(12).default([]),
+    /** 供用户在本机完成接入的配置提示（不含任何密钥）。 */
+    setup: z.string().trim().max(800).nullable().default(null),
+    checkedAt: z.string().datetime({ offset: true }).nullable().default(null),
+  })
+  .strict();
 export type AgentConnector = z.infer<typeof agentConnectorSchema>;
 
-export const agentConnectorListResponseSchema = z.object({
-  ok: z.literal(true),
-  data: z.array(agentConnectorSchema).max(8),
-}).strict();
+export const agentConnectorListResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    data: z.array(agentConnectorSchema).max(8),
+  })
+  .strict();
 
-export const agentConnectorUpdateRequestSchema = z.object({
-  enabled: z.boolean().optional(),
-  endpoint: z.string().trim().max(240).nullable().optional(),
-}).strict().refine(
-  (value) => value.enabled !== undefined || value.endpoint !== undefined,
-  "至少需要一项变更",
-).superRefine((value, ctx) => {
-  if (value.endpoint === undefined || value.endpoint === null) return;
-  const reason = connectorEndpointRejectionReason(value.endpoint);
-  if (reason) {
-    ctx.addIssue({ code: "custom", message: reason, path: ["endpoint"] });
-  }
-});
+export const agentConnectorUpdateRequestSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    endpoint: z.string().trim().max(240).nullable().optional(),
+  })
+  .strict()
+  .refine(
+    (value) => value.enabled !== undefined || value.endpoint !== undefined,
+    "至少需要一项变更",
+  )
+  .superRefine((value, ctx) => {
+    if (value.endpoint === undefined || value.endpoint === null) return;
+    const reason = connectorEndpointRejectionReason(value.endpoint);
+    if (reason) {
+      ctx.addIssue({ code: "custom", message: reason, path: ["endpoint"] });
+    }
+  });
 export type AgentConnectorUpdateRequest = z.infer<typeof agentConnectorUpdateRequestSchema>;
 
-export const agentConnectorResponseSchema = z.object({
-  ok: z.literal(true),
-  data: agentConnectorSchema,
-}).strict();
+export const agentConnectorResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    data: agentConnectorSchema,
+  })
+  .strict();
 
 /**
  * 外部连接（目前是 Codex MCP）下发的一条画布指令。浏览器拉取后复用
@@ -132,41 +147,53 @@ export const canvasControlCommandSchema = z.object({
 });
 export type CanvasControlCommand = z.infer<typeof canvasControlCommandSchema>;
 
-export const canvasControlPendingResponseSchema = z.object({
-  ok: z.literal(true),
-  data: z.object({
-    commands: z.array(canvasControlCommandSchema).max(16),
-  }).strict(),
-}).strict();
+export const canvasControlPendingResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    data: z
+      .object({
+        commands: z.array(canvasControlCommandSchema).max(16),
+      })
+      .strict(),
+  })
+  .strict();
 
 /**
  * 浏览器拉取指令时顺便上报当前画布摘要，外部连接（Codex）因此能看到真实的
  * 节点 id 和连线，而不是瞎猜。摘要只存在本机运行时的内存里。
  */
-export const canvasControlPendingRequestSchema = z.object({
-  projectId: z.string().trim().min(1).max(128),
-  context: agentCanvasContextSchema.optional(),
-}).strict();
+export const canvasControlPendingRequestSchema = z
+  .object({
+    projectId: z.string().trim().min(1).max(128),
+    context: agentCanvasContextSchema.optional(),
+  })
+  .strict();
 export type CanvasControlPendingRequest = z.infer<typeof canvasControlPendingRequestSchema>;
 
-export const canvasControlSkippedActionSchema = z.object({
-  index: z.number().int().nonnegative().max(31),
-  reason: z.string().trim().min(1).max(500),
-}).strict();
+export const canvasControlSkippedActionSchema = z
+  .object({
+    index: z.number().int().nonnegative().max(31),
+    reason: z.string().trim().min(1).max(500),
+  })
+  .strict();
 
-export const canvasControlReceiptRequestSchema = z.object({
-  commandId: z.string().uuid(),
-  status: z.enum(["applied", "partial", "rejected"]),
-  appliedActions: z.number().int().nonnegative().max(32),
-  skippedActions: z.array(canvasControlSkippedActionSchema).max(32).default([]),
-  reason: z.string().trim().min(1).max(500).nullable().default(null),
-}).strict();
+export const canvasControlReceiptRequestSchema = z
+  .object({
+    commandId: z.string().uuid(),
+    status: z.enum(["applied", "partial", "rejected"]),
+    appliedActions: z.number().int().nonnegative().max(32),
+    skippedActions: z.array(canvasControlSkippedActionSchema).max(32).default([]),
+    reason: z.string().trim().min(1).max(500).nullable().default(null),
+  })
+  .strict();
 export type CanvasControlReceiptRequest = z.infer<typeof canvasControlReceiptRequestSchema>;
 
-export const canvasControlReceiptResponseSchema = z.object({
-  ok: z.literal(true),
-  data: z.object({ accepted: z.boolean() }).strict(),
-}).strict();
+export const canvasControlReceiptResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    data: z.object({ accepted: z.boolean() }).strict(),
+  })
+  .strict();
 
 /* ------------------------------------------------ 用户侧反向连接（远程配对） */
 
@@ -182,97 +209,125 @@ export const externalTaskMethodSchema = z.enum(externalTaskMethods);
 export type ExternalTaskMethod = z.infer<typeof externalTaskMethodSchema>;
 
 /** 会话鉴权：创建/轮换配对令牌；明文令牌只在这一个响应里出现。 */
-export const connectorPairingResponseSchema = z.object({
-  ok: z.literal(true),
-  data: z.object({
-    connectorId: agentConnectorIdSchema,
-    token: z.string().min(16).max(200),
-    createdAt: z.string().datetime({ offset: true }),
-  }).strict(),
-}).strict();
+export const connectorPairingResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    data: z
+      .object({
+        connectorId: agentConnectorIdSchema,
+        token: z.string().min(16).max(200),
+        createdAt: z.string().datetime({ offset: true }),
+      })
+      .strict(),
+  })
+  .strict();
 
 /** 会话鉴权：每个连接的配对与在线状态。 */
-export const connectorClientStatusSchema = z.object({
-  connectorId: agentConnectorIdSchema,
-  paired: z.boolean(),
-  connected: z.boolean(),
-  pairedAt: z.string().datetime({ offset: true }).nullable(),
-  lastSeenAt: z.string().datetime({ offset: true }).nullable(),
-}).strict();
+export const connectorClientStatusSchema = z
+  .object({
+    connectorId: agentConnectorIdSchema,
+    paired: z.boolean(),
+    connected: z.boolean(),
+    pairedAt: z.string().datetime({ offset: true }).nullable(),
+    lastSeenAt: z.string().datetime({ offset: true }).nullable(),
+  })
+  .strict();
 export type ConnectorClientStatus = z.infer<typeof connectorClientStatusSchema>;
 
-export const connectorClientListResponseSchema = z.object({
-  ok: z.literal(true),
-  data: z.array(connectorClientStatusSchema).max(8),
-}).strict();
+export const connectorClientListResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    data: z.array(connectorClientStatusSchema).max(8),
+  })
+  .strict();
 
 /** 会话鉴权：撤销配对。 */
-export const connectorPairingRevokeResponseSchema = z.object({
-  ok: z.literal(true),
-  data: z.object({ revoked: z.boolean() }).strict(),
-}).strict();
+export const connectorPairingRevokeResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    data: z.object({ revoked: z.boolean() }).strict(),
+  })
+  .strict();
 
 /** 令牌鉴权：外部客户端轮询待办任务。 */
-export const externalPollRequestSchema = z.object({
-  connectorId: agentConnectorIdSchema,
-  /** 客户端标识（机器名/版本），仅用于面板展示，不参与鉴权。 */
-  client: z.string().trim().min(1).max(64).optional(),
-}).strict();
+export const externalPollRequestSchema = z
+  .object({
+    connectorId: agentConnectorIdSchema,
+    /** 客户端标识（机器名/版本），仅用于面板展示，不参与鉴权。 */
+    client: z.string().trim().min(1).max(64).optional(),
+  })
+  .strict();
 
-export const externalTaskSchema = z.object({
-  schemaVersion: z.literal(EXTERNAL_CONNECTOR_PROTOCOL_VERSION),
-  id: z.string().uuid(),
-  connectorId: agentConnectorIdSchema,
-  method: externalTaskMethodSchema,
-  params: z.record(z.string(), z.unknown()),
-  createdAt: z.string().datetime({ offset: true }),
-}).strict();
+export const externalTaskSchema = z
+  .object({
+    schemaVersion: z.literal(EXTERNAL_CONNECTOR_PROTOCOL_VERSION),
+    id: z.string().uuid(),
+    connectorId: agentConnectorIdSchema,
+    method: externalTaskMethodSchema,
+    params: z.record(z.string(), z.unknown()),
+    createdAt: z.string().datetime({ offset: true }),
+  })
+  .strict();
 export type ExternalTask = z.infer<typeof externalTaskSchema>;
 
-export const externalPollResponseSchema = z.object({
-  ok: z.literal(true),
-  data: z.object({
-    tasks: z.array(externalTaskSchema).max(8),
-    /** 本轮没有任务时建议的下一轮间隔。 */
-    pollAfterMs: z.number().int().min(500).max(30_000),
-  }).strict(),
-}).strict();
+export const externalPollResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    data: z
+      .object({
+        tasks: z.array(externalTaskSchema).max(8),
+        /** 本轮没有任务时建议的下一轮间隔。 */
+        pollAfterMs: z.number().int().min(500).max(30_000),
+      })
+      .strict(),
+  })
+  .strict();
 
 /** 令牌鉴权：外部客户端回传任务结果。 */
-export const externalTaskResultRequestSchema = z.object({
-  connectorId: agentConnectorIdSchema,
-  taskId: z.string().uuid(),
-  ok: z.boolean(),
-  stdout: z.string().max(20_000).default(""),
-  error: z.string().max(2_000).nullable().default(null),
-}).strict();
+export const externalTaskResultRequestSchema = z
+  .object({
+    connectorId: agentConnectorIdSchema,
+    taskId: z.string().uuid(),
+    ok: z.boolean(),
+    stdout: z.string().max(20_000).default(""),
+    error: z.string().max(2_000).nullable().default(null),
+  })
+  .strict();
 export type ExternalTaskResultRequest = z.infer<typeof externalTaskResultRequestSchema>;
 
-export const externalTaskResultResponseSchema = z.object({
-  ok: z.literal(true),
-  data: z.object({ accepted: z.boolean() }).strict(),
-}).strict();
+export const externalTaskResultResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    data: z.object({ accepted: z.boolean() }).strict(),
+  })
+  .strict();
 
 /**
  * 会话鉴权：在用户自己的机器上跑一条任务并等结果。
  * 面板的「测试连接」用它；Agent 的 blender_run_python 将来复用同一条服务端通道。
  */
-export const externalTaskRunRequestSchema = z.object({
-  connectorId: agentConnectorIdSchema,
-  method: externalTaskMethodSchema,
-  params: z.record(z.string(), z.unknown()).default({}),
-  /** 等待回执的上限；超时返回 timeout，不伪造成功。 */
-  waitMs: z.number().int().min(1_000).max(60_000).optional(),
-}).strict();
+export const externalTaskRunRequestSchema = z
+  .object({
+    connectorId: agentConnectorIdSchema,
+    method: externalTaskMethodSchema,
+    params: z.record(z.string(), z.unknown()).default({}),
+    /** 等待回执的上限；超时返回 timeout，不伪造成功。 */
+    waitMs: z.number().int().min(1_000).max(60_000).optional(),
+  })
+  .strict();
 export type ExternalTaskRunRequest = z.infer<typeof externalTaskRunRequestSchema>;
 
-export const externalTaskRunResponseSchema = z.object({
-  ok: z.literal(true),
-  data: z.object({
-    taskId: z.string().uuid(),
-    status: z.enum(["completed", "failed", "timeout", "disconnected"]),
-    stdout: z.string().max(20_000).default(""),
-    error: z.string().max(2_000).nullable().default(null),
-  }).strict(),
-}).strict();
+export const externalTaskRunResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    data: z
+      .object({
+        taskId: z.string().uuid(),
+        status: z.enum(["completed", "failed", "timeout", "disconnected"]),
+        stdout: z.string().max(20_000).default(""),
+        error: z.string().max(2_000).nullable().default(null),
+      })
+      .strict(),
+  })
+  .strict();
 export type ExternalTaskRunResponse = z.infer<typeof externalTaskRunResponseSchema>;

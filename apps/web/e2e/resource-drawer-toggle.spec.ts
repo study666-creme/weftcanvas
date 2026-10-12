@@ -20,29 +20,41 @@ const session = {
  * 永远打不开。这里锁定两条：快速重复点击仍然保持打开；面板可见后的点击仍然正常关闭。
  */
 test.beforeEach(async ({ page }) => {
-  await page.route(/\/api\/v1\/.*/, (route) => route.fulfill({
-    status: 404,
-    contentType: "application/json",
-    body: JSON.stringify({ ok: false, error: { code: "MOCK_NOT_FOUND", message: "not mocked" } }),
-  }));
-  await mockAuthenticatedBackgroundApis(page);
-  await page.route(/\/api\/v1\/auth\/session(?:\?.*)?$/, (route) => route.fulfill({
-    status: 200,
-    contentType: "application/json",
-    body: JSON.stringify({
-      ok: true,
-      data: session,
-      capabilities: { available: true, registration: "disabled", registrationUrl: null, passwordResetUrl: null, devTestAccount: false },
+  await page.route(/\/api\/v1\/.*/, (route) =>
+    route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: false, error: { code: "MOCK_NOT_FOUND", message: "not mocked" } }),
     }),
-  }));
+  );
+  await mockAuthenticatedBackgroundApis(page);
+  await page.route(/\/api\/v1\/auth\/session(?:\?.*)?$/, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        data: session,
+        capabilities: {
+          available: true,
+          registration: "disabled",
+          registrationUrl: null,
+          passwordResetUrl: null,
+          devTestAccount: false,
+        },
+      }),
+    }),
+  );
 });
 
-test("card library opens on a single click, and survives an impatient second click", async ({ page }) => {
+test("card library opens on a single click, and survives an impatient second click", async ({
+  page,
+}) => {
   await page.goto("/canvas");
 
   const dock = page.getByRole("navigation", { name: "编辑工具" });
   const drawer = page.getByRole("dialog", { name: "资源库" });
-  const toggle = () => dock.locator(".kc-resource-toggle").first();
+  const toggle = () => dock.locator(".wc-resource-toggle").first();
   await expect(dock).toBeVisible({ timeout: 25_000 });
 
   // 单击即可打开

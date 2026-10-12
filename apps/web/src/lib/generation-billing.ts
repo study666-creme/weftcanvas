@@ -1,9 +1,11 @@
-import type { PublicGenerationJob } from "@kachang/contracts";
+import type { PublicGenerationJob } from "@weftcanvas/contracts";
 
 /** 与 API 侧 formatMicros 同一口径，避免同一个数字在两端显示成两个样子。 */
 export function formatCreditMicros(value: number) {
   const whole = Math.floor(value / 1_000_000);
-  const fraction = String(value % 1_000_000).padStart(6, "0").replace(/0+$/, "");
+  const fraction = String(value % 1_000_000)
+    .padStart(6, "0")
+    .replace(/0+$/, "");
   return fraction ? `${whole}.${fraction}` : String(whole);
 }
 

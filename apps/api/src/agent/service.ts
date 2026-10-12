@@ -17,15 +17,14 @@ import {
   agentRunSchema,
   agentThinkingSchema,
   type AgentAction,
-  type AgentConversationDetail,
   type AgentExecutionMode,
   type AgentModelCatalog,
   type AgentProposalDraft,
   type AgentRunError,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 import { z } from "zod";
 
-import type { AgentConnectorId } from "@kachang/contracts";
+import type { AgentConnectorId } from "@weftcanvas/contracts";
 import type { AgentExecutor, AgentStore } from "./types.js";
 
 const MAX_AGENT_MODELS = 64;
@@ -98,15 +97,17 @@ type AgentServiceOptions = {
    * 白名单），但产品侧希望 Agent 模型选择器和图片/视频选择器一样列出全部可用模型，
    * 因此这里把平台目录里的文本模型合并进 Agent 模型目录。
    */
-  textModels?: () => Promise<ReadonlyArray<{
-    id: string;
-    label: string;
-    description?: string;
-    group?: string;
-    meta?: string;
-    billing?: "request" | "token";
-    thinking?: { levels: string[]; default: string };
-  }>>;
+  textModels?: () => Promise<
+    ReadonlyArray<{
+      id: string;
+      label: string;
+      description?: string;
+      group?: string;
+      meta?: string;
+      billing?: "request" | "token";
+      thinking?: { levels: string[]; default: string };
+    }>
+  >;
   /**
    * 用户自己机器上的外部连接是否在线。托管站点上运行时在服务器上，
    * 只有把"该用户有在线 Blender"告诉运行时，它才会走配对通道，而不是去连本机的 Blender。
@@ -130,7 +131,10 @@ export class AgentService {
   private readonly billing?: AgentBilling;
   private readonly activeRuns = new Map<string, AbortController>();
 
-  constructor(private readonly store: AgentStore, options: AgentServiceOptions = {}) {
+  constructor(
+    private readonly store: AgentStore,
+    options: AgentServiceOptions = {},
+  ) {
     this.now = options.now ?? Date.now;
     this.createId = options.createId ?? randomUUID;
     this.executor = options.executor;
@@ -248,11 +252,17 @@ export class AgentService {
     return agentModelCatalogSchema.parse({ defaultModelId, models });
   }
 
-  async submitMessage(ownerId: string, conversationIdValue: string, value: unknown, token?: string) {
+  async submitMessage(
+    ownerId: string,
+    conversationIdValue: string,
+    value: unknown,
+    token?: string,
+  ) {
     const conversationId = conversationIdSchema.parse(conversationIdValue);
     const input = agentMessageCreateRequestSchema.parse(value);
     const conversation = await this.store.getConversation(ownerId, conversationId);
-    if (!conversation) throw new AgentServiceError("CONVERSATION_NOT_FOUND", "没有找到这个 Agent 对话");
+    if (!conversation)
+      throw new AgentServiceError("CONVERSATION_NOT_FOUND", "没有找到这个 Agent 对话");
     if (conversation.projectId !== input.canvasContext.projectId) {
       throw new AgentServiceError("PROJECT_CONTEXT_MISMATCH", "对话与当前画布不匹配");
     }
@@ -304,7 +314,8 @@ export class AgentService {
         conversation,
         userMessage,
         run,
-        suggestedTitle: conversation.title === "新对话" ? messageTitle(input.content) : conversation.title,
+        suggestedTitle:
+          conversation.title === "新对话" ? messageTitle(input.content) : conversation.title,
       });
     } catch (error) {
       // 落库失败：把刚扣的这轮积分原样退回（refId 幂等，重试安全）。
@@ -319,16 +330,23 @@ export class AgentService {
     }
 
     if (!this.executor) {
-      await this.store.failRun(ownerId, run.id, {
-        code: "AGENT_UNAVAILABLE",
-        message: "Agent 服务暂未配置",
-        retryable: true,
-      }, this.timestamp());
+      await this.store.failRun(
+        ownerId,
+        run.id,
+        {
+          code: "AGENT_UNAVAILABLE",
+          message: "Agent 服务暂未配置",
+          retryable: true,
+        },
+        this.timestamp(),
+      );
       await this.refundRun(ownerId, token, refId);
       return this.getDetail(ownerId, conversationId);
     }
 
-    void this.execute(ownerId, run.id, conversationId, modelId!, reasoningEffort, token).catch(() => undefined);
+    void this.execute(ownerId, run.id, conversationId, modelId!, reasoningEffort, token).catch(
+      () => undefined,
+    );
     return this.getDetail(ownerId, conversationId);
   }
 
@@ -341,7 +359,12 @@ export class AgentService {
     this.activeRuns.get(runId)?.abort();
   }
 
-  async confirmProposal(ownerId: string, conversationIdValue: string, runIdValue: string, value: unknown) {
+  async confirmProposal(
+    ownerId: string,
+    conversationIdValue: string,
+    runIdValue: string,
+    value: unknown,
+  ) {
     const conversationId = conversationIdSchema.parse(conversationIdValue);
     const runId = runIdSchema.parse(runIdValue);
     const input = agentProposalConfirmRequestSchema.parse(value);
@@ -350,9 +373,12 @@ export class AgentService {
       throw new AgentServiceError("PROPOSAL_NOT_AVAILABLE", "这项提案已处理或当前不可确认");
     }
     if (run.contextRevision !== input.contextRevision) {
-      throw new AgentServiceError("PROJECT_CONTEXT_STALE", "画布已发生变化，请让 Agent 基于最新内容重新提案");
+      throw new AgentServiceError(
+        "PROJECT_CONTEXT_STALE",
+        "画布已发生变化，请让 Agent 基于最新内容重新提案",
+      );
     }
-    if (!await this.store.confirmProposal(ownerId, runId)) {
+    if (!(await this.store.confirmProposal(ownerId, runId))) {
       throw new AgentServiceError("RUN_STATE_CONFLICT", "提案状态刚刚发生变化，请刷新后重试");
     }
     return this.getDetail(ownerId, conversationId);
@@ -365,13 +391,18 @@ export class AgentService {
     if (!isPendingProposal(run)) {
       throw new AgentServiceError("PROPOSAL_NOT_AVAILABLE", "这项提案已处理或当前不可取消");
     }
-    if (!await this.store.dismissProposal(ownerId, runId)) {
+    if (!(await this.store.dismissProposal(ownerId, runId))) {
       throw new AgentServiceError("RUN_STATE_CONFLICT", "提案状态刚刚发生变化，请刷新后重试");
     }
     return this.getDetail(ownerId, conversationId);
   }
 
-  async recordReceipt(ownerId: string, conversationIdValue: string, runIdValue: string, value: unknown) {
+  async recordReceipt(
+    ownerId: string,
+    conversationIdValue: string,
+    runIdValue: string,
+    value: unknown,
+  ) {
     const conversationId = conversationIdSchema.parse(conversationIdValue);
     const runId = runIdSchema.parse(runIdValue);
     const input = agentExecutionReceiptCreateRequestSchema.parse(value);
@@ -386,29 +417,41 @@ export class AgentService {
       ...input,
       createdAt: this.timestamp(),
     });
-    if (!await this.store.recordReceipt(ownerId, runId, receipt)) {
+    if (!(await this.store.recordReceipt(ownerId, runId, receipt))) {
       throw new AgentServiceError("RUN_STATE_CONFLICT", "执行结果已经更新，请刷新后查看");
     }
     return this.getDetail(ownerId, conversationId);
   }
 
-  private async execute(ownerId: string, runId: string, conversationId: string, modelId: string, reasoningEffort?: string, token?: string) {
+  private async execute(
+    ownerId: string,
+    runId: string,
+    conversationId: string,
+    modelId: string,
+    reasoningEffort?: string,
+    token?: string,
+  ) {
     const controller = new AbortController();
     this.activeRuns.set(runId, controller);
     try {
-      if (!await this.store.markRunning(ownerId, runId, this.timestamp())) return;
+      if (!(await this.store.markRunning(ownerId, runId, this.timestamp()))) return;
       const detail = await this.store.getDetail(ownerId, conversationId);
       if (!detail) return;
       if (controller.signal.aborted) return;
-      const result = await this.executor!.execute({
-        modelId,
-        ...(reasoningEffort ? { reasoningEffort } : {}),
-        conversation: detail.conversation,
-        messages: detail.messages,
-        canvasContext: await this.runContext(ownerId, runId),
-        ownerId,
-        ...(this.connectorClients ? { remoteConnectors: { blender: this.remoteBlenderOnline(ownerId) } } : {}),
-      }, controller.signal);
+      const result = await this.executor!.execute(
+        {
+          modelId,
+          ...(reasoningEffort ? { reasoningEffort } : {}),
+          conversation: detail.conversation,
+          messages: detail.messages,
+          canvasContext: await this.runContext(ownerId, runId),
+          ownerId,
+          ...(this.connectorClients
+            ? { remoteConnectors: { blender: this.remoteBlenderOnline(ownerId) } }
+            : {}),
+        },
+        controller.signal,
+      );
       const content = z.string().trim().min(1).max(MAX_AGENT_MESSAGE_CHARS).parse(result.content);
       const message = agentMessageSchema.parse({
         schemaVersion: 1,
@@ -422,7 +465,9 @@ export class AgentService {
       await this.store.completeRun(ownerId, runId, message, execution, this.timestamp());
     } catch (cause) {
       if (!controller.signal.aborted) {
-        await this.store.failRun(ownerId, runId, publicExecutionError(cause), this.timestamp()).catch(() => undefined);
+        await this.store
+          .failRun(ownerId, runId, publicExecutionError(cause), this.timestamp())
+          .catch(() => undefined);
         // 任务真正失败才退款；被取消（aborted）时由 cancelRun 负责退款，避免重复。
         await this.refundRun(ownerId, token, `agent-run:${runId}`);
       }
@@ -432,7 +477,7 @@ export class AgentService {
   }
 
   /** 预扣一轮积分；余额不足统一抛 AgentServiceError(INSUFFICIENT_CREDITS)。 */
-  private async chargeRun(ownerId: string, token: string | undefined, refId: string) {
+  private async chargeRun(_ownerId: string, token: string | undefined, refId: string) {
     if (!this.billing) return;
     try {
       await this.billing.consume({
@@ -468,7 +513,8 @@ export class AgentService {
     }
   }
 
-  private async resolveModelId(requestedModelId: string | undefined) {    if (!this.executor) {
+  private async resolveModelId(requestedModelId: string | undefined) {
+    if (!this.executor) {
       if (requestedModelId) throw new AgentServiceError("AGENT_UNAVAILABLE", "Agent 服务暂未配置");
       return null;
     }
@@ -538,10 +584,14 @@ function normalizeExecutionResult(
 /** 目录里的思考强度档位；去重并保证 default 合法，非法/空值一律丢弃。 */
 function sanitizeThinking(value: { levels: string[]; default: string } | undefined) {
   if (!value || !Array.isArray(value.levels)) return undefined;
-  const levels = [...new Set(value.levels
-    .filter((level): level is string => typeof level === "string")
-    .map((level) => level.trim())
-    .filter((level) => level.length > 0 && level.length <= 24))].slice(0, 8);
+  const levels = [
+    ...new Set(
+      value.levels
+        .filter((level): level is string => typeof level === "string")
+        .map((level) => level.trim())
+        .filter((level) => level.length > 0 && level.length <= 24),
+    ),
+  ].slice(0, 8);
   if (!levels.length) return undefined;
   const fallback = levels.includes("medium") ? "medium" : levels[0]!;
   const requested = typeof value.default === "string" ? value.default.trim() : "";
@@ -553,30 +603,37 @@ function sanitizeThinking(value: { levels: string[]; default: string } | undefin
 }
 
 function isDirectAction(action: AgentAction) {
-  return action.type === "canvas_connect_nodes"
-    || action.type === "canvas_select_nodes"
-    || action.type === "canvas_group_nodes"
-    || action.type === "canvas_set_viewport"
-    || action.type === "canvas_director_open"
-    || action.type === "canvas_director_select_shot"
-    || action.type === "canvas_director_update_entity";
+  return (
+    action.type === "canvas_connect_nodes" ||
+    action.type === "canvas_select_nodes" ||
+    action.type === "canvas_group_nodes" ||
+    action.type === "canvas_set_viewport" ||
+    action.type === "canvas_director_open" ||
+    action.type === "canvas_director_select_shot" ||
+    action.type === "canvas_director_update_entity"
+  );
 }
 
-function isPendingProposal(run: Awaited<ReturnType<AgentStore["getRun"]>>): run is NonNullable<typeof run> {
+function isPendingProposal(
+  run: Awaited<ReturnType<AgentStore["getRun"]>>,
+): run is NonNullable<typeof run> {
   return Boolean(
-    run
-    && run.status === "completed"
-    && run.executionMode === "proposal"
-    && run.proposal
-    && run.proposalStatus === "pending"
-    && !run.receipt,
+    run &&
+    run.status === "completed" &&
+    run.executionMode === "proposal" &&
+    run.proposal &&
+    run.proposalStatus === "pending" &&
+    !run.receipt,
   );
 }
 
 function canReceiveReceipt(run: NonNullable<Awaited<ReturnType<AgentStore["getRun"]>>>) {
-  return run.status === "completed"
-    && run.actions.length > 0
-    && (run.executionMode === "direct" || (run.executionMode === "proposal" && run.proposalStatus === "confirmed"));
+  return (
+    run.status === "completed" &&
+    run.actions.length > 0 &&
+    (run.executionMode === "direct" ||
+      (run.executionMode === "proposal" && run.proposalStatus === "confirmed"))
+  );
 }
 
 function validateReceipt(
@@ -586,12 +643,15 @@ function validateReceipt(
 ) {
   const accounted = receipt.appliedActions + receipt.skippedActions.length;
   const skippedIndexes = receipt.skippedActions.map((item) => item.index);
-  const invalidCount = accounted !== actionCount
-    || skippedIndexes.some((index) => index >= actionCount)
-    || new Set(skippedIndexes).size !== skippedIndexes.length
-    || (receipt.status === "applied" && (receipt.appliedActions !== actionCount || receipt.skippedActions.length > 0))
-    || (receipt.status === "partial" && (receipt.appliedActions === 0 || receipt.skippedActions.length === 0))
-    || (receipt.status === "rejected" && receipt.appliedActions !== 0);
+  const invalidCount =
+    accounted !== actionCount ||
+    skippedIndexes.some((index) => index >= actionCount) ||
+    new Set(skippedIndexes).size !== skippedIndexes.length ||
+    (receipt.status === "applied" &&
+      (receipt.appliedActions !== actionCount || receipt.skippedActions.length > 0)) ||
+    (receipt.status === "partial" &&
+      (receipt.appliedActions === 0 || receipt.skippedActions.length === 0)) ||
+    (receipt.status === "rejected" && receipt.appliedActions !== 0);
   if (invalidCount) {
     throw new AgentServiceError("EXECUTION_RECEIPT_INVALID", "执行回执与提案动作数量不一致");
   }
@@ -612,7 +672,11 @@ function publicExecutionError(cause: unknown): AgentRunError {
 }
 
 export class AgentExecutionError extends Error {
-  constructor(readonly code: string, message: string, readonly retryable: boolean) {
+  constructor(
+    readonly code: string,
+    message: string,
+    readonly retryable: boolean,
+  ) {
     super(message);
     this.name = "AgentExecutionError";
   }

@@ -20,8 +20,21 @@ function catalogModel(modality: "image" | "video") {
       tiers: [],
     },
     parameters: [
-      { name: "prompt", label: "提示词", type: "string", required: true, mutuallyExclusiveWith: [] },
-      { name: "size", label: "尺寸", type: "string", required: false, options: ["1:1", "16:9"], mutuallyExclusiveWith: [] },
+      {
+        name: "prompt",
+        label: "提示词",
+        type: "string",
+        required: true,
+        mutuallyExclusiveWith: [],
+      },
+      {
+        name: "size",
+        label: "尺寸",
+        type: "string",
+        required: false,
+        options: ["1:1", "16:9"],
+        mutuallyExclusiveWith: [],
+      },
     ],
   };
 }
@@ -30,13 +43,14 @@ async function mockCatalogApis(page: Page) {
   const expiresAt = new Date(Date.now() + 60 * 60_000).toISOString();
   await page.route("**/api/v1/model-catalog**", (route) => {
     const requested = new URL(route.request().url()).searchParams.get("modality");
-    const models = requested === "image"
-      ? [catalogModel("image")]
-      : requested === "video"
-        ? [catalogModel("video")]
-        : requested === "text" || requested === "audio"
-          ? []
-          : [catalogModel("image"), catalogModel("video")];
+    const models =
+      requested === "image"
+        ? [catalogModel("image")]
+        : requested === "video"
+          ? [catalogModel("video")]
+          : requested === "text" || requested === "audio"
+            ? []
+            : [catalogModel("image"), catalogModel("video")];
     return route.fulfill({
       json: {
         ok: true,
@@ -52,12 +66,14 @@ async function mockCatalogApis(page: Page) {
       },
     });
   });
-  await page.route("**/api/v1/generation-jobs?*", (route) => route.fulfill({ json: { ok: true, data: [] } }));
+  await page.route("**/api/v1/generation-jobs?*", (route) =>
+    route.fulfill({ json: { ok: true, data: [] } }),
+  );
 }
 
 async function expectNoHorizontalOverflow(page: Page) {
   const dimensions = await page.evaluate(() => {
-    const gate = document.querySelector<HTMLElement>(".kc-entry-gate");
+    const gate = document.querySelector<HTMLElement>(".wc-entry-gate");
     if (!gate) throw new Error("Entry gate is not mounted");
 
     return {
@@ -72,49 +88,66 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(dimensions.gateScrollWidth).toBe(dimensions.gateClientWidth);
 }
 
-test("the entry gate opens the single canvas loader without a departure curtain", async ({ page }) => {
+test("the entry gate opens the single canvas loader without a departure curtain", async ({
+  page,
+}) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/");
 
-  const gate = page.locator(".kc-entry-gate");
-  const enter = page.locator(".kc-entry-button");
+  const gate = page.locator(".wc-entry-gate");
+  const enter = page.locator(".wc-entry-button");
   await expect(gate).toBeVisible();
-  await expect(gate).toHaveAttribute("aria-label", "卡藏画布入口");
+  await expect(gate).toHaveAttribute("aria-label", "纬线画布入口");
   await expect(enter).toBeVisible();
-  await expect(page.getByRole("heading", { name: "卡藏画布", exact: true })).toBeVisible();
-  const brandLogo = gate.locator(".kc-entry-brand-mark img");
+  await expect(page.getByRole("heading", { name: "纬线画布", exact: true })).toBeVisible();
+  const brandLogo = gate.locator(".wc-entry-brand-mark img");
   await expect(brandLogo).toBeVisible();
-  await expect.poll(() => brandLogo.evaluate((image: HTMLImageElement) => ({ complete: image.complete, width: image.naturalWidth })))
+  await expect
+    .poll(() =>
+      brandLogo.evaluate((image: HTMLImageElement) => ({
+        complete: image.complete,
+        width: image.naturalWidth,
+      })),
+    )
     .toEqual({ complete: true, width: 256 });
   await expect(page.getByRole("navigation", { name: "主页分区" })).toBeVisible();
-  await expect(page.locator(".kc-workspace, .react-flow")).toHaveCount(0);
+  await expect(page.locator(".wc-workspace, .react-flow")).toHaveCount(0);
 
   await enter.click();
   await expect(page).toHaveURL(/\/canvas$/);
   await expect(gate).toHaveCount(0);
-  await expect(page.locator(".kc-canvas-entry-loader")).toBeVisible();
-  await expect(page.locator(".kc-canvas-entry-loader-mark img")).toBeVisible();
-  await expect(page.locator(".kc-workspace")).toBeAttached();
-  await expect(page.locator(".kc-app")).toHaveClass(/kc-app--entry-inside/);
+  await expect(page.locator(".wc-canvas-entry-loader")).toBeVisible();
+  await expect(page.locator(".wc-canvas-entry-loader-mark img")).toBeVisible();
+  await expect(page.locator(".wc-workspace")).toBeAttached();
+  await expect(page.locator(".wc-app")).toHaveClass(/wc-app--entry-inside/);
 });
 
 test("the prompt composer routes to image and video generation", async ({ page }) => {
   await mockCatalogApis(page);
   await page.goto("/");
 
-  const composer = page.locator(".kc-entry-composer");
+  const composer = page.locator(".wc-entry-composer");
   await expect(composer).toBeVisible();
   const prompt = page.getByLabel("生成提示词");
   const tabs = page.getByRole("tablist", { name: "生成类型" });
-  await expect(tabs.getByRole("tab", { name: "图片生成" })).toHaveAttribute("aria-selected", "true");
-  await expect(tabs.getByRole("tab", { name: "视频生成" })).toHaveAttribute("aria-selected", "false");
+  await expect(tabs.getByRole("tab", { name: "图片生成" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(tabs.getByRole("tab", { name: "视频生成" })).toHaveAttribute(
+    "aria-selected",
+    "false",
+  );
 
   await prompt.fill("雨夜城市，霓虹倒影");
   await page.getByRole("button", { name: "生成图片" }).click();
   await expect(page).toHaveURL(/\/generate\/image\?prompt=/);
 
   await page.goto("/");
-  await page.getByRole("tablist", { name: "生成类型" }).getByRole("tab", { name: "视频生成" }).click();
+  await page
+    .getByRole("tablist", { name: "生成类型" })
+    .getByRole("tab", { name: "视频生成" })
+    .click();
   await page.getByLabel("生成提示词").fill("云海延时");
   await page.getByLabel("生成提示词").press("Enter");
   await expect(page).toHaveURL(/\/generate\/video\?prompt=/);
@@ -136,7 +169,7 @@ test("model and parameter selections carry into the studio draft", async ({ page
 test("an inspiration chip navigates with its prompt", async ({ page }) => {
   await mockCatalogApis(page);
   await page.goto("/");
-  const first = page.locator(".kc-entry-inspirations > button").first();
+  const first = page.locator(".wc-entry-inspirations > button").first();
   const idea = (await first.textContent())?.trim() ?? "";
   expect(idea.length).toBeGreaterThan(0);
   await first.click();
@@ -163,16 +196,16 @@ test("the entry project launcher opens the selected local project", async ({ pag
   await launcher.getByRole("button", { name: "打开项目 入口项目 A" }).click();
 
   await expect(page).toHaveURL(/\/canvas$/);
-  await expect(page.locator(".kc-entry-gate")).toHaveCount(0, { timeout: 2_000 });
+  await expect(page.locator(".wc-entry-gate")).toHaveCount(0, { timeout: 2_000 });
   await expect(projectName).toHaveValue("入口项目 A");
 });
 
 test("the account dialog opens above the entry launcher", async ({ page }) => {
   await page.goto("/");
-  const gate = page.locator(".kc-entry-gate");
+  const gate = page.locator(".wc-entry-gate");
   await gate.getByRole("button", { name: "登录画布账号" }).click();
 
-  const dialog = page.getByRole("dialog", { name: "卡藏账号" });
+  const dialog = page.getByRole("dialog", { name: "纬线账号" });
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("一个账号，连接你的画布与资产。");
   // 自绘光标已删除：原生光标必须仍然可见，指针反馈只做一次性扩散环。
@@ -184,8 +217,11 @@ test("the account dialog opens above the entry launcher", async ({ page }) => {
     const element = document.querySelector<HTMLElement>("[data-testid='pointer-pulse']");
     const style = element ? getComputedStyle(element) : null;
     return {
-      gate: Number.parseInt(getComputedStyle(document.querySelector(".kc-entry-gate")!).zIndex, 10),
-      account: Number.parseInt(getComputedStyle(document.querySelector(".kc-account-backdrop")!).zIndex, 10),
+      gate: Number.parseInt(getComputedStyle(document.querySelector(".wc-entry-gate")!).zIndex, 10),
+      account: Number.parseInt(
+        getComputedStyle(document.querySelector(".wc-account-backdrop")!).zIndex,
+        10,
+      ),
       position: style?.position ?? null,
       pulseZ: style ? Number.parseInt(style.zIndex, 10) : Number.NaN,
       pointerEvents: style?.pointerEvents ?? null,
@@ -205,10 +241,10 @@ test("the entry hero stages layered motion without blocking interaction", async 
   await page.setViewportSize({ width: 1_440, height: 900 });
   await page.goto("/");
 
-  const stage = page.locator(".kc-entry-hero-media-stage");
-  const media = stage.locator(".kc-entry-hero-media");
-  const heroTitle = page.locator(".kc-entry-hero-copy h1");
-  const composer = page.locator(".kc-entry-composer");
+  const stage = page.locator(".wc-entry-hero-media-stage");
+  const media = stage.locator(".wc-entry-hero-media");
+  const heroTitle = page.locator(".wc-entry-hero-copy h1");
+  const composer = page.locator(".wc-entry-composer");
 
   await expect(stage).toBeVisible();
   await expect(media).toHaveCount(1);
@@ -217,8 +253,8 @@ test("the entry hero stages layered motion without blocking interaction", async 
   // 性能预算：底图不再挂常驻 drift（关键帧留着但没有赋值点），hero 只保留
   // 星星漂移与光晕漂移两层常驻动画。这里断言"没有动画"而不是断言旧动画名。
   await expect(media).toHaveCSS("animation-name", "none");
-  await expect(heroTitle).toHaveCSS("animation-name", "kc-entry-copy-rise");
-  await expect(composer).toHaveCSS("animation-name", "kc-entry-copy-rise");
+  await expect(heroTitle).toHaveCSS("animation-name", "wc-entry-copy-rise");
+  await expect(composer).toHaveCSS("animation-name", "wc-entry-copy-rise");
 });
 
 for (const { label, viewport } of [
@@ -228,49 +264,57 @@ for (const { label, viewport } of [
   test(`the entry hero has no horizontal overflow on ${label}`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await page.goto("/");
-    await expect(page.locator(".kc-entry-gate")).toBeVisible();
+    await expect(page.locator(".wc-entry-gate")).toBeVisible();
     await expectNoHorizontalOverflow(page);
   });
 }
 
-test("the compact desktop navigation keeps every action complete on one line", async ({ page }, testInfo) => {
+test("the compact desktop navigation keeps every action complete on one line", async ({
+  page,
+}, testInfo) => {
   const displayName = "流言蜚语工作室账号";
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({
-    json: {
-      ok: true,
-      data: {
-        user: {
-          id: "77777777-7777-4777-8777-777777777777",
-          email: "studio@example.com",
-          displayName,
-          createdAt: "2026-07-22T00:00:00.000Z",
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        data: {
+          user: {
+            id: "77777777-7777-4777-8777-777777777777",
+            email: "studio@example.com",
+            displayName,
+            createdAt: "2026-07-22T00:00:00.000Z",
+          },
+          expiresAt: "2099-08-22T00:00:00.000Z",
         },
-        expiresAt: "2099-08-22T00:00:00.000Z",
       },
-    },
-  }));
-  await page.route("**/api/v1/wallet", (route) => route.fulfill({
-    json: {
-      ok: true,
-      data: {
-        credits: 0,
-        creditsPermanent: 0,
-        dailyCredits: 0,
-        creditGrantMode: "bundle",
-        dailyCreditsNote: "",
-        membership: { tier: "free", until: null, active: false, genDiscount: null },
-        lifetimeCreditsSpent: 0,
+    }),
+  );
+  await page.route("**/api/v1/wallet", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        data: {
+          credits: 0,
+          creditsPermanent: 0,
+          dailyCredits: 0,
+          creditGrantMode: "bundle",
+          dailyCreditsNote: "",
+          membership: { tier: "free", until: null, active: false, genDiscount: null },
+          lifetimeCreditsSpent: 0,
+        },
       },
-    },
-  }));
-  await page.route("**/api/v1/generation-jobs?*", (route) => route.fulfill({
-    json: { ok: true, data: [] },
-  }));
+    }),
+  );
+  await page.route("**/api/v1/generation-jobs?*", (route) =>
+    route.fulfill({
+      json: { ok: true, data: [] },
+    }),
+  );
   await page.setViewportSize({ width: 1_180, height: 800 });
   await page.goto("/");
 
-  const header = page.locator(".kc-entry-nav");
-  const account = header.locator(".kc-entry-account-action");
+  const header = page.locator(".wc-entry-nav");
+  const account = header.locator(".wc-entry-account-action");
   await expect(account).toContainText(displayName);
 
   const layout = await header.evaluate((element) => {
@@ -294,7 +338,7 @@ test("the compact desktop navigation keeps every action complete on one line", a
       const rect = element.querySelector(selector)!.getBoundingClientRect();
       return { left: rect.left, right: rect.right };
     };
-    const actions = [...element.querySelectorAll<HTMLElement>(".kc-entry-nav-actions > *")]
+    const actions = [...element.querySelectorAll<HTMLElement>(".wc-entry-nav-actions > *")]
       .filter((action) => getComputedStyle(action).display !== "none")
       .map((action) => ({
         label: action.textContent?.trim() ?? "",
@@ -305,41 +349,49 @@ test("the compact desktop navigation keeps every action complete on one line", a
 
     return {
       actions,
-      brand: bounds(".kc-entry-brand"),
-      controls: bounds(".kc-entry-nav-actions"),
+      brand: bounds(".wc-entry-brand"),
+      controls: bounds(".wc-entry-nav-actions"),
       overflow: element.scrollWidth - element.clientWidth,
     };
   });
 
-  expect(layout.actions.map((action) => action.label)).toEqual([
-    displayName,
-    "打开画布",
-  ]);
-  expect(layout.actions.every((action) => action.rows === 1 && action.whiteSpace === "nowrap" && !action.clipped)).toBe(true);
+  expect(layout.actions.map((action) => action.label)).toEqual([displayName, "打开画布"]);
+  expect(
+    layout.actions.every(
+      (action) => action.rows === 1 && action.whiteSpace === "nowrap" && !action.clipped,
+    ),
+  ).toBe(true);
   expect(layout.controls.left - layout.brand.right).toBeGreaterThanOrEqual(12);
   expect(layout.overflow).toBe(0);
-  await page.screenshot({ path: testInfo.outputPath("entry-nav-single-line-desktop.png"), fullPage: false });
+  await page.screenshot({
+    path: testInfo.outputPath("entry-nav-single-line-desktop.png"),
+    fullPage: false,
+  });
 });
 
-test("the entry hero is a single viewport without a scrollable marketing page", async ({ page }, testInfo) => {
+test("the entry hero is a single viewport without a scrollable marketing page", async ({
+  page,
+}, testInfo) => {
   await page.goto("/");
-  const gate = page.locator(".kc-entry-gate");
+  const gate = page.locator(".wc-entry-gate");
   await expect(gate).toBeVisible();
 
   await page.screenshot({ path: testInfo.outputPath("entry-home-desktop.png") });
-  await expect(gate.locator(".kc-entry-composer")).toBeVisible();
-  await expect(gate.locator(".kc-entry-project-dock")).toBeVisible();
+  await expect(gate.locator(".wc-entry-composer")).toBeVisible();
+  await expect(gate.locator(".wc-entry-project-dock")).toBeVisible();
 });
 
-test("the entry page remains balanced without horizontal overflow on a phone viewport", async ({ page }, testInfo) => {
+test("the entry page remains balanced without horizontal overflow on a phone viewport", async ({
+  page,
+}, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "卡藏画布", exact: true })).toBeVisible();
-  await expect(page.locator(".kc-entry-button")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "纬线画布", exact: true })).toBeVisible();
+  await expect(page.locator(".wc-entry-button")).toBeVisible();
   await expect(page.getByRole("button", { name: "打开画布", exact: true })).toBeVisible();
   await expect(page.getByRole("tablist", { name: "生成类型" })).toBeVisible();
-  const dimensions = await page.locator(".kc-entry-gate").evaluate((element) => ({
+  const dimensions = await page.locator(".wc-entry-gate").evaluate((element) => ({
     clientWidth: element.clientWidth,
     scrollWidth: element.scrollWidth,
   }));
@@ -349,26 +401,26 @@ test("the entry page remains balanced without horizontal overflow on a phone vie
 
 test("direct canvas links bypass the entry gate", async ({ page }) => {
   await page.goto("/canvas");
-  await expect(page.locator(".kc-entry-gate")).toHaveCount(0);
-  await expect(page.locator(".kc-workspace")).toBeVisible();
+  await expect(page.locator(".wc-entry-gate")).toHaveCount(0);
+  await expect(page.locator(".wc-workspace")).toBeVisible();
 });
 
 test("reduced motion keeps the direct loader entry functional", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
 
-  const media = page.locator(".kc-entry-hero-media");
-  const heroTitle = page.locator(".kc-entry-hero-copy h1");
-  const composer = page.locator(".kc-entry-composer");
+  const media = page.locator(".wc-entry-hero-media");
+  const heroTitle = page.locator(".wc-entry-hero-copy h1");
+  const composer = page.locator(".wc-entry-composer");
 
   await expect(media).toHaveCount(1);
   await expect(media).toHaveCSS("animation-name", "none");
   await expect(heroTitle).toHaveCSS("animation-name", "none");
   await expect(composer).toHaveCSS("animation-name", "none");
 
-  const gate = page.locator(".kc-entry-gate");
-  await page.locator(".kc-entry-button").click();
+  const gate = page.locator(".wc-entry-gate");
+  await page.locator(".wc-entry-button").click();
   await expect(gate).toHaveCount(0);
-  await expect(page.locator(".kc-canvas-entry-loader")).toBeVisible();
-  await expect(page.locator(".kc-app")).toHaveClass(/kc-app--entry-inside/);
+  await expect(page.locator(".wc-canvas-entry-loader")).toBeVisible();
+  await expect(page.locator(".wc-app")).toHaveClass(/wc-app--entry-inside/);
 });

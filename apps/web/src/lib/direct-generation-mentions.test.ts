@@ -30,18 +30,24 @@ describe("direct generation mentions", () => {
   });
 
   it("replaces the active query and returns the next cursor position", () => {
-    expect(insertDirectMention("让 @图片运动", { start: 2, end: 5 }, directMentionCandidates(refs)[0]!)).toEqual({
+    expect(
+      insertDirectMention("让 @图片运动", { start: 2, end: 5 }, directMentionCandidates(refs)[0]!),
+    ).toEqual({
       value: "让 @图片1 运动",
       cursor: 7,
     });
   });
 
   it("removes stale media mention tokens after a reference is deleted", () => {
-    expect(removeInvalidDirectMentions("使用 @图片1 和 @视频1 以及 @音频1", refs)).toBe("使用 @图片1 和 @视频1 以及 ");
+    expect(removeInvalidDirectMentions("使用 @图片1 和 @视频1 以及 @音频1", refs)).toBe(
+      "使用 @图片1 和 @视频1 以及 ",
+    );
   });
 
   it("keeps mentions attached to the same material when earlier numbering shifts", () => {
-    expect(reconcileDirectMentions("保留 @图片1 和 @图片2", refs, refs.slice(1))).toBe("保留  和 @图片1");
+    expect(reconcileDirectMentions("保留 @图片1 和 @图片2", refs, refs.slice(1))).toBe(
+      "保留  和 @图片1",
+    );
   });
 
   it("supports full-width cursor boundaries without treating email addresses as mentions", () => {

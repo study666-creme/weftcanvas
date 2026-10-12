@@ -1,13 +1,21 @@
 import type { Pool } from "pg";
 
 export interface CloudProjectMediaValidator {
-  validateReadyMedia(ownerId: string, projectId: string, mediaIds: readonly string[]): Promise<boolean>;
+  validateReadyMedia(
+    ownerId: string,
+    projectId: string,
+    mediaIds: readonly string[],
+  ): Promise<boolean>;
 }
 
 export class PostgresCloudProjectMediaValidator implements CloudProjectMediaValidator {
   constructor(private readonly pool: Pick<Pool, "query">) {}
 
-  async validateReadyMedia(ownerId: string, projectId: string, mediaIds: readonly string[]): Promise<boolean> {
+  async validateReadyMedia(
+    ownerId: string,
+    projectId: string,
+    mediaIds: readonly string[],
+  ): Promise<boolean> {
     const uniqueIds = [...new Set(mediaIds)];
     if (uniqueIds.length === 0) return true;
 

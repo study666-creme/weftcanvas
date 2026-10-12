@@ -1,4 +1,4 @@
-import type { CanvasNodeKind } from "@kachang/contracts";
+import type { CanvasNodeKind } from "@weftcanvas/contracts";
 import { useCreatableNodeDefinitions } from "../lib/node-registry";
 import { Puzzle } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
@@ -28,17 +28,24 @@ export function ConnectionCreateMenu({ pending, onCreate, onClose }: ConnectionC
   const menuRef = useRef<HTMLDivElement>(null);
   const creatableNodes = useCreatableNodeDefinitions();
   const position = useMemo(() => {
-    const preferredLeft = pending.side === "right"
-      ? pending.clientPosition.x + 18
-      : pending.clientPosition.x - MENU_WIDTH - 18;
+    const preferredLeft =
+      pending.side === "right"
+        ? pending.clientPosition.x + 18
+        : pending.clientPosition.x - MENU_WIDTH - 18;
     return {
       left: clamp(preferredLeft, VIEWPORT_MARGIN, window.innerWidth - MENU_WIDTH - VIEWPORT_MARGIN),
-      top: clamp(pending.clientPosition.y - MENU_HEIGHT / 2, VIEWPORT_MARGIN, window.innerHeight - MENU_HEIGHT - VIEWPORT_MARGIN),
+      top: clamp(
+        pending.clientPosition.y - MENU_HEIGHT / 2,
+        VIEWPORT_MARGIN,
+        window.innerHeight - MENU_HEIGHT - VIEWPORT_MARGIN,
+      ),
     };
   }, [pending.clientPosition.x, pending.clientPosition.y, pending.side]);
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => menuRef.current?.querySelector<HTMLButtonElement>(".kc-connection-create-option")?.focus());
+    const frame = window.requestAnimationFrame(() =>
+      menuRef.current?.querySelector<HTMLButtonElement>(".wc-connection-create-option")?.focus(),
+    );
     const dismissOutside = (event: globalThis.PointerEvent) => {
       const target = event.target;
       if (target instanceof Node && menuRef.current?.contains(target)) return;
@@ -59,7 +66,7 @@ export function ConnectionCreateMenu({ pending, onCreate, onClose }: ConnectionC
   return (
     <div
       ref={menuRef}
-      className="kc-connection-create-menu nodrag nopan nowheel"
+      className="wc-connection-create-menu nodrag nopan nowheel"
       role="menu"
       aria-label="选择要连接创建的节点"
       data-connection-create-menu
@@ -73,7 +80,7 @@ export function ConnectionCreateMenu({ pending, onCreate, onClose }: ConnectionC
             key={definition.kind}
             type="button"
             role="menuitem"
-            className={`kc-connection-create-option kc-quick-add--${definition.kind}`}
+            className={`wc-connection-create-option wc-quick-add--${definition.kind}`}
             aria-label={`创建并连接${definition.label()}`}
             onClick={() => onCreate(definition.kind)}
           >

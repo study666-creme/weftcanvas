@@ -8,11 +8,17 @@ describe("canvas clipboard", () => {
     const text = createCanvasNode("text", { x: 20, y: 30 }, { body: "镜头描述" });
     const image = createCanvasNode("image", { x: 420, y: 30 });
     const edge = createCanvasEdge(text.id, image.id);
-    const parsed = parseCanvasClipboard(serializeCanvasClipboard({ nodes: [text, image], edges: [edge], groups: [] }));
+    const parsed = parseCanvasClipboard(
+      serializeCanvasClipboard({ nodes: [text, image], edges: [edge], groups: [] }),
+    );
 
     expect(parsed?.nodes.map((node) => node.id)).toEqual([text.id, image.id]);
     expect(parsed?.edges).toHaveLength(1);
-    expect(parsed?.edges[0]).toMatchObject({ source: text.id, target: image.id, type: "kachang" });
+    expect(parsed?.edges[0]).toMatchObject({
+      source: text.id,
+      target: image.id,
+      type: "weftcanvas",
+    });
   });
 
   it("rejects malformed and oversized clipboard payloads", () => {

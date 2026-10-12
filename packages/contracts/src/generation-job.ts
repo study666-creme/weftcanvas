@@ -9,7 +9,8 @@ export const GENERATION_JOB_SCHEMA_VERSION = 1 as const;
  * request after a reload. It matches the submission idempotency-key grammar so
  * a persisted pending request can be looked up without scanning a capped list.
  */
-export const generationJobIdempotencyKeySchema = z.string()
+export const generationJobIdempotencyKeySchema = z
+  .string()
   .min(8)
   .max(128)
   .regex(/^[A-Za-z0-9._:-]+$/);
@@ -36,8 +37,8 @@ export const generationJobInputSchema = z.object({
   audios: z.array(z.string().min(1)).max(10).default([]),
 });
 type ParsedGenerationJobInput = z.infer<typeof generationJobInputSchema>;
-export type GenerationJobInput = Omit<ParsedGenerationJobInput, "styleImages" | "elementImages">
-  & Partial<Pick<ParsedGenerationJobInput, "styleImages" | "elementImages">>;
+export type GenerationJobInput = Omit<ParsedGenerationJobInput, "styleImages" | "elementImages"> &
+  Partial<Pick<ParsedGenerationJobInput, "styleImages" | "elementImages">>;
 
 export const expectedGenerationQuoteSchema = generationQuoteSchema.pick({
   id: true,
@@ -54,16 +55,27 @@ export const generationJobSubmissionSchema = z.object({
   modelId: z.string().min(1).max(128),
   modality: modelModalitySchema,
   parameters: z.record(z.string(), z.unknown()).default({}),
-  inputs: generationJobInputSchema.default({ images: [], styleImages: [], elementImages: [], videos: [], audios: [] }),
+  inputs: generationJobInputSchema.default({
+    images: [],
+    styleImages: [],
+    elementImages: [],
+    videos: [],
+    audios: [],
+  }),
   quantity: z.number().int().min(1).max(8).default(1),
   inputTokens: z.number().int().nonnegative().optional(),
   maxOutputTokens: z.number().int().nonnegative().optional(),
   expectedQuote: expectedGenerationQuoteSchema,
-  idempotencyKey: z.string().min(8).max(128).regex(/^[A-Za-z0-9._:-]+$/),
+  idempotencyKey: z
+    .string()
+    .min(8)
+    .max(128)
+    .regex(/^[A-Za-z0-9._:-]+$/),
 });
 type ParsedGenerationJobSubmission = z.infer<typeof generationJobSubmissionSchema>;
-export type GenerationJobSubmission = Omit<ParsedGenerationJobSubmission, "inputs">
-  & { inputs: GenerationJobInput };
+export type GenerationJobSubmission = Omit<ParsedGenerationJobSubmission, "inputs"> & {
+  inputs: GenerationJobInput;
+};
 
 const generationArtifactBaseSchema = z.object({
   id: z.string().min(1),

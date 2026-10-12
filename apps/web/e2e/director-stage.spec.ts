@@ -1,14 +1,16 @@
 import { expect, test } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({ json: { ok: true, data: null } }));
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({ json: { ok: true, data: null } }),
+  );
 });
 
 async function cleanProject(page: import("@playwright/test").Page) {
   await page.addInitScript(() => {
-    if (sessionStorage.getItem("kachang-director-e2e-cleaned")) return;
+    if (sessionStorage.getItem("weftcanvas-director-e2e-cleaned")) return;
     localStorage.clear();
-    sessionStorage.setItem("kachang-director-e2e-cleaned", "1");
+    sessionStorage.setItem("weftcanvas-director-e2e-cleaned", "1");
   });
 }
 
@@ -35,11 +37,14 @@ async function readCanvasPixels(canvas: import("@playwright/test").Locator) {
   });
 }
 
-test("director stage renders a nonblank scene and keeps its tools inside the viewport", async ({ page }, testInfo) => {
+test("director stage renders a nonblank scene and keeps its tools inside the viewport", async ({
+  page,
+}, testInfo) => {
   const runtimeMessages: string[] = [];
   page.on("pageerror", (error) => runtimeMessages.push(error.message));
   page.on("console", (message) => {
-    if (message.type() === "error" || message.text().toLowerCase().includes("deprecated")) runtimeMessages.push(message.text());
+    if (message.type() === "error" || message.text().toLowerCase().includes("deprecated"))
+      runtimeMessages.push(message.text());
   });
   await cleanProject(page);
   await page.goto("/canvas");
@@ -85,7 +90,9 @@ test("director stage renders a nonblank scene and keeps its tools inside the vie
   expect(runtimeMessages).toEqual([]);
 });
 
-test("director stage edits entities, guards the floor, and returns validated captures", async ({ page }) => {
+test("director stage edits entities, guards the floor, and returns validated captures", async ({
+  page,
+}) => {
   test.setTimeout(45_000);
   await cleanProject(page);
   await page.goto("/canvas");
@@ -105,12 +112,12 @@ test("director stage edits entities, guards the floor, and returns validated cap
   await page.mouse.up();
   const afterX = Number(await xInput.inputValue());
   expect(Math.abs(afterX - beforeX)).toBeGreaterThan(0.15);
-  await expect(canvas).toHaveClass(/kc-director-canvas/);
+  await expect(canvas).toHaveClass(/wc-director-canvas/);
 
   await yInput.fill("-1");
   await yInput.blur();
   await expect(yInput).toHaveValue("0.00");
-  await expect(page.locator(".kc-toast")).toContainText("已在地面停止");
+  await expect(page.locator(".wc-toast")).toContainText("已在地面停止");
 
   await stage.getByRole("button", { name: /地面锁定/ }).click();
   await yInput.fill("-1");
@@ -122,18 +129,24 @@ test("director stage edits entities, guards the floor, and returns validated cap
   await expect(stage.getByRole("button", { name: "沙发", exact: true })).toBeVisible();
 
   await stage.getByRole("button", { name: "截取当前" }).click();
-  await expect(page.locator(".kc-toast").filter({ hasText: "分镜截图已加入画布" })).toBeVisible();
+  await expect(page.locator(".wc-toast").filter({ hasText: "分镜截图已加入画布" })).toBeVisible();
   await stage.getByLabel("关闭导演台").click();
 
-  const nodes = page.locator(".react-flow__node-kachang");
+  const nodes = page.locator(".react-flow__node-weftcanvas");
   await expect(nodes).toHaveCount(4);
-  await expect(page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="image"]) img')).toHaveCount(1);
+  await expect(
+    page.locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="image"]) img'),
+  ).toHaveCount(1);
   await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
   const directorMetadata = await page.evaluate(() => {
-    const projectId = localStorage.getItem("kachang-canvas:active-project:v1");
-    const raw = projectId ? localStorage.getItem(`kachang-canvas:project-data:v1:${encodeURIComponent(projectId)}`) : null;
+    const projectId = localStorage.getItem("weftcanvas:active-project:v1");
+    const raw = projectId
+      ? localStorage.getItem(`weftcanvas:project-data:v1:${encodeURIComponent(projectId)}`)
+      : null;
     const project = raw ? JSON.parse(raw) : null;
-    return project?.nodes?.find((node: { data?: { directorCapture?: unknown } }) => node.data?.directorCapture)?.data.directorCapture;
+    return project?.nodes?.find(
+      (node: { data?: { directorCapture?: unknown } }) => node.data?.directorCapture,
+    )?.data.directorCapture;
   });
   expect(directorMetadata).toMatchObject({ shotId: "shot-01", slot: 1 });
 
@@ -150,32 +163,51 @@ test("director stage edits entities, guards the floor, and returns validated cap
   await expect(reopenedStage.getByLabel("高度 Y精确数值")).toHaveValue("-1.00");
 });
 
-test("text nodes launch a one-shot stage draft and captures connect back to their source", async ({ page }) => {
+test("text nodes launch a one-shot stage draft and captures connect back to their source", async ({
+  page,
+}) => {
   await cleanProject(page);
   await page.goto("/canvas");
-  const textNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="text"])');
-  const sourceText = (await textNode.locator(".kc-node-text-preview").textContent())?.trim();
+  const textNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="text"])',
+  );
+  const sourceText = (await textNode.locator(".wc-node-text-preview").textContent())?.trim();
   expect(sourceText).toBeTruthy();
 
-  await textNode.locator(".kc-node-drag-strip").click();
+  await textNode.locator(".wc-node-drag-strip").click();
   await page.getByLabel("送入 3D 导演台").click();
   const stage = page.getByRole("dialog", { name: "3D 导演台" });
   await expect(stage).toBeVisible();
-  await expect(stage.locator(".kc-director-shot-caption")).toContainText("文本预演");
-  await expect(stage.locator(".kc-director-shot-caption")).toContainText(sourceText!);
+  await expect(stage.locator(".wc-director-shot-caption")).toContainText("文本预演");
+  await expect(stage.locator(".wc-director-shot-caption")).toContainText(sourceText!);
 
   await stage.getByRole("button", { name: "截取当前" }).click();
-  await expect(page.locator(".kc-toast").filter({ hasText: "分镜截图已加入画布" })).toBeVisible();
+  await expect(page.locator(".wc-toast").filter({ hasText: "分镜截图已加入画布" })).toBeVisible();
   await stage.getByLabel("关闭导演台").click();
 
-  await expect(page.locator(".react-flow__node-kachang")).toHaveCount(4);
+  await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(4);
   await expect(page.locator(".react-flow__edge")).toHaveCount(3);
-  await expect.poll(() => page.evaluate(() => {
-    const projectId = localStorage.getItem("kachang-canvas:active-project:v1");
-    const raw = projectId ? localStorage.getItem(`kachang-canvas:project-data:v1:${encodeURIComponent(projectId)}`) : null;
-    const project = raw ? JSON.parse(raw) : null;
-    const source = project?.nodes?.find((node: { data?: { kind?: string } }) => node.data?.kind === "text");
-    const capture = project?.nodes?.find((node: { data?: { directorCapture?: unknown } }) => node.data?.directorCapture);
-    return project?.edges?.some((edge: { source?: string; target?: string }) => edge.source === source?.id && edge.target === capture?.id) ?? false;
-  })).toBe(true);
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const projectId = localStorage.getItem("weftcanvas:active-project:v1");
+        const raw = projectId
+          ? localStorage.getItem(`weftcanvas:project-data:v1:${encodeURIComponent(projectId)}`)
+          : null;
+        const project = raw ? JSON.parse(raw) : null;
+        const source = project?.nodes?.find(
+          (node: { data?: { kind?: string } }) => node.data?.kind === "text",
+        );
+        const capture = project?.nodes?.find(
+          (node: { data?: { directorCapture?: unknown } }) => node.data?.directorCapture,
+        );
+        return (
+          project?.edges?.some(
+            (edge: { source?: string; target?: string }) =>
+              edge.source === source?.id && edge.target === capture?.id,
+          ) ?? false
+        );
+      }),
+    )
+    .toBe(true);
 });

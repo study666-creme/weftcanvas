@@ -1,10 +1,12 @@
-import type { GenerationJobInput } from "@kachang/contracts";
+import type { GenerationJobInput } from "@weftcanvas/contracts";
 
 const REFERENCE_HINT_LINE = /^\s*参考素材按上传顺序\s*[:：][^\r\n]*(?:\r?\n|$)/gmu;
-const MARKDOWN_LINK = /!?\[([^\]\r\n]{0,120})\]\(\s*((?:(?:https?|blob):[^)\s]+|data:[^)\s]+))\s*\)/giu;
+const MARKDOWN_LINK =
+  /!?\[([^\]\r\n]{0,120})\]\(\s*((?:(?:https?|blob):[^)\s]+|data:[^)\s]+))\s*\)/giu;
 const DATA_URL = /data:[a-z0-9.+-]+\/[a-z0-9.+-]+(?:;[^,\s]*)?,[^\s<>"'`，。；！？、）】}]+/giu;
 const BLOB_URL = /blob:[^\s<>"'`，。；！？、）】}]+/giu;
-const LABELED_HTTP_URL = /((?:@?(?:图片|视频|音频)\d+)(?:(?:\s*[:：=]\s*)|(?:\s+链接(?:为|是)?\s*)|\s+))(https?:\/\/[^\s<>"'`，。；！？、）】}]+)/giu;
+const LABELED_HTTP_URL =
+  /((?:@?(?:图片|视频|音频)\d+)(?:(?:\s*[:：=]\s*)|(?:\s+链接(?:为|是)?\s*)|\s+))(https?:\/\/[^\s<>"'`，。；！？、）】}]+)/giu;
 const REFERENCE_LABEL = /^@?(?:图片|视频|音频)\d+$/u;
 const REFERENCE_MENTION = /@(?=(?:图片|视频|音频)\d+)/gu;
 
@@ -32,11 +34,11 @@ export function referenceAwarePrompt(
   ]);
   let prompt = value
     .replace(REFERENCE_HINT_LINE, "")
-    .replace(MARKDOWN_LINK, (match, label: string, target: string) => (
+    .replace(MARKDOWN_LINK, (match, label: string, target: string) =>
       REFERENCE_LABEL.test(label.trim()) || isLocalTransport(target) || transportValues.has(target)
         ? label.trim()
-        : match
-    ))
+        : match,
+    )
     .replace(DATA_URL, "")
     .replace(BLOB_URL, "")
     .replace(LABELED_HTTP_URL, "$1")
@@ -53,16 +55,20 @@ export function referenceAwarePrompt(
     sequence("图片", inputs.images.length + styleImages.length + elementImages.length),
     sequence("视频", inputs.videos.length),
     sequence("音频", inputs.audios.length),
-  ].filter(Boolean).join("；")}`;
+  ]
+    .filter(Boolean)
+    .join("；")}`;
   return prompt ? `${prompt}\n${hint}` : hint;
 }
 
 function referenceCount(inputs: GenerationJobInput) {
-  return inputs.images.length
-    + (inputs.styleImages?.length ?? 0)
-    + (inputs.elementImages?.length ?? 0)
-    + inputs.videos.length
-    + inputs.audios.length;
+  return (
+    inputs.images.length +
+    (inputs.styleImages?.length ?? 0) +
+    (inputs.elementImages?.length ?? 0) +
+    inputs.videos.length +
+    inputs.audios.length
+  );
 }
 
 function sequence(label: string, count: number) {
@@ -72,7 +78,12 @@ function sequence(label: string, count: number) {
 function cleanPrompt(value: string) {
   return value
     .split(/\r?\n/u)
-    .map((line) => line.replace(/[ \t]+/gu, " ").replace(/\s+([，。；！？])/gu, "$1").trim())
+    .map((line) =>
+      line
+        .replace(/[ \t]+/gu, " ")
+        .replace(/\s+([，。；！？])/gu, "$1")
+        .trim(),
+    )
     .filter(Boolean)
     .join("\n")
     .trim();

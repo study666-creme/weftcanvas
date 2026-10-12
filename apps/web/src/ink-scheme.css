@@ -13,76 +13,76 @@
 :root[data-theme="dark"][data-color-scheme="ink"] {
   color: #f4f6f8;
   background: #050507;
-  --kc-canvas: #050507;
-  --kc-background-canvas: #050507;
-  --kc-background-surface: #0b0b0e;
-  --kc-background-grid: #3d434c;
-  --kc-surface: #0b0b0e;
-  --kc-surface-raised: #121216;
-  --kc-surface-muted: #08080a;
-  --kc-surface-strong: #1a1a1f;
-  --kc-text: #f4f6f8;
-  --kc-text-secondary: #a8b0ba;
-  --kc-text-tertiary: #6e7681;
+  --wc-canvas: #050507;
+  --wc-background-canvas: #050507;
+  --wc-background-surface: #0b0b0e;
+  --wc-background-grid: #3d434c;
+  --wc-surface: #0b0b0e;
+  --wc-surface-raised: #121216;
+  --wc-surface-muted: #08080a;
+  --wc-surface-strong: #1a1a1f;
+  --wc-text: #f4f6f8;
+  --wc-text-secondary: #a8b0ba;
+  --wc-text-tertiary: #6e7681;
   /* 描边是唯一的层级手段，因此比石墨更明确，但仍然克制。 */
-  --kc-border: #23262c;
-  --kc-border-strong: #3d434c;
-  --kc-selection: #f2f4f7;
-  --kc-jade: #f2f4f7;
-  --kc-jade-hover: #ffffff;
-  --kc-jade-soft: #1a1a1f;
-  --kc-accent: #f2f4f7;
-  --kc-accent-hover: #ffffff;
-  --kc-accent-soft: #1a1a1f;
-  --kc-on-accent: #08080a;
-  --kc-success: #6f9d88;
-  --kc-success-soft: #12201a;
-  --kc-blue: #7fa4c4;
-  --kc-blue-soft: #101820;
-  --kc-coral: #c07f70;
-  --kc-coral-soft: #1d1413;
-  --kc-amber: #c9b28a;
-  --kc-amber-soft: #1c1811;
-  --kc-danger: #c96a61;
-  --kc-danger-soft: #1f1211;
+  --wc-border: #23262c;
+  --wc-border-strong: #3d434c;
+  --wc-selection: #f2f4f7;
+  --wc-jade: #f2f4f7;
+  --wc-jade-hover: #ffffff;
+  --wc-jade-soft: #1a1a1f;
+  --wc-accent: #f2f4f7;
+  --wc-accent-hover: #ffffff;
+  --wc-accent-soft: #1a1a1f;
+  --wc-on-accent: #08080a;
+  --wc-success: #6f9d88;
+  --wc-success-soft: #12201a;
+  --wc-blue: #7fa4c4;
+  --wc-blue-soft: #101820;
+  --wc-coral: #c07f70;
+  --wc-coral-soft: #1d1413;
+  --wc-amber: #c9b28a;
+  --wc-amber-soft: #1c1811;
+  --wc-danger: #c96a61;
+  --wc-danger-soft: #1f1211;
   /* 纯黑底上投影几乎不可见，压到最小，避免糊出一圈灰边。 */
-  --kc-shadow-node: 0 0 0 1px rgb(0 0 0 / 60%);
-  --kc-shadow-float: 0 0 0 1px rgb(0 0 0 / 70%), 0 18px 44px rgb(0 0 0 / 62%);
-  --kc-shadow-editor: 0 0 0 1px rgb(0 0 0 / 70%), 0 26px 64px rgb(0 0 0 / 66%);
+  --wc-shadow-node: 0 0 0 1px rgb(0 0 0 / 60%);
+  --wc-shadow-float: 0 0 0 1px rgb(0 0 0 / 70%), 0 18px 44px rgb(0 0 0 / 62%);
+  --wc-shadow-editor: 0 0 0 1px rgb(0 0 0 / 70%), 0 26px 64px rgb(0 0 0 / 66%);
 }
 
 :root[data-theme="light"][data-color-scheme="ink"] {
   color: #0a0a0c;
   background: #ffffff;
-  --kc-canvas: #ffffff;
-  --kc-background-canvas: #ffffff;
-  --kc-background-surface: #ffffff;
-  --kc-background-grid: #c9ced4;
-  --kc-surface: #ffffff;
-  --kc-surface-raised: #fcfcfd;
-  --kc-surface-muted: #f6f7f8;
-  --kc-surface-strong: #edeef1;
-  --kc-text: #0a0a0c;
-  --kc-text-secondary: #43484f;
-  --kc-text-tertiary: #7d838b;
-  --kc-border: #dfe2e6;
-  --kc-border-strong: #b9bec5;
-  --kc-selection: #0a0a0a;
-  --kc-jade: #0a0a0a;
-  --kc-jade-hover: #000000;
-  --kc-jade-soft: #f0f1f3;
-  --kc-accent: #0a0a0a;
-  --kc-accent-hover: #000000;
-  --kc-accent-soft: #f0f1f3;
-  --kc-on-accent: #ffffff;
-  --kc-success: #1f7a5f;
-  --kc-blue: #2f6ba3;
-  --kc-coral: #b4483a;
-  --kc-amber: #9a6f1f;
-  --kc-danger: #a83e37;
-  --kc-shadow-node: 0 1px 2px rgb(10 10 12 / 8%), 0 10px 24px -10px rgb(10 10 12 / 12%);
-  --kc-shadow-float: 0 0 0 1px rgb(10 10 12 / 6%), 0 12px 30px rgb(10 10 12 / 10%);
-  --kc-shadow-editor: 0 0 0 1px rgb(10 10 12 / 6%), 0 18px 44px rgb(10 10 12 / 12%);
+  --wc-canvas: #ffffff;
+  --wc-background-canvas: #ffffff;
+  --wc-background-surface: #ffffff;
+  --wc-background-grid: #c9ced4;
+  --wc-surface: #ffffff;
+  --wc-surface-raised: #fcfcfd;
+  --wc-surface-muted: #f6f7f8;
+  --wc-surface-strong: #edeef1;
+  --wc-text: #0a0a0c;
+  --wc-text-secondary: #43484f;
+  --wc-text-tertiary: #7d838b;
+  --wc-border: #dfe2e6;
+  --wc-border-strong: #b9bec5;
+  --wc-selection: #0a0a0a;
+  --wc-jade: #0a0a0a;
+  --wc-jade-hover: #000000;
+  --wc-jade-soft: #f0f1f3;
+  --wc-accent: #0a0a0a;
+  --wc-accent-hover: #000000;
+  --wc-accent-soft: #f0f1f3;
+  --wc-on-accent: #ffffff;
+  --wc-success: #1f7a5f;
+  --wc-blue: #2f6ba3;
+  --wc-coral: #b4483a;
+  --wc-amber: #9a6f1f;
+  --wc-danger: #a83e37;
+  --wc-shadow-node: 0 1px 2px rgb(10 10 12 / 8%), 0 10px 24px -10px rgb(10 10 12 / 12%);
+  --wc-shadow-float: 0 0 0 1px rgb(10 10 12 / 6%), 0 12px 30px rgb(10 10 12 / 10%);
+  --wc-shadow-editor: 0 0 0 1px rgb(10 10 12 / 6%), 0 18px 44px rgb(10 10 12 / 12%);
 }
 
 /* 石墨方案不需要覆盖：它就是 styles.css 里的默认令牌。 */
@@ -91,11 +91,11 @@
  * 墨黑下节点描边要更实：纯黑底上 7% 白几乎看不见，而这里没有灰色渐变可以兜底，
  * 边框就是唯一的分界。
  */
-:root[data-theme="dark"][data-color-scheme="ink"] .kc-node-surface {
+:root[data-theme="dark"][data-color-scheme="ink"] .wc-node-surface {
   border-color: rgb(255 255 255 / 13%);
 }
 
-:root[data-theme="dark"][data-color-scheme="ink"] .kc-node-wrap--image .kc-node-surface,
-:root[data-theme="dark"][data-color-scheme="ink"] .kc-node-wrap--video .kc-node-surface {
+:root[data-theme="dark"][data-color-scheme="ink"] .wc-node-wrap--image .wc-node-surface,
+:root[data-theme="dark"][data-color-scheme="ink"] .wc-node-wrap--video .wc-node-surface {
   background: #08080a;
 }

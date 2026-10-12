@@ -6,7 +6,7 @@
 // 版本定死后，另一方每次 readMedia 都抛 VersionError——表现为「云端同步失败」
 // 且请求根本发不出去。统一到这里后版本号只有一个，新增 store 也只需改这一处。
 
-const DATABASE_NAME = "kachang-canvas-media";
+const DATABASE_NAME = "weftcanvas-media";
 const DATABASE_VERSION = 2;
 
 export const MEDIA_STORE_NAME = "media";

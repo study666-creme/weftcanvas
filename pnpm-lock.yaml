@@ -9,14 +9,18 @@ overrides:
 
 importers:
 
-  .: {}
+  .:
+    devDependencies:
+      prettier:
+        specifier: ^3.9.10
+        version: 3.9.10
 
   apps/agent:
     dependencies:
       '@hono/node-server':
         specifier: 2.0.11
         version: 2.0.11(hono@4.12.30)
-      '@kachang/contracts':
+      '@weftcanvas/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
       hono:
@@ -50,7 +54,7 @@ importers:
       '@hono/node-server':
         specifier: 2.0.11
         version: 2.0.11(hono@4.12.30)
-      '@kachang/contracts':
+      '@weftcanvas/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
       '@smithy/node-http-handler':
@@ -90,16 +94,16 @@ importers:
 
   apps/web:
     dependencies:
-      '@kachang-plugin/split-list':
+      '@weftcanvas-plugin/split-list':
         specifier: workspace:*
         version: link:../../plugins/split-list
-      '@kachang/canvas-core':
+      '@weftcanvas/canvas-core':
         specifier: workspace:*
         version: link:../../packages/canvas-core
-      '@kachang/contracts':
+      '@weftcanvas/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@kachang/plugin-sdk':
+      '@weftcanvas/plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
       '@mediapipe/tasks-vision':
@@ -151,7 +155,7 @@ importers:
 
   apps/worker:
     dependencies:
-      '@kachang/canvas-api':
+      '@weftcanvas/canvas-api':
         specifier: workspace:*
         version: link:../api
       pg:
@@ -207,7 +211,7 @@ importers:
 
   plugins/split-list:
     dependencies:
-      '@kachang/plugin-sdk':
+      '@weftcanvas/plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
       lucide-react:
@@ -1325,6 +1329,11 @@ packages:
   postgres-interval@1.1.0:
     resolution: {integrity: sha512-txJzyrdoPw5F06xk3BEtzl46JCr6qU2DM8gfulxBFgqGKmfREbrcFyVqllttHuqWtafoBmowgJtGjm6kPGA/bg==}
     engines: {node: '>=0.10.0'}
+
+  prettier@3.9.10:
+    resolution: {integrity: sha512-skGHTH1Yb9QvaTC4hWnRTzEYtCpApF0UMBPz+t/0ZPzP8ihefo/btKd+QA7pUE0fEwA1SbS/NmhyEcstdXOIdA==}
+    engines: {node: '>=14'}
+    hasBin: true
 
   react-dom@19.2.7:
     resolution: {integrity: sha512-t0BRVXvbiE/o20Hfw669rLbMCDWtYZLvmJigy2f0MxsXF+71pxhR3xOkspmsO8h3ZlNzyibAmtCa3l4lYKk6gQ==}
@@ -2500,6 +2509,8 @@ snapshots:
   postgres-interval@1.1.0:
     dependencies:
       xtend: 4.0.2
+
+  prettier@3.9.10: {}
 
   react-dom@19.2.7(react@19.2.7):
     dependencies:

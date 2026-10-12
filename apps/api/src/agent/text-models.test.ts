@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { PublicModel } from "@kachang/contracts";
+import type { PublicModel } from "@weftcanvas/contracts";
 
 import {
   AGENT_DEFAULT_REQUEST_PRICE_YUAN,
@@ -49,7 +49,10 @@ describe("station pricing lookup", () => {
       {
         model_name: "gemini-3.7-flash",
         price: { unit: "1M_tokens" },
-        group_prices: { 按次文本: { unit: "request", request: 0.012 }, 按量Gemini: { unit: "1M_tokens" } },
+        group_prices: {
+          按次文本: { unit: "request", request: 0.012 },
+          按量Gemini: { unit: "1M_tokens" },
+        },
       },
       {
         model_name: "claude-sonnet-5",
@@ -67,7 +70,8 @@ describe("station pricing lookup", () => {
   });
 
   it("falls back to the last successful read and never throws when the station is down", async () => {
-    const fetcher = vi.fn()
+    const fetcher = vi
+      .fn()
       .mockResolvedValueOnce({ ok: true, json: async () => payload })
       .mockRejectedValueOnce(new Error("connect timeout"));
     const lookup = createStationTextPricingLookup({
@@ -84,7 +88,9 @@ describe("station pricing lookup", () => {
   it("reports null when the station has never answered", async () => {
     const lookup = createStationTextPricingLookup({
       url: "https://station.test/api/pricing",
-      fetch: (async () => { throw new Error("offline"); }) as unknown as typeof globalThis.fetch,
+      fetch: (async () => {
+        throw new Error("offline");
+      }) as unknown as typeof globalThis.fetch,
     });
     await expect(lookup()).resolves.toBeNull();
   });
@@ -93,7 +99,14 @@ describe("station pricing lookup", () => {
 describe("buildAgentTextModels", () => {
   const gemini = textModel("gemini-3.7-flash", "Gemini 3.7 Flash", { perRequest: true });
   const glm = textModel("glm-5.2", "GLM-5.2", {
-    pricing: { mode: "tiered", unit: "request", currency: "CNY", creditsPerYuan: 100, baseCreditMicros: 1_000_000, tiers: [] },
+    pricing: {
+      mode: "tiered",
+      unit: "request",
+      currency: "CNY",
+      creditsPerYuan: 100,
+      baseCreditMicros: 1_000_000,
+      tiers: [],
+    },
   });
   const claude = textModel("claude-sonnet-5", "Claude Sonnet 5");
   const sol = textModel("gpt-5.6-sol", "GPT-5.6 Sol", { perRequest: true });
@@ -193,7 +206,11 @@ describe("buildAgentTextModels", () => {
       stationPricing: station,
       includeTokenModels: true,
     });
-    expect(models.map((model) => model.id)).toEqual(["glm-5.2", "gemini-3.7-flash", "claude-sonnet-5"]);
+    expect(models.map((model) => model.id)).toEqual([
+      "glm-5.2",
+      "gemini-3.7-flash",
+      "claude-sonnet-5",
+    ]);
     expect(models.find((model) => model.id === "claude-sonnet-5")?.billing).toBe("token");
   });
 

@@ -1,12 +1,17 @@
-import { mediaKindSchema, referenceImagePurposeSchema, type MediaKind, type ReferenceImagePurpose } from "@kachang/contracts";
+import {
+  mediaKindSchema,
+  referenceImagePurposeSchema,
+  type MediaKind,
+  type ReferenceImagePurpose,
+} from "@weftcanvas/contracts";
 import { createRequestKey, mediaContentPath } from "./api-client";
 import type { DirectModalityKey, DirectReference } from "../state/direct-reference-store";
 
 // 画布工作台上传素材的标签页会话存储。
 // sessionStorage 按标签页隔离：刷新页面与同标签页的全页跳转都会保留，
 // 关闭标签页或新开标签页则自然消失，与“只有手动删除或离开工作台才消失”一致。
-export const DIRECT_REFERENCE_SESSION_KEY = "kachang-canvas:direct-reference-session:v1";
-export const DIRECT_DRAFT_SESSION_KEY = "kachang-canvas:direct-draft-session:v1";
+export const DIRECT_REFERENCE_SESSION_KEY = "weftcanvas:direct-reference-session:v1";
+export const DIRECT_DRAFT_SESSION_KEY = "weftcanvas:direct-draft-session:v1";
 // v2: 素材带上 durationMs（H3 要求参考视频成对声明时长）。v1 会话照样恢复，
 // 只是时长列为 null，由工作台补查一次素材元数据，缺字段不会让恢复失败。
 const REFERENCE_SESSION_SCHEMA_VERSION = 2;
@@ -65,7 +70,9 @@ export function readDirectReferenceSession(): PersistedDirectReferenceSession | 
   }
 }
 
-export function writeDirectReferenceSession(references: Record<DirectModalityKey, DirectReference[]>): void {
+export function writeDirectReferenceSession(
+  references: Record<DirectModalityKey, DirectReference[]>,
+): void {
   const storage = getSessionStorage();
   if (!storage) return;
   const session: PersistedDirectReferenceSession = {
@@ -107,8 +114,11 @@ export function restoreDirectReferenceSession(): Record<DirectModalityKey, Direc
 // 模块初始化入口：在生成工作台内恢复已持久化的素材；在任意其他路径
 // （返回首页、打开画布、地址栏直达等）视为已离开工作台，立即清空会话。
 // pathname 供测试注入；缺省时读取当前页面路径。
-export function initialDirectReferenceSession(pathname?: string): Record<DirectModalityKey, DirectReference[]> {
-  const currentPathname = pathname ?? (typeof window === "undefined" ? "" : window.location.pathname);
+export function initialDirectReferenceSession(
+  pathname?: string,
+): Record<DirectModalityKey, DirectReference[]> {
+  const currentPathname =
+    pathname ?? (typeof window === "undefined" ? "" : window.location.pathname);
   if (isDirectGenerationPath(currentPathname)) {
     return restoreDirectReferenceSession();
   }
@@ -128,7 +138,7 @@ function persistReferences(items: DirectReference[]): PersistedDirectReference[]
       name: item.name,
       serverId: item.serverId,
       imagePurpose: item.kind === "image" ? item.imagePurpose : null,
-      durationMs: item.kind === "image" ? null : item.durationMs ?? null,
+      durationMs: item.kind === "image" ? null : (item.durationMs ?? null),
     }))
     .slice(0, MAX_PERSISTED_REFERENCES);
 }
@@ -148,8 +158,8 @@ function normalizePersistedReferences(value: unknown): PersistedDirectReference[
     if (kind === "image" && (record.imagePurpose === null || record.imagePurpose === undefined)) {
       imagePurpose = null;
     } else if (
-      kind === "image"
-      && IMAGE_PURPOSES.includes(record.imagePurpose as ReferenceImagePurpose)
+      kind === "image" &&
+      IMAGE_PURPOSES.includes(record.imagePurpose as ReferenceImagePurpose)
     ) {
       imagePurpose = record.imagePurpose as ReferenceImagePurpose;
     }
@@ -160,10 +170,13 @@ function normalizePersistedReferences(value: unknown): PersistedDirectReference[
       serverId: record.serverId,
       imagePurpose,
       // v1 会话没有这个字段；图片也没有时长。缺失一律按 null 交给工作台补查。
-      durationMs: kind !== "image" && typeof record.durationMs === "number"
-        && Number.isFinite(record.durationMs) && record.durationMs > 0
-        ? Math.round(record.durationMs)
-        : null,
+      durationMs:
+        kind !== "image" &&
+        typeof record.durationMs === "number" &&
+        Number.isFinite(record.durationMs) &&
+        record.durationMs > 0
+          ? Math.round(record.durationMs)
+          : null,
     });
   }
   return references;
@@ -243,7 +256,9 @@ export function readDirectDraftSession(): PersistedDirectDraftSession | null {
   }
 }
 
-export function writeDirectDraftSession(drafts: Record<DirectModalityKey, PersistedDirectDraft | null>): void {
+export function writeDirectDraftSession(
+  drafts: Record<DirectModalityKey, PersistedDirectDraft | null>,
+): void {
   const storage = getSessionStorage();
   if (!storage) return;
   const session: PersistedDirectDraftSession = {
@@ -276,13 +291,16 @@ export function clearDirectDraftSession(): void {
 // 在其他任何路径（返回首页、打开画布、地址栏直达等）立即清空。
 // 始终返回会话对象（空会话 = 两个模态均为 null），避免调用方处理 null。
 export function initialDirectDraftSession(pathname?: string): PersistedDirectDraftSession {
-  const currentPathname = pathname ?? (typeof window === "undefined" ? "" : window.location.pathname);
+  const currentPathname =
+    pathname ?? (typeof window === "undefined" ? "" : window.location.pathname);
   if (isDirectGenerationPath(currentPathname)) {
-    return readDirectDraftSession() ?? {
-      schemaVersion: DRAFT_SESSION_SCHEMA_VERSION,
-      image: null,
-      video: null,
-    };
+    return (
+      readDirectDraftSession() ?? {
+        schemaVersion: DRAFT_SESSION_SCHEMA_VERSION,
+        image: null,
+        video: null,
+      }
+    );
   }
   clearDirectDraftSession();
   return {
@@ -303,14 +321,19 @@ export function persistDirectDraft(draft: {
     prompt: typeof draft.prompt === "string" ? draft.prompt.slice(0, MAX_DRAFT_PROMPT_LENGTH) : "",
     modelId: typeof draft.modelId === "string" ? draft.modelId.slice(0, 255) : "",
     parameters: persistDraftParameters(draft.parameters),
-    quantity: Number.isFinite(draft.quantity) ? Math.min(MAX_DRAFT_QUANTITY, Math.max(1, Math.round(draft.quantity))) : 1,
-    maxOutputTokens: draft.maxOutputTokens === null || draft.maxOutputTokens === undefined
-      ? null
-      : Math.min(MAX_DRAFT_TOKENS, Math.max(1, Math.round(draft.maxOutputTokens))),
+    quantity: Number.isFinite(draft.quantity)
+      ? Math.min(MAX_DRAFT_QUANTITY, Math.max(1, Math.round(draft.quantity)))
+      : 1,
+    maxOutputTokens:
+      draft.maxOutputTokens === null || draft.maxOutputTokens === undefined
+        ? null
+        : Math.min(MAX_DRAFT_TOKENS, Math.max(1, Math.round(draft.maxOutputTokens))),
   };
 }
 
-export function restorePersistedDraft(draft: PersistedDirectDraft | null): PersistedDirectDraft | null {
+export function restorePersistedDraft(
+  draft: PersistedDirectDraft | null,
+): PersistedDirectDraft | null {
   return draft
     ? {
         prompt: draft.prompt,
@@ -325,7 +348,8 @@ export function restorePersistedDraft(draft: PersistedDirectDraft | null): Persi
 function normalizePersistedDraft(value: unknown): PersistedDirectDraft | null {
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
-  const prompt = typeof record.prompt === "string" ? record.prompt.slice(0, MAX_DRAFT_PROMPT_LENGTH) : "";
+  const prompt =
+    typeof record.prompt === "string" ? record.prompt.slice(0, MAX_DRAFT_PROMPT_LENGTH) : "";
   const modelId = typeof record.modelId === "string" ? record.modelId.slice(0, 255) : "";
   if (!prompt && !modelId) return null;
   return {
@@ -335,9 +359,10 @@ function normalizePersistedDraft(value: unknown): PersistedDirectDraft | null {
     quantity: Number.isFinite(record.quantity)
       ? Math.min(MAX_DRAFT_QUANTITY, Math.max(1, Math.round(Number(record.quantity))))
       : 1,
-    maxOutputTokens: record.maxOutputTokens === null || record.maxOutputTokens === undefined
-      ? null
-      : Math.min(MAX_DRAFT_TOKENS, Math.max(1, Math.round(Number(record.maxOutputTokens)))),
+    maxOutputTokens:
+      record.maxOutputTokens === null || record.maxOutputTokens === undefined
+        ? null
+        : Math.min(MAX_DRAFT_TOKENS, Math.max(1, Math.round(Number(record.maxOutputTokens)))),
   };
 }
 

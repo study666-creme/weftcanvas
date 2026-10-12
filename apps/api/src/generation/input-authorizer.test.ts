@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { PublicMedia } from "@kachang/contracts";
+import type { PublicMedia } from "@weftcanvas/contracts";
 
 import { MediaServiceError } from "../media/service.js";
 import { MediaGenerationInputAuthorizer } from "./input-authorizer.js";
@@ -14,13 +14,15 @@ describe("generation input authorizer", () => {
         return ready(mediaId.startsWith("image") ? "image" : "video");
       },
     });
-    await expect(authorizer.authorize("user-1", {
-      images: ["image-1", "image-2"],
-      styleImages: ["image-style"],
-      elementImages: ["image-element"],
-      videos: ["video-1"],
-      audios: [],
-    })).resolves.toEqual({ ok: true });
+    await expect(
+      authorizer.authorize("user-1", {
+        images: ["image-1", "image-2"],
+        styleImages: ["image-style"],
+        elementImages: ["image-element"],
+        videos: ["video-1"],
+        audios: [],
+      }),
+    ).resolves.toEqual({ ok: true });
     expect(calls).toEqual([
       { ownerId: "user-1", mediaId: "image-1" },
       { ownerId: "user-1", mediaId: "image-2" },
@@ -32,18 +34,25 @@ describe("generation input authorizer", () => {
 
   it("returns safe denial for missing, foreign, mismatched, or pending media", async () => {
     const missing = new MediaGenerationInputAuthorizer({
-      get: async () => { throw new MediaServiceError("MEDIA_NOT_FOUND", "missing", 404); },
+      get: async () => {
+        throw new MediaServiceError("MEDIA_NOT_FOUND", "missing", 404);
+      },
     });
-    await expect(missing.authorize("user-2", { images: ["media-1"], videos: [], audios: [] }))
-      .resolves.toMatchObject({ ok: false, code: "REFERENCE_NOT_FOUND" });
+    await expect(
+      missing.authorize("user-2", { images: ["media-1"], videos: [], audios: [] }),
+    ).resolves.toMatchObject({ ok: false, code: "REFERENCE_NOT_FOUND" });
 
     const wrongKind = new MediaGenerationInputAuthorizer({ get: async () => ready("video") });
-    await expect(wrongKind.authorize("user-1", { images: ["media-1"], videos: [], audios: [] }))
-      .resolves.toMatchObject({ ok: false, code: "REFERENCE_NOT_READY" });
+    await expect(
+      wrongKind.authorize("user-1", { images: ["media-1"], videos: [], audios: [] }),
+    ).resolves.toMatchObject({ ok: false, code: "REFERENCE_NOT_READY" });
 
-    const pending = new MediaGenerationInputAuthorizer({ get: async () => ({ ...ready("image"), status: "pending" }) });
-    await expect(pending.authorize("user-1", { images: ["media-1"], videos: [], audios: [] }))
-      .resolves.toMatchObject({ ok: false, code: "REFERENCE_NOT_READY" });
+    const pending = new MediaGenerationInputAuthorizer({
+      get: async () => ({ ...ready("image"), status: "pending" }),
+    });
+    await expect(
+      pending.authorize("user-1", { images: ["media-1"], videos: [], audios: [] }),
+    ).resolves.toMatchObject({ ok: false, code: "REFERENCE_NOT_READY" });
   });
 });
 

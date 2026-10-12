@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const STORAGE_KEY = "kachang-canvas:ui-preferences:v1";
+const STORAGE_KEY = "weftcanvas:ui-preferences:v1";
 
 describe("UI preferences", () => {
   beforeEach(() => {
@@ -46,7 +46,10 @@ describe("UI preferences", () => {
 
     vi.resetModules();
     const { useUiPreferencesStore: hydratedStore } = await import("./ui-preferences-store");
-    expect(hydratedStore.getState()).toMatchObject({ colorScheme: "ink", canvasVisualStyle: "classic" });
+    expect(hydratedStore.getState()).toMatchObject({
+      colorScheme: "ink",
+      canvasVisualStyle: "classic",
+    });
   });
 
   it("falls back to graphite for unknown or missing stored schemes", async () => {
@@ -132,14 +135,17 @@ describe("UI preferences", () => {
   });
 
   it("drops malformed remembered generation settings when hydrating", async () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      lastMediaGeneration: {
-        image: { modelId: "", parameters: {} },
-        video: { modelId: "video-model", maxOutputTokens: null },
-        audio: 42,
-        text: { modelId: "text-model", parameters: { temperature: 0.7 }, maxOutputTokens: 512 },
-      },
-    }));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        lastMediaGeneration: {
+          image: { modelId: "", parameters: {} },
+          video: { modelId: "video-model", maxOutputTokens: null },
+          audio: 42,
+          text: { modelId: "text-model", parameters: { temperature: 0.7 }, maxOutputTokens: 512 },
+        },
+      }),
+    );
 
     const { useUiPreferencesStore } = await import("./ui-preferences-store");
     expect(useUiPreferencesStore.getState().lastMediaGeneration.image).toBeUndefined();
@@ -153,16 +159,19 @@ describe("UI preferences", () => {
   });
 
   it("falls back independently when stored values are invalid", async () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      nodePortStyle: "unknown",
-      canvasVisualStyle: "unknown",
-      chromeVisualStyle: "unknown",
-      canvasBackgroundStyle: "unknown",
-      generationEffectStyle: "unknown",
-      edgePathStyle: "unknown",
-      edgeFlowStyle: "unknown",
-      defaultNodeAspectRatio: "unknown",
-    }));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        nodePortStyle: "unknown",
+        canvasVisualStyle: "unknown",
+        chromeVisualStyle: "unknown",
+        canvasBackgroundStyle: "unknown",
+        generationEffectStyle: "unknown",
+        edgePathStyle: "unknown",
+        edgeFlowStyle: "unknown",
+        defaultNodeAspectRatio: "unknown",
+      }),
+    );
 
     const { useUiPreferencesStore } = await import("./ui-preferences-store");
     expect(useUiPreferencesStore.getState()).toMatchObject({
@@ -178,10 +187,13 @@ describe("UI preferences", () => {
   });
 
   it("normalizes retired cosmos and lingjing presets onto the spacious default", async () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      canvasVisualStyle: "cosmos",
-      chromeVisualStyle: "lingjing",
-    }));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        canvasVisualStyle: "cosmos",
+        chromeVisualStyle: "lingjing",
+      }),
+    );
 
     const { useUiPreferencesStore } = await import("./ui-preferences-store");
     expect(useUiPreferencesStore.getState()).toMatchObject({
@@ -191,10 +203,13 @@ describe("UI preferences", () => {
   });
 
   it("keeps a stored studio choice instead of forcing the new default", async () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      canvasVisualStyle: "studio",
-      chromeVisualStyle: "studio",
-    }));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        canvasVisualStyle: "studio",
+        chromeVisualStyle: "studio",
+      }),
+    );
 
     const { useUiPreferencesStore } = await import("./ui-preferences-store");
     expect(useUiPreferencesStore.getState()).toMatchObject({
@@ -204,9 +219,12 @@ describe("UI preferences", () => {
   });
 
   it("hydrates older v1 preferences without split chrome or aspect-ratio fields", async () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      canvasVisualStyle: "classic",
-    }));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        canvasVisualStyle: "classic",
+      }),
+    );
 
     const { useUiPreferencesStore } = await import("./ui-preferences-store");
     expect(useUiPreferencesStore.getState()).toMatchObject({
@@ -218,10 +236,13 @@ describe("UI preferences", () => {
   });
 
   it("keeps the IMAX preset node-only when stored chrome data is invalid", async () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      canvasVisualStyle: "imax",
-      chromeVisualStyle: "imax",
-    }));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        canvasVisualStyle: "imax",
+        chromeVisualStyle: "imax",
+      }),
+    );
 
     const { useUiPreferencesStore } = await import("./ui-preferences-store");
     expect(useUiPreferencesStore.getState()).toMatchObject({
@@ -247,9 +268,12 @@ describe("UI preferences", () => {
   });
 
   it("falls back to beam when a stored generation effect is not a known style", async () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      generationEffectStyle: "strobe",
-    }));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        generationEffectStyle: "strobe",
+      }),
+    );
 
     const { useUiPreferencesStore } = await import("./ui-preferences-store");
     expect(useUiPreferencesStore.getState()).toMatchObject({
@@ -283,11 +307,17 @@ describe("companion anchor", () => {
   it("keeps a dragged position and a docked panel across reloads", async () => {
     const { useUiPreferencesStore } = await import("./ui-preferences-store");
     useUiPreferencesStore.getState().setCompanionAnchor({ kind: "free", x: 220, y: 340 });
-    useUiPreferencesStore.getState().setCompanionAnchor({ kind: "dock", dock: "edit-dock", x: 0.7 });
+    useUiPreferencesStore
+      .getState()
+      .setCompanionAnchor({ kind: "dock", dock: "edit-dock", x: 0.7 });
 
     vi.resetModules();
     const { useUiPreferencesStore: hydrated } = await import("./ui-preferences-store");
-    expect(hydrated.getState().companionAnchor).toEqual({ kind: "dock", dock: "edit-dock", x: 0.7 });
+    expect(hydrated.getState().companionAnchor).toEqual({
+      kind: "dock",
+      dock: "edit-dock",
+      x: 0.7,
+    });
   });
 
   it("clears back to the default spot with null", async () => {
@@ -339,14 +369,17 @@ describe("appearance pack registry (P1)", () => {
   });
 
   it("keeps every legacy stored builtin choice after reload (onyx chrome included)", async () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      canvasVisualStyle: "onyx",
-      chromeVisualStyle: "onyx",
-      canvasBackgroundStyle: "onyx",
-      generationEffectStyle: "quiet",
-      nodePortStyle: "compact",
-      cursorStyle: "precision",
-    }));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        canvasVisualStyle: "onyx",
+        chromeVisualStyle: "onyx",
+        canvasBackgroundStyle: "onyx",
+        generationEffectStyle: "quiet",
+        nodePortStyle: "compact",
+        cursorStyle: "precision",
+      }),
+    );
     vi.resetModules();
     const { useUiPreferencesStore } = await import("./ui-preferences-store");
 
@@ -364,7 +397,10 @@ describe("appearance pack registry (P1)", () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ edgePathStyle: "amber-edge" }));
     vi.resetModules();
     const { registerAppearanceOption } = await import("../lib/appearance-registry");
-    const unregister = registerAppearanceOption("edgePathStyle", { id: "amber-edge", label: "琥珀" });
+    const unregister = registerAppearanceOption("edgePathStyle", {
+      id: "amber-edge",
+      label: "琥珀",
+    });
     const { useUiPreferencesStore } = await import("./ui-preferences-store");
     expect(useUiPreferencesStore.getState().edgePathStyle).toBe("amber-edge");
     unregister();

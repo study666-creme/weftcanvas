@@ -5,11 +5,17 @@ import type { ChatMessage } from "./prompt.js";
 const MAX_MODEL_CONTENT_CHARS = 400_000;
 
 const chatCompletionResponseSchema = z.object({
-  choices: z.array(z.object({
-    message: z.object({
-      content: z.union([z.string(), z.null()]).optional(),
-    }).optional(),
-  })).min(1),
+  choices: z
+    .array(
+      z.object({
+        message: z
+          .object({
+            content: z.union([z.string(), z.null()]).optional(),
+          })
+          .optional(),
+      }),
+    )
+    .min(1),
 });
 
 export type OpenAICompatibleConfig = {
@@ -42,31 +48,49 @@ export class OpenAICompatibleClient {
     if (!config.model.trim()) throw new Error("OPENAI_MODEL is required");
     this.endpoint = chatCompletionsUrl(config.baseUrl);
     this.timeoutMs = config.timeoutMs ?? 120_000;
-    if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 1_000 || this.timeoutMs > 30 * 60_000) {
+    if (
+      !Number.isSafeInteger(this.timeoutMs) ||
+      this.timeoutMs < 1_000 ||
+      this.timeoutMs > 30 * 60_000
+    ) {
       throw new Error("OPENAI_TIMEOUT_MS is invalid");
     }
     if (
-      config.maxOutputTokens !== undefined
-      && (!Number.isSafeInteger(config.maxOutputTokens) || config.maxOutputTokens < 16 || config.maxOutputTokens > 16_000)
+      config.maxOutputTokens !== undefined &&
+      (!Number.isSafeInteger(config.maxOutputTokens) ||
+        config.maxOutputTokens < 16 ||
+        config.maxOutputTokens > 16_000)
     ) {
       throw new Error("OPENAI_MAX_OUTPUT_TOKENS is invalid");
     }
     this.fetchImpl = config.fetchImpl ?? fetch;
   }
 
-  async complete(messages: readonly ChatMessage[], modelId: string, signal?: AbortSignal, reasoningEffort?: string) {
+  async complete(
+    messages: readonly ChatMessage[],
+    modelId: string,
+    signal?: AbortSignal,
+    reasoningEffort?: string,
+  ) {
     const selectedModel = modelId.trim();
     if (!selectedModel || selectedModel.length > 128) {
       throw new OpenAICompatibleError("MODEL_UNAVAILABLE", "The selected model is invalid", false);
     }
     const effort = reasoningEffort?.trim();
     if (effort && effort.length > 24) {
-      throw new OpenAICompatibleError("MODEL_UNAVAILABLE", "The selected thinking level is invalid", false);
+      throw new OpenAICompatibleError(
+        "MODEL_UNAVAILABLE",
+        "The selected thinking level is invalid",
+        false,
+      );
     }
     const controller = new AbortController();
     const onAbort = () => controller.abort(signal?.reason);
     signal?.addEventListener("abort", onAbort, { once: true });
-    const timer = setTimeout(() => controller.abort(new Error("OpenAI-compatible request timed out")), this.timeoutMs);
+    const timer = setTimeout(
+      () => controller.abort(new Error("OpenAI-compatible request timed out")),
+      this.timeoutMs,
+    );
 
     try {
       const response = await this.fetchImpl(this.endpoint, {

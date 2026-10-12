@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
-const TOOLTIP_ID = "kc-global-tooltip";
+const TOOLTIP_ID = "wc-global-tooltip";
 const VIEWPORT_INSET = 8;
 const TOOLTIP_GAP = 8;
 
@@ -54,9 +54,15 @@ export function GlobalTooltip() {
         placement = "bottom";
         top = anchor.bottom + TOOLTIP_GAP;
       }
-      top = Math.min(window.innerHeight - bounds.height - VIEWPORT_INSET, Math.max(VIEWPORT_INSET, top));
+      top = Math.min(
+        window.innerHeight - bounds.height - VIEWPORT_INSET,
+        Math.max(VIEWPORT_INSET, top),
+      );
       const centered = anchor.left + anchor.width / 2 - bounds.width / 2;
-      const left = Math.min(window.innerWidth - bounds.width - VIEWPORT_INSET, Math.max(VIEWPORT_INSET, centered));
+      const left = Math.min(
+        window.innerWidth - bounds.width - VIEWPORT_INSET,
+        Math.max(VIEWPORT_INSET, centered),
+      );
       tooltip.style.left = `${Math.round(left)}px`;
       tooltip.style.top = `${Math.round(top)}px`;
       tooltip.dataset.placement = placement;
@@ -80,7 +86,7 @@ export function GlobalTooltip() {
 
     const resolveTarget = (eventTarget: EventTarget | null) => {
       if (!(eventTarget instanceof Element)) return null;
-      const target = eventTarget.closest<HTMLElement>("[data-kc-tooltip], [title]");
+      const target = eventTarget.closest<HTMLElement>("[data-wc-tooltip], [title]");
       if (!target || target.closest('[aria-hidden="true"]')) return null;
       const nativeTitle = target.getAttribute("title")?.trim();
       if (nativeTitle) {
@@ -137,7 +143,13 @@ export function GlobalTooltip() {
   }, []);
 
   return createPortal(
-    <div ref={tooltipRef} id={TOOLTIP_ID} className="kc-global-tooltip" role="tooltip" aria-hidden="true">
+    <div
+      ref={tooltipRef}
+      id={TOOLTIP_ID}
+      className="wc-global-tooltip"
+      role="tooltip"
+      aria-hidden="true"
+    >
       <span />
     </div>,
     document.body,

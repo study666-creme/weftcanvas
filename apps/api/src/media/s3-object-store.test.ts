@@ -14,7 +14,11 @@ import {
 } from "@aws-sdk/client-s3";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { S3MediaObjectStore, classifyObjectStoreFailure, type S3MediaObjectStoreOptions } from "./s3-object-store.js";
+import {
+  S3MediaObjectStore,
+  classifyObjectStoreFailure,
+  type S3MediaObjectStoreOptions,
+} from "./s3-object-store.js";
 
 const NOW = Date.parse("2026-07-15T18:00:00.000Z");
 const KEY_SECRET = "test-key-derivation-secret-at-least-32-bytes";
@@ -30,11 +34,13 @@ describe("S3 media object store", () => {
     const store = createStore(fake);
     const bytes = Buffer.from("private-reference-media");
 
-    await expect(store.write("media/aa/item", chunks(bytes, 4), {
-      expectedSize: bytes.length,
-      maxBytes: 1_024,
-      contentType: "image/png",
-    })).resolves.toEqual({
+    await expect(
+      store.write("media/aa/item", chunks(bytes, 4), {
+        expectedSize: bytes.length,
+        maxBytes: 1_024,
+        contentType: "image/png",
+      }),
+    ).resolves.toEqual({
       size: bytes.length,
       sha256: createHash("sha256").update(bytes).digest("hex"),
     });
@@ -46,13 +52,16 @@ describe("S3 media object store", () => {
       ContentType: "image/png",
     });
 
-    await expect(store.withLocalFile("media/aa/item", (path) => readFile(path, "utf8")))
-      .resolves.toBe(bytes.toString("utf8"));
+    await expect(
+      store.withLocalFile("media/aa/item", (path) => readFile(path, "utf8")),
+    ).resolves.toBe(bytes.toString("utf8"));
 
     const range = await store.open("media/aa/item", { start: 8, end: 16 });
     expect(await collect(range.stream)).toEqual(bytes.subarray(8, 17));
     expect(range).toMatchObject({ totalSize: bytes.length, start: 8, end: 16 });
-    await expect(store.open("media/aa/item", { start: 2, end: bytes.length })).rejects.toBeInstanceOf(RangeError);
+    await expect(
+      store.open("media/aa/item", { start: 2, end: bytes.length }),
+    ).rejects.toBeInstanceOf(RangeError);
 
     await store.remove("media/aa/item");
     expect(fake.objects.has("canvas/private/media/aa/item")).toBe(false);
@@ -63,17 +72,24 @@ describe("S3 media object store", () => {
     const fake = new MemoryS3();
     const store = createStore(fake);
 
-    await expect(store.write("media/bb/large", chunks(Buffer.alloc(20)), {
-      expectedSize: 20,
-      maxBytes: 10,
-    })).rejects.toMatchObject({ code: "MEDIA_TOO_LARGE", definitive: true });
+    await expect(
+      store.write("media/bb/large", chunks(Buffer.alloc(20)), {
+        expectedSize: 20,
+        maxBytes: 10,
+      }),
+    ).rejects.toMatchObject({ code: "MEDIA_TOO_LARGE", definitive: true });
     expect(fake.puts).toHaveLength(0);
 
     const bytes = Buffer.from("temporary-object");
-    await store.write("media/bb/item", chunks(bytes), { expectedSize: bytes.length, maxBytes: 100 });
-    await expect(store.withLocalFile("media/bb/item", async () => {
-      throw new Error("inspection failed");
-    })).rejects.toThrow("inspection failed");
+    await store.write("media/bb/item", chunks(bytes), {
+      expectedSize: bytes.length,
+      maxBytes: 100,
+    });
+    await expect(
+      store.withLocalFile("media/bb/item", async () => {
+        throw new Error("inspection failed");
+      }),
+    ).rejects.toThrow("inspection failed");
     await expect(temporaryEntries(store)).resolves.toEqual([]);
   });
 
@@ -85,10 +101,12 @@ describe("S3 media object store", () => {
     fake.objects.set(physicalKey("incoming", "media/cc/item"), bytes);
 
     let versionToken = "";
-    await expect(store.withPendingUploadFile("media/cc/item", async (file) => {
-      versionToken = file.versionToken;
-      return readFile(file.path, "utf8");
-    })).resolves.toBe("quarantined-upload");
+    await expect(
+      store.withPendingUploadFile("media/cc/item", async (file) => {
+        versionToken = file.versionToken;
+        return readFile(file.path, "utf8");
+      }),
+    ).resolves.toBe("quarantined-upload");
     expect(fake.objects.has(physicalKey("objects", "media/cc/item"))).toBe(false);
 
     await store.promotePendingUpload("media/cc/item", {
@@ -110,15 +128,20 @@ describe("S3 media object store", () => {
     const incoming = physicalKey("incoming", "media/dd/item");
     const inspected = Buffer.from("inspected-content");
     fake.objects.set(incoming, inspected);
-    const versionToken = await store.withPendingUploadFile("media/dd/item", async (file) => file.versionToken);
+    const versionToken = await store.withPendingUploadFile(
+      "media/dd/item",
+      async (file) => file.versionToken,
+    );
     fake.objects.set(incoming, Buffer.from("changed-after-check"));
 
-    await expect(store.promotePendingUpload("media/dd/item", {
-      contentType: "image/png",
-      size: inspected.length,
-      sha256: createHash("sha256").update(inspected).digest("hex"),
-      versionToken,
-    })).rejects.toThrow("PreconditionFailed");
+    await expect(
+      store.promotePendingUpload("media/dd/item", {
+        contentType: "image/png",
+        size: inspected.length,
+        sha256: createHash("sha256").update(inspected).digest("hex"),
+        versionToken,
+      }),
+    ).rejects.toThrow("PreconditionFailed");
     expect(fake.objects.has(physicalKey("objects", "media/dd/item"))).toBe(false);
   });
 
@@ -142,7 +165,11 @@ describe("S3 media object store", () => {
     };
     const store = createStore(fake);
     const bytes = Buffer.from("first-second-third");
-    await store.write("media/aa/abort", chunks(bytes, 3), { expectedSize: bytes.length, maxBytes: 1_024, contentType: "image/png" });
+    await store.write("media/aa/abort", chunks(bytes, 3), {
+      expectedSize: bytes.length,
+      maxBytes: 1_024,
+      contentType: "image/png",
+    });
 
     const opened = await store.open("media/aa/abort");
     // 消费一个 chunk 后主动中断（模拟客户端断开）。
@@ -170,7 +197,11 @@ describe("S3 media object store", () => {
     };
     const store = createStore(fake);
     const bytes = Buffer.from("signal-abort-test");
-    await store.write("media/aa/signal", chunks(bytes, 3), { expectedSize: bytes.length, maxBytes: 1_024, contentType: "image/png" });
+    await store.write("media/aa/signal", chunks(bytes, 3), {
+      expectedSize: bytes.length,
+      maxBytes: 1_024,
+      contentType: "image/png",
+    });
 
     const controller = new AbortController();
     const opened = await store.open("media/aa/signal", undefined, controller.signal);
@@ -199,10 +230,12 @@ describe("S3 media object store", () => {
   it("issues bounded upload and download capabilities with signed constraints", async () => {
     const fake = new MemoryS3();
     const signed: Array<PutObjectCommand | GetObjectCommand> = [];
-    const presign = vi.fn(async (_client: S3Client, command: PutObjectCommand | GetObjectCommand) => {
-      signed.push(command);
-      return `https://objects.example.test/signed/${signed.length}?signature=private`;
-    });
+    const presign = vi.fn(
+      async (_client: S3Client, command: PutObjectCommand | GetObjectCommand) => {
+        signed.push(command);
+        return `https://objects.example.test/signed/${signed.length}?signature=private`;
+      },
+    );
     const store = createStore(fake, { presign: presign as never });
     const sha256 = createHash("sha256").update("bytes").digest("hex");
 
@@ -237,10 +270,20 @@ describe("S3 media object store", () => {
       Bucket: "canvas-test",
       Key: physicalKey("objects", "media/cc/item"),
       ResponseContentType: "video/mp4",
-      ResponseContentDisposition: "inline; filename=\"unsafe_video.mp4\"",
+      ResponseContentDisposition: 'inline; filename="unsafe_video.mp4"',
     });
-    expect(presign).toHaveBeenNthCalledWith(1, fake as unknown as S3Client, expect.any(PutObjectCommand), { expiresIn: 900 });
-    expect(presign).toHaveBeenNthCalledWith(2, fake as unknown as S3Client, expect.any(GetObjectCommand), { expiresIn: 300 });
+    expect(presign).toHaveBeenNthCalledWith(
+      1,
+      fake as unknown as S3Client,
+      expect.any(PutObjectCommand),
+      { expiresIn: 900 },
+    );
+    expect(presign).toHaveBeenNthCalledWith(
+      2,
+      fake as unknown as S3Client,
+      expect.any(GetObjectCommand),
+      { expiresIn: 300 },
+    );
   });
 
   it("reports an unreachable store as retryable instead of a bad asset", async () => {
@@ -248,14 +291,21 @@ describe("S3 media object store", () => {
     // "素材暂时无法处理"——用户会以为文件有问题，且丢掉可重试语义。
     const fake = new MemoryS3();
     fake.sendError = Object.assign(
-      new Error("@smithy/node-http-handler - the request socket did not establish a connection with the server within the configured timeout of 5000 ms."),
+      new Error(
+        "@smithy/node-http-handler - the request socket did not establish a connection with the server within the configured timeout of 5000 ms.",
+      ),
       { name: "TimeoutError" },
     );
     const store = createStore(fake);
-    await expect(store.withLocalFile("media/zz/item", async () => "unreachable"))
-      .rejects.toMatchObject({ code: "MEDIA_STORAGE_UNAVAILABLE", definitive: false });
-    await expect(store.open("media/zz/item")).rejects.toMatchObject({ code: "MEDIA_STORAGE_UNAVAILABLE" });
-    await expect(store.remove("media/zz/item")).rejects.toMatchObject({ code: "MEDIA_STORAGE_UNAVAILABLE" });
+    await expect(
+      store.withLocalFile("media/zz/item", async () => "unreachable"),
+    ).rejects.toMatchObject({ code: "MEDIA_STORAGE_UNAVAILABLE", definitive: false });
+    await expect(store.open("media/zz/item")).rejects.toMatchObject({
+      code: "MEDIA_STORAGE_UNAVAILABLE",
+    });
+    await expect(store.remove("media/zz/item")).rejects.toMatchObject({
+      code: "MEDIA_STORAGE_UNAVAILABLE",
+    });
     expect(classifyObjectStoreFailure(new Error("NoSuchKey"))).toMatchObject({ name: "Error" });
   });
 
@@ -269,19 +319,28 @@ describe("S3 media object store", () => {
       transportFailureCooldownMs: 5_000,
     });
 
-    await expect(store.remove("media/yy/one")).rejects.toMatchObject({ code: "MEDIA_STORAGE_UNAVAILABLE" });
-    await expect(store.remove("media/yy/two")).rejects.toMatchObject({ code: "MEDIA_STORAGE_UNAVAILABLE" });
+    await expect(store.remove("media/yy/one")).rejects.toMatchObject({
+      code: "MEDIA_STORAGE_UNAVAILABLE",
+    });
+    await expect(store.remove("media/yy/two")).rejects.toMatchObject({
+      code: "MEDIA_STORAGE_UNAVAILABLE",
+    });
     const attemptsBeforeCooldown = fake.sends;
 
     // 窗口内不再真的去连存储（否则每个请求都要等满连接超时）。
-    await expect(store.remove("media/yy/three")).rejects.toMatchObject({ code: "MEDIA_STORAGE_UNAVAILABLE" });
+    await expect(store.remove("media/yy/three")).rejects.toMatchObject({
+      code: "MEDIA_STORAGE_UNAVAILABLE",
+    });
     expect(fake.sends).toBe(attemptsBeforeCooldown);
 
     // 窗口到期后放行探测，存储恢复即回到正常路径。
     now += 5_001;
     fake.sendError = null;
     const restored = Buffer.from("recovered");
-    await store.write("media/yy/four", chunks(restored), { expectedSize: restored.length, maxBytes: 100 });
+    await store.write("media/yy/four", chunks(restored), {
+      expectedSize: restored.length,
+      maxBytes: 100,
+    });
     expect(fake.sends).toBeGreaterThan(attemptsBeforeCooldown);
     expect(fake.objects.get(physicalKey("objects", "media/yy/four"))).toEqual(restored);
   });
@@ -316,7 +375,7 @@ describe("S3 media object store", () => {
     // R2 对 Range GET 响应返回整对象的 x-amz-checksum-sha256；SDK 默认
     // 校验会用分段字节比对全对象摘要而必然 mismatch（2026-08-30 起线上
     // 视频流/缩略图全量报错即此因）。两个 WHEN_REQUIRED 必须同时保持。
-    const root = join(tmpdir(), `kachang-s3-test-${Math.random().toString(36).slice(2)}`);
+    const root = join(tmpdir(), `weftcanvas-s3-test-${Math.random().toString(36).slice(2)}`);
     roots.push(root);
     const store = new S3MediaObjectStore({
       bucket: "canvas-test",
@@ -332,9 +391,10 @@ describe("S3 media object store", () => {
     const config = client.config as unknown as Record<string, unknown>;
     const resolve = async (key: string) => {
       const raw = config[key];
-      const value = typeof raw === "object" && raw !== null && "value" in (raw as object)
-        ? (raw as { value: unknown }).value
-        : raw;
+      const value =
+        typeof raw === "object" && raw !== null && "value" in (raw as object)
+          ? (raw as { value: unknown }).value
+          : raw;
       return typeof value === "function" ? value() : value;
     };
     expect(await resolve("responseChecksumValidation")).toBe("WHEN_REQUIRED");
@@ -352,7 +412,14 @@ class MemoryS3 {
   /** 真实发出的命令次数：验证快速失败窗口内不再打存储。 */
   sends = 0;
 
-  async send(command: PutObjectCommand | CopyObjectCommand | HeadObjectCommand | GetObjectCommand | DeleteObjectCommand) {
+  async send(
+    command:
+      | PutObjectCommand
+      | CopyObjectCommand
+      | HeadObjectCommand
+      | GetObjectCommand
+      | DeleteObjectCommand,
+  ) {
     this.sends += 1;
     if (this.sendError) throw this.sendError;
     if (command instanceof PutObjectCommand) {
@@ -377,7 +444,8 @@ class MemoryS3 {
     }
     if (command instanceof GetObjectCommand) {
       const bytes = this.require(String(command.input.Key));
-      if (command.input.IfMatch && command.input.IfMatch !== etag(bytes)) throw new Error("PreconditionFailed");
+      if (command.input.IfMatch && command.input.IfMatch !== etag(bytes))
+        throw new Error("PreconditionFailed");
       const range = parseRange(command.input.Range, bytes.length);
       // 默认一次性流；测试可注入可观察的底层流（验证提前中断时被销毁）。
       const body = this.getObjectBody
@@ -400,7 +468,7 @@ class MemoryS3 {
 }
 
 function createStore(fake: MemoryS3, override: Partial<S3MediaObjectStoreOptions> = {}) {
-  const root = join(tmpdir(), `kachang-s3-test-${Math.random().toString(36).slice(2)}`);
+  const root = join(tmpdir(), `weftcanvas-s3-test-${Math.random().toString(36).slice(2)}`);
   roots.push(root);
   return new S3MediaObjectStore({
     bucket: "canvas-test",
@@ -424,7 +492,9 @@ function etag(bytes: Buffer) {
 
 async function temporaryEntries(store: S3MediaObjectStore) {
   const root = temporaryRoot(store);
-  return readdir(root).catch((error: NodeJS.ErrnoException) => error.code === "ENOENT" ? [] : Promise.reject(error));
+  return readdir(root).catch((error: NodeJS.ErrnoException) =>
+    error.code === "ENOENT" ? [] : Promise.reject(error),
+  );
 }
 
 function temporaryRoot(store: S3MediaObjectStore) {
@@ -439,7 +509,8 @@ function parseRange(value: string | undefined, length: number) {
 }
 
 async function* chunks(bytes: Buffer, size = bytes.length) {
-  for (let offset = 0; offset < bytes.length; offset += size) yield bytes.subarray(offset, offset + size);
+  for (let offset = 0; offset < bytes.length; offset += size)
+    yield bytes.subarray(offset, offset + size);
 }
 
 async function collect(stream: AsyncIterable<unknown> | Uint8Array) {

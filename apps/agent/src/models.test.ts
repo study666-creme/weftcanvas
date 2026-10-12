@@ -24,7 +24,10 @@ describe("AgentModelRegistry", () => {
   it("enforces a strict allowlist when one is configured", () => {
     const registry = new AgentModelRegistry("gpt-5-mini", "gpt-5-mini,gpt-5.4");
 
-    expect(registry.getCatalog().models.map((model) => model.id)).toEqual(["gpt-5-mini", "gpt-5.4"]);
+    expect(registry.getCatalog().models.map((model) => model.id)).toEqual([
+      "gpt-5-mini",
+      "gpt-5.4",
+    ]);
     expect(registry.allows("gpt-5.4")).toBe(true);
     expect(registry.allows("glm-5.1")).toBe(false);
   });

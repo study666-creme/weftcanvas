@@ -9,7 +9,7 @@ import {
   type MediaMultipartUploadInstruction,
   type MediaMultipartUploadState,
   type MediaMultipartUploadedPart,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 
 import {
   type MediaMultipartScope,
@@ -59,7 +59,11 @@ export class MediaMultipartService {
     );
   }
 
-  async createUpload(ownerId: string, mediaId: string, projectId?: string): Promise<MediaMultipartUploadInstruction | null> {
+  async createUpload(
+    ownerId: string,
+    mediaId: string,
+    projectId?: string,
+  ): Promise<MediaMultipartUploadInstruction | null> {
     const media = await this.requireMedia(ownerId, mediaId, projectId);
     if (media.status !== "pending" || media.expectedSize < MEDIA_MULTIPART_THRESHOLD) return null;
     const partCount = Math.ceil(media.expectedSize / MEDIA_MULTIPART_PART_SIZE);
@@ -84,7 +88,9 @@ export class MediaMultipartService {
     });
     const createdAt = this.now();
     if (uploadExpiresAt <= createdAt) {
-      await this.objects.abortMultipartUpload(media.objectKey, started.providerUploadId).catch(() => undefined);
+      await this.objects
+        .abortMultipartUpload(media.objectKey, started.providerUploadId)
+        .catch(() => undefined);
       await this.failExpiredUpload(media);
     }
     const timestamp = new Date(createdAt).toISOString();
@@ -117,18 +123,24 @@ export class MediaMultipartService {
       saved = await this.sessions.create(candidate);
     } catch (error) {
       const recovered = await this.sessions.getByMedia(media.id).catch(() => null);
-      if (recovered
-        && recovered.sessionId === candidate.sessionId
-        && recovered.storageUploadId === candidate.storageUploadId
-        && recovered.ownerId === candidate.ownerId
-        && recovered.projectId === candidate.projectId) {
+      if (
+        recovered &&
+        recovered.sessionId === candidate.sessionId &&
+        recovered.storageUploadId === candidate.storageUploadId &&
+        recovered.ownerId === candidate.ownerId &&
+        recovered.projectId === candidate.projectId
+      ) {
         return instruction(recovered);
       }
-      await this.objects.abortMultipartUpload(media.objectKey, started.providerUploadId).catch(() => undefined);
+      await this.objects
+        .abortMultipartUpload(media.objectKey, started.providerUploadId)
+        .catch(() => undefined);
       throw error;
     }
     if (saved.kind === "existing") {
-      await this.objects.abortMultipartUpload(media.objectKey, started.providerUploadId).catch(() => undefined);
+      await this.objects
+        .abortMultipartUpload(media.objectKey, started.providerUploadId)
+        .catch(() => undefined);
       this.assertSessionScope(saved.session, ownerId, media.id, projectId);
     }
     return instruction(saved.session);
@@ -141,30 +153,53 @@ export class MediaMultipartService {
     partNumbers: readonly number[],
     projectId?: string,
   ) {
-    const { session, media } = await this.requireSessionAndMedia(ownerId, mediaId, sessionId, projectId);
+    const { session, media } = await this.requireSessionAndMedia(
+      ownerId,
+      mediaId,
+      sessionId,
+      projectId,
+    );
     const current = await this.expireActiveSession(session, media);
     if (current.status !== "active") {
-      throw new MediaServiceError("MEDIA_MULTIPART_NOT_ACTIVE", "分片上传会话已不再接受新分片", 409);
+      throw new MediaServiceError(
+        "MEDIA_MULTIPART_NOT_ACTIVE",
+        "分片上传会话已不再接受新分片",
+        409,
+      );
     }
     const sorted = [...partNumbers].sort((left, right) => left - right);
     if (!sorted.length || new Set(sorted).size !== sorted.length) {
-      throw new MediaServiceError("MEDIA_MULTIPART_PARTS_INVALID", "分片编号必须唯一且不能为空", 400);
+      throw new MediaServiceError(
+        "MEDIA_MULTIPART_PARTS_INVALID",
+        "分片编号必须唯一且不能为空",
+        400,
+      );
     }
-    if (sorted.some((partNumber) => !Number.isInteger(partNumber) || partNumber < 1 || partNumber > current.partCount)) {
+    if (
+      sorted.some(
+        (partNumber) =>
+          !Number.isInteger(partNumber) || partNumber < 1 || partNumber > current.partCount,
+      )
+    ) {
       throw new MediaServiceError("MEDIA_MULTIPART_PART_INVALID", "分片编号超出当前文件范围", 400);
     }
-    const expiresAt = new Date(Math.min(
-      Date.parse(current.expiresAt),
-      this.now() + this.partInstructionTtlMs,
-    )).toISOString();
-    const parts = await Promise.all(sorted.map(async (partNumber) => {
-      const signed = await this.objects.createMultipartPartUploadInstruction(
-        media.objectKey,
-        current.storageUploadId,
-        { partNumber, contentLength: expectedPartSize(media.expectedSize, current, partNumber), expiresAt },
-      );
-      return { partNumber, ...signed };
-    }));
+    const expiresAt = new Date(
+      Math.min(Date.parse(current.expiresAt), this.now() + this.partInstructionTtlMs),
+    ).toISOString();
+    const parts = await Promise.all(
+      sorted.map(async (partNumber) => {
+        const signed = await this.objects.createMultipartPartUploadInstruction(
+          media.objectKey,
+          current.storageUploadId,
+          {
+            partNumber,
+            contentLength: expectedPartSize(media.expectedSize, current, partNumber),
+            expiresAt,
+          },
+        );
+        return { partNumber, ...signed };
+      }),
+    );
     return mediaMultipartPartInstructionsResponseSchema.parse({
       ok: true,
       data: { sessionId: current.sessionId, parts },
@@ -183,7 +218,8 @@ export class MediaMultipartService {
       try {
         session = await this.recoverCompleting(session, loaded.media);
       } catch (error) {
-        if (!(error instanceof MediaServiceError) || error.code !== "MEDIA_MULTIPART_IN_PROGRESS") throw error;
+        if (!(error instanceof MediaServiceError) || error.code !== "MEDIA_MULTIPART_IN_PROGRESS")
+          throw error;
       }
     }
     const media = await this.requireMedia(ownerId, mediaId, projectId);
@@ -204,7 +240,11 @@ export class MediaMultipartService {
     }
     if (session.status === "completing") {
       session = await this.recoverCompleting(session, loaded.media);
-      return this.state(session, await this.requireMedia(ownerId, mediaId, projectId), await this.uploadedParts(session, loaded.media));
+      return this.state(
+        session,
+        await this.requireMedia(ownerId, mediaId, projectId),
+        await this.uploadedParts(session, loaded.media),
+      );
     }
 
     const alreadyAssembled = await this.recoverActiveAssembled(session, loaded.media);
@@ -216,7 +256,10 @@ export class MediaMultipartService {
       );
     }
 
-    const parts = await this.objects.listMultipartUploadParts(loaded.media.objectKey, session.storageUploadId);
+    const parts = await this.objects.listMultipartUploadParts(
+      loaded.media.objectKey,
+      session.storageUploadId,
+    );
     const validatedParts = this.requireCompleteParts(session, loaded.media, parts);
     const scope = sessionScope(session);
     const claimed = await this.sessions.claimCompleting(
@@ -227,11 +270,20 @@ export class MediaMultipartService {
     if (!claimed) {
       const latest = await this.requireSession(scope);
       if (latest.status === "active") {
-        throw new MediaServiceError("MEDIA_MULTIPART_CONFLICT", "分片上传状态已更新，请重新确认", 409);
+        throw new MediaServiceError(
+          "MEDIA_MULTIPART_CONFLICT",
+          "分片上传状态已更新，请重新确认",
+          409,
+        );
       }
-      if (latest.status === "completing") session = await this.recoverCompleting(latest, loaded.media);
+      if (latest.status === "completing")
+        session = await this.recoverCompleting(latest, loaded.media);
       else session = latest;
-      return this.state(session, await this.requireMedia(ownerId, mediaId, projectId), await this.uploadedParts(session, loaded.media));
+      return this.state(
+        session,
+        await this.requireMedia(ownerId, mediaId, projectId),
+        await this.uploadedParts(session, loaded.media),
+      );
     }
 
     try {
@@ -261,7 +313,11 @@ export class MediaMultipartService {
       return this.state(loaded.session, media, await this.uploadedParts(loaded.session, media));
     }
     if (loaded.session.status !== "active") {
-      throw new MediaServiceError("MEDIA_MULTIPART_IN_PROGRESS", "分片已经合并并进入校验，当前不能取消", 409);
+      throw new MediaServiceError(
+        "MEDIA_MULTIPART_IN_PROGRESS",
+        "分片已经合并并进入校验，当前不能取消",
+        409,
+      );
     }
     const timestamp = new Date(this.now()).toISOString();
     const aborted = await this.sessions.markAborted(
@@ -272,11 +328,17 @@ export class MediaMultipartService {
     if (!aborted) {
       const latest = await this.requireSession(sessionScope(loaded.session));
       if (latest.status !== "aborted") {
-        throw new MediaServiceError("MEDIA_MULTIPART_CONFLICT", "分片上传状态已更新，请刷新后重试", 409);
+        throw new MediaServiceError(
+          "MEDIA_MULTIPART_CONFLICT",
+          "分片上传状态已更新，请刷新后重试",
+          409,
+        );
       }
       return this.state(latest, await this.requireMedia(ownerId, mediaId, projectId), []);
     }
-    await this.objects.abortMultipartUpload(loaded.media.objectKey, aborted.storageUploadId).catch(() => undefined);
+    await this.objects
+      .abortMultipartUpload(loaded.media.objectKey, aborted.storageUploadId)
+      .catch(() => undefined);
     await this.media.cancelUploadSafely(ownerId, mediaId, projectId);
     return this.state(aborted, await this.requireMedia(ownerId, mediaId, projectId), []);
   }
@@ -301,7 +363,11 @@ export class MediaMultipartService {
           new Date(this.now()).toISOString(),
         );
         if (!reset) return this.requireSession(sessionScope(session));
-        throw new MediaServiceError("MEDIA_MULTIPART_RETRY_REQUIRED", "分片合并未开始，请重试", 503);
+        throw new MediaServiceError(
+          "MEDIA_MULTIPART_RETRY_REQUIRED",
+          "分片合并未开始，请重试",
+          503,
+        );
       }
       throw new MediaServiceError("MEDIA_MULTIPART_IN_PROGRESS", "分片正在合并，请稍后重试", 503);
     }
@@ -335,7 +401,8 @@ export class MediaMultipartService {
       const assembled = await this.objects.headPendingMultipartUpload(media.objectKey);
       this.assertAssembled(session, media, assembled);
     } catch (headError) {
-      if (headError instanceof MediaServiceError) return this.failAssembled(session, media, headError);
+      if (headError instanceof MediaServiceError)
+        return this.failAssembled(session, media, headError);
       if (isMissingObjectError(headError)) {
         const reset = await this.sessions.resetActive(
           sessionScope(session),
@@ -364,19 +431,28 @@ export class MediaMultipartService {
     if (queued) return queued;
     const latest = await this.requireSession(sessionScope(session));
     if (["queued", "processing", "completed"].includes(latest.status)) return latest;
-    throw new MediaServiceError("MEDIA_MULTIPART_CONFLICT", "分片合并状态无法确认，请刷新后重试", 409);
+    throw new MediaServiceError(
+      "MEDIA_MULTIPART_CONFLICT",
+      "分片合并状态无法确认，请刷新后重试",
+      409,
+    );
   }
 
-  private async failAssembled(session: MediaMultipartSession, media: MediaRecord, error: MediaServiceError) {
+  private async failAssembled(
+    session: MediaMultipartSession,
+    media: MediaRecord,
+    error: MediaServiceError,
+  ) {
     await this.objects.removePendingUpload(media.objectKey).catch(() => undefined);
     const timestamp = new Date(this.now()).toISOString();
-    const failed = await this.sessions.markFailed(
-      sessionScope(session),
-      session.revision,
-      timestamp,
-      error.code,
-      error.message,
-    ) ?? await this.requireSession(sessionScope(session));
+    const failed =
+      (await this.sessions.markFailed(
+        sessionScope(session),
+        session.revision,
+        timestamp,
+        error.code,
+        error.message,
+      )) ?? (await this.requireSession(sessionScope(session)));
     await this.media.failUploadSafely(
       session.ownerId,
       session.mediaId,
@@ -393,7 +469,11 @@ export class MediaMultipartService {
     assembled: { size: number; sessionId: string },
   ) {
     if (assembled.sessionId !== session.sessionId) {
-      throw new MediaServiceError("MEDIA_MULTIPART_SESSION_MISMATCH", "合并对象与上传会话不一致", 422);
+      throw new MediaServiceError(
+        "MEDIA_MULTIPART_SESSION_MISMATCH",
+        "合并对象与上传会话不一致",
+        422,
+      );
     }
     if (assembled.size !== media.expectedSize) {
       throw new MediaServiceError("MEDIA_SIZE_MISMATCH", "合并对象大小与素材信息不一致", 422);
@@ -411,26 +491,39 @@ export class MediaMultipartService {
     for (let index = 0; index < session.partCount; index += 1) {
       const partNumber = index + 1;
       const part = parts[index];
-      if (!part || part.partNumber !== partNumber
-        || part.size !== expectedPartSize(media.expectedSize, session, partNumber)) {
-        throw new MediaServiceError("MEDIA_MULTIPART_INCOMPLETE", "分片列表不完整或大小不匹配", 409);
+      if (
+        !part ||
+        part.partNumber !== partNumber ||
+        part.size !== expectedPartSize(media.expectedSize, session, partNumber)
+      ) {
+        throw new MediaServiceError(
+          "MEDIA_MULTIPART_INCOMPLETE",
+          "分片列表不完整或大小不匹配",
+          409,
+        );
       }
     }
     return parts;
   }
 
   private async uploadedParts(session: MediaMultipartSession, media: MediaRecord) {
-    if (["completing", "queued", "processing", "completed"].includes(session.status) || media.status === "ready") {
+    if (
+      ["completing", "queued", "processing", "completed"].includes(session.status) ||
+      media.status === "ready"
+    ) {
       return allUploadedParts(session, media.expectedSize);
     }
     if (session.status !== "active" && session.status !== "completing") return [];
-    const parts = await this.objects.listMultipartUploadParts(media.objectKey, session.storageUploadId);
-    return parts.flatMap((part) => (
-      part.partNumber <= session.partCount
-        && part.size === expectedPartSize(media.expectedSize, session, part.partNumber)
+    const parts = await this.objects.listMultipartUploadParts(
+      media.objectKey,
+      session.storageUploadId,
+    );
+    return parts.flatMap((part) =>
+      part.partNumber <= session.partCount &&
+      part.size === expectedPartSize(media.expectedSize, session, part.partNumber)
         ? [{ partNumber: part.partNumber, size: part.size }]
-        : []
-    ));
+        : [],
+    );
   }
 
   private state(
@@ -452,9 +545,15 @@ export class MediaMultipartService {
   private async expireActiveSession(session: MediaMultipartSession, media: MediaRecord) {
     if (session.status !== "active" || Date.parse(session.expiresAt) > this.now()) return session;
     const timestamp = new Date(this.now()).toISOString();
-    const aborted = await this.sessions.markAborted(sessionScope(session), session.revision, timestamp);
+    const aborted = await this.sessions.markAborted(
+      sessionScope(session),
+      session.revision,
+      timestamp,
+    );
     if (!aborted) return this.requireSession(sessionScope(session));
-    await this.objects.abortMultipartUpload(media.objectKey, session.storageUploadId).catch(() => undefined);
+    await this.objects
+      .abortMultipartUpload(media.objectKey, session.storageUploadId)
+      .catch(() => undefined);
     await this.media.failUploadSafely(
       session.ownerId,
       session.mediaId,
@@ -482,7 +581,12 @@ export class MediaMultipartService {
     sessionId: string,
     projectId?: string,
   ) {
-    const scope = { ownerId, mediaId, sessionId: requestedSessionId(sessionId), projectId: projectId ?? null };
+    const scope = {
+      ownerId,
+      mediaId,
+      sessionId: requestedSessionId(sessionId),
+      projectId: projectId ?? null,
+    };
     const [session, media] = await Promise.all([
       this.sessions.getByScope(scope),
       this.metadata.getByAccessScope(mediaId, ownerId, projectId ?? null),
@@ -503,8 +607,17 @@ export class MediaMultipartService {
     return media;
   }
 
-  private assertSessionScope(session: MediaMultipartSession, ownerId: string, mediaId: string, projectId?: string) {
-    if (session.ownerId !== ownerId || session.mediaId !== mediaId || session.projectId !== (projectId ?? null)) {
+  private assertSessionScope(
+    session: MediaMultipartSession,
+    ownerId: string,
+    mediaId: string,
+    projectId?: string,
+  ) {
+    if (
+      session.ownerId !== ownerId ||
+      session.mediaId !== mediaId ||
+      session.projectId !== (projectId ?? null)
+    ) {
       throw notFound();
     }
   }
@@ -534,7 +647,11 @@ function sessionScope(session: MediaMultipartSession): MediaMultipartScope {
   };
 }
 
-function expectedPartSize(expectedSize: number, session: Pick<MediaMultipartSession, "partCount" | "partSize">, partNumber: number) {
+function expectedPartSize(
+  expectedSize: number,
+  session: Pick<MediaMultipartSession, "partCount" | "partSize">,
+  partNumber: number,
+) {
   if (partNumber < session.partCount) return session.partSize;
   return expectedSize - session.partSize * (session.partCount - 1);
 }
@@ -546,7 +663,10 @@ function allUploadedParts(session: MediaMultipartSession, expectedSize: number) 
   }));
 }
 
-function phase(session: MediaMultipartSession, media: MediaRecord): MediaMultipartUploadState["phase"] {
+function phase(
+  session: MediaMultipartSession,
+  media: MediaRecord,
+): MediaMultipartUploadState["phase"] {
   if (media.status === "ready") return "ready";
   if (media.status === "failed" && session.status !== "aborted") return "failed";
   if (session.status === "active") return "uploading";
@@ -558,12 +678,18 @@ function phase(session: MediaMultipartSession, media: MediaRecord): MediaMultipa
 
 function isMissingObjectError(error: unknown) {
   if (!error || typeof error !== "object") return false;
-  const value = error as { name?: unknown; code?: unknown; $metadata?: { httpStatusCode?: unknown } };
-  return value.$metadata?.httpStatusCode === 404
-    || value.name === "NotFound"
-    || value.name === "NoSuchKey"
-    || value.code === "NotFound"
-    || value.code === "NoSuchKey";
+  const value = error as {
+    name?: unknown;
+    code?: unknown;
+    $metadata?: { httpStatusCode?: unknown };
+  };
+  return (
+    value.$metadata?.httpStatusCode === 404 ||
+    value.name === "NotFound" ||
+    value.name === "NoSuchKey" ||
+    value.code === "NotFound" ||
+    value.code === "NoSuchKey"
+  );
 }
 
 function notFound() {
@@ -576,7 +702,8 @@ function requestedSessionId(value: string) {
 }
 
 function newSessionId(value: string) {
-  if (!isSessionId(value)) throw new Error("Multipart session id generator returned an invalid UUID");
+  if (!isSessionId(value))
+    throw new Error("Multipart session id generator returned an invalid UUID");
   return value.toLowerCase();
 }
 
@@ -585,6 +712,7 @@ function isSessionId(value: string) {
 }
 
 function positiveInteger(value: number, name: string) {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${name} must be a positive safe integer`);
+  if (!Number.isSafeInteger(value) || value <= 0)
+    throw new Error(`${name} must be a positive safe integer`);
   return value;
 }

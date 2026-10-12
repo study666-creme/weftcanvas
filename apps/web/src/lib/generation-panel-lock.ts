@@ -1,4 +1,4 @@
-import type { PublicGenerationJob } from "@kachang/contracts";
+import type { PublicGenerationJob } from "@weftcanvas/contracts";
 
 /**
  * Decides whether a generation node stays protected from a fresh submission.
@@ -30,7 +30,9 @@ export type GenerationPanelLockState = {
   generationLocked: boolean;
 };
 
-export function resolveGenerationPanelLock(input: GenerationPanelLockInput): GenerationPanelLockState {
+export function resolveGenerationPanelLock(
+  input: GenerationPanelLockInput,
+): GenerationPanelLockState {
   const {
     isConfiguration,
     nodeJobs,
@@ -40,19 +42,28 @@ export function resolveGenerationPanelLock(input: GenerationPanelLockInput): Gen
     pendingAmbiguousIdentity,
     browserSubmissionInFlight,
   } = input;
-  const currentJobUnresolved = nodeJobs.find((job) => job.status === "submission_unknown")
-    ?? (newestNodeJob?.status === "submission_unknown" ? newestNodeJob : null);
+  const currentJobUnresolved =
+    nodeJobs.find((job) => job.status === "submission_unknown") ??
+    (newestNodeJob?.status === "submission_unknown" ? newestNodeJob : null);
   const currentJobActive = nodeJobs.find((job) => !isTerminalGenerationJob(job)) ?? null;
   const activeJob = !isConfiguration && (currentJobActive !== null || nodeStatus === "running");
-  const awaitingConfirmation = !isConfiguration && (
-    currentJobUnresolved !== null
-    || (nodeJobs.length === 0 && nodeJobStatus === "submission_unknown")
-    || (pendingAmbiguousIdentity && !browserSubmissionInFlight)
-  );
+  const awaitingConfirmation =
+    !isConfiguration &&
+    (currentJobUnresolved !== null ||
+      (nodeJobs.length === 0 && nodeJobStatus === "submission_unknown") ||
+      (pendingAmbiguousIdentity && !browserSubmissionInFlight));
   const generationLocked = activeJob || awaitingConfirmation;
-  return { currentJobUnresolved, currentJobActive, activeJob, awaitingConfirmation, generationLocked };
+  return {
+    currentJobUnresolved,
+    currentJobActive,
+    activeJob,
+    awaitingConfirmation,
+    generationLocked,
+  };
 }
 
 export function isTerminalGenerationJob(job: PublicGenerationJob) {
-  return job.status === "completed" || job.status === "failed" || job.status === "submission_unknown";
+  return (
+    job.status === "completed" || job.status === "failed" || job.status === "submission_unknown"
+  );
 }

@@ -1,7 +1,16 @@
-import type { CanvasGroup } from "@kachang/contracts";
+import type { CanvasGroup } from "@weftcanvas/contracts";
 import { ViewportPortal, useReactFlow, useStoreApi } from "@xyflow/react";
 import { Check, Grid3X3, Palette, Pencil, Ungroup, X } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 
 import {
   getGroupBounds,
@@ -12,7 +21,7 @@ import {
   type NodeGroupBounds,
 } from "../lib/node-groups";
 import { useCanvasStore } from "../state/canvas-store";
-import type { KachangEdge, KachangNode } from "../types";
+import type { WeftcanvasEdge, WeftcanvasNode } from "../types";
 
 type VisibleGroup = {
   group: CanvasGroup;
@@ -20,7 +29,8 @@ type VisibleGroup = {
   selected: boolean;
 };
 
-type GroupResizeDirection = "top" | "top-right" | "right" | "bottom-right" | "bottom" | "bottom-left" | "left" | "top-left";
+type GroupResizeDirection =
+  "top" | "top-right" | "right" | "bottom-right" | "bottom" | "bottom-left" | "left" | "top-left";
 
 const GROUP_RESIZE_DIRECTIONS: GroupResizeDirection[] = [
   "top",
@@ -46,10 +56,12 @@ type FlowViewportBounds = {
 };
 
 function groupIntersectsViewport(bounds: NodeGroupBounds, viewport: FlowViewportBounds) {
-  return bounds.x <= viewport.right
-    && bounds.x + bounds.width >= viewport.left
-    && bounds.y <= viewport.bottom
-    && bounds.y + bounds.height >= viewport.top;
+  return (
+    bounds.x <= viewport.right &&
+    bounds.x + bounds.width >= viewport.left &&
+    bounds.y <= viewport.bottom &&
+    bounds.y + bounds.height >= viewport.top
+  );
 }
 
 export const CanvasGroupsLayer = memo(function CanvasGroupsLayer() {
@@ -69,15 +81,17 @@ const CanvasGroupsLayerContent = memo(function CanvasGroupsLayerContent() {
   const ungroup = useCanvasStore((state) => state.ungroup);
   const beginTransaction = useCanvasStore((state) => state.beginTransaction);
   const commitTransaction = useCanvasStore((state) => state.commitTransaction);
-  const flowStore = useStoreApi<KachangNode, KachangEdge>();
-  const { screenToFlowPosition } = useReactFlow<KachangNode, KachangEdge>();
+  const flowStore = useStoreApi<WeftcanvasNode, WeftcanvasEdge>();
+  const { screenToFlowPosition } = useReactFlow<WeftcanvasNode, WeftcanvasEdge>();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState("");
   const closeTimer = useRef<number | null>(null);
   const stableBounds = useRef(new Map<string, NodeGroupBounds>());
-  const [cullViewport, setCullViewport] = useState<FlowViewportBounds>(() => readFlowViewportBounds(flowStore));
+  const [cullViewport, setCullViewport] = useState<FlowViewportBounds>(() =>
+    readFlowViewportBounds(flowStore),
+  );
   const cullViewportRef = useRef(cullViewport);
   const settleTimer = useRef<number | null>(null);
   const refreshCullRef = useRef<(() => void) | null>(null);
@@ -103,7 +117,9 @@ const CanvasGroupsLayerContent = memo(function CanvasGroupsLayerContent() {
       }
       const measuredBounds = getGroupBounds(group, nodes, nodeIndex);
       const freezeForMemberDrag = draggingMembers > 0 && draggingMembers < existingMembers;
-      const bounds = freezeForMemberDrag ? stableBounds.current.get(group.id) ?? measuredBounds : measuredBounds;
+      const bounds = freezeForMemberDrag
+        ? (stableBounds.current.get(group.id) ?? measuredBounds)
+        : measuredBounds;
       if (!freezeForMemberDrag && bounds) stableBounds.current.set(group.id, bounds);
       return bounds && groupIntersectsViewport(bounds, cullViewport)
         ? [{ group, bounds, selected: group.nodeIds.every((id) => selectedIds.has(id)) }]
@@ -152,11 +168,12 @@ const CanvasGroupsLayerContent = memo(function CanvasGroupsLayerContent() {
   // 平移/缩放手势期间的工具栏位置随 useViewport 每帧变化；手势中直接卸载，
   // 结束后按最新几何重挂载，避免手势期间每个组合工具栏都逐帧订阅视口。
   useEffect(() => {
-    const workspace = document.querySelector<HTMLElement>(".kc-workspace");
+    const workspace = document.querySelector<HTMLElement>(".wc-workspace");
     if (!workspace) return;
     const update = () => {
       setViewportMoving(
-        workspace.classList.contains("is-viewport-moving") || workspace.classList.contains("is-node-dragging"),
+        workspace.classList.contains("is-viewport-moving") ||
+          workspace.classList.contains("is-node-dragging"),
       );
     };
     update();
@@ -172,10 +189,13 @@ const CanvasGroupsLayerContent = memo(function CanvasGroupsLayerContent() {
     closeTimer.current = null;
   }, []);
 
-  const openGroup = useCallback((id: string) => {
-    cancelClose();
-    setActiveId(id);
-  }, [cancelClose]);
+  const openGroup = useCallback(
+    (id: string) => {
+      cancelClose();
+      setActiveId(id);
+    },
+    [cancelClose],
+  );
 
   const scheduleClose = useCallback(() => {
     cancelClose();
@@ -192,7 +212,7 @@ const CanvasGroupsLayerContent = memo(function CanvasGroupsLayerContent() {
     const closeOutside = (event: globalThis.PointerEvent) => {
       const target = event.target;
       if (!(target instanceof Element)) return;
-      if (target.closest("[data-kc-group-frame], [data-kc-group-toolbar]")) return;
+      if (target.closest("[data-wc-group-frame], [data-wc-group-toolbar]")) return;
       setPaletteOpen(false);
       setRenaming(false);
       setActiveId(null);
@@ -205,7 +225,7 @@ const CanvasGroupsLayerContent = memo(function CanvasGroupsLayerContent() {
     if (event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
-    const workspace = event.currentTarget.closest<HTMLElement>(".kc-workspace");
+    const workspace = event.currentTarget.closest<HTMLElement>(".wc-workspace");
     workspace?.classList.add("is-node-dragging");
     selectGroup(item.group.id);
     openGroup(item.group.id);
@@ -244,11 +264,15 @@ const CanvasGroupsLayerContent = memo(function CanvasGroupsLayerContent() {
     window.addEventListener("blur", finish);
   };
 
-  const beginGroupResize = (event: ReactPointerEvent<HTMLElement>, item: VisibleGroup, direction: GroupResizeDirection) => {
+  const beginGroupResize = (
+    event: ReactPointerEvent<HTMLElement>,
+    item: VisibleGroup,
+    direction: GroupResizeDirection,
+  ) => {
     if (event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
-    const workspace = event.currentTarget.closest<HTMLElement>(".kc-workspace");
+    const workspace = event.currentTarget.closest<HTMLElement>(".wc-workspace");
     workspace?.classList.add("is-node-dragging");
     selectGroup(item.group.id);
     openGroup(item.group.id);
@@ -260,8 +284,16 @@ const CanvasGroupsLayerContent = memo(function CanvasGroupsLayerContent() {
     const contentRight = item.bounds.x + item.bounds.width - GROUP_FRAME_PADDING;
     const contentBottom = item.bounds.y + item.bounds.height - GROUP_FRAME_PADDING;
     const anchor = {
-      x: direction.includes("left") ? contentRight : direction.includes("right") ? contentLeft : (contentLeft + contentRight) / 2,
-      y: direction.includes("top") ? contentBottom : direction.includes("bottom") ? contentTop : (contentTop + contentBottom) / 2,
+      x: direction.includes("left")
+        ? contentRight
+        : direction.includes("right")
+          ? contentLeft
+          : (contentLeft + contentRight) / 2,
+      y: direction.includes("top")
+        ? contentBottom
+        : direction.includes("bottom")
+          ? contentTop
+          : (contentTop + contentBottom) / 2,
     };
     const resizingNodeIds = new Set(item.group.nodeIds);
     const resizingNodes = nodes.filter((node) => resizingNodeIds.has(node.id));
@@ -296,9 +328,10 @@ const CanvasGroupsLayerContent = memo(function CanvasGroupsLayerContent() {
         const startX = start.x - anchor.x;
         const startY = start.y - anchor.y;
         const denominator = startX * startX + startY * startY;
-        factor = denominator > 0
-          ? ((next.x - anchor.x) * startX + (next.y - anchor.y) * startY) / denominator
-          : 1;
+        factor =
+          denominator > 0
+            ? ((next.x - anchor.x) * startX + (next.y - anchor.y) * startY) / denominator
+            : 1;
       }
       latestFactor = Math.min(maxFactor, Math.max(minFactor, Number.isFinite(factor) ? factor : 1));
       if (!frame) frame = window.requestAnimationFrame(flush);
@@ -331,19 +364,24 @@ const CanvasGroupsLayerContent = memo(function CanvasGroupsLayerContent() {
         {visibleGroups.map((item) => (
           <section
             key={item.group.id}
-            data-kc-group-frame={item.group.id}
-            className={`kc-group-frame ${item.selected ? "is-selected" : ""}`}
-            style={{
-              left: item.bounds.x,
-              top: item.bounds.y,
-              width: item.bounds.width,
-              height: item.bounds.height,
-              "--kc-group-color": item.group.color,
-            } as CSSProperties}
+            data-wc-group-frame={item.group.id}
+            className={`wc-group-frame ${item.selected ? "is-selected" : ""}`}
+            style={
+              {
+                left: item.bounds.x,
+                top: item.bounds.y,
+                width: item.bounds.width,
+                height: item.bounds.height,
+                "--wc-group-color": item.group.color,
+              } as CSSProperties
+            }
             onPointerEnter={() => openGroup(item.group.id)}
             onPointerLeave={scheduleClose}
           >
-            <header className="kc-group-frame-header nodrag nowheel" onPointerDown={(event) => beginGroupDrag(event, item)}>
+            <header
+              className="wc-group-frame-header nodrag nowheel"
+              onPointerDown={(event) => beginGroupDrag(event, item)}
+            >
               <span>{item.group.name}</span>
               <small>{item.group.nodeIds.length}</small>
             </header>
@@ -351,8 +389,8 @@ const CanvasGroupsLayerContent = memo(function CanvasGroupsLayerContent() {
               <button
                 key={direction}
                 type="button"
-                data-kc-group-resize={direction}
-                className={`kc-group-resize kc-group-resize--${direction}`}
+                data-wc-group-resize={direction}
+                className={`wc-group-resize wc-group-resize--${direction}`}
                 aria-label={`Resize group ${direction}`}
                 onPointerDown={(event) => beginGroupResize(event, item, direction)}
               />
@@ -423,22 +461,28 @@ const CanvasGroupToolbar = memo(function CanvasGroupToolbar({
   onArrange,
   onUngroup,
 }: CanvasGroupToolbarProps) {
-  const viewport = useReactFlow<KachangNode, KachangEdge>().getViewport();
+  const viewport = useReactFlow<WeftcanvasNode, WeftcanvasEdge>().getViewport();
   const toolbarLeft = viewport.x + (active.bounds.x + active.bounds.width / 2) * viewport.zoom;
   const toolbarTop = viewport.y + active.bounds.y * viewport.zoom - 9;
   const clampedToolbarLeft = Math.max(132, Math.min(window.innerWidth - 132, toolbarLeft));
 
   return (
     <div
-      data-kc-group-toolbar
-      className="kc-group-toolbar nodrag nowheel"
-      style={{ left: clampedToolbarLeft, top: toolbarTop, "--kc-group-color": active.group.color } as CSSProperties}
+      data-wc-group-toolbar
+      className="wc-group-toolbar nodrag nowheel"
+      style={
+        {
+          left: clampedToolbarLeft,
+          top: toolbarTop,
+          "--wc-group-color": active.group.color,
+        } as CSSProperties
+      }
       onPointerDown={(event) => event.stopPropagation()}
       onPointerEnter={onOpen}
       onPointerLeave={onClose}
     >
       {renaming ? (
-        <div className="kc-group-rename">
+        <div className="wc-group-rename">
           <input
             autoFocus
             value={renameDraft}
@@ -450,18 +494,33 @@ const CanvasGroupToolbar = memo(function CanvasGroupToolbar({
               if (event.key === "Escape") onCancelRename();
             }}
           />
-          <button type="button" aria-label="保存名称" title="保存" onClick={onSaveRename}><Check aria-hidden="true" /></button>
-          <button type="button" aria-label="取消重命名" title="取消" onClick={onCancelRename}><X aria-hidden="true" /></button>
+          <button type="button" aria-label="保存名称" title="保存" onClick={onSaveRename}>
+            <Check aria-hidden="true" />
+          </button>
+          <button type="button" aria-label="取消重命名" title="取消" onClick={onCancelRename}>
+            <X aria-hidden="true" />
+          </button>
         </div>
       ) : (
-        <button type="button" className="kc-group-name-action" title="重命名组合" onClick={onStartRename}>
+        <button
+          type="button"
+          className="wc-group-name-action"
+          title="重命名组合"
+          onClick={onStartRename}
+        >
           <Pencil aria-hidden="true" />
           <span>{active.group.name}</span>
         </button>
       )}
 
-      <span className="kc-group-toolbar-divider" aria-hidden="true" />
-      <button type="button" aria-label="组合颜色" title="颜色" className={paletteOpen ? "is-active" : ""} onClick={onTogglePalette}>
+      <span className="wc-group-toolbar-divider" aria-hidden="true" />
+      <button
+        type="button"
+        aria-label="组合颜色"
+        title="颜色"
+        className={paletteOpen ? "is-active" : ""}
+        onClick={onTogglePalette}
+      >
         <Palette aria-hidden="true" />
       </button>
       <button type="button" aria-label="整理组合布局" title="自动整理" onClick={onArrange}>
@@ -472,7 +531,7 @@ const CanvasGroupToolbar = memo(function CanvasGroupToolbar({
       </button>
 
       {paletteOpen ? (
-        <div className="kc-group-palette">
+        <div className="wc-group-palette">
           {GROUP_COLOR_PALETTE.map((color) => (
             <button
               key={color}
@@ -490,7 +549,9 @@ const CanvasGroupToolbar = memo(function CanvasGroupToolbar({
   );
 });
 
-function readFlowViewportBounds(flowStore: ReturnType<typeof useStoreApi<KachangNode, KachangEdge>>): FlowViewportBounds {
+function readFlowViewportBounds(
+  flowStore: ReturnType<typeof useStoreApi<WeftcanvasNode, WeftcanvasEdge>>,
+): FlowViewportBounds {
   const state = flowStore.getState();
   const zoom = state.transform[2] || 1;
   return {
@@ -502,10 +563,12 @@ function readFlowViewportBounds(flowStore: ReturnType<typeof useStoreApi<Kachang
 }
 
 function sameViewportBounds(previous: FlowViewportBounds, next: FlowViewportBounds) {
-  return previous.left === next.left
-    && previous.top === next.top
-    && previous.right === next.right
-    && previous.bottom === next.bottom;
+  return (
+    previous.left === next.left &&
+    previous.top === next.top &&
+    previous.right === next.right &&
+    previous.bottom === next.bottom
+  );
 }
 
 function tileChanged(previous: FlowViewportBounds, next: FlowViewportBounds) {

@@ -9,13 +9,12 @@ import {
   agentRunErrorSchema,
   agentRunSchema,
   type AgentCanvasContext,
-  type AgentAction,
   type AgentConversation,
   type AgentConversationDetail,
   type AgentExecutionReceipt,
   type AgentMessage,
   type AgentRunError,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 import type { Pool, PoolClient } from "pg";
 
 import type {
@@ -105,7 +104,10 @@ export class PostgresAgentStore implements AgentStore {
     return result.rows[0] ? conversationRecord(result.rows[0]) : null;
   }
 
-  async getDetail(ownerId: string, conversationId: string): Promise<AgentConversationDetail | null> {
+  async getDetail(
+    ownerId: string,
+    conversationId: string,
+  ): Promise<AgentConversationDetail | null> {
     const conversation = await this.getConversation(ownerId, conversationId);
     if (!conversation) return null;
     const [messages, runs] = await Promise.all([
@@ -148,10 +150,10 @@ export class PostgresAgentStore implements AgentStore {
   }
 
   async getRun(ownerId: string, runId: string) {
-    const result = await this.pool.query<RunRow>(
-      `${runSelect()} WHERE owner_id = $1 AND id = $2`,
-      [ownerId, runId],
-    );
+    const result = await this.pool.query<RunRow>(`${runSelect()} WHERE owner_id = $1 AND id = $2`, [
+      ownerId,
+      runId,
+    ]);
     return result.rows[0] ? runRecord(result.rows[0]) : null;
   }
 
@@ -233,7 +235,13 @@ export class PostgresAgentStore implements AgentStore {
     return result.rowCount === 1;
   }
 
-  async completeRun(ownerId: string, runId: string, message: AgentMessage, result: CompleteAgentRunInput, completedAt: string) {
+  async completeRun(
+    ownerId: string,
+    runId: string,
+    message: AgentMessage,
+    result: CompleteAgentRunInput,
+    completedAt: string,
+  ) {
     return withTransaction(this.pool, async (client) => {
       const run = await lockActiveRun(client, ownerId, runId);
       if (!run) return false;
@@ -272,7 +280,8 @@ export class PostgresAgentStore implements AgentStore {
        RETURNING conversation_id`,
       [ownerId, runId, JSON.stringify(agentRunErrorSchema.parse(error)), completedAt],
     );
-    if (result.rows[0]) await touchConversation(this.pool, ownerId, result.rows[0].conversation_id, completedAt);
+    if (result.rows[0])
+      await touchConversation(this.pool, ownerId, result.rows[0].conversation_id, completedAt);
     return result.rowCount === 1;
   }
 
@@ -284,7 +293,8 @@ export class PostgresAgentStore implements AgentStore {
        RETURNING conversation_id`,
       [ownerId, runId, completedAt],
     );
-    if (result.rows[0]) await touchConversation(this.pool, ownerId, result.rows[0].conversation_id, completedAt);
+    if (result.rows[0])
+      await touchConversation(this.pool, ownerId, result.rows[0].conversation_id, completedAt);
     return result.rowCount === 1;
   }
 
@@ -375,7 +385,9 @@ function publicRun(row: RunRow) {
     assistantMessageId: row.assistant_message_id,
     modelId: row.model_id,
     status: row.status,
-    actions: Array.isArray(row.actions) ? row.actions.map((action) => agentActionSchema.parse(action)) : [],
+    actions: Array.isArray(row.actions)
+      ? row.actions.map((action) => agentActionSchema.parse(action))
+      : [],
     executionMode: row.execution_mode ?? "none",
     proposal: row.proposal ? agentProposalSchema.parse(row.proposal) : null,
     proposalStatus: row.proposal_status ?? null,

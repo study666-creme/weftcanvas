@@ -1,4 +1,4 @@
-import type { GenerationArtifact, GenerationJobError } from "@kachang/contracts";
+import type { GenerationArtifact, GenerationJobError } from "@weftcanvas/contracts";
 
 import type { GenerationJobRecord } from "./types.js";
 
@@ -11,7 +11,10 @@ export type GenerationJobEvent =
   | { type: "submission_unknown" }
   | { type: "failed"; error: GenerationJobError };
 
-const allowedTransitions: Record<GenerationJobRecord["status"], ReadonlySet<GenerationJobRecord["status"]>> = {
+const allowedTransitions: Record<
+  GenerationJobRecord["status"],
+  ReadonlySet<GenerationJobRecord["status"]>
+> = {
   reserved: new Set(["submitting", "failed"]),
   submitting: new Set(["queued", "running", "validating", "submission_unknown", "failed"]),
   queued: new Set(["queued", "running", "validating", "failed"]),
@@ -36,12 +39,21 @@ export function isGenerationTransitionAllowed(
   return allowedTransitions[from].has(to);
 }
 
-export function transitionGenerationJob(job: GenerationJobRecord, event: GenerationJobEvent, now: number) {
+export function transitionGenerationJob(
+  job: GenerationJobRecord,
+  event: GenerationJobEvent,
+  now: number,
+) {
   const timestamp = new Date(now).toISOString();
   const base = { ...job, revision: job.revision + 1, updatedAt: timestamp };
 
   if (event.type === "submission_started") {
-    return transition(job, { ...base, status: "submitting", progress: Math.max(job.progress, 5), startedAt: job.startedAt ?? timestamp });
+    return transition(job, {
+      ...base,
+      status: "submitting",
+      progress: Math.max(job.progress, 5),
+      startedAt: job.startedAt ?? timestamp,
+    });
   }
   if (event.type === "provider_queued") {
     return transition(job, {

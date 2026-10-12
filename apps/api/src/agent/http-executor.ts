@@ -4,7 +4,7 @@ import {
   agentModelCatalogResponseSchema,
   agentProposalDraftSchema,
   type AgentModelCatalog,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 import { z } from "zod";
 
 import { AgentExecutionError } from "./service.js";
@@ -78,7 +78,10 @@ export class HttpAgentExecutor implements AgentExecutor {
     const controller = new AbortController();
     const abort = () => controller.abort(signal.reason);
     signal.addEventListener("abort", abort, { once: true });
-    const timer = setTimeout(() => controller.abort(new Error("Agent runtime timed out")), this.timeoutMs);
+    const timer = setTimeout(
+      () => controller.abort(new Error("Agent runtime timed out")),
+      this.timeoutMs,
+    );
     try {
       const response = await this.fetchImpl(this.runEndpoint, {
         method: "POST",
@@ -91,7 +94,11 @@ export class HttpAgentExecutor implements AgentExecutor {
         signal: controller.signal,
       });
       if (!response.ok) {
-        throw new AgentExecutionError("AGENT_RUNTIME_UNAVAILABLE", "Agent 服务暂时不可用", response.status >= 500);
+        throw new AgentExecutionError(
+          "AGENT_RUNTIME_UNAVAILABLE",
+          "Agent 服务暂时不可用",
+          response.status >= 500,
+        );
       }
       try {
         const data = responseSchema.parse(await response.json()).data;
@@ -102,11 +109,16 @@ export class HttpAgentExecutor implements AgentExecutor {
           proposal: data.proposal ?? null,
         };
       } catch {
-        throw new AgentExecutionError("AGENT_RUNTIME_INVALID_RESPONSE", "Agent 返回了无法识别的结果", true);
+        throw new AgentExecutionError(
+          "AGENT_RUNTIME_INVALID_RESPONSE",
+          "Agent 返回了无法识别的结果",
+          true,
+        );
       }
     } catch (cause) {
       if (cause instanceof AgentExecutionError) throw cause;
-      if (signal.aborted) throw new AgentExecutionError("AGENT_RUN_CANCELLED", "Agent 任务已取消", false);
+      if (signal.aborted)
+        throw new AgentExecutionError("AGENT_RUN_CANCELLED", "Agent 任务已取消", false);
       throw new AgentExecutionError("AGENT_RUNTIME_UNAVAILABLE", "Agent 服务暂时不可用", true);
     } finally {
       clearTimeout(timer);
@@ -116,7 +128,10 @@ export class HttpAgentExecutor implements AgentExecutor {
 
   private async fetchModels() {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(new Error("Agent runtime timed out")), this.timeoutMs);
+    const timer = setTimeout(
+      () => controller.abort(new Error("Agent runtime timed out")),
+      this.timeoutMs,
+    );
     try {
       const response = await this.fetchImpl(this.modelsEndpoint, {
         headers: {

@@ -1,4 +1,4 @@
-import type { PublicGenerationJob } from "@kachang/contracts";
+import type { PublicGenerationJob } from "@weftcanvas/contracts";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createCanvasNode } from "../lib/node-factory";
@@ -22,13 +22,15 @@ describe("canvas generation history", () => {
 
   it("keeps a paid running node when undo reaches a snapshot from before node creation", () => {
     const nodeId = useCanvasStore.getState().addNode("image", { x: 40, y: 60 });
-    useCanvasStore.getState().applyGenerationJob(generationJob({
-      id: "job-running",
-      nodeId,
-      status: "running",
-      version: 2,
-      progress: 37,
-    }));
+    useCanvasStore.getState().applyGenerationJob(
+      generationJob({
+        id: "job-running",
+        nodeId,
+        status: "running",
+        version: 2,
+        progress: 37,
+      }),
+    );
 
     expect(useCanvasStore.getState().past).toHaveLength(1);
     useCanvasStore.getState().undo();
@@ -81,12 +83,16 @@ describe("canvas generation history", () => {
       jobStatus: "completed" as const,
       error: null,
     };
-    useCanvasStore.getState().applyGenerationUpdate(nodeId, {
-      media: localImage("browser-primary"),
-      status: "success",
-      progress: null,
-      generation,
-    }, { result: "media" });
+    useCanvasStore.getState().applyGenerationUpdate(
+      nodeId,
+      {
+        media: localImage("browser-primary"),
+        status: "success",
+        progress: null,
+        generation,
+      },
+      { result: "media" },
+    );
     const additionalId = useCanvasStore.getState().addGeneratedConnectedNode(nodeId, "image", {
       media: localImage("browser-additional"),
       status: "success",
@@ -99,10 +105,12 @@ describe("canvas generation history", () => {
     useCanvasStore.getState().undo();
 
     const state = useCanvasStore.getState();
-    expect(state.nodes.map((item) => item.data.media?.id).filter(Boolean).sort()).toEqual([
-      "browser-additional",
-      "browser-primary",
-    ]);
+    expect(
+      state.nodes
+        .map((item) => item.data.media?.id)
+        .filter(Boolean)
+        .sort(),
+    ).toEqual(["browser-additional", "browser-primary"]);
     expect(state.edges).toHaveLength(1);
     expect(state.edges[0]).toMatchObject({ source: nodeId, target: additionalId });
   });
@@ -112,13 +120,15 @@ describe("canvas generation history", () => {
     useCanvasStore.getState().undo();
     expect(useCanvasStore.getState().nodes).toHaveLength(0);
 
-    useCanvasStore.getState().applyGenerationJob(generationJob({
-      id: "job-accepted-race",
-      nodeId,
-      status: "queued",
-      version: 1,
-      progress: 0,
-    }));
+    useCanvasStore.getState().applyGenerationJob(
+      generationJob({
+        id: "job-accepted-race",
+        nodeId,
+        status: "queued",
+        version: 1,
+        progress: 0,
+      }),
+    );
 
     const node = useCanvasStore.getState().nodes.find((item) => item.id === nodeId);
     expect(node?.data.status).toBe("running");
@@ -129,25 +139,31 @@ describe("canvas generation history", () => {
     const origin = createCanvasNode("image", { x: 0, y: 0 }, { body: "first prompt" });
     origin.id = "origin";
     useCanvasStore.setState({ nodes: [origin] });
-    useCanvasStore.getState().applyGenerationJob(generationJob({
-      id: "job-completed",
-      nodeId: origin.id,
-      status: "running",
-      version: 1,
-      progress: 45,
-    }));
+    useCanvasStore.getState().applyGenerationJob(
+      generationJob({
+        id: "job-completed",
+        nodeId: origin.id,
+        status: "running",
+        version: 1,
+        progress: 45,
+      }),
+    );
     useCanvasStore.getState().updateNodeData(origin.id, { body: "edited prompt" });
     useCanvasStore.setState((state) => ({
-      nodes: state.nodes.map((node) => node.id === origin.id ? { ...node, width: 512, height: 288 } : node),
+      nodes: state.nodes.map((node) =>
+        node.id === origin.id ? { ...node, width: 512, height: 288 } : node,
+      ),
     }));
-    useCanvasStore.getState().applyGenerationJob(generationJob({
-      id: "job-completed",
-      nodeId: origin.id,
-      status: "completed",
-      version: 2,
-      progress: 100,
-      artifacts: [imageArtifact("primary")],
-    }));
+    useCanvasStore.getState().applyGenerationJob(
+      generationJob({
+        id: "job-completed",
+        nodeId: origin.id,
+        status: "completed",
+        version: 2,
+        progress: 100,
+        artifacts: [imageArtifact("primary")],
+      }),
+    );
 
     expect(useCanvasStore.getState().past).toHaveLength(1);
     const completedNode = useCanvasStore.getState().nodes.find((item) => item.id === origin.id);
@@ -171,22 +187,31 @@ describe("canvas generation history", () => {
 
   it("projects additional artifacts and their generated edges into old snapshots", () => {
     const nodeId = useCanvasStore.getState().addNode("image", { x: 0, y: 0 });
-    useCanvasStore.getState().applyGenerationJob(generationJob({
-      id: "job-batch",
-      nodeId,
-      status: "completed",
-      version: 3,
-      progress: 100,
-      artifacts: [imageArtifact("primary"), imageArtifact("additional")],
-    }));
-    const additionalId = useCanvasStore.getState().nodes.find((node) => node.data.media?.id === "additional")?.id;
+    useCanvasStore.getState().applyGenerationJob(
+      generationJob({
+        id: "job-batch",
+        nodeId,
+        status: "completed",
+        version: 3,
+        progress: 100,
+        artifacts: [imageArtifact("primary"), imageArtifact("additional")],
+      }),
+    );
+    const additionalId = useCanvasStore
+      .getState()
+      .nodes.find((node) => node.data.media?.id === "additional")?.id;
     expect(additionalId).toBeTruthy();
     expect(useCanvasStore.getState().past).toHaveLength(1);
 
     useCanvasStore.getState().undo();
 
     const state = useCanvasStore.getState();
-    expect(state.nodes.map((node) => node.data.media?.id).filter(Boolean).sort()).toEqual(["additional", "primary"]);
+    expect(
+      state.nodes
+        .map((node) => node.data.media?.id)
+        .filter(Boolean)
+        .sort(),
+    ).toEqual(["additional", "primary"]);
     expect(state.edges).toHaveLength(1);
     expect(state.edges[0]).toMatchObject({ source: nodeId, target: additionalId });
   });
@@ -197,13 +222,15 @@ describe("canvas generation history", () => {
     useCanvasStore.setState({ nodes: [origin] });
     useCanvasStore.getState().beginTransaction();
     useCanvasStore.getState().updateNodeData(origin.id, { body: "during gesture" }, false);
-    useCanvasStore.getState().applyGenerationJob(generationJob({
-      id: "job-during-gesture",
-      nodeId: origin.id,
-      status: "running",
-      version: 1,
-      progress: 12,
-    }));
+    useCanvasStore.getState().applyGenerationJob(
+      generationJob({
+        id: "job-during-gesture",
+        nodeId: origin.id,
+        status: "running",
+        version: 1,
+        progress: 12,
+      }),
+    );
     useCanvasStore.getState().commitTransaction();
     useCanvasStore.getState().undo();
 
@@ -217,24 +244,28 @@ describe("canvas generation history", () => {
     const origin = createCanvasNode("image", { x: 0, y: 0 });
     origin.id = "origin";
     useCanvasStore.setState({ nodes: [origin] });
-    useCanvasStore.getState().applyGenerationJob(generationJob({
-      id: "job-delete",
-      nodeId: origin.id,
-      status: "running",
-      version: 1,
-      progress: 10,
-    }));
+    useCanvasStore.getState().applyGenerationJob(
+      generationJob({
+        id: "job-delete",
+        nodeId: origin.id,
+        status: "running",
+        version: 1,
+        progress: 10,
+      }),
+    );
 
     useCanvasStore.getState().deleteNode(origin.id);
     expect(useCanvasStore.getState().nodes).toHaveLength(0);
-    useCanvasStore.getState().applyGenerationJob(generationJob({
-      id: "job-delete",
-      nodeId: origin.id,
-      status: "completed",
-      version: 2,
-      progress: 100,
-      artifacts: [imageArtifact("deleted-result")],
-    }));
+    useCanvasStore.getState().applyGenerationJob(
+      generationJob({
+        id: "job-delete",
+        nodeId: origin.id,
+        status: "completed",
+        version: 2,
+        progress: 100,
+        artifacts: [imageArtifact("deleted-result")],
+      }),
+    );
     expect(useCanvasStore.getState().nodes).toHaveLength(0);
 
     useCanvasStore.getState().undo();
@@ -267,12 +298,16 @@ describe("canvas generation history", () => {
       generation: { ...generation, jobStatus: "running" },
     });
     useCanvasStore.getState().deleteNode(nodeId);
-    useCanvasStore.getState().applyGenerationUpdate(nodeId, {
-      media: localImage("hidden-primary"),
-      status: "success",
-      progress: null,
-      generation,
-    }, { result: "media" });
+    useCanvasStore.getState().applyGenerationUpdate(
+      nodeId,
+      {
+        media: localImage("hidden-primary"),
+        status: "success",
+        progress: null,
+        generation,
+      },
+      { result: "media" },
+    );
     const additionalId = useCanvasStore.getState().addGeneratedConnectedNode(nodeId, "image", {
       media: localImage("hidden-additional"),
       status: "success",
@@ -284,11 +319,15 @@ describe("canvas generation history", () => {
     expect(useCanvasStore.getState().nodes).toHaveLength(0);
     useCanvasStore.getState().undo();
     const restored = useCanvasStore.getState();
-    expect(restored.nodes.map((node) => node.data.media?.id).filter(Boolean).sort()).toEqual([
-      "hidden-additional",
-      "hidden-primary",
-    ]);
-    expect(restored.edges).toContainEqual(expect.objectContaining({ source: nodeId, target: additionalId }));
+    expect(
+      restored.nodes
+        .map((node) => node.data.media?.id)
+        .filter(Boolean)
+        .sort(),
+    ).toEqual(["hidden-additional", "hidden-primary"]);
+    expect(restored.edges).toContainEqual(
+      expect.objectContaining({ source: nodeId, target: additionalId }),
+    );
   });
 
   it("does not revive an explicitly deleted task when an unrelated transaction is undone", () => {
@@ -313,12 +352,16 @@ describe("canvas generation history", () => {
 
     useCanvasStore.getState().beginTransaction();
     useCanvasStore.getState().updateNodeData(otherId, { body: "gesture edit" }, false);
-    useCanvasStore.getState().applyGenerationUpdate(nodeId, {
-      media: localImage("hidden-primary-during-transaction"),
-      status: "success",
-      progress: null,
-      generation,
-    }, { result: "media" });
+    useCanvasStore.getState().applyGenerationUpdate(
+      nodeId,
+      {
+        media: localImage("hidden-primary-during-transaction"),
+        status: "success",
+        progress: null,
+        generation,
+      },
+      { result: "media" },
+    );
     useCanvasStore.getState().addGeneratedConnectedNode(nodeId, "image", {
       media: localImage("hidden-additional-during-transaction"),
       status: "success",
@@ -335,14 +378,16 @@ describe("canvas generation history", () => {
 
   it("keeps decoded media dimensions and geometry through undo", () => {
     const nodeId = useCanvasStore.getState().addNode("image", { x: 0, y: 0 });
-    useCanvasStore.getState().applyGenerationJob(generationJob({
-      id: "job-measured",
-      nodeId,
-      status: "completed",
-      version: 2,
-      progress: 100,
-      artifacts: [imageArtifact("measured", false)],
-    }));
+    useCanvasStore.getState().applyGenerationJob(
+      generationJob({
+        id: "job-measured",
+        nodeId,
+        status: "completed",
+        version: 2,
+        progress: 100,
+        artifacts: [imageArtifact("measured", false)],
+      }),
+    );
     const media = useCanvasStore.getState().nodes.find((node) => node.id === nodeId)?.data.media;
     expect(media).toBeTruthy();
     useCanvasStore.getState().setNodeMedia(nodeId, { ...media!, width: 240, height: 480 }, false);
@@ -409,7 +454,10 @@ function generationJob({
   };
 }
 
-function imageArtifact(id: string, withDimensions = true): PublicGenerationJob["artifacts"][number] {
+function imageArtifact(
+  id: string,
+  withDimensions = true,
+): PublicGenerationJob["artifacts"][number] {
   return {
     id: `artifact-${id}`,
     kind: "image",

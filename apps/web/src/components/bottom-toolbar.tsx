@@ -1,5 +1,16 @@
-import { type CanvasNodeKind } from "@kachang/contracts";
-import { Clapperboard, Eraser, Hand, Plus, Puzzle, Redo2, SlidersHorizontal, Trash2, Undo2, Upload } from "lucide-react";
+import { type CanvasNodeKind } from "@weftcanvas/contracts";
+import {
+  Clapperboard,
+  Eraser,
+  Hand,
+  Plus,
+  Puzzle,
+  Redo2,
+  SlidersHorizontal,
+  Trash2,
+  Undo2,
+  Upload,
+} from "lucide-react";
 import { useReactFlow } from "@xyflow/react";
 import { memo, useEffect, useRef, type RefObject } from "react";
 
@@ -10,7 +21,7 @@ import { useCanvasStore } from "../state/canvas-store";
 import { useUiPreferencesStore } from "../state/ui-preferences-store";
 import { useCreatableNodeDefinitions } from "../lib/node-registry";
 import type { InsertableAsset } from "../lib/insertable-asset";
-import type { KachangEdge, KachangNode } from "../types";
+import type { WeftcanvasEdge, WeftcanvasNode } from "../types";
 import { AppearanceToolbar } from "./appearance-toolbar";
 import { CommunityRail } from "./community-rail";
 
@@ -55,12 +66,18 @@ export const BottomToolbar = memo(function BottomToolbar({
   const redo = useCanvasStore((state) => state.redo);
   const canUndo = useCanvasStore((state) => state.past.length > 0);
   const canRedo = useCanvasStore((state) => state.future.length > 0);
-  const hasSelection = useCanvasStore((state) => state.nodes.some((node) => node.selected) || state.edges.some((edge) => edge.selected));
+  const hasSelection = useCanvasStore(
+    (state) =>
+      state.nodes.some((node) => node.selected) || state.edges.some((edge) => edge.selected),
+  );
   const hasContent = useCanvasStore((state) => state.nodes.length > 0 || state.edges.length > 0);
   const deleteSelection = useCanvasStore((state) => state.deleteSelection);
   const defaultNodeAspectRatio = useUiPreferencesStore((state) => state.defaultNodeAspectRatio);
   const creatableNodes = useCreatableNodeDefinitions();
-  const { getZoom, screenToFlowPosition, setCenter } = useReactFlow<KachangNode, KachangEdge>();
+  const { getZoom, screenToFlowPosition, setCenter } = useReactFlow<
+    WeftcanvasNode,
+    WeftcanvasEdge
+  >();
   const dockRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -71,7 +88,7 @@ export const BottomToolbar = memo(function BottomToolbar({
         if (dockRef.current?.contains(target)) return;
         // 顶部设置键自己管理开合（点击 = 切换面板），不走"点外关闭"，
         // 否则 pointerdown 先关、click 再开，面板永远关不掉。
-        if (target instanceof Element && target.closest(".kc-topbar-settings")) return;
+        if (target instanceof Element && target.closest(".wc-topbar-settings")) return;
       }
       onCloseAppearance();
     };
@@ -91,11 +108,17 @@ export const BottomToolbar = memo(function BottomToolbar({
   }, [resourceOpen, onCloseAppearance]);
 
   const createAtCenter = (kind: CanvasNodeKind) => {
-    const zoom = getZoom();
     const position = screenToFlowPosition(getCanvasCenter());
     const dimensions = nodeCreationDimensions(kind, defaultNodeAspectRatio);
-    const preferred = { x: position.x - dimensions.width / 2, y: position.y - dimensions.height / 2 };
-    const openPosition = findOpenNodePosition(preferred, dimensions, useCanvasStore.getState().nodes);
+    const preferred = {
+      x: position.x - dimensions.width / 2,
+      y: position.y - dimensions.height / 2,
+    };
+    const openPosition = findOpenNodePosition(
+      preferred,
+      dimensions,
+      useCanvasStore.getState().nodes,
+    );
     addNode(kind, openPosition);
     window.requestAnimationFrame(() => {
       void setCenter(
@@ -111,11 +134,11 @@ export const BottomToolbar = memo(function BottomToolbar({
 
   return (
     <>
-      <nav className="kc-create-rail" aria-label="创建工具">
-        <div className="kc-create-rail-plus-wrapper">
+      <nav className="wc-create-rail" aria-label="创建工具">
+        <div className="wc-create-rail-plus-wrapper">
           <button
             type="button"
-            className="kc-create-rail-plus"
+            className="wc-create-rail-plus"
             aria-label="添加节点"
             aria-haspopup="menu"
             aria-expanded="false"
@@ -123,7 +146,7 @@ export const BottomToolbar = memo(function BottomToolbar({
           >
             <Plus aria-hidden="true" />
           </button>
-          <div className="kc-create-rail-popover" role="menu" aria-label="节点类型">
+          <div className="wc-create-rail-popover" role="menu" aria-label="节点类型">
             {creatableNodes.map((definition) => {
               const Icon = definition.icon ?? Puzzle;
               const label = definition.label();
@@ -132,39 +155,52 @@ export const BottomToolbar = memo(function BottomToolbar({
                   key={definition.kind}
                   type="button"
                   role="menuitem"
-                  className={`kc-add-node kc-add-node--${definition.kind}`}
+                  className={`wc-add-node wc-add-node--${definition.kind}`}
                   aria-label={`添加${label}`}
                   title={`添加${label}`}
                   onClick={() => createAtCenter(definition.kind)}
                 >
                   <Icon aria-hidden="true" />
-                  <span className="kc-add-node-label">{label}</span>
+                  <span className="wc-add-node-label">{label}</span>
                 </button>
               );
             })}
           </div>
         </div>
-        <span className="kc-create-rail-divider" aria-hidden="true" />
+        <span className="wc-create-rail-divider" aria-hidden="true" />
         <button type="button" aria-label="导入素材" title="导入素材" onClick={onImport}>
           <Upload aria-hidden="true" />
         </button>
-        <button type="button" className="kc-director-button" aria-label="打开 3D 导演台" title="3D 导演台" onClick={onOpenDirector}>
+        <button
+          type="button"
+          className="wc-director-button"
+          aria-label="打开 3D 导演台"
+          title="3D 导演台"
+          onClick={onOpenDirector}
+        >
           <Clapperboard aria-hidden="true" />
         </button>
         <CommunityRail onInsertAsset={onInsertAsset} />
       </nav>
 
-      <nav ref={dockRef} className="kc-edit-dock" aria-label="编辑工具">
+      <nav ref={dockRef} className="wc-edit-dock" aria-label="编辑工具">
         <AppearanceToolbar
           open={appearanceOpen}
           triggerRef={appearanceTriggerRef}
           onClose={onCloseAppearance}
         />
-        <div className="kc-edit-dock-side kc-edit-dock-side--left">
-          <button type="button" className={panMode ? "is-active" : ""} aria-label="平移画布" title="平移画布" aria-pressed={panMode} onClick={onTogglePan}>
+        <div className="wc-edit-dock-side wc-edit-dock-side--left">
+          <button
+            type="button"
+            className={panMode ? "is-active" : ""}
+            aria-label="平移画布"
+            title="平移画布"
+            aria-pressed={panMode}
+            onClick={onTogglePan}
+          >
             <Hand aria-hidden="true" />
           </button>
-          <span className="kc-edit-dock-divider" aria-hidden="true" />
+          <span className="wc-edit-dock-divider" aria-hidden="true" />
           <button type="button" aria-label="撤销" title="撤销" disabled={!canUndo} onClick={undo}>
             <Undo2 aria-hidden="true" />
           </button>
@@ -172,12 +208,31 @@ export const BottomToolbar = memo(function BottomToolbar({
             <Redo2 aria-hidden="true" />
           </button>
         </div>
-        {/* data-kc-preserve-drawers：这个键自己管理开合（点击 = 切换面板），不能走资源库的
+        {/* data-wc-preserve-drawers：这个键自己管理开合（点击 = 切换面板），不能走资源库的
             "点外关闭"——否则快速连点时会先被面板判成点外、再被按钮当成第二次点击，面板永远打不开。 */}
-        <button type="button" data-kc-preserve-drawers className={resourceOpen ? "is-active kc-resource-toggle" : "kc-resource-toggle"} aria-label={resourceOpen ? "收起资源库" : "打开资源库"} title="卡片与资产" aria-pressed={resourceOpen} onClick={() => { onCloseAppearance(); onToggleResource(); }}>
-          <img className="kc-resource-toggle-logo" src={resourceLibraryLogo} alt="" aria-hidden="true" width={24} height={24} draggable={false} />
+        <button
+          type="button"
+          data-wc-preserve-drawers
+          className={resourceOpen ? "is-active wc-resource-toggle" : "wc-resource-toggle"}
+          aria-label={resourceOpen ? "收起资源库" : "打开资源库"}
+          title="卡片与资产"
+          aria-pressed={resourceOpen}
+          onClick={() => {
+            onCloseAppearance();
+            onToggleResource();
+          }}
+        >
+          <img
+            className="wc-resource-toggle-logo"
+            src={resourceLibraryLogo}
+            alt=""
+            aria-hidden="true"
+            width={24}
+            height={24}
+            draggable={false}
+          />
         </button>
-        <div className="kc-edit-dock-side kc-edit-dock-side--right">
+        <div className="wc-edit-dock-side wc-edit-dock-side--right">
           {/* UI 设置键：与顶部"设置"键共用 appearanceOpen，两个入口共存 */}
           <button
             type="button"
@@ -186,15 +241,29 @@ export const BottomToolbar = memo(function BottomToolbar({
             title="UI 设置"
             aria-haspopup="dialog"
             aria-expanded={appearanceOpen}
-            aria-controls="kc-appearance-toolbar"
+            aria-controls="wc-appearance-toolbar"
             onClick={onToggleAppearance}
           >
             <SlidersHorizontal aria-hidden="true" />
           </button>
-          <button type="button" className="is-danger" aria-label="删除选中内容" title="删除选中内容" disabled={!hasSelection} onClick={deleteSelection}>
+          <button
+            type="button"
+            className="is-danger"
+            aria-label="删除选中内容"
+            title="删除选中内容"
+            disabled={!hasSelection}
+            onClick={deleteSelection}
+          >
             <Trash2 aria-hidden="true" />
           </button>
-          <button type="button" className="is-danger" aria-label="清空画布" title="清空画布" disabled={!hasContent} onClick={onRequestClear}>
+          <button
+            type="button"
+            className="is-danger"
+            aria-label="清空画布"
+            title="清空画布"
+            disabled={!hasContent}
+            onClick={onRequestClear}
+          >
             <Eraser aria-hidden="true" />
           </button>
         </div>

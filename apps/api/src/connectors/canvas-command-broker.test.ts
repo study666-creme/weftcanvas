@@ -18,7 +18,9 @@ const context = {
   directorStage: null,
 };
 
-const action = [{ type: "canvas_add_node" as const, clientId: "codex_a", kind: "text" as const, body: "hi" }];
+const action = [
+  { type: "canvas_add_node" as const, clientId: "codex_a", kind: "text" as const, body: "hi" },
+];
 
 describe("CanvasCommandBroker", () => {
   it("refuses to queue before the browser has reported a canvas", async () => {
@@ -35,13 +37,15 @@ describe("CanvasCommandBroker", () => {
     expect(commands).toHaveLength(1);
     expect(commands[0]).toMatchObject({ projectId: "p1", source: "codex" });
 
-    expect(broker.submitReceipt("user-a", {
-      commandId: commands[0]!.id,
-      status: "applied",
-      appliedActions: 1,
-      skippedActions: [],
-      reason: null,
-    })).toBe(true);
+    expect(
+      broker.submitReceipt("user-a", {
+        commandId: commands[0]!.id,
+        status: "applied",
+        appliedActions: 1,
+        skippedActions: [],
+        reason: null,
+      }),
+    ).toBe(true);
     await expect(waiting).resolves.toMatchObject({ status: "applied", appliedActions: 1 });
   });
 
@@ -54,13 +58,15 @@ describe("CanvasCommandBroker", () => {
     const command = broker.pendingFor("user-a")[0]!;
     // 另一个用户既看不到这条指令，也无法结算它
     expect(broker.pendingFor("user-b")).toHaveLength(0);
-    expect(broker.submitReceipt("user-b", {
-      commandId: command.id,
-      status: "applied",
-      appliedActions: 1,
-      skippedActions: [],
-      reason: null,
-    })).toBe(false);
+    expect(
+      broker.submitReceipt("user-b", {
+        commandId: command.id,
+        status: "applied",
+        appliedActions: 1,
+        skippedActions: [],
+        reason: null,
+      }),
+    ).toBe(false);
 
     broker.submitReceipt("user-a", {
       commandId: command.id,
@@ -75,8 +81,9 @@ describe("CanvasCommandBroker", () => {
   it("converges to a truthful rejection when nobody answers", async () => {
     const broker = new CanvasCommandBroker({ waitMs: 40 });
     broker.rememberContext("user-a", "p1", context);
-    await expect(broker.enqueue("user-a", { actions: action, summary: "s" }))
-      .resolves.toMatchObject({ status: "rejected", appliedActions: 0 });
+    await expect(
+      broker.enqueue("user-a", { actions: action, summary: "s" }),
+    ).resolves.toMatchObject({ status: "rejected", appliedActions: 0 });
     expect(broker.pendingFor("user-a")).toHaveLength(0);
   });
 

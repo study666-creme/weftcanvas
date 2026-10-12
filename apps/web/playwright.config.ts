@@ -23,12 +23,14 @@ export default defineConfig({
     trace: "retain-on-failure",
     launchOptions: executablePath ? { executablePath } : undefined,
   },
-  webServer: externalBaseUrl ? undefined : {
-    command: `pnpm exec vite --host 127.0.0.1 --port ${port}`,
-    url: `http://127.0.0.1:${port}`,
-    // A listener on this port may belong to a different worktree. Failing
-    // loudly is safer than validating or releasing a stale Canvas bundle.
-    reuseExistingServer: false,
-    timeout: 30_000,
-  },
+  webServer: externalBaseUrl
+    ? undefined
+    : {
+        command: `pnpm exec vite --host 127.0.0.1 --port ${port}`,
+        url: `http://127.0.0.1:${port}`,
+        // A listener on this port may belong to a different worktree. Failing
+        // loudly is safer than validating or releasing a stale Canvas bundle.
+        reuseExistingServer: false,
+        timeout: 30_000,
+      },
 });

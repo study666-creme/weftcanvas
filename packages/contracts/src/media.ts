@@ -6,21 +6,37 @@ export type MediaKind = z.infer<typeof mediaKindSchema>;
 export const mediaStatusSchema = z.enum(["pending", "uploading", "ready", "failed"]);
 export type MediaStatus = z.infer<typeof mediaStatusSchema>;
 
-export const mediaProjectIdSchema = z.string()
+export const mediaProjectIdSchema = z
+  .string()
   .trim()
   .min(1)
   .max(128)
   .regex(/^[A-Za-z0-9._:-]+$/);
 
-export const mediaUploadRequestSchema = z.object({
-  kind: mediaKindSchema,
-  name: z.string().trim().min(1).max(255),
-  mimeType: z.string().trim().toLowerCase().regex(/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/),
-  size: z.number().int().positive(),
-  sha256: z.string().trim().toLowerCase().regex(/^[a-f0-9]{64}$/).optional(),
-  idempotencyKey: z.string().min(8).max(128).regex(/^[A-Za-z0-9._:-]+$/),
-  projectId: mediaProjectIdSchema.optional(),
-}).strict();
+export const mediaUploadRequestSchema = z
+  .object({
+    kind: mediaKindSchema,
+    name: z.string().trim().min(1).max(255),
+    mimeType: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .regex(/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/),
+    size: z.number().int().positive(),
+    sha256: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
+    idempotencyKey: z
+      .string()
+      .min(8)
+      .max(128)
+      .regex(/^[A-Za-z0-9._:-]+$/),
+    projectId: mediaProjectIdSchema.optional(),
+  })
+  .strict();
 export type MediaUploadRequest = z.infer<typeof mediaUploadRequestSchema>;
 
 export const publicMediaErrorSchema = z.object({
@@ -34,7 +50,10 @@ export const publicMediaSchema = z.object({
   name: z.string().min(1).max(255),
   mimeType: z.string().min(1),
   size: z.number().int().nonnegative(),
-  sha256: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
+  sha256: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .nullable(),
   width: z.number().int().positive().nullable(),
   height: z.number().int().positive().nullable(),
   durationMs: z.number().int().positive().nullable(),
@@ -81,12 +100,15 @@ export type MediaUploadInstruction = z.infer<typeof mediaUploadInstructionSchema
 
 const multipartPartNumberSchema = z.number().int().min(1).max(MEDIA_MULTIPART_MAX_PARTS);
 
-export const mediaMultipartPartSignRequestSchema = z.object({
-  partNumbers: z.array(multipartPartNumberSchema)
-    .min(1)
-    .max(MEDIA_MULTIPART_MAX_SIGNED_PARTS)
-    .refine((values) => new Set(values).size === values.length, "Part numbers must be unique"),
-}).strict();
+export const mediaMultipartPartSignRequestSchema = z
+  .object({
+    partNumbers: z
+      .array(multipartPartNumberSchema)
+      .min(1)
+      .max(MEDIA_MULTIPART_MAX_SIGNED_PARTS)
+      .refine((values) => new Set(values).size === values.length, "Part numbers must be unique"),
+  })
+  .strict();
 export type MediaMultipartPartSignRequest = z.infer<typeof mediaMultipartPartSignRequestSchema>;
 
 export const mediaMultipartPartInstructionSchema = z.object({
@@ -102,11 +124,15 @@ export const mediaMultipartPartInstructionsResponseSchema = z.object({
   ok: z.literal(true),
   data: z.object({
     sessionId: z.string().uuid(),
-    parts: z.array(mediaMultipartPartInstructionSchema)
+    parts: z
+      .array(mediaMultipartPartInstructionSchema)
       .min(1)
       .max(MEDIA_MULTIPART_MAX_SIGNED_PARTS)
       .refine(
-        (parts) => parts.every((part, index) => index === 0 || part.partNumber > parts[index - 1]!.partNumber),
+        (parts) =>
+          parts.every(
+            (part, index) => index === 0 || part.partNumber > parts[index - 1]!.partNumber,
+          ),
         "Signed parts must be unique and sorted",
       ),
   }),
@@ -133,9 +159,12 @@ export const mediaMultipartUploadStateSchema = z.object({
   phase: mediaMultipartUploadPhaseSchema,
   partSize: z.literal(MEDIA_MULTIPART_PART_SIZE),
   partCount: z.number().int().min(1).max(MEDIA_MULTIPART_MAX_PARTS),
-  uploadedParts: z.array(mediaMultipartUploadedPartSchema).max(MEDIA_MULTIPART_MAX_PARTS)
+  uploadedParts: z
+    .array(mediaMultipartUploadedPartSchema)
+    .max(MEDIA_MULTIPART_MAX_PARTS)
     .refine(
-      (parts) => parts.every((part, index) => index === 0 || part.partNumber > parts[index - 1]!.partNumber),
+      (parts) =>
+        parts.every((part, index) => index === 0 || part.partNumber > parts[index - 1]!.partNumber),
       "Uploaded parts must be unique and sorted",
     ),
   expiresAt: z.string().datetime({ offset: true }),
@@ -169,10 +198,12 @@ export const mediaResponseSchema = z.object({
   data: publicMediaSchema,
 });
 
-export const providerMediaReferenceRequestSchema = z.object({
-  kind: mediaKindSchema,
-  projectId: mediaProjectIdSchema.optional(),
-}).strict();
+export const providerMediaReferenceRequestSchema = z
+  .object({
+    kind: mediaKindSchema,
+    projectId: mediaProjectIdSchema.optional(),
+  })
+  .strict();
 export type ProviderMediaReferenceRequest = z.infer<typeof providerMediaReferenceRequestSchema>;
 
 export const providerMediaReferenceResponseSchema = z.object({
@@ -189,63 +220,77 @@ export const providerMediaReferenceResponseSchema = z.object({
 /** 服务端素材主键：DB 为 TEXT，历史上可能有非 UUID 的旧 id，这里只做长度约束。 */
 export const cloudResourceIdSchema = z.string().trim().min(1).max(128);
 
-export const cloudResourceSchema = z.object({
-  id: cloudResourceIdSchema,
-  kind: mediaKindSchema,
-  name: z.string().min(1).max(255),
-  mimeType: z.string().min(1),
-  size: z.number().int().nonnegative(),
-  status: mediaStatusSchema,
-  source: z.enum(["upload", "generation"]),
-  width: z.number().int().positive().nullable(),
-  height: z.number().int().positive().nullable(),
-  durationMs: z.number().int().positive().nullable(),
-  projectIds: z.array(mediaProjectIdSchema).max(200),
-  /**
-   * 真正的“孤立资源”：曾被某个云项目绑定，但该项目已删除（绑定已级联移除）。
-   * 只有这类素材可以安全清理；未被任何云项目绑定、但由本地画布/工作台直接上传的
-   * 素材（source 上传、projectIds 为空且 orphaned=false）可能是用户唯一副本，不动。
-   */
-  orphaned: z.boolean(),
-  createdAt: z.string().datetime({ offset: true }),
-  updatedAt: z.string().datetime({ offset: true }),
-}).strict();
+export const cloudResourceSchema = z
+  .object({
+    id: cloudResourceIdSchema,
+    kind: mediaKindSchema,
+    name: z.string().min(1).max(255),
+    mimeType: z.string().min(1),
+    size: z.number().int().nonnegative(),
+    status: mediaStatusSchema,
+    source: z.enum(["upload", "generation"]),
+    width: z.number().int().positive().nullable(),
+    height: z.number().int().positive().nullable(),
+    durationMs: z.number().int().positive().nullable(),
+    projectIds: z.array(mediaProjectIdSchema).max(200),
+    /**
+     * 真正的“孤立资源”：曾被某个云项目绑定，但该项目已删除（绑定已级联移除）。
+     * 只有这类素材可以安全清理；未被任何云项目绑定、但由本地画布/工作台直接上传的
+     * 素材（source 上传、projectIds 为空且 orphaned=false）可能是用户唯一副本，不动。
+     */
+    orphaned: z.boolean(),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .strict();
 export type CloudResource = z.infer<typeof cloudResourceSchema>;
 
-export const cloudResourceUsageSchema = z.object({
-  usedBytes: z.number().int().nonnegative(),
-  quotaBytes: z.number().int().nonnegative(),
-  boundBytes: z.number().int().nonnegative(),
-  orphanBytes: z.number().int().nonnegative(),
-  totalCount: z.number().int().nonnegative(),
-  orphanCount: z.number().int().nonnegative(),
-}).strict();
+export const cloudResourceUsageSchema = z
+  .object({
+    usedBytes: z.number().int().nonnegative(),
+    quotaBytes: z.number().int().nonnegative(),
+    boundBytes: z.number().int().nonnegative(),
+    orphanBytes: z.number().int().nonnegative(),
+    totalCount: z.number().int().nonnegative(),
+    orphanCount: z.number().int().nonnegative(),
+  })
+  .strict();
 export type CloudResourceUsage = z.infer<typeof cloudResourceUsageSchema>;
 
 export const cloudResourceListResponseSchema = z.object({
   ok: z.literal(true),
-  data: z.object({
-    items: z.array(cloudResourceSchema),
-    usage: cloudResourceUsageSchema,
-  }).strict(),
+  data: z
+    .object({
+      items: z.array(cloudResourceSchema),
+      usage: cloudResourceUsageSchema,
+    })
+    .strict(),
 });
 
-export const cloudResourceCleanupRequestSchema = z.object({
-  mediaIds: z.array(cloudResourceIdSchema).min(1).max(500),
-}).strict();
+export const cloudResourceCleanupRequestSchema = z
+  .object({
+    mediaIds: z.array(cloudResourceIdSchema).min(1).max(500),
+  })
+  .strict();
 export type CloudResourceCleanupRequest = z.infer<typeof cloudResourceCleanupRequestSchema>;
 
 export const cloudResourceCleanupSkippedReasonSchema = z.enum(["referenced", "active", "missing"]);
 
 export const cloudResourceCleanupResponseSchema = z.object({
   ok: z.literal(true),
-  data: z.object({
-    deleted: z.array(cloudResourceSchema),
-    skipped: z.array(z.object({
-      id: z.string(),
-      reason: cloudResourceCleanupSkippedReasonSchema,
-    }).strict()),
-    freedBytes: z.number().int().nonnegative(),
-    usage: cloudResourceUsageSchema,
-  }).strict(),
+  data: z
+    .object({
+      deleted: z.array(cloudResourceSchema),
+      skipped: z.array(
+        z
+          .object({
+            id: z.string(),
+            reason: cloudResourceCleanupSkippedReasonSchema,
+          })
+          .strict(),
+      ),
+      freedBytes: z.number().int().nonnegative(),
+      usage: cloudResourceUsageSchema,
+    })
+    .strict(),
 });

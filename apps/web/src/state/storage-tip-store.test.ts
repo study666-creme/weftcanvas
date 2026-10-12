@@ -1,4 +1,4 @@
-import type { CloudProjectUsage } from "@kachang/contracts";
+import type { CloudProjectUsage } from "@weftcanvas/contracts";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { quotaLevel, useStorageTipStore } from "./storage-tip-store";
@@ -80,21 +80,32 @@ describe("storage tip store", () => {
 
   it("prefers the grace banner while a downgrade grace deadline is active", () => {
     const deadline = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
-    useStorageTipStore.getState().reevaluate(usage(400), { fromTier: "basic", quotaBytes: 300, usageBytes: 400, deadline });
+    useStorageTipStore
+      .getState()
+      .reevaluate(usage(400), { fromTier: "basic", quotaBytes: 300, usageBytes: 400, deadline });
     expect(useStorageTipStore.getState().level).toBe("grace");
     expect(useStorageTipStore.getState().visible).toBe(true);
 
     // 宽限期过期后回落到按百分比计算（仍超出配额 → over）。
     const expired = new Date(Date.now() - 1000).toISOString();
-    useStorageTipStore.getState().reevaluate(usage(1001), { fromTier: "basic", quotaBytes: 300, usageBytes: 1001, deadline: expired });
+    useStorageTipStore.getState().reevaluate(usage(1001), {
+      fromTier: "basic",
+      quotaBytes: 300,
+      usageBytes: 1001,
+      deadline: expired,
+    });
     expect(useStorageTipStore.getState().level).toBe("over");
   });
 
   it("keeps a grace dismissal suppressed for the active grace window", () => {
     const deadline = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString();
-    useStorageTipStore.getState().reevaluate(usage(400), { fromTier: "basic", quotaBytes: 300, usageBytes: 400, deadline });
+    useStorageTipStore
+      .getState()
+      .reevaluate(usage(400), { fromTier: "basic", quotaBytes: 300, usageBytes: 400, deadline });
     useStorageTipStore.getState().dismiss();
-    useStorageTipStore.getState().reevaluate(usage(400), { fromTier: "basic", quotaBytes: 300, usageBytes: 400, deadline });
+    useStorageTipStore
+      .getState()
+      .reevaluate(usage(400), { fromTier: "basic", quotaBytes: 300, usageBytes: 400, deadline });
     expect(useStorageTipStore.getState().visible).toBe(false);
     expect(OWNER).toBeTruthy();
   });
@@ -102,10 +113,22 @@ describe("storage tip store", () => {
 
 class MemoryStorage implements Storage {
   private readonly map = new Map<string, string>();
-  get length() { return this.map.size; }
-  clear() { this.map.clear(); }
-  getItem(key: string) { return this.map.get(key) ?? null; }
-  key(index: number) { return [...this.map.keys()][index] ?? null; }
-  removeItem(key: string) { this.map.delete(key); }
-  setItem(key: string, value: string) { this.map.set(key, value); }
+  get length() {
+    return this.map.size;
+  }
+  clear() {
+    this.map.clear();
+  }
+  getItem(key: string) {
+    return this.map.get(key) ?? null;
+  }
+  key(index: number) {
+    return [...this.map.keys()][index] ?? null;
+  }
+  removeItem(key: string) {
+    this.map.delete(key);
+  }
+  setItem(key: string, value: string) {
+    this.map.set(key, value);
+  }
 }

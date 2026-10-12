@@ -1,7 +1,4 @@
-import type {
-  CloudProjectInvitation,
-  CloudProjectMember,
-} from "@kachang/contracts";
+import type { CloudProjectInvitation, CloudProjectMember } from "@weftcanvas/contracts";
 
 export type CloudProjectMemberRecord = CloudProjectMember & {
   ownerId: string;
@@ -48,25 +45,56 @@ export type AcceptCloudProjectInvitationResult =
   | { kind: "seat_limit" }
   | { kind: "invalid_status" };
 
-export type RemoveCloudProjectMemberResult =
-  | { kind: "removed" }
-  | { kind: "not_found" };
+export type RemoveCloudProjectMemberResult = { kind: "removed" } | { kind: "not_found" };
 
-export type RevokeCloudProjectInvitationResult =
-  | { kind: "revoked" }
-  | { kind: "not_found" };
+export type RevokeCloudProjectInvitationResult = { kind: "revoked" } | { kind: "not_found" };
 
 export interface CloudProjectCollaborationStore {
-  findAccess(projectId: string, principalId: string, ownerId?: string): Promise<CloudProjectMemberRecord | null>;
+  findAccess(
+    projectId: string,
+    principalId: string,
+    ownerId?: string,
+  ): Promise<CloudProjectMemberRecord | null>;
   findInvitationOwner(invitationId: string, principalId: string): Promise<string | null>;
   listMembers(ownerId: string, projectId: string): Promise<CloudProjectMember[]>;
-  listMembersForActor(ownerId: string, projectId: string, principalId: string): Promise<CloudProjectMember[] | null>;
+  listMembersForActor(
+    ownerId: string,
+    projectId: string,
+    principalId: string,
+  ): Promise<CloudProjectMember[] | null>;
   countOccupiedSeats(ownerId: string, now: string): Promise<number>;
-  listProjectInvitations(ownerId: string, projectId: string, now: string, limit: number): Promise<CloudProjectInvitation[]>;
-  createInvitation(input: CreateCloudProjectInvitationInput): Promise<CreateCloudProjectInvitationResult>;
-  listInvitations(principalId: string, now: string, limit: number): Promise<CloudProjectInvitation[]>;
-  acceptInvitation(invitationId: string, principalId: string, now: string, memberLimit: number): Promise<AcceptCloudProjectInvitationResult>;
-  revokeInvitation(ownerId: string, projectId: string, invitationId: string): Promise<RevokeCloudProjectInvitationResult>;
-  declineInvitation(invitationId: string, principalId: string): Promise<RevokeCloudProjectInvitationResult>;
-  removeMember(ownerId: string, projectId: string, principalId: string): Promise<RemoveCloudProjectMemberResult>;
+  listProjectInvitations(
+    ownerId: string,
+    projectId: string,
+    now: string,
+    limit: number,
+  ): Promise<CloudProjectInvitation[]>;
+  createInvitation(
+    input: CreateCloudProjectInvitationInput,
+  ): Promise<CreateCloudProjectInvitationResult>;
+  listInvitations(
+    principalId: string,
+    now: string,
+    limit: number,
+  ): Promise<CloudProjectInvitation[]>;
+  acceptInvitation(
+    invitationId: string,
+    principalId: string,
+    now: string,
+    memberLimit: number,
+  ): Promise<AcceptCloudProjectInvitationResult>;
+  revokeInvitation(
+    ownerId: string,
+    projectId: string,
+    invitationId: string,
+  ): Promise<RevokeCloudProjectInvitationResult>;
+  declineInvitation(
+    invitationId: string,
+    principalId: string,
+  ): Promise<RevokeCloudProjectInvitationResult>;
+  removeMember(
+    ownerId: string,
+    projectId: string,
+    principalId: string,
+  ): Promise<RemoveCloudProjectMemberResult>;
 }

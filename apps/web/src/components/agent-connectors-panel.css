@@ -1,6 +1,6 @@
 /* Agent 外部连接面板：占据抽屉中段（消息区）网格行并在内部滚动，
    顶部留出固定间距、底部永远不会压到 composer 输入区。 */
-.kc-connectors {
+.wc-connectors {
   position: relative;
   /* 低于 header（z-index:3）高于消息区（z-index:1）：
      面板盖住消息，但对话记录菜单仍能浮在面板之上。 */
@@ -16,14 +16,14 @@
   padding: 12px 14px 14px;
   overflow: auto;
   overscroll-behavior: contain;
-  border: 1px solid var(--kc-border);
+  border: 1px solid var(--wc-border);
   border-radius: 14px;
-  background: color-mix(in srgb, var(--kc-surface-raised) 97%, var(--kc-canvas));
+  background: color-mix(in srgb, var(--wc-surface-raised) 97%, var(--wc-canvas));
   box-shadow: 0 24px 60px rgb(0 0 0 / 34%);
   pointer-events: auto;
 }
 
-.kc-connectors-head {
+.wc-connectors-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -31,25 +31,32 @@
 }
 
 /* 面板自身的工具行（标题 + 刷新/收起）：与下方说明之间留出稳定的分隔。 */
-.kc-connectors > .kc-connectors-head {
+.wc-connectors > .wc-connectors-head {
   padding-bottom: 8px;
-  border-bottom: 1px solid color-mix(in srgb, var(--kc-text) 8%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--wc-text) 8%, transparent);
 }
 
-.kc-connectors-head > span {
+.wc-connectors-head > span {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--kc-text);
+  color: var(--wc-text);
 }
 
-.kc-connectors-head > span svg { width: 14px; height: 14px; color: var(--kc-text-tertiary); }
+.wc-connectors-head > span svg {
+  width: 14px;
+  height: 14px;
+  color: var(--wc-text-tertiary);
+}
 
-.kc-connectors-head > div { display: inline-flex; gap: 2px; }
+.wc-connectors-head > div {
+  display: inline-flex;
+  gap: 2px;
+}
 
-.kc-connectors-head button {
+.wc-connectors-head button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -57,23 +64,32 @@
   height: 24px;
   border: 0;
   border-radius: 7px;
-  color: var(--kc-text-secondary);
+  color: var(--wc-text-secondary);
   background: transparent;
   cursor: pointer;
 }
 
-.kc-connectors-head button:hover:not(:disabled) { background: var(--kc-surface-muted); color: var(--kc-text); }
-.kc-connectors-head button:disabled { opacity: .5; cursor: default; }
-.kc-connectors-head button svg { width: 13px; height: 13px; }
+.wc-connectors-head button:hover:not(:disabled) {
+  background: var(--wc-surface-muted);
+  color: var(--wc-text);
+}
+.wc-connectors-head button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.wc-connectors-head button svg {
+  width: 13px;
+  height: 13px;
+}
 
-.kc-connectors-note {
+.wc-connectors-note {
   margin: 10px 0 12px;
   font-size: 11px;
   line-height: 1.6;
-  color: var(--kc-text-tertiary);
+  color: var(--wc-text-tertiary);
 }
 
-.kc-connectors-list {
+.wc-connectors-list {
   display: grid;
   gap: 10px;
   margin: 0;
@@ -81,255 +97,327 @@
   list-style: none;
 }
 
-.kc-connector {
+.wc-connector {
   padding: 11px 12px 10px;
-  border: 1px solid var(--kc-border);
+  border: 1px solid var(--wc-border);
   border-radius: 11px;
-  background: var(--kc-surface);
+  background: var(--wc-surface);
 }
 
-.kc-connector-main {
+.wc-connector-main {
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 8px;
 }
 
-.kc-connector-icon {
+.wc-connector-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 22px;
   height: 22px;
   border-radius: 7px;
-  color: var(--kc-text-secondary);
-  background: var(--kc-surface-muted);
+  color: var(--wc-text-secondary);
+  background: var(--wc-surface-muted);
 }
 
-.kc-connector-icon svg { width: 13px; height: 13px; }
+.wc-connector-icon svg {
+  width: 13px;
+  height: 13px;
+}
 
-.kc-connector-copy { display: grid; gap: 1px; min-width: 0; }
-.kc-connector-copy strong { font-size: 12px; font-weight: 600; color: var(--kc-text); }
-.kc-connector-copy small {
+.wc-connector-copy {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.wc-connector-copy strong {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wc-text);
+}
+.wc-connector-copy small {
   overflow: hidden;
   font-size: 11px;
   line-height: 1.45;
-  color: var(--kc-text-tertiary);
+  color: var(--wc-text-tertiary);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.kc-connector-state {
+.wc-connector-state {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   font-size: 11px;
-  color: var(--kc-text-secondary);
+  color: var(--wc-text-secondary);
   white-space: nowrap;
 }
 
-.kc-connector-state i { width: 6px; height: 6px; border-radius: 50%; background: var(--kc-text-tertiary); }
-.kc-connector-state svg { width: 12px; height: 12px; }
-.kc-connector-state[data-state="ready"] i { background: var(--kc-success); }
-.kc-connector-state[data-state="unavailable"] i { background: var(--kc-amber); }
-.kc-connector-state[data-state="error"] i { background: var(--kc-danger); }
+.wc-connector-state i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--wc-text-tertiary);
+}
+.wc-connector-state svg {
+  width: 12px;
+  height: 12px;
+}
+.wc-connector-state[data-state="ready"] i {
+  background: var(--wc-success);
+}
+.wc-connector-state[data-state="unavailable"] i {
+  background: var(--wc-amber);
+}
+.wc-connector-state[data-state="error"] i {
+  background: var(--wc-danger);
+}
 
-.kc-connector-switch,
-.kc-connector-action {
+.wc-connector-switch,
+.wc-connector-action {
   min-width: 56px;
   height: 22px;
   padding: 0 10px;
-  border: 1px solid var(--kc-border-strong);
+  border: 1px solid var(--wc-border-strong);
   border-radius: 999px;
-  color: var(--kc-text-secondary);
-  background: var(--kc-surface-muted);
+  color: var(--wc-text-secondary);
+  background: var(--wc-surface-muted);
   font-size: 11px;
   font-family: inherit;
   cursor: pointer;
-  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
 }
 
-.kc-connector-action:hover:not(:disabled) { color: var(--kc-text); border-color: var(--kc-text-tertiary); }
-
-/* 主按钮：文字色必须与 --kc-accent 形成对比。dark 主题的 accent 是近白色，
-   全局 --kc-on-accent 也是近白色，直接用会白底白字，所以这里按主题取反。 */
-.kc-connectors { --kc-connector-on-accent: #f7fbf9; }
-
-:root[data-theme="dark"] .kc-connectors { --kc-connector-on-accent: #1a1a1a; }
-
-.kc-connector-action[data-primary="true"] {
-  border-color: var(--kc-accent);
-  color: var(--kc-connector-on-accent);
-  background: var(--kc-accent);
+.wc-connector-action:hover:not(:disabled) {
+  color: var(--wc-text);
+  border-color: var(--wc-text-tertiary);
 }
 
-.kc-connector-action[data-primary="true"]:hover:not(:disabled) {
-  background: var(--kc-accent-hover);
-  color: var(--kc-connector-on-accent);
+/* 主按钮：文字色必须与 --wc-accent 形成对比。dark 主题的 accent 是近白色，
+   全局 --wc-on-accent 也是近白色，直接用会白底白字，所以这里按主题取反。 */
+.wc-connectors {
+  --wc-connector-on-accent: #f7fbf9;
 }
-.kc-connector-action:disabled { opacity: .6; cursor: default; }
 
-.kc-connector-detail {
+:root[data-theme="dark"] .wc-connectors {
+  --wc-connector-on-accent: #1a1a1a;
+}
+
+.wc-connector-action[data-primary="true"] {
+  border-color: var(--wc-accent);
+  color: var(--wc-connector-on-accent);
+  background: var(--wc-accent);
+}
+
+.wc-connector-action[data-primary="true"]:hover:not(:disabled) {
+  background: var(--wc-accent-hover);
+  color: var(--wc-connector-on-accent);
+}
+.wc-connector-action:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.wc-connector-detail {
   margin: 6px 0 0;
   font-size: 11px;
   line-height: 1.5;
-  color: var(--kc-text-secondary);
+  color: var(--wc-text-secondary);
   word-break: break-word;
 }
 
-.kc-connector-endpoint {
+.wc-connector-endpoint {
   display: grid;
   gap: 4px;
   margin-top: 8px;
 }
 
-.kc-connector-endpoint > span { font-size: 11px; color: var(--kc-text-tertiary); }
+.wc-connector-endpoint > span {
+  font-size: 11px;
+  color: var(--wc-text-tertiary);
+}
 
-.kc-connector-capabilities {
+.wc-connector-capabilities {
   display: grid;
   gap: 2px;
   margin: 8px 0 0;
   padding: 0 0 0 2px;
   list-style: none;
   font-size: 11px;
-  color: var(--kc-text-secondary);
+  color: var(--wc-text-secondary);
 }
 
-.kc-connector-capabilities li::before { margin-right: 5px; color: var(--kc-text-tertiary); content: "·"; }
+.wc-connector-capabilities li::before {
+  margin-right: 5px;
+  color: var(--wc-text-tertiary);
+  content: "·";
+}
 
-.kc-connector-setup { margin-top: 7px; }
+.wc-connector-setup {
+  margin-top: 7px;
+}
 
-.kc-connector-setup summary {
+.wc-connector-setup summary {
   font-size: 11px;
-  color: var(--kc-text-tertiary);
+  color: var(--wc-text-tertiary);
   cursor: pointer;
 }
 
-.kc-connector-setup p {
+.wc-connector-setup p {
   margin: 5px 0 0;
   font-size: 11px;
   line-height: 1.55;
-  color: var(--kc-text-secondary);
+  color: var(--wc-text-secondary);
   word-break: break-word;
 }
 
-.kc-connectors-empty,
-.kc-connectors-error {
+.wc-connectors-empty,
+.wc-connectors-error {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 10px 2px;
   font-size: 11px;
-  color: var(--kc-text-secondary);
+  color: var(--wc-text-secondary);
 }
 
-.kc-connectors-empty svg,
-.kc-connectors-error svg { width: 13px; height: 13px; flex: none; }
-.kc-connectors-error { color: var(--kc-danger); }
+.wc-connectors-empty svg,
+.wc-connectors-error svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+}
+.wc-connectors-error {
+  color: var(--wc-danger);
+}
 
-.kc-connector-state[data-state="ready"] svg { color: var(--kc-success); }
+.wc-connector-state[data-state="ready"] svg {
+  color: var(--wc-success);
+}
 
-.kc-connector-endpoint input {
+.wc-connector-endpoint input {
   width: 100%;
   padding: 5px 8px;
-  border: 1px solid var(--kc-border);
+  border: 1px solid var(--wc-border);
   border-radius: 8px;
-  color: var(--kc-text);
-  background: var(--kc-surface-raised);
+  color: var(--wc-text);
+  background: var(--wc-surface-raised);
   font-size: 11px;
   font-family: inherit;
 }
 
-.kc-connector-endpoint input:focus-visible { outline: 1px solid var(--kc-accent); outline-offset: 0; }
+.wc-connector-endpoint input:focus-visible {
+  outline: 1px solid var(--wc-accent);
+  outline-offset: 0;
+}
 
-.kc-connector-setup-text {
+.wc-connector-setup-text {
   margin: 6px 0 0;
   font-size: 11px;
   line-height: 1.55;
-  color: var(--kc-text-tertiary);
+  color: var(--wc-text-tertiary);
   word-break: break-word;
 }
 
 /* --- 用户侧反向连接（远程配对）--- */
-.kc-remote-connectors {
+.wc-remote-connectors {
   display: grid;
   gap: 10px;
   margin-bottom: 14px;
   padding-bottom: 14px;
-  border-bottom: 1px solid var(--kc-border);
+  border-bottom: 1px solid var(--wc-border);
 }
 
-.kc-remote-connectors .kc-connectors-head > span { color: var(--kc-text); }
+.wc-remote-connectors .wc-connectors-head > span {
+  color: var(--wc-text);
+}
 
-.kc-connector-token {
+.wc-connector-token {
   display: grid;
   gap: 5px;
   margin-top: 8px;
   padding: 8px;
-  border: 1px solid var(--kc-amber);
+  border: 1px solid var(--wc-amber);
   border-radius: 9px;
-  background: color-mix(in srgb, var(--kc-amber) 10%, transparent);
+  background: color-mix(in srgb, var(--wc-amber) 10%, transparent);
 }
 
-.kc-connector-token > span { font-size: 11px; color: var(--kc-amber); }
+.wc-connector-token > span {
+  font-size: 11px;
+  color: var(--wc-amber);
+}
 
-.kc-connector-token > div {
+.wc-connector-token > div {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.kc-connector-token code {
+.wc-connector-token code {
   flex: 1 1 auto;
   overflow: hidden;
   padding: 4px 6px;
   border-radius: 6px;
-  background: var(--kc-surface-muted);
-  color: var(--kc-text);
+  background: var(--wc-surface-muted);
+  color: var(--wc-text);
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.kc-connector-token .kc-connector-action {
+.wc-connector-token .wc-connector-action {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   white-space: nowrap;
 }
 
-.kc-connector-token .kc-connector-action svg { width: 12px; height: 12px; }
+.wc-connector-token .wc-connector-action svg {
+  width: 12px;
+  height: 12px;
+}
 
-.kc-connector-steps {
+.wc-connector-steps {
   display: grid;
   gap: 5px;
   margin: 9px 0 0;
   padding-left: 19px;
   font-size: 11px;
   line-height: 1.6;
-  color: var(--kc-text-secondary);
+  color: var(--wc-text-secondary);
 }
 
-.kc-connector-steps li { padding-left: 1px; }
+.wc-connector-steps li {
+  padding-left: 1px;
+}
 
-.kc-connector-steps code {
+.wc-connector-steps code {
   padding: 0 3px;
   border-radius: 4px;
-  background: var(--kc-surface-muted);
+  background: var(--wc-surface-muted);
 }
 
-.kc-connector-footer {
+.wc-connector-footer {
   display: flex;
   align-items: center;
   gap: 6px;
   margin-top: 9px;
 }
 
-.kc-connector-footer .kc-connector-action {
+.wc-connector-footer .wc-connector-action {
   display: inline-flex;
   align-items: center;
   gap: 4px;
 }
 
-.kc-connector-footer .kc-connector-detail { margin: 0; }
-.kc-connector-detail[data-ok="true"] { color: var(--kc-success); }
+.wc-connector-footer .wc-connector-detail {
+  margin: 0;
+}
+.wc-connector-detail[data-ok="true"] {
+  color: var(--wc-success);
+}

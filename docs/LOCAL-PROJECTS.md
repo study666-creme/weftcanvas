@@ -73,18 +73,18 @@ and reconstructs it.
 ## Storage keys
 
 ```text
-kachang-canvas:projects:v1
-kachang-canvas:active-project:v1
-kachang-canvas:project-data:v1:<encoded-project-id>
+weftcanvas:projects:v1
+weftcanvas:active-project:v1
+weftcanvas:project-data:v1:<encoded-project-id>
 ```
 
-The migrated key is `kachang-canvas:project:v1`. It is removed only after a
+The migrated key is `weftcanvas:project:v1`. It is removed only after a
 valid legacy project has been written into the new library.
 
 ## Media boundary
 
 Project JSON contains validated media metadata and ids, not local media bytes.
-Local image, video, and audio bytes remain in the `kachang-canvas-media`
+Local image, video, and audio bytes remain in the `weftcanvas-media`
 IndexedDB database. Duplicated projects may intentionally reference the same
 local media id.
 

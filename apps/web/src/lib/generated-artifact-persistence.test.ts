@@ -1,4 +1,4 @@
-import type { PublicGenerationJob } from "@kachang/contracts";
+import type { PublicGenerationJob } from "@weftcanvas/contracts";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const persistence = vi.hoisted(() => ({
@@ -34,17 +34,21 @@ describe("completed generation artifact persistence", () => {
     await persistCompletedGenerationArtifacts(completedJob("all-media"));
 
     expect(persistence.cacheServerMedia).toHaveBeenCalledTimes(3);
-    expect(persistence.cacheServerMedia.mock.calls.map(([media, projectId]) => [media.id, projectId])).toEqual([
+    expect(
+      persistence.cacheServerMedia.mock.calls.map(([media, projectId]) => [media.id, projectId]),
+    ).toEqual([
       ["media-image-all-media", "project-creation-flow"],
       ["media-video-all-media", "project-creation-flow"],
       ["media-audio-all-media", "project-creation-flow"],
     ]);
-    expect(persistence.ensureMediaAsset.mock.calls.map(([media, kind, source]) => [
-      media.size,
-      media.durationMs,
-      kind,
-      source,
-    ])).toEqual([
+    expect(
+      persistence.ensureMediaAsset.mock.calls.map(([media, kind, source]) => [
+        media.size,
+        media.durationMs,
+        kind,
+        source,
+      ]),
+    ).toEqual([
       [2_048, null, "image", "canvas"],
       [2_048, 1_250, "video", "canvas"],
       [2_048, 2_200, "audio", "canvas"],
@@ -53,9 +57,12 @@ describe("completed generation artifact persistence", () => {
 
   it("waits for measured browser media before writing the asset", async () => {
     let finishCache: ((value: boolean) => void) | null = null;
-    persistence.cacheServerMedia.mockImplementation(() => new Promise<boolean>((resolve) => {
-      finishCache = resolve;
-    }));
+    persistence.cacheServerMedia.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finishCache = resolve;
+        }),
+    );
     const request = persistCompletedGenerationArtifacts(completedJob("measured", ["video"]));
 
     expect(persistence.readMedia).not.toHaveBeenCalled();
@@ -84,9 +91,14 @@ describe("completed generation artifact persistence", () => {
 
   it("coalesces duplicate completion delivery and permits a later retry", async () => {
     let finishCache: ((value: boolean) => void) | null = null;
-    persistence.cacheServerMedia.mockImplementationOnce(() => new Promise<boolean>((resolve) => {
-      finishCache = resolve;
-    })).mockResolvedValueOnce(false);
+    persistence.cacheServerMedia
+      .mockImplementationOnce(
+        () =>
+          new Promise<boolean>((resolve) => {
+            finishCache = resolve;
+          }),
+      )
+      .mockResolvedValueOnce(false);
     const job = completedJob("dedupe", ["video"]);
     const first = persistCompletedGenerationArtifacts(job);
     const second = persistCompletedGenerationArtifacts(job);
@@ -104,14 +116,17 @@ describe("completed generation artifact persistence", () => {
     const releases: Array<() => void> = [];
     let active = 0;
     let maximumActive = 0;
-    persistence.cacheServerMedia.mockImplementation(() => new Promise<boolean>((resolve) => {
-      active += 1;
-      maximumActive = Math.max(maximumActive, active);
-      releases.push(() => {
-        active -= 1;
-        resolve(true);
-      });
-    }));
+    persistence.cacheServerMedia.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          active += 1;
+          maximumActive = Math.max(maximumActive, active);
+          releases.push(() => {
+            active -= 1;
+            resolve(true);
+          });
+        }),
+    );
 
     const request = persistCompletedGenerationArtifacts(completedJob("bounded"));
     await vi.waitFor(() => expect(persistence.cacheServerMedia).toHaveBeenCalledTimes(2));
@@ -172,7 +187,9 @@ function completedJob(
         name: `${kind}-${suffix}.${kind === "image" ? "png" : kind === "video" ? "mp4" : "mp3"}`,
         mimeType: kind === "image" ? "image/png" : kind === "video" ? "video/mp4" : "audio/mpeg",
         size: 1_024,
-        ...(kind === "image" ? { width: 1_024, height: 768 } : { duration: kind === "video" ? 1.25 : 2.2 }),
+        ...(kind === "image"
+          ? { width: 1_024, height: 768 }
+          : { duration: kind === "video" ? 1.25 : 2.2 }),
         createdAt,
       })),
     ],

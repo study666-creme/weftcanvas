@@ -12,7 +12,7 @@ import { PostgresMediaMetadataStore } from "./postgres-store.js";
  *   node dist/media/cleanup-orphans-cli.js --owner <id> [--apply]
  *
  * 必须显式给 --all 或 --owner，避免误删所有账号。运行环境需带 DATABASE_URL 与对象存储
- * 变量（生产经 deploy/linux/environment.mjs run /etc/kachang-canvas/api.env 注入）。
+ * 变量（生产经 deploy/linux/environment.mjs run /etc/weftcanvas/api.env 注入）。
  * 日志只输出脱敏 owner 前缀与数量/字节，不打印密钥。
  */
 async function main() {
@@ -39,10 +39,16 @@ async function main() {
       ownersTouched += 1;
       const orphanBytes = orphans.reduce((sum, item) => sum + item.size, 0);
       if (!apply) {
-        console.log(`[dry-run] owner=${maskOwner(owner)} orphans=${orphans.length} bytes=${orphanBytes}`);
+        console.log(
+          `[dry-run] owner=${maskOwner(owner)} orphans=${orphans.length} bytes=${orphanBytes}`,
+        );
         continue;
       }
-      const result = await service.cleanup(owner, orphans.map((item) => item.id), 0);
+      const result = await service.cleanup(
+        owner,
+        orphans.map((item) => item.id),
+        0,
+      );
       deletedCount += result.deleted.length;
       freedBytes += result.freedBytes;
       console.log(

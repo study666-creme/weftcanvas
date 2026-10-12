@@ -5,13 +5,16 @@ import type {
   CloudProjectSharedSummary,
   CloudProjectSummary,
   CloudProjectUsage,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 
 export type CloudProjectRecord = CloudProject & {
   ownerId: string;
 };
 
-export type CloudProjectUsageRecord = Pick<CloudProjectUsage, "projectCount" | "projectStorageBytes" | "mediaStorageBytes">;
+export type CloudProjectUsageRecord = Pick<
+  CloudProjectUsage,
+  "projectCount" | "projectStorageBytes" | "mediaStorageBytes"
+>;
 
 export type CreateCloudProjectStoreResult =
   | { kind: "created"; project: CloudProjectRecord }
@@ -26,17 +29,23 @@ export type SaveCloudProjectStoreResult =
   | { kind: "storage_limit" };
 
 export type DeleteCloudProjectStoreResult =
-  | { kind: "deleted" }
-  | { kind: "not_found" }
-  | { kind: "revision_conflict"; revision: number };
+  { kind: "deleted" } | { kind: "not_found" } | { kind: "revision_conflict"; revision: number };
 
 export interface CloudProjectStore {
   list(ownerId: string, limit: number): Promise<CloudProjectSummary[]>;
   listForActor?(principalId: string, limit: number): Promise<CloudProjectSharedSummary[]>;
   get(ownerId: string, projectId: string): Promise<CloudProjectRecord | null>;
-  getForActor?(ownerId: string, projectId: string, actorId: string): Promise<CloudProjectRecord | null>;
+  getForActor?(
+    ownerId: string,
+    projectId: string,
+    actorId: string,
+  ): Promise<CloudProjectRecord | null>;
   usage(ownerId: string): Promise<CloudProjectUsageRecord>;
-  create(project: CloudProjectRecord, checksum: string, entitlements: CloudProjectEntitlements): Promise<CreateCloudProjectStoreResult>;
+  create(
+    project: CloudProjectRecord,
+    checksum: string,
+    entitlements: CloudProjectEntitlements,
+  ): Promise<CreateCloudProjectStoreResult>;
   save(input: {
     project: CloudProjectRecord;
     baseRevision: number;
@@ -45,7 +54,11 @@ export interface CloudProjectStore {
     entitlements: CloudProjectEntitlements;
     actorId?: string;
   }): Promise<SaveCloudProjectStoreResult>;
-  delete(ownerId: string, projectId: string, baseRevision: number): Promise<DeleteCloudProjectStoreResult>;
+  delete(
+    ownerId: string,
+    projectId: string,
+    baseRevision: number,
+  ): Promise<DeleteCloudProjectStoreResult>;
 }
 
 export type ResolvedCloudProjectEntitlements = {
@@ -86,7 +99,11 @@ export type CloudProjectActorAccess = {
 };
 
 export interface CloudProjectAccessResolver {
-  findAccess(projectId: string, principalId: string, ownerId?: string): Promise<CloudProjectActorAccess | null>;
+  findAccess(
+    projectId: string,
+    principalId: string,
+    ownerId?: string,
+  ): Promise<CloudProjectActorAccess | null>;
 }
 
 export type CloudProjectDocumentWrite = {

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import type { PluginNodeBodyProps } from "@kachang/plugin-sdk";
+import type { PluginNodeBodyProps } from "@weftcanvas/plugin-sdk";
 
 const MAX_ROWS = 20;
 
@@ -15,7 +15,7 @@ function splitLines(body: string): string[] {
  * 节点是预览：这里只读展示清单 + 一个安静的动作键。宿主保证本组件运行在
  * ErrorBoundary 内，抛错只影响这一张卡面。
  */
-export function SplitListBody({ data, nodeId, ops, updateBody }: PluginNodeBodyProps) {
+export function SplitListBody({ data, nodeId, ops }: PluginNodeBodyProps) {
   const rows = useMemo(() => splitLines(data.body).slice(0, MAX_ROWS), [data.body]);
   const overflow = splitLines(data.body).length - rows.length;
 
@@ -43,20 +43,24 @@ export function SplitListBody({ data, nodeId, ops, updateBody }: PluginNodeBodyP
   }
 
   return (
-    <div className="kc-plugin-split-list" data-node-body="split-list-board">
+    <div className="wc-plugin-split-list" data-node-body="split-list-board">
       {rows.length ? (
-        <ol className="kc-plugin-split-list-rows">
+        <ol className="wc-plugin-split-list-rows">
           {rows.map((row, index) => (
             <li key={`${index}:${row}`}>{row}</li>
           ))}
         </ol>
       ) : (
-        <p className="kc-plugin-split-list-empty">选中节点后在下方的创作框里输入多行文本，每行拆成一个节点。</p>
+        <p className="wc-plugin-split-list-empty">
+          选中节点后在下方的创作框里输入多行文本，每行拆成一个节点。
+        </p>
       )}
-      {overflow > 0 ? <p className="kc-plugin-split-list-overflow">还有 {overflow} 行未显示</p> : null}
+      {overflow > 0 ? (
+        <p className="wc-plugin-split-list-overflow">还有 {overflow} 行未显示</p>
+      ) : null}
       <button
         type="button"
-        className="kc-plugin-split-list-action"
+        className="wc-plugin-split-list-action"
         disabled={rows.length < 2}
         title={rows.length < 2 ? "至少需要两行文本" : "把每一行拆成一个相连的文本节点"}
         onClick={handleSplit}

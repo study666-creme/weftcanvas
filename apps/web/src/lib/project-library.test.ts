@@ -1,4 +1,8 @@
-import { CANVAS_SCHEMA_VERSION, canvasProjectSchema, type CanvasProject } from "@kachang/contracts";
+import {
+  CANVAS_SCHEMA_VERSION,
+  canvasProjectSchema,
+  type CanvasProject,
+} from "@weftcanvas/contracts";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -24,7 +28,9 @@ describe("project library", () => {
 
     const library = loadProjectLibrary(storage);
     expect(library.activeProject?.name).toBe("旧画布");
-    expect(library.projects).toEqual([expect.objectContaining({ id: "project-old", nodeCount: 2 })]);
+    expect(library.projects).toEqual([
+      expect.objectContaining({ id: "project-old", nodeCount: 2 }),
+    ]);
     expect(storage.getItem(LEGACY_PROJECT_STORAGE_KEY)).toBeNull();
     expect(readProject("project-old", storage)?.nodes[0]?.data.body).toBe("第一幕");
   });
@@ -33,12 +39,17 @@ describe("project library", () => {
     const storage = new MemoryStorage();
     writeProject(fixtureProject("project-a", "A", 10), storage);
     writeProject(fixtureProject("project-b", "B", 20), storage);
-    expect(loadProjectLibrary(storage).projects.map((project) => project.id)).toEqual(["project-b", "project-a"]);
+    expect(loadProjectLibrary(storage).projects.map((project) => project.id)).toEqual([
+      "project-b",
+      "project-a",
+    ]);
     expect(setActiveProject("project-a", storage)).toBe(true);
     expect(storage.getItem(ACTIVE_PROJECT_STORAGE_KEY)).toBe("project-a");
     removeProject("project-a", storage);
     expect(readProject("project-a", storage)).toBeNull();
-    expect(loadProjectLibrary(storage).projects.map((project) => project.id)).toEqual(["project-b"]);
+    expect(loadProjectLibrary(storage).projects.map((project) => project.id)).toEqual([
+      "project-b",
+    ]);
   });
 
   it("duplicates graph identity while retaining reusable media and clearing jobs", () => {
@@ -55,7 +66,9 @@ describe("project library", () => {
     expect(duplicate.nodes[0]?.data.generation.jobId).toBeNull();
     expect(duplicate.nodes[0]?.data.generation.referenceNodeIds).toEqual([duplicate.nodes[1]?.id]);
     expect(duplicate.nodes[1]?.data.media?.id).toBe("media-1");
-    expect(uniqueProjectName("A", [{ id: "1", name: "A", createdAt: 1, updatedAt: 1, nodeCount: 0 }])).toBe("A 2");
+    expect(
+      uniqueProjectName("A", [{ id: "1", name: "A", createdAt: 1, updatedAt: 1, nodeCount: 0 }]),
+    ).toBe("A 2");
   });
 
   it("collects only local media ids that are still referenced by projects", () => {
@@ -126,7 +139,9 @@ describe("project library", () => {
     expect(imported.id).not.toBe(source.id);
     expect(imported.nodes.map((node) => node.id)).not.toEqual(source.nodes.map((node) => node.id));
     expect(imported.edges[0]?.source).toBe(imported.nodes[0]?.id);
-    expect(imported.groups[0]?.nodeIds.map((id) => imported.nodes.some((node) => node.id === id))).toEqual([true, true]);
+    expect(
+      imported.groups[0]?.nodeIds.map((id) => imported.nodes.some((node) => node.id === id)),
+    ).toEqual([true, true]);
     expect(imported.nodes[1]?.data.media?.id).toBe("media-1");
     expect(imported.nodes[0]?.data.generation.jobId).toBeNull();
     expect(imported.nodes[0]?.data.generation.jobStatus).toBeNull();
@@ -174,7 +189,13 @@ describe("project library", () => {
   });
 
   it("assigns unique names across repeated imports of the same file", () => {
-    const projects: Array<{ id: string; name: string; createdAt: number; updatedAt: number; nodeCount: number }> = [];
+    const projects: Array<{
+      id: string;
+      name: string;
+      createdAt: number;
+      updatedAt: number;
+      nodeCount: number;
+    }> = [];
     const names: string[] = [];
     for (let index = 0; index < 3; index += 1) {
       const name = uniqueProjectName("第一个项目", projects);
@@ -193,7 +214,7 @@ function richProject(): CanvasProject {
     nodes: [
       {
         id: "text-a",
-        type: "kachang",
+        type: "weftcanvas",
         position: { x: 120, y: 80 },
         data: {
           kind: "text",
@@ -204,8 +225,8 @@ function richProject(): CanvasProject {
           media: null,
           directorCapture: null,
           config: null,
-      edit: null,
-      music: null,
+          edit: null,
+          music: null,
           generation: {
             modelId: "creative-text",
             parameters: { temperature: 0.8, topP: 0.9 },
@@ -225,7 +246,7 @@ function richProject(): CanvasProject {
       },
       {
         id: "image-b",
-        type: "kachang",
+        type: "weftcanvas",
         position: { x: 420, y: 120 },
         width: 360,
         height: 360,
@@ -248,8 +269,8 @@ function richProject(): CanvasProject {
           },
           directorCapture: null,
           config: null,
-      edit: null,
-      music: null,
+          edit: null,
+          music: null,
           generation: {
             modelId: null,
             parameters: {},
@@ -268,16 +289,26 @@ function richProject(): CanvasProject {
         },
       },
     ],
-    edges: [{ id: "edge-ab", source: "text-a", target: "image-b", sourceHandle: null, targetHandle: null }],
-    groups: [{
-      id: "group-1",
-      name: "开场",
-      color: "#7dd3a8",
-      nodeIds: ["text-a", "image-b"],
-      frame: { x: 100, y: 60, width: 700, height: 440 },
-      createdAt: 10,
-      updatedAt: 20,
-    }],
+    edges: [
+      {
+        id: "edge-ab",
+        source: "text-a",
+        target: "image-b",
+        sourceHandle: null,
+        targetHandle: null,
+      },
+    ],
+    groups: [
+      {
+        id: "group-1",
+        name: "开场",
+        color: "#7dd3a8",
+        nodeIds: ["text-a", "image-b"],
+        frame: { x: 100, y: 60, width: 700, height: 440 },
+        createdAt: 10,
+        updatedAt: 20,
+      },
+    ],
     viewport: { x: 96, y: 138, zoom: 0.9 },
     createdAt: 5,
     updatedAt: 200,
@@ -286,12 +317,24 @@ function richProject(): CanvasProject {
 
 class MemoryStorage implements Storage {
   private readonly values = new Map<string, string>();
-  get length() { return this.values.size; }
-  clear() { this.values.clear(); }
-  getItem(key: string) { return this.values.get(key) ?? null; }
-  key(index: number) { return [...this.values.keys()][index] ?? null; }
-  removeItem(key: string) { this.values.delete(key); }
-  setItem(key: string, value: string) { this.values.set(key, String(value)); }
+  get length() {
+    return this.values.size;
+  }
+  clear() {
+    this.values.clear();
+  }
+  getItem(key: string) {
+    return this.values.get(key) ?? null;
+  }
+  key(index: number) {
+    return [...this.values.keys()][index] ?? null;
+  }
+  removeItem(key: string) {
+    this.values.delete(key);
+  }
+  setItem(key: string, value: string) {
+    this.values.set(key, String(value));
+  }
 }
 
 function fixtureProject(id: string, name: string, updatedAt = 1): CanvasProject {
@@ -299,17 +342,20 @@ function fixtureProject(id: string, name: string, updatedAt = 1): CanvasProject 
     schemaVersion: CANVAS_SCHEMA_VERSION,
     id,
     name,
-    nodes: [node("node-a", "text", "第一幕"), node("node-b", "image", "", {
-      id: "media-1",
-      name: "frame.png",
-      mimeType: "image/png",
-      size: 10,
-      source: "local",
-      serverId: null,
-      width: null,
-      height: null,
-      durationMs: null,
-    })],
+    nodes: [
+      node("node-a", "text", "第一幕"),
+      node("node-b", "image", "", {
+        id: "media-1",
+        name: "frame.png",
+        mimeType: "image/png",
+        size: 10,
+        source: "local",
+        serverId: null,
+        width: null,
+        height: null,
+        durationMs: null,
+      }),
+    ],
     edges: [{ id: "edge-a", source: "node-a", target: "node-b" }],
     groups: [],
     viewport: { x: 0, y: 0, zoom: 1 },
@@ -318,10 +364,15 @@ function fixtureProject(id: string, name: string, updatedAt = 1): CanvasProject 
   };
 }
 
-function node(id: string, kind: "text" | "image", body: string, media: CanvasProject["nodes"][number]["data"]["media"] = null): CanvasProject["nodes"][number] {
+function node(
+  id: string,
+  kind: "text" | "image",
+  body: string,
+  media: CanvasProject["nodes"][number]["data"]["media"] = null,
+): CanvasProject["nodes"][number] {
   return {
     id,
-    type: "kachang",
+    type: "weftcanvas",
     position: { x: 0, y: 0 },
     data: {
       kind,
@@ -334,7 +385,19 @@ function node(id: string, kind: "text" | "image", body: string, media: CanvasPro
       config: null,
       edit: null,
       music: null,
-      generation: { modelId: null, parameters: {}, referenceImagePurposes: {}, maxOutputTokens: null, referenceMode: "auto", referenceNodeIds: [], jobId: null, jobVersion: null, jobCreatedAt: null, jobStatus: null, error: null },
+      generation: {
+        modelId: null,
+        parameters: {},
+        referenceImagePurposes: {},
+        maxOutputTokens: null,
+        referenceMode: "auto",
+        referenceNodeIds: [],
+        jobId: null,
+        jobVersion: null,
+        jobCreatedAt: null,
+        jobStatus: null,
+        error: null,
+      },
       createdAt: 1,
       updatedAt: 1,
     },

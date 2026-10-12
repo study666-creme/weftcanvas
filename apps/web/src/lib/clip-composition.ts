@@ -1,7 +1,7 @@
-import type { CanvasEditClip, CanvasEditClipTrack, CanvasMedia } from "@kachang/contracts";
-import { createId } from "@kachang/canvas-core";
+import type { CanvasEditClip, CanvasEditClipTrack, CanvasMedia } from "@weftcanvas/contracts";
+import { createId } from "@weftcanvas/canvas-core";
 
-import type { KachangEdge, KachangNode } from "../types";
+import type { WeftcanvasEdge, WeftcanvasNode } from "../types";
 
 /** 图片素材的默认展示时长。 */
 export const EDIT_IMAGE_CLIP_DURATION_MS = 3_000;
@@ -86,14 +86,21 @@ export function setClipRange(
 ): CanvasEditClip {
   const sourceEnd = clip.sourceDurationMs ?? Number.MAX_SAFE_INTEGER;
   let inMs = Math.max(0, Math.min(next.inMs ?? clip.inMs, sourceEnd - EDIT_MIN_CLIP_DURATION_MS));
-  let outMs = Math.max(inMs + EDIT_MIN_CLIP_DURATION_MS, Math.min(next.outMs ?? clip.outMs, sourceEnd));
+  let outMs = Math.max(
+    inMs + EDIT_MIN_CLIP_DURATION_MS,
+    Math.min(next.outMs ?? clip.outMs, sourceEnd),
+  );
   inMs = Math.min(inMs, outMs - EDIT_MIN_CLIP_DURATION_MS);
   if (inMs === clip.inMs && outMs === clip.outMs) return clip;
   return { ...clip, inMs, outMs };
 }
 
 /** 轨道内移动片段到新位置（按时间线顺序）。 */
-export function moveClip(clips: readonly CanvasEditClip[], clipId: string, toIndex: number): CanvasEditClip[] {
+export function moveClip(
+  clips: readonly CanvasEditClip[],
+  clipId: string,
+  toIndex: number,
+): CanvasEditClip[] {
   const fromIndex = clips.findIndex((clip) => clip.id === clipId);
   if (fromIndex < 0) return [...clips];
   const target = Math.max(0, Math.min(toIndex, clips.length - 1));
@@ -139,8 +146,8 @@ export function buildClipFromAsset(
 ): CanvasEditClip {
   const isImage = asset.kind === "image";
   const duration = isImage
-    ? sourceDurationMs ?? EDIT_IMAGE_CLIP_DURATION_MS
-    : sourceDurationMs ?? EDIT_FALLBACK_CLIP_DURATION_MS;
+    ? (sourceDurationMs ?? EDIT_IMAGE_CLIP_DURATION_MS)
+    : (sourceDurationMs ?? EDIT_FALLBACK_CLIP_DURATION_MS);
   return {
     id: createId("clip"),
     track: asset.kind === "audio" ? "audio" : "video",
@@ -161,8 +168,8 @@ export function buildClipFromAsset(
  * 合成稳定 mediaId 并以同源代理流直连进池。
  */
 export function collectEditAssets(
-  nodes: readonly KachangNode[],
-  edges: readonly KachangEdge[],
+  nodes: readonly WeftcanvasNode[],
+  edges: readonly WeftcanvasEdge[],
   editNodeId: string,
 ): EditAsset[] {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
@@ -175,7 +182,12 @@ export function collectEditAssets(
     const media = source.data.media;
     if (media) {
       if (seenMediaIds.has(media.id)) continue;
-      if (source.data.kind !== "image" && source.data.kind !== "video" && source.data.kind !== "audio") continue;
+      if (
+        source.data.kind !== "image" &&
+        source.data.kind !== "video" &&
+        source.data.kind !== "audio"
+      )
+        continue;
       seenMediaIds.add(media.id);
       assets.push({ nodeId: source.id, media, kind: source.data.kind });
       continue;
@@ -243,9 +255,13 @@ export function probeMediaDuration(url: string, kind: "video" | "audio", timeout
     const timer = window.setTimeout(() => finish(null), timeoutMs);
     element.preload = "metadata";
     element.muted = true;
-    element.addEventListener("loadedmetadata", () => {
-      finish(Number.isFinite(element.duration) ? Math.round(element.duration * 1000) : null);
-    }, { once: true });
+    element.addEventListener(
+      "loadedmetadata",
+      () => {
+        finish(Number.isFinite(element.duration) ? Math.round(element.duration * 1000) : null);
+      },
+      { once: true },
+    );
     element.addEventListener("error", () => finish(null), { once: true });
     element.src = url;
   });

@@ -1,5 +1,5 @@
 {
-  "name": "@kachang/canvas-worker",
+  "name": "@weftcanvas/canvas-worker",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@kachang/canvas-api": "workspace:*",
+    "@weftcanvas/canvas-api": "workspace:*",
     "pg": "8.22.0"
   },
   "devDependencies": {

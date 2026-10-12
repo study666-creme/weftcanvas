@@ -10,8 +10,16 @@ const AUTHORIZATION = { Authorization: `Bearer ${TOKEN}`, "Content-Type": "appli
 
 function buildApp(queue = new CanvasControlQueue({ waitMs: 2_000 })) {
   const provision = {
-    codex: vi.fn(async () => ({ ok: true, detail: "已写入 Codex 配置", action: "重启 Codex 后生效" })),
-    blender: vi.fn(async () => ({ ok: true, detail: "已装好插件并启用，已启动 Blender", action: null })),
+    codex: vi.fn(async () => ({
+      ok: true,
+      detail: "已写入 Codex 配置",
+      action: "重启 Codex 后生效",
+    })),
+    blender: vi.fn(async () => ({
+      ok: true,
+      detail: "已装好插件并启用，已启动 Blender",
+      action: null,
+    })),
   };
   const connectors = new AgentConnectorRegistry(new MemoryConnectorSettingsStore(), {
     probes: {
@@ -22,8 +30,27 @@ function buildApp(queue = new CanvasControlQueue({ waitMs: 2_000 })) {
   });
   const app = createAgentApp({
     token: TOKEN,
-    models: { getCatalog: () => ({ defaultModelId: "gpt-test", models: [{ id: "gpt-test", label: "Test" }] }) },
-    runs: { handle: async () => ({ status: 200 as const, body: { ok: true as const, data: { content: "ok", actions: [], toolCalls: [], executionMode: "none" as const, proposal: null } } }) },
+    models: {
+      getCatalog: () => ({
+        defaultModelId: "gpt-test",
+        models: [{ id: "gpt-test", label: "Test" }],
+      }),
+    },
+    runs: {
+      handle: async () => ({
+        status: 200 as const,
+        body: {
+          ok: true as const,
+          data: {
+            content: "ok",
+            actions: [],
+            toolCalls: [],
+            executionMode: "none" as const,
+            proposal: null,
+          },
+        },
+      }),
+    },
     connectors,
     canvasControl: queue,
   });
@@ -50,26 +77,39 @@ describe("agent connector HTTP surface", () => {
   it("requires the runtime bearer token", async () => {
     const { app } = buildApp();
     expect((await app.request("/internal/v1/connectors")).status).toBe(401);
-    expect((await app.request("/internal/v1/connectors", { headers: AUTHORIZATION })).status).toBe(200);
+    expect((await app.request("/internal/v1/connectors", { headers: AUTHORIZATION })).status).toBe(
+      200,
+    );
   });
 
   it("serves real connector states and applies updates", async () => {
     const { app } = buildApp();
-    const list = await (await app.request("/internal/v1/connectors", { headers: AUTHORIZATION })).json();
-    expect(list.data.map((item: { state: string }) => item.state)).toEqual(["disabled", "disabled"]);
+    const list = await (
+      await app.request("/internal/v1/connectors", { headers: AUTHORIZATION })
+    ).json();
+    expect(list.data.map((item: { state: string }) => item.state)).toEqual([
+      "disabled",
+      "disabled",
+    ]);
 
-    const updated = await (await app.request("/internal/v1/connectors/codex", {
-      method: "PUT",
-      headers: AUTHORIZATION,
-      body: JSON.stringify({ enabled: true }),
-    })).json();
+    const updated = await (
+      await app.request("/internal/v1/connectors/codex", {
+        method: "PUT",
+        headers: AUTHORIZATION,
+        body: JSON.stringify({ enabled: true }),
+      })
+    ).json();
     expect(updated.data).toMatchObject({ id: "codex", enabled: true, state: "ready" });
 
-    expect((await app.request("/internal/v1/connectors/maya", {
-      method: "PUT",
-      headers: AUTHORIZATION,
-      body: JSON.stringify({ enabled: true }),
-    })).status).toBe(404);
+    expect(
+      (
+        await app.request("/internal/v1/connectors/maya", {
+          method: "PUT",
+          headers: AUTHORIZATION,
+          body: JSON.stringify({ enabled: true }),
+        })
+      ).status,
+    ).toBe(404);
   });
 
   it("runs one-click provisioning through the connect endpoint", async () => {
@@ -86,16 +126,24 @@ describe("agent connector HTTP surface", () => {
     expect(provision.blender).toHaveBeenCalledWith("127.0.0.1:9876", false, expect.anything());
 
     // 未知连接与非法参数都要明确拒绝。
-    expect((await app.request("/internal/v1/connectors/maya/connect", {
-      method: "POST",
-      headers: AUTHORIZATION,
-      body: JSON.stringify({}),
-    })).status).toBe(404);
-    expect((await app.request("/internal/v1/connectors/blender/connect", {
-      method: "POST",
-      headers: AUTHORIZATION,
-      body: JSON.stringify({ launch: "yes" }),
-    })).status).toBe(400);
+    expect(
+      (
+        await app.request("/internal/v1/connectors/maya/connect", {
+          method: "POST",
+          headers: AUTHORIZATION,
+          body: JSON.stringify({}),
+        })
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await app.request("/internal/v1/connectors/blender/connect", {
+          method: "POST",
+          headers: AUTHORIZATION,
+          body: JSON.stringify({ launch: "yes" }),
+        })
+      ).status,
+    ).toBe(400);
   });
 
   it("refuses a canvas command when no canvas page is polling", async () => {
@@ -133,17 +181,21 @@ describe("agent connector HTTP surface", () => {
 
     // 等入队完成后再拉取。
     await vi.waitFor(() => expect(queue.size()).toBe(1));
-    const poll = await (await app.request("/internal/v1/canvas-control/pending", {
-      method: "POST",
-      headers: AUTHORIZATION,
-      body: JSON.stringify({ projectId: "p1", context: canvasContext }),
-    })).json();
+    const poll = await (
+      await app.request("/internal/v1/canvas-control/pending", {
+        method: "POST",
+        headers: AUTHORIZATION,
+        body: JSON.stringify({ projectId: "p1", context: canvasContext }),
+      })
+    ).json();
     expect(poll.data.commands).toHaveLength(1);
     const command = poll.data.commands[0];
     expect(command.projectId).toBe("p1");
 
     // 外部连接能读到同一份画布摘要。
-    const contextResponse = await (await app.request("/internal/v1/canvas-context", { headers: AUTHORIZATION })).json();
+    const contextResponse = await (
+      await app.request("/internal/v1/canvas-context", { headers: AUTHORIZATION })
+    ).json();
     expect(contextResponse.data).toMatchObject({ projectId: "p1" });
     expect(contextResponse.data.context.contextRevision).toBe("rev-1");
 

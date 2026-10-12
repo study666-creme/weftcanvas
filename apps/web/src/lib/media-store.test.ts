@@ -36,8 +36,12 @@ describe("local media pruning", () => {
     const now = 100_000;
     const retained = new Set(["media-kept"]);
 
-    expect(shouldPruneLocalMedia({ id: "media-recent", storedAt: now - 1_000 }, retained, now)).toBe(false);
-    expect(shouldPruneLocalMedia({ id: "media-old", storedAt: now - 60_000 }, retained, now)).toBe(true);
+    expect(
+      shouldPruneLocalMedia({ id: "media-recent", storedAt: now - 1_000 }, retained, now),
+    ).toBe(false);
+    expect(shouldPruneLocalMedia({ id: "media-old", storedAt: now - 60_000 }, retained, now)).toBe(
+      true,
+    );
     expect(shouldPruneLocalMedia({ id: "media-kept", storedAt: 0 }, retained, now)).toBe(false);
     expect(shouldPruneLocalMedia({ id: "media-legacy" }, retained, now)).toBe(true);
   });
@@ -56,7 +60,13 @@ describe("uploadMediaToServer fallback", () => {
     });
     mocks.createMediaUpload.mockResolvedValue({
       media: { id: "srv-1", status: "uploading", error: null },
-      upload: { method: "PUT", url: "https://r2.test/put", headers: {}, completeUrl: null, expiresAt: "2026-01-01T00:00:00Z" },
+      upload: {
+        method: "PUT",
+        url: "https://r2.test/put",
+        headers: {},
+        completeUrl: null,
+        expiresAt: "2026-01-01T00:00:00Z",
+      },
     });
     mocks.uploadMediaBlob.mockResolvedValue({
       id: "srv-1",
@@ -89,7 +99,12 @@ describe("uploadMediaToServer fallback", () => {
   });
 
   it("surfaces the server-side failure message instead of a generic error", async () => {
-    mocks.validateImageBlob.mockResolvedValue({ blob: file, mimeType: "image/png", width: 1, height: 1 });
+    mocks.validateImageBlob.mockResolvedValue({
+      blob: file,
+      mimeType: "image/png",
+      width: 1,
+      height: 1,
+    });
     mocks.createMediaUpload.mockResolvedValue({
       media: { id: "srv-2", status: "uploading", error: null },
       upload: null,

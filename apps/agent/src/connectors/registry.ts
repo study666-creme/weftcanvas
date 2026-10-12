@@ -1,4 +1,4 @@
-import type { AgentConnector, AgentConnectorId } from "@kachang/contracts";
+import type { AgentConnector, AgentConnectorId } from "@weftcanvas/contracts";
 
 import { defaultProbes, type ConnectorProbes, type ProbeResult } from "./probe.js";
 import {
@@ -32,7 +32,8 @@ export const CONNECTOR_DESCRIPTORS: readonly ConnectorDescriptor[] = [
       "连接、选择、组合节点",
       "调整画布视口",
     ],
-    setup: "在 Codex 的 MCP 配置里加入 apps/agent/mcp/canvas-mcp.mjs（需要 KACHANG_AGENT_URL 与 KACHANG_AGENT_TOKEN）。",
+    setup:
+      "在 Codex 的 MCP 配置里加入 apps/agent/mcp/canvas-mcp.mjs（需要 WEFTCANVAS_AGENT_URL 与 WEFTCANVAS_AGENT_TOKEN）。",
     defaultEndpoint: "codex",
     endpointLabel: "Codex 命令",
     endpointPlaceholder: "codex",
@@ -46,7 +47,8 @@ export const CONNECTOR_DESCRIPTORS: readonly ConnectorDescriptor[] = [
       "读取当前场景对象与材质摘要",
       "按指令生成或调整 3D 资产",
     ],
-    setup: "在 Blender 中运行 apps/agent/blender/kachang_bridge.py 启动桥接（默认 127.0.0.1:9876）。",
+    setup:
+      "在 Blender 中运行 apps/agent/blender/weftcanvas_bridge.py 启动桥接（默认 127.0.0.1:9876）。",
     defaultEndpoint: "127.0.0.1:9876",
     endpointLabel: "桥接地址",
     endpointPlaceholder: "127.0.0.1:9876",
@@ -71,7 +73,11 @@ export type ConnectorProvisionOutcome = {
 
 export type ConnectorProvisioner = {
   codex(command: string, signal?: AbortSignal): Promise<ConnectorProvisionOutcome>;
-  blender(address: string, launch: boolean, signal?: AbortSignal): Promise<ConnectorProvisionOutcome>;
+  blender(
+    address: string,
+    launch: boolean,
+    signal?: AbortSignal,
+  ): Promise<ConnectorProvisionOutcome>;
 };
 
 type CacheEntry = { key: string; probe: ProbeResult; expiresAt: number };
@@ -101,7 +107,9 @@ export class AgentConnectorRegistry {
 
   async list(signal?: AbortSignal): Promise<AgentConnector[]> {
     const settings = await this.store.read();
-    return Promise.all(CONNECTOR_DESCRIPTORS.map((descriptor) => this.describe(descriptor, settings, signal)));
+    return Promise.all(
+      CONNECTOR_DESCRIPTORS.map((descriptor) => this.describe(descriptor, settings, signal)),
+    );
   }
 
   async get(id: AgentConnectorId, signal?: AbortSignal): Promise<AgentConnector> {
@@ -142,9 +150,10 @@ export class AgentConnectorRegistry {
 
     let outcome: ConnectorProvisionOutcome;
     try {
-      outcome = id === "codex"
-        ? await this.provisioner.codex(target, signal)
-        : await this.provisioner.blender(target, launch, signal);
+      outcome =
+        id === "codex"
+          ? await this.provisioner.codex(target, signal)
+          : await this.provisioner.blender(target, launch, signal);
     } catch {
       return this.enableAndDescribe(descriptor, settings, signal, {
         ok: false,
@@ -193,7 +202,10 @@ export class AgentConnectorRegistry {
       if (!settings[descriptor.id].enabled) continue;
       const probe = await this.probeFor(descriptor, settings, signal);
       if (!probe.reachable) continue;
-      active.push({ id: descriptor.id, target: settings[descriptor.id].endpoint ?? this.defaults[descriptor.id] });
+      active.push({
+        id: descriptor.id,
+        target: settings[descriptor.id].endpoint ?? this.defaults[descriptor.id],
+      });
     }
     return active;
   }
@@ -243,9 +255,11 @@ export class AgentConnectorRegistry {
     const existing = this.inflight.get(descriptor.id);
     if (existing) return existing;
 
-    const request = (descriptor.id === "codex"
-      ? this.probes.codex(target, signal)
-      : this.probes.blender(target, signal))
+    const request = (
+      descriptor.id === "codex"
+        ? this.probes.codex(target, signal)
+        : this.probes.blender(target, signal)
+    )
       .then((probe) => {
         this.cache.set(descriptor.id, { key, probe, expiresAt: this.now() + this.cacheMs });
         return probe;

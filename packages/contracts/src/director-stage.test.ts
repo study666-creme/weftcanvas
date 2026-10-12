@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { DIRECTOR_STAGE_MAX_PACKET_SLOTS, createDirectorStageStarterPacket, normalizeDirectorStagePacket } from "./director-stage";
+import {
+  DIRECTOR_STAGE_MAX_PACKET_SLOTS,
+  createDirectorStageStarterPacket,
+  normalizeDirectorStagePacket,
+} from "./director-stage";
 
 describe("director stage packet", () => {
   it("normalizes aliases, bounds camera values, and makes shot ids unique", () => {
@@ -19,6 +23,10 @@ describe("director stage packet", () => {
 
   it("provides a valid neutral starter and rejects oversized packets", () => {
     expect(createDirectorStageStarterPacket().slots).toHaveLength(1);
-    expect(() => normalizeDirectorStagePacket({ slots: Array.from({ length: DIRECTOR_STAGE_MAX_PACKET_SLOTS + 1 }, () => ({})) })).toThrow("最多支持");
+    expect(() =>
+      normalizeDirectorStagePacket({
+        slots: Array.from({ length: DIRECTOR_STAGE_MAX_PACKET_SLOTS + 1 }, () => ({})),
+      }),
+    ).toThrow("最多支持");
   });
 });

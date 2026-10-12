@@ -22,7 +22,11 @@ export class PluginBodyBoundary extends Component<
   render() {
     if (this.state.error) {
       return (
-        <div className="kc-plugin-body-error" role="status" data-plugin-kind={this.props.pluginKind}>
+        <div
+          className="wc-plugin-body-error"
+          role="status"
+          data-plugin-kind={this.props.pluginKind}
+        >
           插件面板暂时不可用，画布不受影响
         </div>
       );

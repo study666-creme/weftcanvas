@@ -1,10 +1,8 @@
 import { spawn } from "node:child_process";
 
-import { connectorEndpointRejectionReason } from "@kachang/contracts";
+import { connectorEndpointRejectionReason } from "@weftcanvas/contracts";
 
-export type CodexRunResult =
-  | { ok: true; output: string }
-  | { ok: false; error: string };
+export type CodexRunResult = { ok: true; output: string } | { ok: false; error: string };
 
 const DEFAULT_TIMEOUT_MS = 180_000;
 const MAX_PROMPT_CHARS = 8_000;
@@ -63,13 +61,20 @@ export class CodexRunner {
       };
       signal?.addEventListener("abort", abort, { once: true });
 
-      child.stdout?.on("data", (chunk: Buffer) => { stdout = appendBounded(stdout, chunk.toString("utf8")); });
-      child.stderr?.on("data", (chunk: Buffer) => { stderr = appendBounded(stderr, chunk.toString("utf8")); });
+      child.stdout?.on("data", (chunk: Buffer) => {
+        stdout = appendBounded(stdout, chunk.toString("utf8"));
+      });
+      child.stderr?.on("data", (chunk: Buffer) => {
+        stderr = appendBounded(stderr, chunk.toString("utf8"));
+      });
       child.on("error", () => finish({ ok: false, error: `本机找不到 ${this.command}` }));
       child.on("close", (code) => {
         if (settled) return;
         if (code !== 0) {
-          finish({ ok: false, error: stderr.trim().slice(0, 500) || `Codex 退出码 ${code ?? "unknown"}` });
+          finish({
+            ok: false,
+            error: stderr.trim().slice(0, 500) || `Codex 退出码 ${code ?? "unknown"}`,
+          });
           return;
         }
         finish({ ok: true, output: stdout.trim().slice(0, MAX_OUTPUT_CHARS) });

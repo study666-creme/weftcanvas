@@ -5,21 +5,21 @@ Date reviewed: 2026-07-15
 This is an engineering inventory, not legal advice. Exact transitive notices
 must still be generated from the release lockfile and shipped where required.
 
-| Runtime dependency | Version policy | License | Product use |
-| --- | --- | --- | --- |
-| React / React DOM | lockfile | MIT | Browser UI |
-| XYFlow React / System | lockfile | MIT | Infinite canvas engine |
-| Three.js | `0.185.1` | MIT | Director stage |
-| Zustand | lockfile | MIT | Browser state |
-| Lucide React | lockfile | ISC | Interface icons |
-| @mediapipe/tasks-vision | `0.10.35` | Apache-2.0 | 人脸网格（人脸检测）的浏览器端运行时 |
-| MediaPipe 任务模型（BlazeFace） | tflite，自托管 | Apache-2.0 | 人脸检测模型，见 `apps/web/public/mediapipe/NOTICE.txt` |
-| Hono / Hono Node Server | `4.12.30` / `2.0.8` | MIT | Product API |
-| PostgreSQL client `pg` | `8.22.0` | MIT | Database adapter |
-| Zod | lockfile | MIT | Runtime contracts |
-| Sharp | `0.35.3` | Apache-2.0 | Server image decode and metadata |
-| MediaInfo.js | `0.3.7` | BSD-2-Clause | Server audio/video container parsing |
-| AWS SDK for JavaScript S3 / presigner | lockfile | Apache-2.0 | S3-compatible private media storage |
+| Runtime dependency                    | Version policy      | License      | Product use                                             |
+| ------------------------------------- | ------------------- | ------------ | ------------------------------------------------------- |
+| React / React DOM                     | lockfile            | MIT          | Browser UI                                              |
+| XYFlow React / System                 | lockfile            | MIT          | Infinite canvas engine                                  |
+| Three.js                              | `0.185.1`           | MIT          | Director stage                                          |
+| Zustand                               | lockfile            | MIT          | Browser state                                           |
+| Lucide React                          | lockfile            | ISC          | Interface icons                                         |
+| @mediapipe/tasks-vision               | `0.10.35`           | Apache-2.0   | 人脸网格（人脸检测）的浏览器端运行时                    |
+| MediaPipe 任务模型（BlazeFace）       | tflite，自托管      | Apache-2.0   | 人脸检测模型，见 `apps/web/public/mediapipe/NOTICE.txt` |
+| Hono / Hono Node Server               | `4.12.30` / `2.0.8` | MIT          | Product API                                             |
+| PostgreSQL client `pg`                | `8.22.0`            | MIT          | Database adapter                                        |
+| Zod                                   | lockfile            | MIT          | Runtime contracts                                       |
+| Sharp                                 | `0.35.3`            | Apache-2.0   | Server image decode and metadata                        |
+| MediaInfo.js                          | `0.3.7`             | BSD-2-Clause | Server audio/video container parsing                    |
+| AWS SDK for JavaScript S3 / presigner | lockfile            | Apache-2.0   | S3-compatible private media storage                     |
 
 Sharp distributes platform-specific libvips and codec components. MediaInfo.js
 includes the MediaInfoLib WebAssembly build. A release process must retain all

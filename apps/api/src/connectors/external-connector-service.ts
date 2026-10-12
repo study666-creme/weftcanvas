@@ -6,7 +6,7 @@ import type {
   ExternalTask,
   ExternalTaskMethod,
   ExternalTaskResultRequest,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 
 /**
  * 用户侧反向连接的服务端一半：配对令牌、在线状态、以及"在用户机器上跑一条任务"的投递队列。
@@ -132,7 +132,10 @@ export class ExternalConnectorService {
   }
 
   /** 令牌鉴权：领取待办任务。领取后标记为"已投递"，不会重复投递。 */
-  poll(input: { token: string; connectorId: AgentConnectorId }, limit = 4): { tasks: ExternalTask[]; ownerId: string } | null {
+  poll(
+    input: { token: string; connectorId: AgentConnectorId },
+    limit = 4,
+  ): { tasks: ExternalTask[]; ownerId: string } | null {
     const pairing = this.resolvePairing(input.token);
     if (!pairing || pairing.connectorId !== input.connectorId) return null;
     const key = scopeKey(pairing.ownerId, pairing.connectorId);
@@ -162,7 +165,8 @@ export class ExternalConnectorService {
     if (!pairing || pairing.connectorId !== result.connectorId) return false;
     const entry = this.tasks.get(result.taskId);
     if (!entry) return false;
-    if (entry.ownerId !== pairing.ownerId || entry.task.connectorId !== result.connectorId) return false;
+    if (entry.ownerId !== pairing.ownerId || entry.task.connectorId !== result.connectorId)
+      return false;
     this.settle(entry, {
       taskId: result.taskId,
       status: result.ok ? "completed" : "failed",
@@ -178,7 +182,12 @@ export class ExternalConnectorService {
    */
   async runTask(
     ownerId: string,
-    input: { connectorId: AgentConnectorId; method: ExternalTaskMethod; params: Record<string, unknown>; waitMs?: number },
+    input: {
+      connectorId: AgentConnectorId;
+      method: ExternalTaskMethod;
+      params: Record<string, unknown>;
+      waitMs?: number;
+    },
   ): Promise<TaskOutcome> {
     const taskId = randomUUID();
     const key = scopeKey(ownerId, input.connectorId);
@@ -211,7 +220,12 @@ export class ExternalConnectorService {
       const timer = setTimeout(() => {
         const entry = this.tasks.get(taskId);
         if (entry) {
-          this.settle(entry, { taskId, status: "timeout", stdout: "", error: "等待用户机器的回执超时" });
+          this.settle(entry, {
+            taskId,
+            status: "timeout",
+            stdout: "",
+            error: "等待用户机器的回执超时",
+          });
         }
       }, waitMs);
       this.tasks.set(taskId, { task, ownerId, delivered: false, resolve, timer });

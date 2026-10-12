@@ -7,14 +7,16 @@
  * also useful with a caller-supplied face box or a future detector.
  */
 
-import { blazeFaceModelUrl, loadMediapipeVision, mediapipeAssetUrl, normalizeMediapipeBaseUrl, resolveMediapipeFileset } from "./mediapipe-assets";
+import {
+  blazeFaceModelUrl,
+  loadMediapipeVision,
+  mediapipeAssetUrl,
+  normalizeMediapipeBaseUrl,
+  resolveMediapipeFileset,
+} from "./mediapipe-assets";
 
 export type FaceGridInput =
-  | Blob
-  | HTMLImageElement
-  | ImageBitmap
-  | HTMLCanvasElement
-  | OffscreenCanvas;
+  Blob | HTMLImageElement | ImageBitmap | HTMLCanvasElement | OffscreenCanvas;
 
 export type FaceKeypoint = {
   x: number;
@@ -184,7 +186,12 @@ export async function createFaceGridArtifacts(
     const detections = options.detections
       ? normalizeProvidedDetections(options.detections, decoded.width, decoded.height, options)
       : options.manualSelections?.length
-        ? normalizeManualSelections(options.manualSelections, decoded.width, decoded.height, options)
+        ? normalizeManualSelections(
+            options.manualSelections,
+            decoded.width,
+            decoded.height,
+            options,
+          )
         : await detectFacesFromSource(decoded, options);
     return renderArtifacts(decoded, detections, options);
   } finally {
@@ -216,8 +223,8 @@ export function expandFaceBox(
 ): FaceBox {
   const safeWidth = Math.max(0, finite(box.width));
   const safeHeight = Math.max(0, finite(box.height));
-  const paddingX = typeof padding === "number" ? padding : padding.x ?? DEFAULT_FACE_PADDING.x;
-  const paddingY = typeof padding === "number" ? padding : padding.y ?? DEFAULT_FACE_PADDING.y;
+  const paddingX = typeof padding === "number" ? padding : (padding.x ?? DEFAULT_FACE_PADDING.x);
+  const paddingY = typeof padding === "number" ? padding : (padding.y ?? DEFAULT_FACE_PADDING.y);
   const extraX = safeWidth * Math.max(0, finite(paddingX));
   const extraY = safeHeight * Math.max(0, finite(paddingY));
   const left = finite(box.x) - extraX;
@@ -241,9 +248,18 @@ export function buildFaceRegion(
   box: FaceBox,
   imageWidth: number,
   imageHeight: number,
-  options: { facePadding?: number | FacePadding; circleScale?: number; rotationRadians?: number } = {},
+  options: {
+    facePadding?: number | FacePadding;
+    circleScale?: number;
+    rotationRadians?: number;
+  } = {},
 ): FaceRegion {
-  const expanded = expandFaceBox(box, imageWidth, imageHeight, options.facePadding ?? DEFAULT_FACE_PADDING);
+  const expanded = expandFaceBox(
+    box,
+    imageWidth,
+    imageHeight,
+    options.facePadding ?? DEFAULT_FACE_PADDING,
+  );
   const centerX = expanded.x + expanded.width / 2;
   const centerY = expanded.y + expanded.height / 2;
   const circleScale = Math.max(0.1, finite(options.circleScale ?? DEFAULT_CIRCLE_SCALE));
@@ -285,7 +301,6 @@ export function buildManualFaceDetection(
   );
   if (box.width < 2 || box.height < 2) return undefined;
   const centerX = box.x + box.width / 2;
-  const centerY = box.y + box.height / 2;
   const keypoints = [
     { x: box.x + box.width * 0.34, y: box.y + box.height * 0.42, label: "leftEye", score: 1 },
     { x: box.x + box.width * 0.66, y: box.y + box.height * 0.42, label: "rightEye", score: 1 },
@@ -345,7 +360,10 @@ export function buildGridLines(
   return lines;
 }
 
-function detectFacesFromSource(source: DecodedImage, options: FaceGridDetectorOptions): Promise<FaceDetection[]> {
+function detectFacesFromSource(
+  source: DecodedImage,
+  options: FaceGridDetectorOptions,
+): Promise<FaceDetection[]> {
   return getDetector(options).then((detector) => {
     const result = detector.detect(source.source);
     const raw = result.detections ?? [];
@@ -353,7 +371,10 @@ function detectFacesFromSource(source: DecodedImage, options: FaceGridDetectorOp
       .map((detection) => toFaceDetection(detection, source.width, source.height, options))
       .filter((detection): detection is FaceDetection => detection !== undefined)
       .sort((left, right) => right.confidence - left.confidence);
-    const maxFaces = options.maxFaces === undefined ? detections.length : Math.max(0, Math.floor(options.maxFaces));
+    const maxFaces =
+      options.maxFaces === undefined
+        ? detections.length
+        : Math.max(0, Math.floor(options.maxFaces));
     return detections.slice(0, maxFaces);
   });
 }
@@ -381,7 +402,10 @@ function normalizeProvidedDetections(
       } satisfies FaceDetection;
     })
     .filter((detection) => detection.box.width > 0 && detection.box.height > 0)
-    .slice(0, options.maxFaces === undefined ? undefined : Math.max(0, Math.floor(options.maxFaces)));
+    .slice(
+      0,
+      options.maxFaces === undefined ? undefined : Math.max(0, Math.floor(options.maxFaces)),
+    );
 }
 
 function normalizeManualSelections(
@@ -393,7 +417,10 @@ function normalizeManualSelections(
   return selections
     .map((selection) => buildManualFaceDetection(selection, imageWidth, imageHeight, options))
     .filter((detection): detection is FaceDetection => detection !== undefined)
-    .slice(0, options.maxFaces === undefined ? undefined : Math.max(0, Math.floor(options.maxFaces)));
+    .slice(
+      0,
+      options.maxFaces === undefined ? undefined : Math.max(0, Math.floor(options.maxFaces)),
+    );
 }
 
 function toFaceDetection(
@@ -422,7 +449,10 @@ function toFaceDetection(
   );
   if (!box.width || !box.height) return undefined;
   const confidence = clamp(
-    finite(detection.categories?.[0]?.score ?? keypoints.reduce((max, point) => Math.max(max, point.score ?? 0), 0.5)),
+    finite(
+      detection.categories?.[0]?.score ??
+        keypoints.reduce((max, point) => Math.max(max, point.score ?? 0), 0.5),
+    ),
     0,
     1,
   );
@@ -434,7 +464,11 @@ function toFaceDetection(
   return { box, confidence, keypoints, region };
 }
 
-function boundsFromKeypoints(points: FaceKeypoint[], width: number, height: number): FaceBox | undefined {
+function boundsFromKeypoints(
+  points: FaceKeypoint[],
+  width: number,
+  height: number,
+): FaceBox | undefined {
   if (points.length < 2) return undefined;
   const xs = points.map((point) => point.x);
   const ys = points.map((point) => point.y);
@@ -495,7 +529,8 @@ async function renderArtifacts(
       gridColor: options.holeGridColor ?? DEFAULT_HOLE_GRID_COLOR,
     });
   }
-  for (const detection of detections) drawHole(holeContext, detection.region, options.holeFill ?? DEFAULT_HOLE_FILL);
+  for (const detection of detections)
+    drawHole(holeContext, detection.region, options.holeFill ?? DEFAULT_HOLE_FILL);
   const holeBlob = await canvasToPng(holeCanvas);
 
   const recomposedCanvas = renderRecomposed(source, chipCanvases, holeCanvas, options);
@@ -503,7 +538,11 @@ async function renderArtifacts(
   return { detections, overlayBlob, faceChipBlobs, holeBlob, recomposedBlob };
 }
 
-function renderFaceChip(source: DecodedImage, region: FaceRegion, options: FaceGridOptions): CanvasLike {
+function renderFaceChip(
+  source: DecodedImage,
+  region: FaceRegion,
+  options: FaceGridOptions,
+): CanvasLike {
   const diameter = Math.max(2, Math.ceil(region.circleRadius * 2));
   const canvas = createCanvas(diameter, diameter);
   const context = get2dContext(canvas);
@@ -546,7 +585,11 @@ function renderRecomposed(
     context.drawImage(chip, x, y);
     x += canvasWidth(chip) + gap;
   }
-  context.drawImage(holeCanvas, (canvasWidth(canvas) - source.width) / 2, padding + chipHeight + (chips.length ? gap : 0));
+  context.drawImage(
+    holeCanvas,
+    (canvasWidth(canvas) - source.width) / 2,
+    padding + chipHeight + (chips.length ? gap : 0),
+  );
   return canvas;
 }
 
@@ -555,7 +598,10 @@ function drawFaceGrid(
   region: FaceRegion,
   imageWidth: number,
   imageHeight: number,
-  options: Pick<FaceGridOptions, "gridSpacing" | "gridLineWidth" | "gridAngleDegrees" | "gridColor">,
+  options: Pick<
+    FaceGridOptions,
+    "gridSpacing" | "gridLineWidth" | "gridAngleDegrees" | "gridColor"
+  >,
 ) {
   if (region.radiusX <= 0 || region.radiusY <= 0) return;
   const spacing = options.gridSpacing ?? Math.max(12, Math.min(48, region.width / 10));
@@ -563,12 +609,24 @@ function drawFaceGrid(
   const bounds = { x: 0, y: 0, width: imageWidth, height: imageHeight };
   context.save();
   context.beginPath();
-  context.ellipse(region.centerX, region.centerY, region.radiusX, region.radiusY, region.rotationRadians, 0, Math.PI * 2);
+  context.ellipse(
+    region.centerX,
+    region.centerY,
+    region.radiusX,
+    region.radiusY,
+    region.rotationRadians,
+    0,
+    Math.PI * 2,
+  );
   context.clip();
   context.strokeStyle = options.gridColor ?? DEFAULT_GRID_COLOR;
   context.lineWidth = lineWidth;
   context.lineCap = "butt";
-  for (const line of buildGridLines(bounds, spacing, options.gridAngleDegrees ?? DEFAULT_GRID_ANGLE)) {
+  for (const line of buildGridLines(
+    bounds,
+    spacing,
+    options.gridAngleDegrees ?? DEFAULT_GRID_ANGLE,
+  )) {
     context.beginPath();
     context.moveTo(line.x1, line.y1);
     context.lineTo(line.x2, line.y2);
@@ -586,7 +644,12 @@ function drawHole(context: CanvasContext, region: FaceRegion, fill: string) {
   context.restore();
 }
 
-function drawSource(context: CanvasContext, source: CanvasImageSource, width: number, height: number) {
+function drawSource(
+  context: CanvasContext,
+  source: CanvasImageSource,
+  width: number,
+  height: number,
+) {
   context.drawImage(source, 0, 0, width, height);
 }
 
@@ -624,7 +687,11 @@ function canvasToPng(canvas: CanvasLike): Promise<Blob> {
       reject(new Error("Unable to encode face grid PNG"));
       return;
     }
-    canvas.toBlob((blob: Blob | null) => (blob ? resolve(blob) : reject(new Error("Unable to encode face grid PNG"))), "image/png");
+    canvas.toBlob(
+      (blob: Blob | null) =>
+        blob ? resolve(blob) : reject(new Error("Unable to encode face grid PNG")),
+      "image/png",
+    );
   });
 }
 
@@ -636,7 +703,12 @@ async function decodeInput(input: FaceGridInput): Promise<DecodedImage> {
       const context = get2dContext(canvas);
       context.drawImage(bitmap, 0, 0, bitmap.width, bitmap.height);
       bitmap.close();
-      return { source: canvas, width: canvasWidth(canvas), height: canvasHeight(canvas), dispose: () => undefined };
+      return {
+        source: canvas,
+        width: canvasWidth(canvas),
+        height: canvasHeight(canvas),
+        dispose: () => undefined,
+      };
     }
     if (typeof Image === "undefined" || typeof URL === "undefined") {
       throw new Error("This browser cannot decode image blobs");

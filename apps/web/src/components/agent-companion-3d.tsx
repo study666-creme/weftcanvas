@@ -48,10 +48,30 @@ export const AgentCompanion3D = memo(function AgentCompanion3D({
     fill.position.set(0, -2, 3);
     scene.add(fill);
 
-    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xf2f3f5, roughness: 0.42, metalness: 0.08 });
-    const darkMat = new THREE.MeshStandardMaterial({ color: 0x1c1e22, roughness: 0.5, metalness: 0.2 });
-    const glowMat = new THREE.MeshStandardMaterial({ color: 0x9fd8ff, emissive: 0x4aa8e8, emissiveIntensity: 1.1, roughness: 0.3, metalness: 0 });
-    const accentMat = new THREE.MeshStandardMaterial({ color: 0x2a6df0, emissive: 0x2a6df0, emissiveIntensity: 0.35, roughness: 0.4, metalness: 0.1 });
+    const bodyMat = new THREE.MeshStandardMaterial({
+      color: 0xf2f3f5,
+      roughness: 0.42,
+      metalness: 0.08,
+    });
+    const darkMat = new THREE.MeshStandardMaterial({
+      color: 0x1c1e22,
+      roughness: 0.5,
+      metalness: 0.2,
+    });
+    const glowMat = new THREE.MeshStandardMaterial({
+      color: 0x9fd8ff,
+      emissive: 0x4aa8e8,
+      emissiveIntensity: 1.1,
+      roughness: 0.3,
+      metalness: 0,
+    });
+    const accentMat = new THREE.MeshStandardMaterial({
+      color: 0x2a6df0,
+      emissive: 0x2a6df0,
+      emissiveIntensity: 0.35,
+      roughness: 0.4,
+      metalness: 0.1,
+    });
 
     const root = new THREE.Group();
     scene.add(root);
@@ -65,7 +85,15 @@ export const AgentCompanion3D = memo(function AgentCompanion3D({
     head.add(skull);
 
     // Face visor (dark glass panel).
-    const visorGeo = new THREE.SphereGeometry(0.86, 40, 40, Math.PI * 0.16, Math.PI * 0.68, Math.PI * 0.3, Math.PI * 0.42);
+    const visorGeo = new THREE.SphereGeometry(
+      0.86,
+      40,
+      40,
+      Math.PI * 0.16,
+      Math.PI * 0.68,
+      Math.PI * 0.3,
+      Math.PI * 0.42,
+    );
     const visor = new THREE.Mesh(visorGeo, darkMat);
     visor.position.set(0, 0.04, 0.34);
     visor.scale.set(1, 0.86, 0.82);
@@ -90,7 +118,12 @@ export const AgentCompanion3D = memo(function AgentCompanion3D({
 
     // Cheek lights.
     const cheekGeo = new THREE.SphereGeometry(0.06, 16, 16);
-    const cheekMat = new THREE.MeshStandardMaterial({ color: 0xffb3c4, emissive: 0xff8fa8, emissiveIntensity: 0.5, roughness: 0.5 });
+    const cheekMat = new THREE.MeshStandardMaterial({
+      color: 0xffb3c4,
+      emissive: 0xff8fa8,
+      emissiveIntensity: 0.5,
+      roughness: 0.5,
+    });
     const cheekL = new THREE.Mesh(cheekGeo, cheekMat);
     cheekL.position.set(-0.52, -0.16, 0.78);
     const cheekR = cheekL.clone();
@@ -128,8 +161,11 @@ export const AgentCompanion3D = memo(function AgentCompanion3D({
     // 而 layout 成本随画布 DOM 规模上升，节点变多时鼠标移动会被明显拖慢。
     const pointer = { x: 0, y: 0 };
     let hostRect = host.getBoundingClientRect();
-    const refreshHostRect = () => { hostRect = host.getBoundingClientRect(); };
-    const rectObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(refreshHostRect) : null;
+    const refreshHostRect = () => {
+      hostRect = host.getBoundingClientRect();
+    };
+    const rectObserver =
+      typeof ResizeObserver !== "undefined" ? new ResizeObserver(refreshHostRect) : null;
     rectObserver?.observe(host);
     window.addEventListener("resize", refreshHostRect, { passive: true });
     window.addEventListener("scroll", refreshHostRect, { passive: true, capture: true });
@@ -147,15 +183,21 @@ export const AgentCompanion3D = memo(function AgentCompanion3D({
 
     // Pause the render loop when the page is hidden or the companion scrolls out
     // of view so it never burns GPU when it isn't visible.
-    const visibilityObserver = typeof IntersectionObserver !== "undefined"
-      ? new IntersectionObserver(([entry]) => {
-        running = Boolean(entry?.isIntersecting) && !document.hidden;
-        // 重新进入视口时布局可能已经变化，同步刷新缓存的矩形。
-        if (running) refreshHostRect();
-      }, { threshold: 0.05 })
-      : null;
+    const visibilityObserver =
+      typeof IntersectionObserver !== "undefined"
+        ? new IntersectionObserver(
+            ([entry]) => {
+              running = Boolean(entry?.isIntersecting) && !document.hidden;
+              // 重新进入视口时布局可能已经变化，同步刷新缓存的矩形。
+              if (running) refreshHostRect();
+            },
+            { threshold: 0.05 },
+          )
+        : null;
     visibilityObserver?.observe(host);
-    const onVisibility = () => { running = !document.hidden; };
+    const onVisibility = () => {
+      running = !document.hidden;
+    };
     document.addEventListener("visibilitychange", onVisibility);
 
     const animate = () => {
@@ -166,7 +208,8 @@ export const AgentCompanion3D = memo(function AgentCompanion3D({
 
       // Idle bob + reaction-specific motion.
       const bobSpeed = currentActivity === "working" ? 3.4 : 1.6;
-      const bobAmp = currentReaction === "celebrate" ? 0.12 : currentActivity === "working" ? 0.05 : 0.07;
+      const bobAmp =
+        currentReaction === "celebrate" ? 0.12 : currentActivity === "working" ? 0.05 : 0.07;
       head.position.y = Math.sin(t * bobSpeed) * bobAmp;
 
       // Head gently tracks the pointer.
@@ -197,11 +240,17 @@ export const AgentCompanion3D = memo(function AgentCompanion3D({
       const lookX = currentReaction === "thinking" ? Math.sin(t * 1.8) * 0.06 : 0;
       eyeL.position.x = -0.34 + lookX;
       eyeR.position.x = 0.34 + lookX;
-      const eyeY = currentReaction === "concerned" ? 0.02 : currentReaction === "celebrate" ? 0.16 : 0.1;
+      const eyeY =
+        currentReaction === "concerned" ? 0.02 : currentReaction === "celebrate" ? 0.16 : 0.1;
       eyeL.position.y += (eyeY - eyeL.position.y) * 0.1;
       eyeR.position.y += (eyeY - eyeR.position.y) * 0.1;
 
-      const pulse = currentActivity === "working" ? 0.5 + Math.abs(Math.sin(t * 5)) : currentActivity === "error" ? 0.8 : 0.35;
+      const pulse =
+        currentActivity === "working"
+          ? 0.5 + Math.abs(Math.sin(t * 5))
+          : currentActivity === "error"
+            ? 0.8
+            : 0.35;
       accentMat.emissiveIntensity = pulse;
       if (currentActivity === "error") {
         accentMat.color.set(0xe04b3a);
@@ -211,7 +260,9 @@ export const AgentCompanion3D = memo(function AgentCompanion3D({
         accentMat.emissive.set(0x2a6df0);
       }
 
-      antennaTip.scale.setScalar(1 + (currentActivity === "working" ? Math.abs(Math.sin(t * 5)) * 0.25 : 0));
+      antennaTip.scale.setScalar(
+        1 + (currentActivity === "working" ? Math.abs(Math.sin(t * 5)) * 0.25 : 0),
+      );
 
       renderer.render(scene, camera);
     };
@@ -245,5 +296,5 @@ export const AgentCompanion3D = memo(function AgentCompanion3D({
     };
   }, []);
 
-  return <span ref={hostRef} className="kc-agent-companion-3d" aria-hidden="true" />;
+  return <span ref={hostRef} className="wc-agent-companion-3d" aria-hidden="true" />;
 });

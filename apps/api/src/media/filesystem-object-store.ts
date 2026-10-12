@@ -44,7 +44,11 @@ export class FilesystemMediaObjectStore implements MediaObjectStore {
         createWriteStream(temporary, { flags: "wx", mode: 0o600 }),
       );
       if (size !== options.expectedSize) {
-        throw new MediaObjectWriteError("MEDIA_SIZE_MISMATCH", "上传内容大小与文件信息不一致", true);
+        throw new MediaObjectWriteError(
+          "MEDIA_SIZE_MISMATCH",
+          "上传内容大小与文件信息不一致",
+          true,
+        );
       }
       await unlink(target).catch((error: NodeJS.ErrnoException) => {
         if (error.code !== "ENOENT") throw error;
@@ -72,7 +76,13 @@ export class FilesystemMediaObjectStore implements MediaObjectStore {
     const totalSize = metadata.size;
     const start = range?.start ?? 0;
     const end = range?.end ?? totalSize - 1;
-    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start || end >= totalSize) {
+    if (
+      !Number.isSafeInteger(start) ||
+      !Number.isSafeInteger(end) ||
+      start < 0 ||
+      end < start ||
+      end >= totalSize
+    ) {
       throw new RangeError("Requested media range is invalid");
     }
     return { stream: createReadStream(path, { start, end }), totalSize, start, end };
@@ -90,7 +100,8 @@ export class FilesystemMediaObjectStore implements MediaObjectStore {
       throw new Error("Invalid media object key");
     }
     const target = resolve(this.root, ...segments);
-    if (!target.startsWith(`${this.root}${sep}`)) throw new Error("Media object key escaped the storage root");
+    if (!target.startsWith(`${this.root}${sep}`))
+      throw new Error("Media object key escaped the storage root");
     return target;
   }
 }

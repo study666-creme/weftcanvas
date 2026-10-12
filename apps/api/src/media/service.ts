@@ -8,7 +8,7 @@ import {
   type MediaKind,
   type MediaUploadRequest,
   type PublicMedia,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 
 import {
   MediaInspectionError,
@@ -41,9 +41,35 @@ export function thumbObjectKey(objectKey: string) {
   return `${objectKey}-thumb`;
 }
 const ACCEPTED_MIME_TYPES: Record<MediaKind, ReadonlySet<string>> = {
-  image: new Set(["image/avif", "image/gif", "image/heif", "image/jpeg", "image/png", "image/tiff", "image/webp"]),
-  video: new Set(["video/mp4", "video/webm", "video/quicktime", "video/x-matroska", "video/x-msvideo", "video/mpeg", "video/mp2t", "video/ogg"]),
-  audio: new Set(["audio/mpeg", "audio/mp4", "audio/wav", "audio/x-wav", "audio/flac", "audio/aac", "audio/ogg", "audio/webm"]),
+  image: new Set([
+    "image/avif",
+    "image/gif",
+    "image/heif",
+    "image/jpeg",
+    "image/png",
+    "image/tiff",
+    "image/webp",
+  ]),
+  video: new Set([
+    "video/mp4",
+    "video/webm",
+    "video/quicktime",
+    "video/x-matroska",
+    "video/x-msvideo",
+    "video/mpeg",
+    "video/mp2t",
+    "video/ogg",
+  ]),
+  audio: new Set([
+    "audio/mpeg",
+    "audio/mp4",
+    "audio/wav",
+    "audio/x-wav",
+    "audio/flac",
+    "audio/aac",
+    "audio/ogg",
+    "audio/webm",
+  ]),
 };
 
 type MediaServiceOptions = {
@@ -65,7 +91,11 @@ type MediaServiceOptions = {
 type MediaServiceStatus = 400 | 401 | 403 | 404 | 409 | 413 | 415 | 422 | 429 | 503;
 
 export class MediaServiceError extends Error {
-  constructor(readonly code: string, message: string, readonly status: MediaServiceStatus) {
+  constructor(
+    readonly code: string,
+    message: string,
+    readonly status: MediaServiceStatus,
+  ) {
     super(message);
     this.name = "MediaServiceError";
   }
@@ -149,7 +179,11 @@ export class MediaService {
       throw new MediaServiceError("MEDIA_STORAGE_LIMIT_REACHED", "账号存储空间已用完", 403);
     }
     if (created.kind === "intent_limit") {
-      throw new MediaServiceError("MEDIA_UPLOAD_INTENT_LIMIT_REACHED", "上传请求过多，请稍后重试", 429);
+      throw new MediaServiceError(
+        "MEDIA_UPLOAD_INTENT_LIMIT_REACHED",
+        "上传请求过多，请稍后重试",
+        429,
+      );
     }
     if (created.kind === "existing") return this.existingIntent(created.media, input);
     if (created.evicted?.length) this.releaseEvictedObjects(created.evicted);
@@ -177,18 +211,31 @@ export class MediaService {
     if (!supportsDirectMediaAccess(this.objects)) {
       throw new MediaServiceError("MEDIA_DIRECT_UPLOAD_UNAVAILABLE", "当前上传方式不可用", 409);
     }
-    const current = await this.requirePendingUpload(ownerId, mediaId, projectId, options.allowExpired === true);
+    const current = await this.requirePendingUpload(
+      ownerId,
+      mediaId,
+      projectId,
+      options.allowExpired === true,
+    );
     if (current.status === "ready") return toPublicMedia(current);
-    const claimed = await this.metadata.claimUpload(current.id, ownerId, current.revision, new Date(this.now()).toISOString());
+    const claimed = await this.metadata.claimUpload(
+      current.id,
+      ownerId,
+      current.revision,
+      new Date(this.now()).toISOString(),
+    );
     if (!claimed) return this.resolveClaimConflict(ownerId, mediaId, projectId);
     try {
-      const validated = await this.objects.withPendingUploadFile(claimed.objectKey, async ({ path, versionToken }) => {
-        const written = await digestLocalFile(path, this.limits[claimed.kind]);
-        this.assertWrittenObject(claimed, written);
-        const inspected = await this.inspector.inspect(path, claimed.kind);
-        this.assertInspection(claimed, written, inspected);
-        return { written, inspected, versionToken };
-      });
+      const validated = await this.objects.withPendingUploadFile(
+        claimed.objectKey,
+        async ({ path, versionToken }) => {
+          const written = await digestLocalFile(path, this.limits[claimed.kind]);
+          this.assertWrittenObject(claimed, written);
+          const inspected = await this.inspector.inspect(path, claimed.kind);
+          this.assertInspection(claimed, written, inspected);
+          return { written, inspected, versionToken };
+        },
+      );
       await this.objects.promotePendingUpload(claimed.objectKey, {
         contentType: validated.inspected.mimeType,
         size: validated.written.size,
@@ -226,7 +273,8 @@ export class MediaService {
       sha256: input.sha256.toLowerCase(),
       idempotencyKey,
     };
-    if (!/^[a-f0-9]{64}$/.test(immutable.sha256)) throw new Error("Generated media SHA-256 is invalid");
+    if (!/^[a-f0-9]{64}$/.test(immutable.sha256))
+      throw new Error("Generated media SHA-256 is invalid");
     assertAcceptedInput(immutable, this.limits[input.kind]);
 
     let media = await this.metadata.findByIdempotency(ownerId, idempotencyKey);
@@ -271,7 +319,11 @@ export class MediaService {
         throw new MediaServiceError("MEDIA_STORAGE_LIMIT_REACHED", "账号存储空间已用完", 403);
       }
       if (created.kind === "intent_limit") {
-        throw new MediaServiceError("MEDIA_UPLOAD_INTENT_LIMIT_REACHED", "上传请求过多，请稍后重试", 429);
+        throw new MediaServiceError(
+          "MEDIA_UPLOAD_INTENT_LIMIT_REACHED",
+          "上传请求过多，请稍后重试",
+          429,
+        );
       }
       if (created.kind === "created") {
         if (created.evicted?.length) this.releaseEvictedObjects(created.evicted);
@@ -308,7 +360,12 @@ export class MediaService {
       throw new MediaServiceError("MEDIA_SIZE_MISMATCH", "上传内容大小与文件信息不一致", 400);
     }
 
-    const claimed = await this.metadata.claimUpload(current.id, ownerId, current.revision, new Date(this.now()).toISOString());
+    const claimed = await this.metadata.claimUpload(
+      current.id,
+      ownerId,
+      current.revision,
+      new Date(this.now()).toISOString(),
+    );
     if (!claimed) return this.resolveClaimConflict(ownerId, mediaId, projectId);
 
     try {
@@ -318,9 +375,8 @@ export class MediaService {
         contentType: claimed.declaredMimeType,
       });
       this.assertWrittenObject(claimed, written);
-      const inspected = await this.objects.withLocalFile(
-        claimed.objectKey,
-        (path) => this.inspector.inspect(path, claimed.kind),
+      const inspected = await this.objects.withLocalFile(claimed.objectKey, (path) =>
+        this.inspector.inspect(path, claimed.kind),
       );
       this.assertInspection(claimed, written, inspected);
       return await this.publishReady(claimed, written, inspected);
@@ -343,7 +399,11 @@ export class MediaService {
       throw new MediaServiceError("MEDIA_NOT_FOUND", "素材不存在", 404);
     }
     if (result.kind === "bound") {
-      throw new MediaServiceError("MEDIA_REFERENCED_BY_PROJECT", "素材已被云项目引用，无法删除", 409);
+      throw new MediaServiceError(
+        "MEDIA_REFERENCED_BY_PROJECT",
+        "素材已被云项目引用，无法删除",
+        409,
+      );
     }
     await this.removeMediaObjects(result.media);
     return toPublicMedia(result.media);
@@ -366,19 +426,23 @@ export class MediaService {
   }
 
   async cancelUploadSafely(ownerId: string, mediaId: string, projectId?: string) {
-    return this.failUploadSafely(
-      ownerId,
-      mediaId,
-      "MEDIA_UPLOAD_ABORTED",
-      "上传已取消",
-      projectId,
-    );
+    return this.failUploadSafely(ownerId, mediaId, "MEDIA_UPLOAD_ABORTED", "上传已取消", projectId);
   }
 
-  async open(ownerId: string, mediaId: string, range?: { start: number; end: number }, projectId?: string, signal?: AbortSignal): Promise<PublicMediaContent> {
+  async open(
+    ownerId: string,
+    mediaId: string,
+    range?: { start: number; end: number },
+    projectId?: string,
+    signal?: AbortSignal,
+  ): Promise<PublicMediaContent> {
     const media = await this.requireOwned(ownerId, mediaId, projectId);
-    if (media.status !== "ready") throw new MediaServiceError("MEDIA_NOT_READY", "素材尚未处理完成", 409);
-    return { media: toPublicMedia(media), object: await this.objects.open(media.objectKey, range, signal) };
+    if (media.status !== "ready")
+      throw new MediaServiceError("MEDIA_NOT_READY", "素材尚未处理完成", 409);
+    return {
+      media: toPublicMedia(media),
+      object: await this.objects.open(media.objectKey, range, signal),
+    };
   }
 
   /**
@@ -386,12 +450,19 @@ export class MediaService {
    * 原图惰性生成一次并写回对象存储（key 规则 ${objectKey}-thumb，随主对象
    * 一起删除）。仅图片可用；失败按 503 上抛，不落任何失败缓存。
    */
-  async openThumb(ownerId: string, mediaId: string, projectId?: string): Promise<PublicMediaContent> {
+  async openThumb(
+    ownerId: string,
+    mediaId: string,
+    projectId?: string,
+  ): Promise<PublicMediaContent> {
     const media = await this.requireOwned(ownerId, mediaId, projectId);
-    if (media.status !== "ready") throw new MediaServiceError("MEDIA_NOT_READY", "素材尚未处理完成", 409);
-    if (media.kind !== "image") throw new MediaServiceError("MEDIA_THUMB_UNAVAILABLE", "这个素材没有缩略图", 404);
+    if (media.status !== "ready")
+      throw new MediaServiceError("MEDIA_NOT_READY", "素材尚未处理完成", 409);
+    if (media.kind !== "image")
+      throw new MediaServiceError("MEDIA_THUMB_UNAVAILABLE", "这个素材没有缩略图", 404);
     const mimeType = media.detectedMimeType ?? media.declaredMimeType;
-    if (!mimeType.startsWith("image/")) throw new MediaServiceError("MEDIA_THUMB_UNAVAILABLE", "这个素材没有缩略图", 404);
+    if (!mimeType.startsWith("image/"))
+      throw new MediaServiceError("MEDIA_THUMB_UNAVAILABLE", "这个素材没有缩略图", 404);
     const thumbKey = thumbObjectKey(media.objectKey);
     const thumb = await this.readThumbIfPresent(thumbKey);
     if (thumb) return { media: toPublicMedia(media), object: thumb };
@@ -423,26 +494,40 @@ export class MediaService {
         return image
           .clone()
           .rotate()
-          .resize({ width: THUMB_LONG_EDGE, height: THUMB_LONG_EDGE, fit: "inside", withoutEnlargement: true })
+          .resize({
+            width: THUMB_LONG_EDGE,
+            height: THUMB_LONG_EDGE,
+            fit: "inside",
+            withoutEnlargement: true,
+          })
           .png({ compressionLevel: 6 })
           .toBuffer();
       });
     } catch {
-      throw new MediaServiceError("MEDIA_THUMB_GENERATION_FAILED", "缩略图生成失败，请稍后重试", 503);
+      throw new MediaServiceError(
+        "MEDIA_THUMB_GENERATION_FAILED",
+        "缩略图生成失败，请稍后重试",
+        503,
+      );
     }
   }
 
   async createPrivateDownload(ownerId: string, mediaId: string, projectId?: string) {
     if (!supportsDirectMediaAccess(this.objects)) return null;
     const media = await this.requireOwned(ownerId, mediaId, projectId);
-    if (media.status !== "ready") throw new MediaServiceError("MEDIA_NOT_READY", "素材尚未处理完成", 409);
+    if (media.status !== "ready")
+      throw new MediaServiceError("MEDIA_NOT_READY", "素材尚未处理完成", 409);
     return this.objects.createDownloadInstruction(media.objectKey, {
       contentType: media.detectedMimeType ?? media.declaredMimeType,
       name: media.name,
     });
   }
 
-  async openForSignedDelivery(mediaId: string, kind: MediaKind, range?: { start: number; end: number }): Promise<PublicMediaContent> {
+  async openForSignedDelivery(
+    mediaId: string,
+    kind: MediaKind,
+    range?: { start: number; end: number },
+  ): Promise<PublicMediaContent> {
     const media = await this.requireSignedMedia(mediaId, kind);
     return { media: toPublicMedia(media), object: await this.objects.open(media.objectKey, range) };
   }
@@ -451,7 +536,13 @@ export class MediaService {
     return toPublicMedia(await this.requireSignedMedia(mediaId, kind));
   }
 
-  async readReference(ownerId: string, mediaId: string, kind: MediaKind, maxBytes: number, projectId?: string) {
+  async readReference(
+    ownerId: string,
+    mediaId: string,
+    kind: MediaKind,
+    maxBytes: number,
+    projectId?: string,
+  ) {
     const media = await this.requireOwned(ownerId, mediaId, projectId);
     if (media.status !== "ready" || media.kind !== kind) {
       throw new MediaServiceError("MEDIA_REFERENCE_INVALID", "参考素材尚未准备完成", 409);
@@ -465,7 +556,8 @@ export class MediaService {
     for await (const chunk of opened.stream) {
       const bytes = Buffer.from(chunk);
       size += bytes.length;
-      if (size > maxBytes) throw new MediaServiceError("MEDIA_REFERENCE_TOO_LARGE", "参考素材大小超过当前限制", 413);
+      if (size > maxBytes)
+        throw new MediaServiceError("MEDIA_REFERENCE_TOO_LARGE", "参考素材大小超过当前限制", 413);
       chunks.push(bytes);
     }
     if (size !== media.size || size !== opened.totalSize) {
@@ -476,11 +568,16 @@ export class MediaService {
 
   private async requireOwned(ownerId: string, mediaId: string, projectId?: string) {
     const getByAccessScope = this.metadata.getByAccessScope;
-    const media = typeof getByAccessScope === "function"
-      ? await getByAccessScope.call(this.metadata, mediaId, ownerId, projectId ?? null)
-      : await this.metadata.getById(mediaId).then((candidate) => (
-          candidate?.ownerId === ownerId && candidate.projectId === (projectId ?? null) ? candidate : null
-        ));
+    const media =
+      typeof getByAccessScope === "function"
+        ? await getByAccessScope.call(this.metadata, mediaId, ownerId, projectId ?? null)
+        : await this.metadata
+            .getById(mediaId)
+            .then((candidate) =>
+              candidate?.ownerId === ownerId && candidate.projectId === (projectId ?? null)
+                ? candidate
+                : null,
+            );
     if (!media) throw new MediaServiceError("MEDIA_NOT_FOUND", "没有找到这个素材", 404);
     return media;
   }
@@ -488,7 +585,11 @@ export class MediaService {
   private async recoverGeneratedUpload(ownerId: string, media: MediaRecord) {
     if (media.status === "ready") return media;
     if (media.status === "failed") {
-      throw new MediaServiceError("GENERATED_MEDIA_FAILED", media.error?.message ?? "生成结果无法保存", 422);
+      throw new MediaServiceError(
+        "GENERATED_MEDIA_FAILED",
+        media.error?.message ?? "生成结果无法保存",
+        422,
+      );
     }
     if (media.status !== "uploading") return media;
     if (this.now() - Date.parse(media.updatedAt) < this.generatedUploadProcessingTimeoutMs) {
@@ -501,10 +602,14 @@ export class MediaService {
       media.revision,
       new Date(this.now()).toISOString(),
     );
-    const current = reset ?? await this.requireOwned(ownerId, media.id);
+    const current = reset ?? (await this.requireOwned(ownerId, media.id));
     if (current.status === "ready") return current;
     if (current.status === "failed") {
-      throw new MediaServiceError("GENERATED_MEDIA_FAILED", current.error?.message ?? "生成结果无法保存", 422);
+      throw new MediaServiceError(
+        "GENERATED_MEDIA_FAILED",
+        current.error?.message ?? "生成结果无法保存",
+        422,
+      );
     }
     if (current.status !== "pending") {
       throw new MediaServiceError("GENERATED_MEDIA_IN_PROGRESS", "生成结果正在保存", 409);
@@ -512,11 +617,20 @@ export class MediaService {
     return current;
   }
 
-  private async requirePendingUpload(ownerId: string, mediaId: string, projectId?: string, allowExpired = false) {
+  private async requirePendingUpload(
+    ownerId: string,
+    mediaId: string,
+    projectId?: string,
+    allowExpired = false,
+  ) {
     let media = await this.requireOwned(ownerId, mediaId, projectId);
     if (media.status === "ready") return media;
     if (media.status === "failed") {
-      throw new MediaServiceError("MEDIA_UPLOAD_FAILED", media.error?.message ?? "素材上传失败", 409);
+      throw new MediaServiceError(
+        "MEDIA_UPLOAD_FAILED",
+        media.error?.message ?? "素材上传失败",
+        409,
+      );
     }
     if (media.status === "uploading") {
       if (this.now() - Date.parse(media.updatedAt) < this.uploadProcessingTimeoutMs) {
@@ -528,10 +642,14 @@ export class MediaService {
         media.revision,
         new Date(this.now()).toISOString(),
       );
-      media = reset ?? await this.requireOwned(ownerId, mediaId, projectId);
+      media = reset ?? (await this.requireOwned(ownerId, mediaId, projectId));
       if (media.status === "ready") return media;
       if (media.status === "failed") {
-        throw new MediaServiceError("MEDIA_UPLOAD_FAILED", media.error?.message ?? "素材上传失败", 409);
+        throw new MediaServiceError(
+          "MEDIA_UPLOAD_FAILED",
+          media.error?.message ?? "素材上传失败",
+          409,
+        );
       }
       if (media.status !== "pending") {
         throw new MediaServiceError("MEDIA_UPLOAD_IN_PROGRESS", "素材正在处理中", 409);
@@ -553,13 +671,15 @@ export class MediaService {
   }
 
   private existingIntent(media: MediaRecord, input: MediaUploadRequest) {
-    const matches = media.kind === input.kind
-      && media.name === safeName(input.name)
-      && media.declaredMimeType === canonicalMimeType(input.mimeType)
-      && media.expectedSize === input.size
-      && media.expectedSha256 === (input.sha256 ?? null)
-      && media.projectId === (input.projectId ?? null);
-    if (!matches) throw new MediaServiceError("IDEMPOTENCY_CONFLICT", "这个上传请求标识已经用于其他素材", 409);
+    const matches =
+      media.kind === input.kind &&
+      media.name === safeName(input.name) &&
+      media.declaredMimeType === canonicalMimeType(input.mimeType) &&
+      media.expectedSize === input.size &&
+      media.expectedSha256 === (input.sha256 ?? null) &&
+      media.projectId === (input.projectId ?? null);
+    if (!matches)
+      throw new MediaServiceError("IDEMPOTENCY_CONFLICT", "这个上传请求标识已经用于其他素材", 409);
     return intent(media);
   }
 
@@ -575,8 +695,12 @@ export class MediaService {
     const latest = !current
       ? null
       : typeof getByAccessScope === "function"
-        ? await getByAccessScope.call(this.metadata, mediaId, ownerId, current.projectId).catch(() => null)
-        : current.ownerId === ownerId ? current : null;
+        ? await getByAccessScope
+            .call(this.metadata, mediaId, ownerId, current.projectId)
+            .catch(() => null)
+        : current.ownerId === ownerId
+          ? current
+          : null;
     if (!latest || latest.status !== "ready" || latest.sha256 !== sha256) return null;
     return toPublicMedia(latest);
   }
@@ -590,7 +714,11 @@ export class MediaService {
     }
   }
 
-  private assertInspection(media: MediaRecord, written: MediaObjectWriteResult, inspected: InspectedMedia) {
+  private assertInspection(
+    media: MediaRecord,
+    written: MediaObjectWriteResult,
+    inspected: InspectedMedia,
+  ) {
     if (inspected.kind !== media.kind || inspected.size !== written.size) {
       throw new MediaInspectionError("MEDIA_VALIDATION_MISMATCH", "素材校验结果不一致");
     }
@@ -599,7 +727,11 @@ export class MediaService {
     }
   }
 
-  private async publishReady(media: MediaRecord, written: MediaObjectWriteResult, inspected: InspectedMedia) {
+  private async publishReady(
+    media: MediaRecord,
+    written: MediaObjectWriteResult,
+    inspected: InspectedMedia,
+  ) {
     const timestamp = new Date(this.now()).toISOString();
     const ready: MediaRecord = {
       ...media,
@@ -621,7 +753,11 @@ export class MediaService {
     } catch {
       const reconciled = await this.reconcileReady(media.ownerId, media.id, written.sha256);
       if (reconciled) return reconciled;
-      throw new MediaServiceError("MEDIA_FINALIZATION_UNCONFIRMED", "素材已上传，正在确认处理结果", 503);
+      throw new MediaServiceError(
+        "MEDIA_FINALIZATION_UNCONFIRMED",
+        "素材已上传，正在确认处理结果",
+        503,
+      );
     }
     if (saved) {
       this.warmImageThumbnail(media, inspected.mimeType);
@@ -648,11 +784,14 @@ export class MediaService {
     if (!this.warmThumbnails || media.kind !== "image" || !mimeType.startsWith("image/")) return;
     void this.openThumb(media.ownerId, media.id, media.projectId ?? undefined)
       // 只需把派生对象写出去：读干净流，避免拿着未消费的 S3 socket。
-      .then((content) => new Promise<void>((resolve) => {
-        content.object.stream.on("error", () => resolve());
-        content.object.stream.on("close", () => resolve());
-        content.object.stream.resume();
-      }))
+      .then(
+        (content) =>
+          new Promise<void>((resolve) => {
+            content.object.stream.on("error", () => resolve());
+            content.object.stream.on("close", () => resolve());
+            content.object.stream.resume();
+          }),
+      )
       .catch(() => undefined);
   }
 
@@ -661,7 +800,11 @@ export class MediaService {
     if (error instanceof MediaInspectionError) {
       await this.objects.remove(media.objectKey).catch(() => undefined);
       await this.fail(media, error.code, error.message);
-      throw new MediaServiceError(error.code, error.message, error.code === "MEDIA_TOO_LARGE" ? 413 : 422);
+      throw new MediaServiceError(
+        error.code,
+        error.message,
+        error.code === "MEDIA_TOO_LARGE" ? 413 : 422,
+      );
     }
     if (error instanceof MediaObjectWriteError) {
       if (error.definitive) {
@@ -670,7 +813,11 @@ export class MediaService {
       } else {
         await this.reset(media);
       }
-      throw new MediaServiceError(error.code, error.message, error.code === "MEDIA_TOO_LARGE" ? 413 : error.definitive ? 400 : 503);
+      throw new MediaServiceError(
+        error.code,
+        error.message,
+        error.code === "MEDIA_TOO_LARGE" ? 413 : error.definitive ? 400 : 503,
+      );
     }
     await this.reset(media);
     throw new MediaServiceError("MEDIA_PROCESSING_UNAVAILABLE", "素材暂时无法处理，请重试", 503);
@@ -682,16 +829,26 @@ export class MediaService {
     if (error instanceof MediaInspectionError) {
       await this.objects.removePendingUpload(media.objectKey).catch(() => undefined);
       await this.fail(media, error.code, error.message);
-      throw new MediaServiceError(error.code, error.message, error.code === "MEDIA_TOO_LARGE" ? 413 : 422);
+      throw new MediaServiceError(
+        error.code,
+        error.message,
+        error.code === "MEDIA_TOO_LARGE" ? 413 : 422,
+      );
     }
     if (error instanceof MediaObjectWriteError && error.definitive) {
       await this.objects.removePendingUpload(media.objectKey).catch(() => undefined);
       await this.fail(media, error.code, error.message);
-      throw new MediaServiceError(error.code, error.message, error.code === "MEDIA_TOO_LARGE" ? 413 : 400);
+      throw new MediaServiceError(
+        error.code,
+        error.message,
+        error.code === "MEDIA_TOO_LARGE" ? 413 : 400,
+      );
     }
     await this.reset(media);
-    const code = error instanceof MediaObjectWriteError ? error.code : "MEDIA_PROCESSING_UNAVAILABLE";
-    const message = error instanceof MediaObjectWriteError ? error.message : "素材暂时无法处理，请重试";
+    const code =
+      error instanceof MediaObjectWriteError ? error.code : "MEDIA_PROCESSING_UNAVAILABLE";
+    const message =
+      error instanceof MediaObjectWriteError ? error.message : "素材暂时无法处理，请重试";
     throw new MediaServiceError(code, message, 503);
   }
 
@@ -699,14 +856,16 @@ export class MediaService {
     media: MediaRecord,
     input: { kind: MediaKind; name: string; mimeType: string; size: number; sha256: string },
   ) {
-    const matches = media.source === "generation"
-      && media.projectId === null
-      && media.kind === input.kind
-      && media.name === input.name
-      && media.declaredMimeType === input.mimeType
-      && media.expectedSize === input.size
-      && media.expectedSha256 === input.sha256;
-    if (!matches) throw new MediaServiceError("GENERATED_MEDIA_CONFLICT", "生成结果记录与当前任务不一致", 409);
+    const matches =
+      media.source === "generation" &&
+      media.projectId === null &&
+      media.kind === input.kind &&
+      media.name === input.name &&
+      media.declaredMimeType === input.mimeType &&
+      media.expectedSize === input.size &&
+      media.expectedSha256 === input.sha256;
+    if (!matches)
+      throw new MediaServiceError("GENERATED_MEDIA_CONFLICT", "生成结果记录与当前任务不一致", 409);
   }
 
   private storageQuota(maxStorageBytes: number | undefined, now: number): MediaStorageQuota {
@@ -754,7 +913,12 @@ export class MediaService {
   }
 
   private async reset(media: MediaRecord) {
-    await this.metadata.resetUpload(media.id, media.ownerId, media.revision, new Date(this.now()).toISOString());
+    await this.metadata.resetUpload(
+      media.id,
+      media.ownerId,
+      media.revision,
+      new Date(this.now()).toISOString(),
+    );
   }
 }
 
@@ -790,7 +954,8 @@ function assertAcceptedInput(input: MediaUploadRequest, maxBytes: number) {
   if (!ACCEPTED_MIME_TYPES[input.kind].has(mimeType)) {
     throw new MediaServiceError("MEDIA_TYPE_UNAVAILABLE", "当前素材格式无法安全处理", 415);
   }
-  if (input.size > maxBytes) throw new MediaServiceError("MEDIA_TOO_LARGE", "素材大小超过当前限制", 413);
+  if (input.size > maxBytes)
+    throw new MediaServiceError("MEDIA_TOO_LARGE", "素材大小超过当前限制", 413);
 }
 
 function safeName(value: string) {
@@ -804,7 +969,12 @@ function safeFailureCode(value: string) {
 }
 
 function safeFailureMessage(value: string) {
-  return value.replace(/[\r\n\t]+/g, " ").trim().slice(0, 1_000) || "素材上传失败";
+  return (
+    value
+      .replace(/[\r\n\t]+/g, " ")
+      .trim()
+      .slice(0, 1_000) || "素材上传失败"
+  );
 }
 
 function canonicalMimeType(value: string) {
@@ -815,7 +985,8 @@ function canonicalMimeType(value: string) {
 }
 
 function positiveInteger(value: number, name: string) {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${name} must be a positive safe integer`);
+  if (!Number.isSafeInteger(value) || value <= 0)
+    throw new Error(`${name} must be a positive safe integer`);
   return value;
 }
 
@@ -831,7 +1002,8 @@ async function digestLocalFile(path: string, maxBytes: number): Promise<MediaObj
   if (!metadata.isFile() || metadata.size <= 0) {
     throw new MediaInspectionError("MEDIA_BODY_EMPTY", "上传内容为空");
   }
-  if (metadata.size > maxBytes) throw new MediaInspectionError("MEDIA_TOO_LARGE", "素材大小超过当前限制");
+  if (metadata.size > maxBytes)
+    throw new MediaInspectionError("MEDIA_TOO_LARGE", "素材大小超过当前限制");
   const hash = createHash("sha256");
   let size = 0;
   for await (const chunk of createReadStream(path)) {
@@ -840,6 +1012,7 @@ async function digestLocalFile(path: string, maxBytes: number): Promise<MediaObj
     if (size > maxBytes) throw new MediaInspectionError("MEDIA_TOO_LARGE", "素材大小超过当前限制");
     hash.update(bytes);
   }
-  if (size !== metadata.size) throw new MediaInspectionError("MEDIA_VALIDATION_MISMATCH", "素材校验结果不一致");
+  if (size !== metadata.size)
+    throw new MediaInspectionError("MEDIA_VALIDATION_MISMATCH", "素材校验结果不一致");
   return { size, sha256: hash.digest("hex") };
 }

@@ -32,9 +32,8 @@ export function videoLoadDeadlineReached(input: NodeVideoLoadBoundInput): boolea
 export function videoLoadRemainingMs(input: NodeVideoLoadBoundInput): number {
   const metadataTimeoutMs = input.metadataTimeoutMs ?? NODE_VIDEO_METADATA_TIMEOUT_MS;
   const readyTimeoutMs = input.readyTimeoutMs ?? NODE_VIDEO_READY_TIMEOUT_MS;
-  const elapsed = input.metadataAt === null
-    ? input.now - input.urlChangedAt
-    : input.now - input.metadataAt;
+  const elapsed =
+    input.metadataAt === null ? input.now - input.urlChangedAt : input.now - input.metadataAt;
   const deadlineMs = input.metadataAt === null ? metadataTimeoutMs : readyTimeoutMs;
   return Math.max(0, deadlineMs - elapsed);
 }

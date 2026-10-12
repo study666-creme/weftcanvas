@@ -1,4 +1,4 @@
-import type { PublicModel } from "@kachang/contracts";
+import type { PublicModel } from "@weftcanvas/contracts";
 import { useMemo } from "react";
 
 import { isCustomModelKey } from "../lib/custom-api";
@@ -22,24 +22,29 @@ export function GenerationModelSelect({
   menuClassName?: string;
 }) {
   const selectedModel = models.find((model) => model.id === value);
-  const selectedMeta = selectedModel && selectedParameters
-    ? modelConfiguredPriceLabel(selectedModel, selectedParameters)
-    : undefined;
-  const options = useMemo(() => orderModelsForPicker(models).map((model) => {
-    const label = modelPickerLabel(model);
-    return {
-      value: model.id,
-      label,
-      title: label,
-      meta: modelPriceLabel(model),
-      group: modelGroupLabel(model),
-      detail: model.description,
-      accent: true,
-    };
-  }), [models]);
+  const selectedMeta =
+    selectedModel && selectedParameters
+      ? modelConfiguredPriceLabel(selectedModel, selectedParameters)
+      : undefined;
+  const options = useMemo(
+    () =>
+      orderModelsForPicker(models).map((model) => {
+        const label = modelPickerLabel(model);
+        return {
+          value: model.id,
+          label,
+          title: label,
+          meta: modelPriceLabel(model),
+          group: modelGroupLabel(model),
+          detail: model.description,
+          accent: true,
+        };
+      }),
+    [models],
+  );
 
   return (
-    <div className="kc-generation-model-picker">
+    <div className="wc-generation-model-picker">
       <input data-generation-model-select type="hidden" value={value} readOnly />
       <CanvasSelect
         value={value}
@@ -49,7 +54,7 @@ export function GenerationModelSelect({
         disabled={disabled}
         placeholder={options.length ? "选择模型" : "暂无可用模型"}
         variant={variant}
-        menuClassName={`kc-generation-model-menu${menuClassName ? ` ${menuClassName}` : ""}`}
+        menuClassName={`wc-generation-model-menu${menuClassName ? ` ${menuClassName}` : ""}`}
         menuMinWidth={340}
         selectedMeta={selectedMeta}
       />
@@ -82,7 +87,9 @@ export function modelConfiguredPriceLabel(model: PublicModel, configured: Record
   if (isCustomModelKey(model.id)) return "自有 API";
   if (model.pricing.mode === "token") return modelPriceLabel(model);
   const micros = calculateCatalogPriceMicros(model, pricingParameters(model, configured), true);
-  return micros === null ? modelPriceLabel(model) : formatCreditMicros(micros, model.pricing.unit, true);
+  return micros === null
+    ? modelPriceLabel(model)
+    : formatCreditMicros(micros, model.pricing.unit, true);
 }
 
 export function pricingUnitText(unit: PublicModel["pricing"]["unit"]): string {
@@ -93,10 +100,12 @@ export function pricingUnitText(unit: PublicModel["pricing"]["unit"]): string {
 }
 
 function defaultPricingParameters(model: PublicModel) {
-  return Object.fromEntries(model.parameters.flatMap((parameter) => {
-    const value = parameter.fixed ?? parameter.default;
-    return value === undefined ? [] : [[parameter.name, value]];
-  }));
+  return Object.fromEntries(
+    model.parameters.flatMap((parameter) => {
+      const value = parameter.fixed ?? parameter.default;
+      return value === undefined ? [] : [[parameter.name, value]];
+    }),
+  );
 }
 
 function pricingParameters(model: PublicModel, configured: Record<string, unknown>) {
@@ -111,10 +120,15 @@ function pricingParameters(model: PublicModel, configured: Record<string, unknow
   return parameters;
 }
 
-function calculateCatalogPriceMicros(model: PublicModel, parameters: Record<string, unknown>, multiplyUnits: boolean) {
+function calculateCatalogPriceMicros(
+  model: PublicModel,
+  parameters: Record<string, unknown>,
+  multiplyUnits: boolean,
+) {
   const pricing = model.pricing;
-  const tier = pricing.tiers.find((candidate) => Object.entries(candidate.when)
-    .every(([name, value]) => sameValue(parameters[name], value)));
+  const tier = pricing.tiers.find((candidate) =>
+    Object.entries(candidate.when).every(([name, value]) => sameValue(parameters[name], value)),
+  );
   const baseCreditMicros = tier?.creditMicros ?? pricing.baseCreditMicros;
   const baseYuanMicros = tier?.yuanMicros ?? pricing.baseYuanMicros;
   if (baseCreditMicros === undefined && baseYuanMicros === undefined) return null;
@@ -122,7 +136,8 @@ function calculateCatalogPriceMicros(model: PublicModel, parameters: Record<stri
   let units = 1;
   if (multiplyUnits && pricing.unit === "second") {
     const duration = parameters.duration ?? parameters.seconds;
-    if (typeof duration === "number" && Number.isFinite(duration) && duration > 0) units *= duration;
+    if (typeof duration === "number" && Number.isFinite(duration) && duration > 0)
+      units *= duration;
   }
   if (multiplyUnits && pricing.unit === "image") {
     const count = parameters.n;
@@ -149,11 +164,14 @@ function formatCreditMicros(micros: number, unit: PublicModel["pricing"]["unit"]
 export function modelGroupLabel(model: PublicModel) {
   if (isCustomModelKey(model.id)) return CUSTOM_MODEL_GROUP_LABEL;
   if (isPromoZoneModel(model)) return "特惠模型";
-  if (model.modality === "image") return ({
-    universal: "全能模型2",
-    banana: "香蕉",
-    other: "其他图片模型",
-  } as const)[imageModelBucket(model)];
+  if (model.modality === "image")
+    return (
+      {
+        universal: "全能模型2",
+        banana: "香蕉",
+        other: "其他图片模型",
+      } as const
+    )[imageModelBucket(model)];
   if (model.modality !== "video") return model.modality === "audio" ? "音频模型" : "文本模型";
   const routeLine = videoRouteLine(model);
   return routeLine === null ? "线路待同步" : `线路${formatChineseRouteLine(routeLine)}`;
@@ -166,7 +184,8 @@ export function isPromoZoneModel(model: PublicModel) {
   return model.zone === "promo";
 }
 
-export const PROMO_MODEL_NOTICE = "特惠模型随时可能下架或不可用，可用时也不保证成功率；请优先使用稳定区模型。";
+export const PROMO_MODEL_NOTICE =
+  "特惠模型随时可能下架或不可用，可用时也不保证成功率；请优先使用稳定区模型。";
 
 /**
  * 默认选中模型：稳定主推区（zone !== "promo"）的第一个；特惠区只做引流，
@@ -177,7 +196,12 @@ export function pickDefaultModel(models: PublicModel[]): PublicModel | null {
 }
 
 export function modelPickerLabel(model: PublicModel) {
-  if (model.modality !== "image" || isCustomModelKey(model.id) || imageModelBucket(model) !== "banana") return model.label;
+  if (
+    model.modality !== "image" ||
+    isCustomModelKey(model.id) ||
+    imageModelBucket(model) !== "banana"
+  )
+    return model.label;
   return model.label
     .replace(/(香蕉\s*[·•:：/\-]\s*)标准(?=\s|$)/i, "$1Standard")
     .replace(/(香蕉\s*[·•:：/\-]\s*)极速(?=\s|$)/i, "$1Fast")
@@ -188,7 +212,7 @@ export function modelPickerLabel(model: PublicModel) {
 export function orderModelsForPicker(models: PublicModel[]) {
   if (!models.length) return models;
   // 特惠区永远殿后：主推位留给稳定区模型。
-  const zoneRank = (model: PublicModel) => isPromoZoneModel(model) ? 1 : 0;
+  const zoneRank = (model: PublicModel) => (isPromoZoneModel(model) ? 1 : 0);
   if (models[0]?.modality === "image") {
     return [...models].sort((left, right) => {
       const zoneDifference = zoneRank(left) - zoneRank(right);
@@ -232,7 +256,9 @@ function imageModelBucketRank(model: PublicModel) {
 
 function videoRouteLine(model: PublicModel) {
   const routeLine = model.routeLine;
-  return typeof routeLine === "number" && Number.isInteger(routeLine) && routeLine > 0 ? routeLine : null;
+  return typeof routeLine === "number" && Number.isInteger(routeLine) && routeLine > 0
+    ? routeLine
+    : null;
 }
 
 function videoModelLineRank(model: PublicModel) {

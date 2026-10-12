@@ -1,4 +1,4 @@
-import type { Plugin } from "@kachang/plugin-sdk";
+import type { Plugin } from "@weftcanvas/plugin-sdk";
 
 import { PLUGIN_DEV } from "./canvas-features";
 import { exposePluginHostTestHook, installPlugin } from "./plugin-host";
@@ -9,7 +9,7 @@ import { exposePluginHostTestHook, installPlugin } from "./plugin-host";
  * 里加一条 loader 即可（不提供 URL 远程加载，不做 eval）。
  */
 const officialPluginLoaders: Record<string, () => Promise<{ default: Plugin }>> = {
-  "split-list": async () => import("@kachang-plugin/split-list"),
+  "split-list": async () => import("@weftcanvas-plugin/split-list"),
 };
 
 let started = false;
@@ -19,16 +19,21 @@ export async function loadOfficialPlugins(): Promise<void> {
   started = true;
   if (import.meta.env.DEV || PLUGIN_DEV) {
     exposePluginHostTestHook();
-    if (PLUGIN_DEV) console.info("[plugins] PLUGIN_DEV 已开启：插件宿主调试钩子可用（window.__kachangPluginHost）");
+    if (PLUGIN_DEV)
+      console.info(
+        "[plugins] PLUGIN_DEV 已开启：插件宿主调试钩子可用（window.__weftcanvasPluginHost）",
+      );
   }
-  await Promise.all(Object.entries(officialPluginLoaders).map(async ([id, loader]) => {
-    try {
-      await installPlugin(await loader());
-    } catch (error) {
-      // 装载失败只降级这个插件：画布与其它插件不受影响。
-      console.error(`[plugins] 官方插件 ${id} 装载失败`, error);
-    }
-  }));
+  await Promise.all(
+    Object.entries(officialPluginLoaders).map(async ([id, loader]) => {
+      try {
+        await installPlugin(await loader());
+      } catch (error) {
+        // 装载失败只降级这个插件：画布与其它插件不受影响。
+        console.error(`[plugins] 官方插件 ${id} 装载失败`, error);
+      }
+    }),
+  );
 }
 
 /** 已随包提供的官方插件 id（设置中心的重装列表）。 */

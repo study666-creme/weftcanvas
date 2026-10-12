@@ -5,7 +5,7 @@ import {
   publicModelCatalogSchema,
   type ModelModality,
   type PublicModel,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 import { create } from "zustand";
 
 import {
@@ -14,7 +14,6 @@ import {
   customModelKey,
   CustomApiError,
   DEFAULT_CUSTOM_API_BASE_URL,
-  DEFAULT_CUSTOM_API_FORMAT,
   GEMINI_CUSTOM_API_BASE_URL,
   executeCustomGeneration,
   normalizeCustomApiFormat,
@@ -37,10 +36,10 @@ import { enqueueGeneratedMedia } from "./local-output-store";
 import { useToastStore } from "./toast-store";
 import { useWalletStore } from "./wallet-store";
 
-const LEGACY_STORAGE_KEY = "kachang-canvas:custom-api:v1";
-const LEGACY_CATALOG_STORAGE_KEY = "kachang-canvas:custom-api-catalog:v1";
-export const CUSTOM_API_STORAGE_KEY = "kachang-canvas:custom-api:v2";
-export const CUSTOM_API_CATALOG_STORAGE_KEY = "kachang-canvas:custom-api-catalog:v2";
+const LEGACY_STORAGE_KEY = "weftcanvas:custom-api:v1";
+const LEGACY_CATALOG_STORAGE_KEY = "weftcanvas:custom-api-catalog:v1";
+export const CUSTOM_API_STORAGE_KEY = "weftcanvas:custom-api:v2";
+export const CUSTOM_API_CATALOG_STORAGE_KEY = "weftcanvas:custom-api-catalog:v2";
 const CATALOG_REFRESH_INTERVAL_MS = 60_000;
 const CATALOG_MAX_STALE_MS = 7 * 24 * 60 * 60_000;
 const LEGACY_PROFILE_ID = "legacy";
@@ -109,7 +108,12 @@ type CustomApiState = {
   removeProfile: (profileId: string) => void;
   pullProfileModels: (profileId: string, force?: boolean) => Promise<CustomApiCatalog | null>;
   pullAllProfiles: (force?: boolean) => Promise<void>;
-  assignProfileModelModality: (profileId: string, rawModelId: string, modality: ModelModality, assigned: boolean) => void;
+  assignProfileModelModality: (
+    profileId: string,
+    rawModelId: string,
+    modality: ModelModality,
+    assigned: boolean,
+  ) => void;
   setModelVisible: (modelKey: string, visible: boolean) => void;
   toggleModelVisibility: (modelKey: string) => void;
   isModelVisible: (modelKey: string) => boolean;
@@ -160,7 +164,9 @@ export const useCustomApiStore = create<CustomApiState>((set, get) => {
     try {
       connection = normalizeConnection(value);
     } catch (cause) {
-      commit((state) => ({ profiles: patchProfile(state.profiles, profileId, { error: publicError(cause) }) }));
+      commit((state) => ({
+        profiles: patchProfile(state.profiles, profileId, { error: publicError(cause) }),
+      }));
       return false;
     }
     const before = get().profiles.find((profile) => profile.id === profileId);
@@ -170,7 +176,9 @@ export const useCustomApiStore = create<CustomApiState>((set, get) => {
     configurationRequests.set(profileId, requestIdentity);
     commit((state) => ({
       profiles: patchProfile(state.profiles, profileId, {
-        status: state.profiles.find((profile) => profile.id === profileId)?.catalog ? "ready" : "loading",
+        status: state.profiles.find((profile) => profile.id === profileId)?.catalog
+          ? "ready"
+          : "loading",
         connecting: true,
         refreshing: false,
         error: null,
@@ -180,32 +188,40 @@ export const useCustomApiStore = create<CustomApiState>((set, get) => {
     try {
       const catalog = await testCustomApiConnection(connection);
       const current = get().profiles.find((profile) => profile.id === profileId);
-      if (!current
-        || configurationRequests.get(profileId) !== requestIdentity
-        || connectionIdentity(current.connection) !== previousIdentity) return false;
+      if (
+        !current ||
+        configurationRequests.get(profileId) !== requestIdentity ||
+        connectionIdentity(current.connection) !== previousIdentity
+      )
+        return false;
       const loadedAt = Date.now();
       catalogRequests.delete(profileId);
-      commit((state) => ({
-        profiles: patchProfile(state.profiles, profileId, {
-          connection,
-          catalog,
-          status: "ready",
-          connecting: false,
-          refreshing: false,
-          error: null,
-          loadedAt,
-          availableModelIds: catalog.availableModelIds,
-          manualModelModalities: mergeRichModelModalities(current.manualModelModalities, catalog),
+      commit(
+        (state) => ({
+          profiles: patchProfile(state.profiles, profileId, {
+            connection,
+            catalog,
+            status: "ready",
+            connecting: false,
+            refreshing: false,
+            error: null,
+            loadedAt,
+            availableModelIds: catalog.availableModelIds,
+            manualModelModalities: mergeRichModelModalities(current.manualModelModalities, catalog),
+          }),
+          activeProfileId: profileId,
         }),
-        activeProfileId: profileId,
-      }), { catalogs: true });
+        { catalogs: true },
+      );
       configurationRequests.delete(profileId);
       return true;
     } catch (cause) {
       const current = get().profiles.find((profile) => profile.id === profileId);
-      if (current
-        && configurationRequests.get(profileId) === requestIdentity
-        && connectionIdentity(current.connection) === previousIdentity) {
+      if (
+        current &&
+        configurationRequests.get(profileId) === requestIdentity &&
+        connectionIdentity(current.connection) === previousIdentity
+      ) {
         commit((state) => ({
           profiles: patchProfile(state.profiles, profileId, {
             status: current.catalog ? "ready" : "error",
@@ -220,10 +236,14 @@ export const useCustomApiStore = create<CustomApiState>((set, get) => {
     }
   };
 
-  const pullProfileModels = async (profileId: string, force = false): Promise<CustomApiCatalog | null> => {
+  const pullProfileModels = async (
+    profileId: string,
+    force = false,
+  ): Promise<CustomApiCatalog | null> => {
     const profile = get().profiles.find((item) => item.id === profileId);
     if (!profile || !profile.enabled) return null;
-    if (!force && profile.catalog && Date.now() - profile.loadedAt < CATALOG_REFRESH_INTERVAL_MS) return profile.catalog;
+    if (!force && profile.catalog && Date.now() - profile.loadedAt < CATALOG_REFRESH_INTERVAL_MS)
+      return profile.catalog;
     const running = catalogRequests.get(profileId);
     if (running) return running;
     const connection = profile.connection;
@@ -238,24 +258,32 @@ export const useCustomApiStore = create<CustomApiState>((set, get) => {
     const request = testCustomApiConnection(connection)
       .then((catalog) => {
         const current = get().profiles.find((item) => item.id === profileId);
-        if (!current || connectionIdentity(current.connection) !== requestIdentity) return current?.catalog ?? null;
+        if (!current || connectionIdentity(current.connection) !== requestIdentity)
+          return current?.catalog ?? null;
         const loadedAt = Date.now();
-        commit((state) => ({
-          profiles: patchProfile(state.profiles, profileId, {
-            catalog,
-            status: "ready",
-            refreshing: false,
-            error: null,
-            loadedAt,
-            availableModelIds: catalog.availableModelIds,
-            manualModelModalities: mergeRichModelModalities(current.manualModelModalities, catalog),
+        commit(
+          (state) => ({
+            profiles: patchProfile(state.profiles, profileId, {
+              catalog,
+              status: "ready",
+              refreshing: false,
+              error: null,
+              loadedAt,
+              availableModelIds: catalog.availableModelIds,
+              manualModelModalities: mergeRichModelModalities(
+                current.manualModelModalities,
+                catalog,
+              ),
+            }),
           }),
-        }), { catalogs: true });
+          { catalogs: true },
+        );
         return catalog;
       })
       .catch((cause) => {
         const current = get().profiles.find((item) => item.id === profileId);
-        if (!current || connectionIdentity(current.connection) !== requestIdentity) return current?.catalog ?? null;
+        if (!current || connectionIdentity(current.connection) !== requestIdentity)
+          return current?.catalog ?? null;
         commit((state) => ({
           profiles: patchProfile(state.profiles, profileId, {
             status: current.catalog ? "ready" : "error",
@@ -292,7 +320,8 @@ export const useCustomApiStore = create<CustomApiState>((set, get) => {
     },
     closeDialog: () => set({ dialogOpen: false }),
     setActiveProfile: (profileId) => {
-      const nextId = profileId && get().profiles.some((profile) => profile.id === profileId) ? profileId : null;
+      const nextId =
+        profileId && get().profiles.some((profile) => profile.id === profileId) ? profileId : null;
       commit(() => ({ activeProfileId: nextId }));
     },
     addProfile: (input = {}) => {
@@ -311,42 +340,59 @@ export const useCustomApiStore = create<CustomApiState>((set, get) => {
       const connection = {
         baseUrl: patch.baseUrl === undefined ? current.connection.baseUrl : patch.baseUrl,
         apiKey: patch.apiKey === undefined ? current.connection.apiKey : patch.apiKey,
-        apiFormat: patch.apiFormat === undefined ? current.connection.apiFormat : normalizeCustomApiFormat(patch.apiFormat),
+        apiFormat:
+          patch.apiFormat === undefined
+            ? current.connection.apiFormat
+            : normalizeCustomApiFormat(patch.apiFormat),
       };
       const connectionChanged = !sameConnection(connection, current.connection);
-      commit((state) => ({
-        profiles: patchProfile(state.profiles, profileId, {
-          name: patch.name === undefined ? current.name : normalizedProfileName(patch.name, current.name),
-          enabled: patch.enabled ?? current.enabled,
-          connection,
-          ...(connectionChanged ? {
-            catalog: null,
-            status: "idle" as const,
-            error: null,
-            loadedAt: 0,
-            availableModelIds: [],
-          } : {}),
+      commit(
+        (state) => ({
+          profiles: patchProfile(state.profiles, profileId, {
+            name:
+              patch.name === undefined
+                ? current.name
+                : normalizedProfileName(patch.name, current.name),
+            enabled: patch.enabled ?? current.enabled,
+            connection,
+            ...(connectionChanged
+              ? {
+                  catalog: null,
+                  status: "idle" as const,
+                  error: null,
+                  loadedAt: 0,
+                  availableModelIds: [],
+                }
+              : {}),
+          }),
         }),
-      }), { catalogs: connectionChanged });
+        { catalogs: connectionChanged },
+      );
     },
     configureProfile,
     removeProfile: (profileId) => {
       catalogRequests.delete(profileId);
       configurationRequests.delete(profileId);
-      commit((state) => {
-        const profiles = state.profiles.filter((profile) => profile.id !== profileId);
-        const activeProfileId = state.activeProfileId === profileId ? profiles[0]?.id ?? null : state.activeProfileId;
-        const prefix = `custom:${encodeURIComponent(profileId)}:`;
-        return {
-          profiles,
-          activeProfileId,
-          hiddenModelKeys: state.hiddenModelKeys.filter((key) => !key.startsWith(prefix)),
-        };
-      }, { catalogs: true });
+      commit(
+        (state) => {
+          const profiles = state.profiles.filter((profile) => profile.id !== profileId);
+          const activeProfileId =
+            state.activeProfileId === profileId ? (profiles[0]?.id ?? null) : state.activeProfileId;
+          const prefix = `custom:${encodeURIComponent(profileId)}:`;
+          return {
+            profiles,
+            activeProfileId,
+            hiddenModelKeys: state.hiddenModelKeys.filter((key) => !key.startsWith(prefix)),
+          };
+        },
+        { catalogs: true },
+      );
     },
     pullProfileModels,
     pullAllProfiles: async (force = false) => {
-      const profileIds = get().profiles.filter((profile) => profile.enabled).map((profile) => profile.id);
+      const profileIds = get()
+        .profiles.filter((profile) => profile.enabled)
+        .map((profile) => profile.id);
       await Promise.allSettled(profileIds.map((profileId) => pullProfileModels(profileId, force)));
     },
     assignProfileModelModality: (profileId, rawModelIdValue, modality, assigned) => {
@@ -367,18 +413,30 @@ export const useCustomApiStore = create<CustomApiState>((set, get) => {
       });
     },
     setModelVisible: (modelKey, visible) => {
-      commit((state) => ({ hiddenModelKeys: setVisibility(state.hiddenModelKeys, modelKey, visible) }));
+      commit((state) => ({
+        hiddenModelKeys: setVisibility(state.hiddenModelKeys, modelKey, visible),
+      }));
     },
     toggleModelVisibility: (modelKey) => {
       commit((state) => ({
-        hiddenModelKeys: setVisibility(state.hiddenModelKeys, modelKey, state.hiddenModelKeys.includes(modelKey)),
+        hiddenModelKeys: setVisibility(
+          state.hiddenModelKeys,
+          modelKey,
+          state.hiddenModelKeys.includes(modelKey),
+        ),
       }));
     },
     isModelVisible: (modelKey) => !get().hiddenModelKeys.includes(modelKey),
 
     configure: async (connection) => {
       let profileId = get().activeProfileId ?? get().profiles[0]?.id ?? null;
-      if (!profileId) profileId = get().addProfile({ baseUrl: connection.baseUrl, apiKey: connection.apiKey, apiFormat: connection.apiFormat, name: "自有 API" });
+      if (!profileId)
+        profileId = get().addProfile({
+          baseUrl: connection.baseUrl,
+          apiKey: connection.apiKey,
+          apiFormat: connection.apiFormat,
+          name: "自有 API",
+        });
       const configured = await configureProfile(profileId, connection);
       if (configured) set({ dialogOpen: false });
       return configured;
@@ -408,13 +466,16 @@ export function getCustomModelChoices(
       if (catalogModel.modality !== modality) continue;
       const route = profile.catalog?.routes[catalogModel.id];
       if (!route) continue;
-      const assigned = profile.manualModelModalities[route.sourceModelId]?.includes(modality) ?? false;
+      const assigned =
+        profile.manualModelModalities[route.sourceModelId]?.includes(modality) ?? false;
       if (!assigned) continue;
       if (coveredRawIds.has(route.sourceModelId)) continue;
       coveredRawIds.add(route.sourceModelId);
       const key = customModelKey(profile.id, modality, route.sourceModelId);
       if (!includeHidden && state.hiddenModelKeys.includes(key)) continue;
-      choices.push(createChoice(profile, key, catalogModel.id, route.sourceModelId, catalogModel, route));
+      choices.push(
+        createChoice(profile, key, catalogModel.id, route.sourceModelId, catalogModel, route),
+      );
     }
     const syntheticIds = profile.availableModelIds
       .filter((rawModelId) => !coveredRawIds.has(rawModelId))
@@ -437,8 +498,12 @@ export function getMergedModels(
   profiles: CustomApiProfile[],
   hiddenModelKeys: string[],
 ) {
-  const platform = platformModels.filter((model) => model.modality === modality && !hiddenModelKeys.includes(model.id));
-  const custom = getCustomModelChoices({ profiles, hiddenModelKeys }, modality).map((choice) => choice.model);
+  const platform = platformModels.filter(
+    (model) => model.modality === modality && !hiddenModelKeys.includes(model.id),
+  );
+  const custom = getCustomModelChoices({ profiles, hiddenModelKeys }, modality).map(
+    (choice) => choice.model,
+  );
   return [...platform, ...custom];
 }
 
@@ -449,27 +514,44 @@ export function getModelSourceLabel(modelKey: string, profiles: CustomApiProfile
 }
 
 export function resolveCustomModelChoice(
-  state: Pick<CustomApiState, "profiles" | "hiddenModelKeys"> & Partial<Pick<CustomApiState, "activeProfileId">>,
+  state: Pick<CustomApiState, "profiles" | "hiddenModelKeys"> &
+    Partial<Pick<CustomApiState, "activeProfileId">>,
   modelKey: string,
   expectedModality?: ModelModality,
 ): CustomApiModelChoice | null {
   const parsed = parseCustomModelKey(modelKey);
   if (parsed) {
     if (expectedModality && parsed.modality !== expectedModality) return null;
-    return getCustomModelChoices(state, parsed.modality, true).find((choice) => choice.key === modelKey) ?? null;
+    return (
+      getCustomModelChoices(state, parsed.modality, true).find(
+        (choice) => choice.key === modelKey,
+      ) ?? null
+    );
   }
   // A v1 project contains only a bare public id. Preserve the historical
   // active-profile behavior without rewriting that node behind the user's back.
   const active = state.activeProfileId
     ? state.profiles.find((profile) => profile.id === state.activeProfileId)
     : null;
-  const profiles = active ? [active, ...state.profiles.filter((profile) => profile.id !== active.id)] : state.profiles;
+  const profiles = active
+    ? [active, ...state.profiles.filter((profile) => profile.id !== active.id)]
+    : state.profiles;
   for (const profile of profiles) {
-    const catalogModel = profile.catalog?.models.find((model) => model.id === modelKey && (!expectedModality || model.modality === expectedModality));
+    const catalogModel = profile.catalog?.models.find(
+      (model) =>
+        model.id === modelKey && (!expectedModality || model.modality === expectedModality),
+    );
     if (!catalogModel) continue;
     const route = profile.catalog?.routes[catalogModel.id];
     if (!route) continue;
-    return createChoice(profile, modelKey, catalogModel.id, route.sourceModelId, catalogModel, route);
+    return createChoice(
+      profile,
+      modelKey,
+      catalogModel.id,
+      route.sourceModelId,
+      catalogModel,
+      route,
+    );
   }
   return null;
 }
@@ -517,14 +599,26 @@ function runCustomGeneration(
     authenticated: identityStatus === "authenticated",
     membership: walletMembership,
   });
-  if (!access.allowed) throw new CustomApiError("需要标准会员才能使用画布 API", "CANVAS_API_MEMBERSHIP_REQUIRED");
+  if (!access.allowed)
+    throw new CustomApiError("需要标准会员才能使用画布 API", "CANVAS_API_MEMBERSHIP_REQUIRED");
   const choice = resolveCustomModelChoice(state, input.model.id, input.modality);
-  if (!choice) throw new CustomApiError("所选模型来源已移除或当前不可用，请重新选择", "MODEL_SOURCE_UNAVAILABLE");
-  if (state.hiddenModelKeys.includes(choice.key)) throw new CustomApiError("所选模型已从节点可选项中停用，请重新选择", "MODEL_HIDDEN");
-  if (!choice.executable || !choice.route) throw new CustomApiError(choice.unsupportedReason ?? "当前模型暂不支持直接生成", "MODEL_EXECUTION_UNSUPPORTED");
+  if (!choice)
+    throw new CustomApiError(
+      "所选模型来源已移除或当前不可用，请重新选择",
+      "MODEL_SOURCE_UNAVAILABLE",
+    );
+  if (state.hiddenModelKeys.includes(choice.key))
+    throw new CustomApiError("所选模型已从节点可选项中停用，请重新选择", "MODEL_HIDDEN");
+  if (!choice.executable || !choice.route)
+    throw new CustomApiError(
+      choice.unsupportedReason ?? "当前模型暂不支持直接生成",
+      "MODEL_EXECUTION_UNSUPPORTED",
+    );
   const profile = state.profiles.find((item) => item.id === choice.profileId);
-  if (!profile?.enabled) throw new CustomApiError("所选 API 配置已停用，请重新选择", "API_PROFILE_DISABLED");
-  if (input.model.modality !== input.modality) throw new CustomApiError("所选模型类型与节点不一致", "MODEL_MODALITY_MISMATCH");
+  if (!profile?.enabled)
+    throw new CustomApiError("所选 API 配置已停用，请重新选择", "API_PROFILE_DISABLED");
+  if (input.model.modality !== input.modality)
+    throw new CustomApiError("所选模型类型与节点不一致", "MODEL_MODALITY_MISMATCH");
   const executionModel = { ...choice.model, id: choice.catalogModelId, label: input.model.label };
 
   const jobId = `browser:${crypto.randomUUID()}`;
@@ -549,7 +643,10 @@ function runCustomGeneration(
 
   void (async () => {
     try {
-      const prepared = await prepareCustomGenerationInputs(input.references, publicReferenceKinds(choice.route!));
+      const prepared = await prepareCustomGenerationInputs(
+        input.references,
+        publicReferenceKinds(choice.route!),
+      );
       updateProgress(input.nodeId, jobId, 6);
       const result = await executeCustomGeneration({
         connection: profile.connection,
@@ -573,11 +670,19 @@ function runCustomGeneration(
 
 function updateProgress(nodeId: string, jobId: string, progress: number) {
   const canvas = useCanvasStore.getState();
-  canvas.applyGenerationUpdate(nodeId, (node) => ({
-    status: "running",
-    progress: Math.max(0, Math.min(99, Math.round(progress))),
-    generation: { ...node.data.generation, jobVersion: (node.data.generation.jobVersion ?? 1) + 1, jobStatus: "running" },
-  }), { expectedJobId: jobId });
+  canvas.applyGenerationUpdate(
+    nodeId,
+    (node) => ({
+      status: "running",
+      progress: Math.max(0, Math.min(99, Math.round(progress))),
+      generation: {
+        ...node.data.generation,
+        jobVersion: (node.data.generation.jobVersion ?? 1) + 1,
+        jobStatus: "running",
+      },
+    }),
+    { expectedJobId: jobId },
+  );
 }
 
 function completeGeneration(
@@ -601,30 +706,46 @@ function completeGeneration(
   };
 
   if (result.text !== undefined) {
-    canvas.applyGenerationUpdate(nodeId, {
-      body: result.text,
-      media: null,
-      status: "success",
-      progress: null,
-      generation,
-    }, { result: "text" });
+    canvas.applyGenerationUpdate(
+      nodeId,
+      {
+        body: result.text,
+        media: null,
+        status: "success",
+        progress: null,
+        generation,
+      },
+      { result: "text" },
+    );
     return;
   }
 
   const [primary, ...additional] = result.media ?? [];
   if (!primary) throw new CustomApiError("生成完成但没有可用结果", "RESULT_EMPTY");
   const completedAt = Date.now();
-  canvas.applyGenerationUpdate(nodeId, {
+  canvas.applyGenerationUpdate(
+    nodeId,
+    {
+      media: primary,
+      status: "success",
+      progress: null,
+      generation,
+    },
+    { result: "media" },
+  );
+  void enqueueGeneratedMedia({
+    outputKey: `${jobId}:${primary.id}`,
+    createdAt: completedAt,
     media: primary,
-    status: "success",
-    progress: null,
-    generation,
-  }, { result: "media" });
-  void enqueueGeneratedMedia({ outputKey: `${jobId}:${primary.id}`, createdAt: completedAt, media: primary });
+  });
   canvas = useCanvasStore.getState();
   node = findGenerationNode(canvas, nodeId);
   for (const media of additional) {
-    void enqueueGeneratedMedia({ outputKey: `${jobId}:${media.id}`, createdAt: completedAt, media });
+    void enqueueGeneratedMedia({
+      outputKey: `${jobId}:${media.id}`,
+      createdAt: completedAt,
+      media,
+    });
     useCanvasStore.getState().addGeneratedConnectedNode(nodeId, inputKindForMedia(media.mimeType), {
       body: node?.data.body ?? "",
       media,
@@ -637,16 +758,20 @@ function completeGeneration(
 
 function failGeneration(nodeId: string, jobId: string, cause: unknown) {
   const canvas = useCanvasStore.getState();
-  canvas.applyGenerationUpdate(nodeId, (node) => ({
-    status: "error",
-    progress: null,
-    generation: {
-      ...node.data.generation,
-      jobVersion: (node.data.generation.jobVersion ?? 1) + 1,
-      jobStatus: "failed",
-      error: publicError(cause),
-    },
-  }), { expectedJobId: jobId });
+  canvas.applyGenerationUpdate(
+    nodeId,
+    (node) => ({
+      status: "error",
+      progress: null,
+      generation: {
+        ...node.data.generation,
+        jobVersion: (node.data.generation.jobVersion ?? 1) + 1,
+        jobStatus: "failed",
+        error: publicError(cause),
+      },
+    }),
+    { expectedJobId: jobId },
+  );
 }
 
 function findGenerationNode(canvas: ReturnType<typeof useCanvasStore.getState>, nodeId: string) {
@@ -663,7 +788,12 @@ function readInitialState() {
   const v2 = readPersistedV2();
   if (v2) return v2;
   const migrated = readLegacyState();
-  if (!migrated) return { profiles: [] as CustomApiProfile[], activeProfileId: null, hiddenModelKeys: [] as string[] };
+  if (!migrated)
+    return {
+      profiles: [] as CustomApiProfile[],
+      activeProfileId: null,
+      hiddenModelKeys: [] as string[],
+    };
   const persisted = writeInitialMigration(migrated);
   if (persisted) {
     localStorage.removeItem(LEGACY_STORAGE_KEY);
@@ -687,21 +817,26 @@ function readPersistedV2() {
       const persisted = parsePersistedProfile(item);
       if (!persisted) return [];
       const cached = caches[persisted.id];
-      const catalog = cached?.baseUrl === persisted.baseUrl
-        && normalizeCustomApiFormat(cached.apiFormat) === normalizeCustomApiFormat(persisted.apiFormat)
-        && Date.now() - cached.storedAt <= CATALOG_MAX_STALE_MS
-        ? cached.catalog
-        : null;
+      const catalog =
+        cached?.baseUrl === persisted.baseUrl &&
+        normalizeCustomApiFormat(cached.apiFormat) ===
+          normalizeCustomApiFormat(persisted.apiFormat) &&
+        Date.now() - cached.storedAt <= CATALOG_MAX_STALE_MS
+          ? cached.catalog
+          : null;
       return [hydrateProfile(persisted, catalog, cached?.storedAt ?? 0)];
     });
-    const requestedActiveId = typeof value.activeProfileId === "string" ? value.activeProfileId : null;
+    const requestedActiveId =
+      typeof value.activeProfileId === "string" ? value.activeProfileId : null;
     const activeProfileId = profiles.some((profile) => profile.id === requestedActiveId)
       ? requestedActiveId
-      : profiles[0]?.id ?? null;
+      : (profiles[0]?.id ?? null);
     return {
       profiles,
       activeProfileId,
-      hiddenModelKeys: uniqueStrings(Array.isArray(value.hiddenModelKeys) ? value.hiddenModelKeys : []),
+      hiddenModelKeys: uniqueStrings(
+        Array.isArray(value.hiddenModelKeys) ? value.hiddenModelKeys : [],
+      ),
     };
   } catch {
     return null;
@@ -711,29 +846,43 @@ function readPersistedV2() {
 function readLegacyState() {
   if (typeof localStorage === "undefined") return null;
   try {
-    const value = JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY) || "null") as Partial<CustomApiConnection> | null;
+    const value = JSON.parse(
+      localStorage.getItem(LEGACY_STORAGE_KEY) || "null",
+    ) as Partial<CustomApiConnection> | null;
     if (!value?.baseUrl || !value.apiKey) return null;
-    const connection = normalizeConnection({ baseUrl: value.baseUrl, apiKey: value.apiKey, apiFormat: value.apiFormat });
+    const connection = normalizeConnection({
+      baseUrl: value.baseUrl,
+      apiKey: value.apiKey,
+      apiFormat: value.apiFormat,
+    });
     const cached = readLegacyCatalogCache(connection.baseUrl);
     const catalog = cached?.catalog ?? null;
     const availableModelIds = catalog?.availableModelIds ?? [];
-    const profile = hydrateProfile({
-      id: LEGACY_PROFILE_ID,
-      name: "自有 API",
-      baseUrl: connection.baseUrl,
-      apiKey: connection.apiKey,
-      apiFormat: connection.apiFormat,
-      enabled: true,
-      availableModelIds,
-      manualModelModalities: catalog ? mergeRichModelModalities({}, catalog) : {},
-    }, catalog, cached?.storedAt ?? 0);
+    const profile = hydrateProfile(
+      {
+        id: LEGACY_PROFILE_ID,
+        name: "自有 API",
+        baseUrl: connection.baseUrl,
+        apiKey: connection.apiKey,
+        apiFormat: connection.apiFormat,
+        enabled: true,
+        availableModelIds,
+        manualModelModalities: catalog ? mergeRichModelModalities({}, catalog) : {},
+      },
+      catalog,
+      cached?.storedAt ?? 0,
+    );
     return { profiles: [profile], activeProfileId: profile.id, hiddenModelKeys: [] as string[] };
   } catch {
     return null;
   }
 }
 
-function writeInitialMigration(state: { profiles: CustomApiProfile[]; activeProfileId: string | null; hiddenModelKeys: string[] }) {
+function writeInitialMigration(state: {
+  profiles: CustomApiProfile[];
+  activeProfileId: string | null;
+  hiddenModelKeys: string[];
+}) {
   try {
     localStorage.setItem(CUSTOM_API_STORAGE_KEY, JSON.stringify(serializeState(state)));
     writeCatalogCaches(state.profiles);
@@ -743,7 +892,9 @@ function writeInitialMigration(state: { profiles: CustomApiProfile[]; activeProf
   }
 }
 
-function writePersistedState(state: Pick<CustomApiState, "profiles" | "activeProfileId" | "hiddenModelKeys">) {
+function writePersistedState(
+  state: Pick<CustomApiState, "profiles" | "activeProfileId" | "hiddenModelKeys">,
+) {
   if (typeof localStorage === "undefined") return;
   try {
     localStorage.setItem(CUSTOM_API_STORAGE_KEY, JSON.stringify(serializeState(state)));
@@ -752,7 +903,9 @@ function writePersistedState(state: Pick<CustomApiState, "profiles" | "activePro
   }
 }
 
-function serializeState(state: Pick<CustomApiState, "profiles" | "activeProfileId" | "hiddenModelKeys">) {
+function serializeState(
+  state: Pick<CustomApiState, "profiles" | "activeProfileId" | "hiddenModelKeys">,
+) {
   return {
     version: 2,
     activeProfileId: state.activeProfileId,
@@ -771,19 +924,39 @@ function serializeState(state: Pick<CustomApiState, "profiles" | "activeProfileI
 }
 
 function readCatalogCaches() {
-  const result: Record<string, { baseUrl: string; apiFormat?: CustomApiConnection["apiFormat"]; storedAt: number; catalog: CustomApiCatalog }> = {};
+  const result: Record<
+    string,
+    {
+      baseUrl: string;
+      apiFormat?: CustomApiConnection["apiFormat"];
+      storedAt: number;
+      catalog: CustomApiCatalog;
+    }
+  > = {};
   try {
     const value = JSON.parse(localStorage.getItem(CUSTOM_API_CATALOG_STORAGE_KEY) || "null") as {
       version?: unknown;
       profiles?: unknown;
     } | null;
-    if (value?.version !== 2 || !value.profiles || typeof value.profiles !== "object") return result;
+    if (value?.version !== 2 || !value.profiles || typeof value.profiles !== "object")
+      return result;
     for (const [profileId, item] of Object.entries(value.profiles as Record<string, unknown>)) {
       if (!item || typeof item !== "object") continue;
-      const record = item as { baseUrl?: unknown; apiFormat?: unknown; storedAt?: unknown; catalog?: unknown };
+      const record = item as {
+        baseUrl?: unknown;
+        apiFormat?: unknown;
+        storedAt?: unknown;
+        catalog?: unknown;
+      };
       if (typeof record.baseUrl !== "string" || typeof record.storedAt !== "number") continue;
       const catalog = parseCachedCatalog(record.catalog);
-      if (catalog) result[profileId] = { baseUrl: record.baseUrl, apiFormat: normalizeCustomApiFormat(record.apiFormat), storedAt: record.storedAt, catalog };
+      if (catalog)
+        result[profileId] = {
+          baseUrl: record.baseUrl,
+          apiFormat: normalizeCustomApiFormat(record.apiFormat),
+          storedAt: record.storedAt,
+          catalog,
+        };
     }
   } catch {
     // Invalid cache entries are ignored independently from credential state.
@@ -794,13 +967,27 @@ function readCatalogCaches() {
 function writeCatalogCaches(profiles: CustomApiProfile[]) {
   if (typeof localStorage === "undefined") return;
   try {
-    const entries = Object.fromEntries(profiles.flatMap((profile) => profile.catalog ? [[profile.id, {
-      baseUrl: profile.connection.baseUrl,
-      apiFormat: normalizeCustomApiFormat(profile.connection.apiFormat),
-      storedAt: profile.loadedAt,
-      catalog: profile.catalog,
-    }]] : []));
-    localStorage.setItem(CUSTOM_API_CATALOG_STORAGE_KEY, JSON.stringify({ version: 2, profiles: entries }));
+    const entries = Object.fromEntries(
+      profiles.flatMap((profile) =>
+        profile.catalog
+          ? [
+              [
+                profile.id,
+                {
+                  baseUrl: profile.connection.baseUrl,
+                  apiFormat: normalizeCustomApiFormat(profile.connection.apiFormat),
+                  storedAt: profile.loadedAt,
+                  catalog: profile.catalog,
+                },
+              ],
+            ]
+          : [],
+      ),
+    );
+    localStorage.setItem(
+      CUSTOM_API_CATALOG_STORAGE_KEY,
+      JSON.stringify({ version: 2, profiles: entries }),
+    );
   } catch {
     // A full local-storage quota must not interrupt an otherwise valid pull.
   }
@@ -834,7 +1021,9 @@ function parseCachedCatalog(value: unknown): CustomApiCatalog | null {
     routes[model.id] = route;
   }
   const inferredIds = Object.values(routes).map((route) => route.sourceModelId);
-  const availableModelIds = uniqueStrings(Array.isArray(source.availableModelIds) ? source.availableModelIds : inferredIds);
+  const availableModelIds = uniqueStrings(
+    Array.isArray(source.availableModelIds) ? source.availableModelIds : inferredIds,
+  );
   const capabilitySource = source.capabilitySource === "models-only" ? "models-only" : "rich";
   return {
     ...publicCatalog.data,
@@ -863,7 +1052,8 @@ function parseCachedRoute(value: unknown): CustomApiRoute | null {
     const type = modelParameterTypeSchema.safeParse(parameter.type);
     if (!type.success) return null;
     if (parameter.format !== undefined && typeof parameter.format !== "string") return null;
-    if (parameter.itemsFormat !== undefined && typeof parameter.itemsFormat !== "string") return null;
+    if (parameter.itemsFormat !== undefined && typeof parameter.itemsFormat !== "string")
+      return null;
     parameters.push({
       name: parameter.name,
       path: parameter.path,
@@ -896,16 +1086,26 @@ function parsePersistedProfile(value: unknown): PersistedProfile | null {
     apiKey: source.apiKey,
     apiFormat: normalizeCustomApiFormat(source.apiFormat),
     enabled: source.enabled !== false,
-    availableModelIds: uniqueStrings(Array.isArray(source.availableModelIds) ? source.availableModelIds : []),
+    availableModelIds: uniqueStrings(
+      Array.isArray(source.availableModelIds) ? source.availableModelIds : [],
+    ),
     manualModelModalities: parseManualModelModalities(source.manualModelModalities),
   };
 }
 
-function hydrateProfile(persisted: PersistedProfile, catalog: CustomApiCatalog | null, loadedAt: number): CustomApiProfile {
+function hydrateProfile(
+  persisted: PersistedProfile,
+  catalog: CustomApiCatalog | null,
+  loadedAt: number,
+): CustomApiProfile {
   return {
     id: persisted.id,
     name: persisted.name,
-    connection: { baseUrl: persisted.baseUrl, apiKey: persisted.apiKey, apiFormat: normalizeCustomApiFormat(persisted.apiFormat) },
+    connection: {
+      baseUrl: persisted.baseUrl,
+      apiKey: persisted.apiKey,
+      apiFormat: normalizeCustomApiFormat(persisted.apiFormat),
+    },
     enabled: persisted.enabled,
     status: catalog ? "ready" : "idle",
     connecting: false,
@@ -913,7 +1113,9 @@ function hydrateProfile(persisted: PersistedProfile, catalog: CustomApiCatalog |
     catalog,
     error: null,
     loadedAt: catalog ? loadedAt : 0,
-    availableModelIds: persisted.availableModelIds.length ? persisted.availableModelIds : catalog?.availableModelIds ?? [],
+    availableModelIds: persisted.availableModelIds.length
+      ? persisted.availableModelIds
+      : (catalog?.availableModelIds ?? []),
     manualModelModalities: catalog
       ? mergeRichModelModalities(persisted.manualModelModalities, catalog)
       : persisted.manualModelModalities,
@@ -924,24 +1126,34 @@ function createProfile(id: string, input: CustomApiProfileInput): CustomApiProfi
   const apiFormat = normalizeCustomApiFormat(input.apiFormat);
   let baseUrl: string;
   try {
-    baseUrl = normalizeCustomApiBaseUrl(input.baseUrl ?? (apiFormat === "gemini" ? GEMINI_CUSTOM_API_BASE_URL : DEFAULT_CUSTOM_API_BASE_URL));
+    baseUrl = normalizeCustomApiBaseUrl(
+      input.baseUrl ??
+        (apiFormat === "gemini" ? GEMINI_CUSTOM_API_BASE_URL : DEFAULT_CUSTOM_API_BASE_URL),
+    );
   } catch {
     baseUrl = apiFormat === "gemini" ? GEMINI_CUSTOM_API_BASE_URL : DEFAULT_CUSTOM_API_BASE_URL;
   }
-  return hydrateProfile({
-    id,
-    name: normalizedProfileName(input.name ?? "", "新 API 配置"),
-    baseUrl,
-    apiKey: input.apiKey?.trim() ?? "",
-    apiFormat,
-    enabled: input.enabled !== false,
-    availableModelIds: [],
-    manualModelModalities: {},
-  }, null, 0);
+  return hydrateProfile(
+    {
+      id,
+      name: normalizedProfileName(input.name ?? "", "新 API 配置"),
+      baseUrl,
+      apiKey: input.apiKey?.trim() ?? "",
+      apiFormat,
+      enabled: input.enabled !== false,
+      availableModelIds: [],
+      manualModelModalities: {},
+    },
+    null,
+    0,
+  );
 }
 
 function withCompatibilityAliases<T extends CustomApiState>(state: T): T {
-  const active = state.profiles.find((profile) => profile.id === state.activeProfileId) ?? state.profiles[0] ?? null;
+  const active =
+    state.profiles.find((profile) => profile.id === state.activeProfileId) ??
+    state.profiles[0] ??
+    null;
   return {
     ...state,
     activeProfileId: active?.id ?? null,
@@ -955,8 +1167,13 @@ function withCompatibilityAliases<T extends CustomApiState>(state: T): T {
   };
 }
 
-function mergeRichModelModalities(current: Record<string, ModelModality[]>, catalog: CustomApiCatalog) {
-  const next = Object.fromEntries(Object.entries(current).map(([id, modalities]) => [id, [...modalities]]));
+function mergeRichModelModalities(
+  current: Record<string, ModelModality[]>,
+  catalog: CustomApiCatalog,
+) {
+  const next = Object.fromEntries(
+    Object.entries(current).map(([id, modalities]) => [id, [...modalities]]),
+  );
   for (const model of catalog.models) {
     const rawModelId = catalog.routes[model.id]?.sourceModelId;
     if (!rawModelId) continue;
@@ -967,10 +1184,12 @@ function mergeRichModelModalities(current: Record<string, ModelModality[]>, cata
 
 function parseManualModelModalities(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  return Object.fromEntries(Object.entries(value as Record<string, unknown>).flatMap(([modelId, modalities]) => {
-    if (!modelId.trim() || !Array.isArray(modalities)) return [];
-    return [[modelId, uniqueModalities(modalities)]];
-  }));
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).flatMap(([modelId, modalities]) => {
+      if (!modelId.trim() || !Array.isArray(modalities)) return [];
+      return [[modelId, uniqueModalities(modalities)]];
+    }),
+  );
 }
 
 function uniqueModalities(values: unknown[]) {
@@ -980,25 +1199,37 @@ function uniqueModalities(values: unknown[]) {
 function normalizeConnection(value: CustomApiConnection): CustomApiConnection {
   const apiKey = value.apiKey.trim();
   if (!apiKey) throw new CustomApiError("请输入 API Key", "API_KEY_REQUIRED");
-  return { baseUrl: normalizeCustomApiBaseUrl(value.baseUrl), apiKey, apiFormat: normalizeCustomApiFormat(value.apiFormat) };
+  return {
+    baseUrl: normalizeCustomApiBaseUrl(value.baseUrl),
+    apiKey,
+    apiFormat: normalizeCustomApiFormat(value.apiFormat),
+  };
 }
 
 function sameConnection(left: CustomApiConnection, right: CustomApiConnection) {
-  return left.baseUrl === right.baseUrl
-    && left.apiKey === right.apiKey
-    && normalizeCustomApiFormat(left.apiFormat) === normalizeCustomApiFormat(right.apiFormat);
+  return (
+    left.baseUrl === right.baseUrl &&
+    left.apiKey === right.apiKey &&
+    normalizeCustomApiFormat(left.apiFormat) === normalizeCustomApiFormat(right.apiFormat)
+  );
 }
 
 function connectionIdentity(connection: CustomApiConnection) {
   return `${connection.baseUrl}\u0000${connection.apiKey}\u0000${normalizeCustomApiFormat(connection.apiFormat)}`;
 }
 
-function patchProfile(profiles: CustomApiProfile[], profileId: string, patch: Partial<CustomApiProfile>) {
-  return profiles.map((profile) => profile.id === profileId ? { ...profile, ...patch } : profile);
+function patchProfile(
+  profiles: CustomApiProfile[],
+  profileId: string,
+  patch: Partial<CustomApiProfile>,
+) {
+  return profiles.map((profile) => (profile.id === profileId ? { ...profile, ...patch } : profile));
 }
 
 function createProfileId(profiles: CustomApiProfile[]) {
-  let id = globalThis.crypto?.randomUUID?.() ?? `profile-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  let id =
+    globalThis.crypto?.randomUUID?.() ??
+    `profile-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   while (profiles.some((profile) => profile.id === id)) id = `${id}-2`;
   return id;
 }
@@ -1012,11 +1243,17 @@ function setVisibility(hiddenModelKeys: string[], modelKey: string, visible: boo
   if (!key) return hiddenModelKeys;
   return visible
     ? hiddenModelKeys.filter((item) => item !== key)
-    : hiddenModelKeys.includes(key) ? hiddenModelKeys : [...hiddenModelKeys, key];
+    : hiddenModelKeys.includes(key)
+      ? hiddenModelKeys
+      : [...hiddenModelKeys, key];
 }
 
 function uniqueStrings(values: unknown[]) {
-  return [...new Set(values.flatMap((value) => typeof value === "string" && value.trim() ? [value.trim()] : []))];
+  return [
+    ...new Set(
+      values.flatMap((value) => (typeof value === "string" && value.trim() ? [value.trim()] : [])),
+    ),
+  ];
 }
 
 function publicError(cause: unknown) {

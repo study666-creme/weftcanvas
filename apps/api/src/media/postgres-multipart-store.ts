@@ -3,13 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 
 export type MediaMultipartSessionStatus =
-  | "active"
-  | "completing"
-  | "queued"
-  | "processing"
-  | "completed"
-  | "aborted"
-  | "failed";
+  "active" | "completing" | "queued" | "processing" | "completed" | "aborted" | "failed";
 
 export type MediaMultipartSession = {
   mediaId: string;
@@ -54,18 +48,32 @@ export type MediaMultipartLease = {
 };
 
 export interface MediaMultipartUploadStore {
-  create(session: MediaMultipartSession): Promise<{ kind: "created" | "existing"; session: MediaMultipartSession }>;
+  create(
+    session: MediaMultipartSession,
+  ): Promise<{ kind: "created" | "existing"; session: MediaMultipartSession }>;
   getByMedia(mediaId: string): Promise<MediaMultipartSession | null>;
   getByScope(scope: MediaMultipartScope): Promise<MediaMultipartSession | null>;
-  claimCompleting(scope: MediaMultipartScope, expectedRevision: number, updatedAt: string): Promise<MediaMultipartSession | null>;
-  resetActive(scope: MediaMultipartScope, expectedRevision: number, updatedAt: string): Promise<MediaMultipartSession | null>;
+  claimCompleting(
+    scope: MediaMultipartScope,
+    expectedRevision: number,
+    updatedAt: string,
+  ): Promise<MediaMultipartSession | null>;
+  resetActive(
+    scope: MediaMultipartScope,
+    expectedRevision: number,
+    updatedAt: string,
+  ): Promise<MediaMultipartSession | null>;
   markQueued(
     scope: MediaMultipartScope,
     expectedRevision: number,
     assembledAt: string,
     nextAttemptAt: string,
   ): Promise<MediaMultipartSession | null>;
-  markAborted(scope: MediaMultipartScope, expectedRevision: number, terminalAt: string): Promise<MediaMultipartSession | null>;
+  markAborted(
+    scope: MediaMultipartScope,
+    expectedRevision: number,
+    terminalAt: string,
+  ): Promise<MediaMultipartSession | null>;
   markFailed(
     scope: MediaMultipartScope,
     expectedRevision: number,
@@ -73,7 +81,11 @@ export interface MediaMultipartUploadStore {
     code: string,
     message: string,
   ): Promise<MediaMultipartSession | null>;
-  leaseNext(owner: string, now: string, leaseDurationMs: number): Promise<MediaMultipartLease | null>;
+  leaseNext(
+    owner: string,
+    now: string,
+    leaseDurationMs: number,
+  ): Promise<MediaMultipartLease | null>;
   renew(mediaId: string, token: string, now: string, leaseDurationMs: number): Promise<boolean>;
   releaseForRetry(
     mediaId: string,
@@ -84,7 +96,13 @@ export interface MediaMultipartUploadStore {
     updatedAt: string,
   ): Promise<boolean>;
   completeLease(mediaId: string, token: string, terminalAt: string): Promise<boolean>;
-  failLease(mediaId: string, token: string, terminalAt: string, code: string, message: string): Promise<boolean>;
+  failLease(
+    mediaId: string,
+    token: string,
+    terminalAt: string,
+    code: string,
+    message: string,
+  ): Promise<boolean>;
 }
 
 type MultipartRow = {
@@ -132,7 +150,10 @@ const RETURNING_UPLOAD_COLUMNS = `
   uploads.last_error_message, uploads.created_at, uploads.updated_at`;
 
 export class PostgresMediaMultipartUploadStore implements MediaMultipartUploadStore {
-  constructor(private readonly pool: Pool, private readonly createToken: () => string = randomUUID) {}
+  constructor(
+    private readonly pool: Pool,
+    private readonly createToken: () => string = randomUUID,
+  ) {}
 
   async create(value: MediaMultipartSession) {
     const session = validateNewSession(value);
@@ -318,7 +339,14 @@ export class PostgresMediaMultipartUploadStore implements MediaMultipartUploadSt
            last_error_code = $4, last_error_message = $5, updated_at = $6
        WHERE media_id = $1 AND status = 'processing' AND lease_token = $2
        RETURNING media_id`,
-      [mediaId, validLeaseToken(token), nextAttemptAt, safeCode(code), safeMessage(message), updatedAt],
+      [
+        mediaId,
+        validLeaseToken(token),
+        nextAttemptAt,
+        safeCode(code),
+        safeMessage(message),
+        updatedAt,
+      ],
     );
     return result.rowCount === 1;
   }
@@ -336,7 +364,13 @@ export class PostgresMediaMultipartUploadStore implements MediaMultipartUploadSt
     return result.rowCount === 1;
   }
 
-  async failLease(mediaId: string, token: string, terminalAt: string, code: string, message: string) {
+  async failLease(
+    mediaId: string,
+    token: string,
+    terminalAt: string,
+    code: string,
+    message: string,
+  ) {
     const result = await this.pool.query(
       `UPDATE canvas_media_multipart_uploads
        SET status = 'failed', revision = revision + 1, terminal_at = $3,
@@ -376,13 +410,25 @@ function validateNewSession(value: MediaMultipartSession) {
   if (value.status !== "active" || value.revision !== 0 || value.attemptCount !== 0) {
     throw new Error("New multipart sessions must start active at revision zero");
   }
-  if (value.assembledAt || value.terminalAt || value.nextAttemptAt || value.leaseOwner
-    || value.leaseToken || value.leaseExpiresAt || value.lastErrorCode || value.lastErrorMessage) {
+  if (
+    value.assembledAt ||
+    value.terminalAt ||
+    value.nextAttemptAt ||
+    value.leaseOwner ||
+    value.leaseToken ||
+    value.leaseExpiresAt ||
+    value.lastErrorCode ||
+    value.lastErrorMessage
+  ) {
     throw new Error("New multipart sessions cannot include processing or terminal state");
   }
   positiveInteger(value.partSize, "partSize");
   positiveInteger(value.partCount, "partCount");
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.sessionId)) {
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value.sessionId,
+    )
+  ) {
     throw new Error("Multipart session id must be a UUID");
   }
   dateIso(value.expiresAt);
@@ -419,7 +465,12 @@ function parseSession(row: MultipartRow): MediaMultipartSession {
 
 function parseLease(row: LeaseRow): MediaMultipartLease {
   const session = parseSession(row);
-  if (session.status !== "processing" || !session.leaseOwner || !session.leaseToken || !session.leaseExpiresAt) {
+  if (
+    session.status !== "processing" ||
+    !session.leaseOwner ||
+    !session.leaseToken ||
+    !session.leaseExpiresAt
+  ) {
     throw new Error("Multipart queue returned an invalid lease");
   }
   return {
@@ -440,12 +491,14 @@ function scopeParams(scope: MediaMultipartScope) {
 
 function validLeaseOwner(value: string) {
   const normalized = value.trim();
-  if (!/^[A-Za-z0-9._:-]{1,128}$/.test(normalized)) throw new Error("Multipart worker owner is invalid");
+  if (!/^[A-Za-z0-9._:-]{1,128}$/.test(normalized))
+    throw new Error("Multipart worker owner is invalid");
   return normalized;
 }
 
 function validLeaseToken(value: string) {
-  if (!/^[A-Za-z0-9._:-]{8,128}$/.test(value)) throw new Error("Multipart worker lease token is invalid");
+  if (!/^[A-Za-z0-9._:-]{8,128}$/.test(value))
+    throw new Error("Multipart worker lease token is invalid");
   return value;
 }
 
@@ -455,11 +508,17 @@ function safeCode(value: string) {
 }
 
 function safeMessage(value: string) {
-  return value.replace(/[\r\n\t]+/g, " ").trim().slice(0, 1_000) || "Multipart upload failed";
+  return (
+    value
+      .replace(/[\r\n\t]+/g, " ")
+      .trim()
+      .slice(0, 1_000) || "Multipart upload failed"
+  );
 }
 
 function positiveInteger(value: number, name: string) {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${name} must be a positive safe integer`);
+  if (!Number.isSafeInteger(value) || value <= 0)
+    throw new Error(`${name} must be a positive safe integer`);
   return value;
 }
 

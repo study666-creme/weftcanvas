@@ -2,7 +2,7 @@ import {
   agentModelCatalogSchema,
   agentModelIdSchema,
   type AgentModelCatalog,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 
 const MAX_MODEL_COUNT = 64;
 const MAX_MODELS_ENV_LENGTH = MAX_MODEL_COUNT * 128 + MAX_MODEL_COUNT - 1;

@@ -1,4 +1,4 @@
-import type { CanvasMedia } from "@kachang/contracts";
+import type { CanvasMedia } from "@weftcanvas/contracts";
 
 import { mediaContentPath } from "./api-client";
 
@@ -36,9 +36,10 @@ export function probeServerMediaDurationMs(media: CanvasMedia): Promise<number |
     const timer = window.setTimeout(() => finish(null), PROBE_TIMEOUT_MS);
     video.preload = "metadata";
     video.onloadedmetadata = () => {
-      const durationMs = Number.isFinite(video.duration) && video.duration > 0
-        ? Math.round(video.duration * 1000)
-        : null;
+      const durationMs =
+        Number.isFinite(video.duration) && video.duration > 0
+          ? Math.round(video.duration * 1000)
+          : null;
       finish(durationMs);
     };
     video.onerror = () => finish(null);

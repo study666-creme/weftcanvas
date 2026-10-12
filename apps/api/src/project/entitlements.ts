@@ -2,7 +2,7 @@ import {
   cloudProjectEntitlementsSchema,
   type CloudProjectEntitlements,
   type WalletSummary,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 
 import { WalletProviderError, type WalletProvider } from "../wallet/provider.js";
 import type { PrincipalMembershipReader } from "../identity/principal-membership-reader.js";
@@ -83,7 +83,8 @@ export class PrincipalCloudProjectEntitlementResolver implements CloudProjectEnt
       this.cache.set(ownerId, {
         expiresAt,
         staleUntil: Math.min(
-          expiresAt + nonNegativeDuration(this.options.staleGraceMs, DEFAULT_STALE_GRACE_MS, "staleGraceMs"),
+          expiresAt +
+            nonNegativeDuration(this.options.staleGraceMs, DEFAULT_STALE_GRACE_MS, "staleGraceMs"),
           membershipUntil,
         ),
         entitlements,
@@ -91,7 +92,8 @@ export class PrincipalCloudProjectEntitlementResolver implements CloudProjectEnt
       pruneEntitlementCache(this.cache, now);
       return { data: entitlements };
     } catch {
-      if (options.allowStale !== false && cached && cached.staleUntil > now) return { data: cached.entitlements };
+      if (options.allowStale !== false && cached && cached.staleUntil > now)
+        return { data: cached.entitlements };
       if (cached) this.cache.delete(ownerId);
       return { data: this.policy.free };
     }
@@ -110,7 +112,11 @@ export class MembershipCloudProjectEntitlementResolver implements CloudProjectEn
     } = {},
   ) {
     this.principalResolver = options.principalMembershipReader
-      ? new PrincipalCloudProjectEntitlementResolver(options.principalMembershipReader, policy, options)
+      ? new PrincipalCloudProjectEntitlementResolver(
+          options.principalMembershipReader,
+          policy,
+          options,
+        )
       : null;
   }
 
@@ -128,7 +134,8 @@ export class MembershipCloudProjectEntitlementResolver implements CloudProjectEn
       result = await this.wallet.getSummary(token);
     } catch (error) {
       if (!(error instanceof WalletProviderError) || error.status === 401) throw error;
-      if (options.allowStale !== false && cached && cached.staleUntil > now) return { data: cached.entitlements };
+      if (options.allowStale !== false && cached && cached.staleUntil > now)
+        return { data: cached.entitlements };
       if (cached) this.tokenCache.delete(ownerId);
       return { data: this.policy.free };
     }
@@ -141,7 +148,8 @@ export class MembershipCloudProjectEntitlementResolver implements CloudProjectEn
     this.tokenCache.set(ownerId, {
       expiresAt,
       staleUntil: Math.min(
-        expiresAt + nonNegativeDuration(this.options.staleGraceMs, DEFAULT_STALE_GRACE_MS, "staleGraceMs"),
+        expiresAt +
+          nonNegativeDuration(this.options.staleGraceMs, DEFAULT_STALE_GRACE_MS, "staleGraceMs"),
         membershipUntil,
       ),
       entitlements,
@@ -158,7 +166,9 @@ export class MembershipCloudProjectEntitlementResolver implements CloudProjectEn
     principalId: string,
     options: CloudProjectEntitlementResolveOptions = {},
   ): Promise<ResolvedCloudProjectEntitlements> {
-    return this.principalResolver?.resolve(principalId, undefined, options) ?? { data: this.policy.free };
+    return (
+      this.principalResolver?.resolve(principalId, undefined, options) ?? { data: this.policy.free }
+    );
   }
 }
 
@@ -176,7 +186,8 @@ function pruneEntitlementCache(cache: Map<string, EntitlementCacheEntry>, now: n
 
 function nonNegativeDuration(value: number | undefined, fallback: number, label: string) {
   const duration = value ?? fallback;
-  if (!Number.isSafeInteger(duration) || duration < 0) throw new Error(`${label} must be a non-negative safe integer`);
+  if (!Number.isSafeInteger(duration) || duration < 0)
+    throw new Error(`${label} must be a non-negative safe integer`);
   return duration;
 }
 
@@ -205,7 +216,8 @@ function membershipIsActive(summary: Pick<WalletSummary, "membership">, now: num
 }
 
 function activeMembershipUntil(summary: Pick<WalletSummary, "membership">, now: number) {
-  if (!membershipIsActive(summary, now) || !summary.membership.until) return Number.POSITIVE_INFINITY;
+  if (!membershipIsActive(summary, now) || !summary.membership.until)
+    return Number.POSITIVE_INFINITY;
   return Date.parse(summary.membership.until);
 }
 

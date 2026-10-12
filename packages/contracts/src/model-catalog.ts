@@ -6,7 +6,14 @@ import { VIDEO_PROTOCOL_VERSION, videoMediaRoleSchema } from "./video-protocol.j
 export const modelModalitySchema = z.enum(["text", "image", "video", "audio"]);
 export type ModelModality = z.infer<typeof modelModalitySchema>;
 
-export const modelParameterTypeSchema = z.enum(["string", "integer", "number", "boolean", "array", "object"]);
+export const modelParameterTypeSchema = z.enum([
+  "string",
+  "integer",
+  "number",
+  "boolean",
+  "array",
+  "object",
+]);
 export type ModelParameterType = z.infer<typeof modelParameterTypeSchema>;
 
 const parameterValueSchema = z.union([z.string(), z.number(), z.boolean()]);
@@ -179,22 +186,28 @@ export const generationQuoteRequestSchema = z.object({
   modelId: z.string().min(1),
   modality: modelModalitySchema,
   parameters: z.record(z.string(), z.unknown()).default({}),
-  inputs: z.object({
-    images: z.number().int().nonnegative().default(0),
-    styleImages: z.number().int().nonnegative().default(0),
-    elementImages: z.number().int().nonnegative().default(0),
-    videos: z.number().int().nonnegative().default(0),
-    audios: z.number().int().nonnegative().default(0),
-  }).default({ images: 0, styleImages: 0, elementImages: 0, videos: 0, audios: 0 }),
+  inputs: z
+    .object({
+      images: z.number().int().nonnegative().default(0),
+      styleImages: z.number().int().nonnegative().default(0),
+      elementImages: z.number().int().nonnegative().default(0),
+      videos: z.number().int().nonnegative().default(0),
+      audios: z.number().int().nonnegative().default(0),
+    })
+    .default({ images: 0, styleImages: 0, elementImages: 0, videos: 0, audios: 0 }),
   quantity: z.number().int().min(1).max(8).default(1),
   inputTokens: z.number().int().nonnegative().optional(),
   maxOutputTokens: z.number().int().nonnegative().optional(),
 });
 type ParsedGenerationQuoteRequest = z.infer<typeof generationQuoteRequestSchema>;
-type GenerationQuoteInputs = Omit<ParsedGenerationQuoteRequest["inputs"], "styleImages" | "elementImages">
-  & Partial<Pick<ParsedGenerationQuoteRequest["inputs"], "styleImages" | "elementImages">>;
-export type GenerationQuoteRequest = Omit<ParsedGenerationQuoteRequest, "inputs">
-  & { inputs: GenerationQuoteInputs };
+type GenerationQuoteInputs = Omit<
+  ParsedGenerationQuoteRequest["inputs"],
+  "styleImages" | "elementImages"
+> &
+  Partial<Pick<ParsedGenerationQuoteRequest["inputs"], "styleImages" | "elementImages">>;
+export type GenerationQuoteRequest = Omit<ParsedGenerationQuoteRequest, "inputs"> & {
+  inputs: GenerationQuoteInputs;
+};
 
 export const generationQuoteSchema = z.object({
   id: z.string().min(1),

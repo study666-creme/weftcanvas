@@ -1,11 +1,15 @@
-import { createId } from "@kachang/canvas-core";
-import type { CanvasMedia, CanvasNodeData, CanvasNodeKind } from "@kachang/contracts";
+import { createId } from "@weftcanvas/canvas-core";
+import type { CanvasMedia, CanvasNodeData, CanvasNodeKind } from "@weftcanvas/contracts";
 import type { XYPosition } from "@xyflow/react";
 
-import type { KachangEdge, KachangNode } from "../types";
+import type { WeftcanvasEdge, WeftcanvasNode } from "../types";
 import { getNodeDefinition } from "./node-registry";
 import "./builtin-nodes";
-import { scaleNodeDimensions, type DefaultNodeAspectRatio, type DefaultNodeSize } from "./node-size";
+import {
+  scaleNodeDimensions,
+  type DefaultNodeAspectRatio,
+  type DefaultNodeSize,
+} from "./node-size";
 
 /** 未注册 kind 的兜底尺寸（正常情况下六种内置节点都在注册表里）。 */
 const FALLBACK_DIMENSIONS = { width: 308, height: 176 } as const;
@@ -14,7 +18,9 @@ export function nodeDefaultDimensions(
   kind: CanvasNodeKind,
   aspectRatioOrLegacySize: DefaultNodeAspectRatio | DefaultNodeSize = "16:9",
 ) {
-  const draft = getNodeDefinition(kind)?.createDraft({ defaultAspectRatio: aspectRatioOrLegacySize });
+  const draft = getNodeDefinition(kind)?.createDraft({
+    defaultAspectRatio: aspectRatioOrLegacySize,
+  });
   return draft ? { width: draft.width, height: draft.height } : { ...FALLBACK_DIMENSIONS };
 }
 
@@ -66,7 +72,7 @@ export function createCanvasNode(
   overrides: Partial<CanvasNodeData> = {},
   defaultAspectRatio: DefaultNodeAspectRatio | DefaultNodeSize = "16:9",
   creationScale = 1,
-): KachangNode {
+): WeftcanvasNode {
   const now = Date.now();
   const definition = getNodeDefinition(kind);
   const draft = definition?.createDraft({ defaultAspectRatio }) ?? { kind, ...FALLBACK_DIMENSIONS };
@@ -102,7 +108,7 @@ export function createCanvasNode(
   };
   return {
     id: createId("node"),
-    type: "kachang",
+    type: "weftcanvas",
     position,
     width: dimensions.width,
     height: dimensions.height,
@@ -111,10 +117,10 @@ export function createCanvasNode(
   };
 }
 
-export function createCanvasEdge(source: string, target: string): KachangEdge {
+export function createCanvasEdge(source: string, target: string): WeftcanvasEdge {
   return {
     id: createId("edge"),
-    type: "kachang",
+    type: "weftcanvas",
     source,
     target,
   };

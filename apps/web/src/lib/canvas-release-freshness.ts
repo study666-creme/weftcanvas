@@ -1,4 +1,4 @@
-const BUILD_META_NAME = "kachang-canvas-build";
+const BUILD_META_NAME = "weftcanvas-build";
 const RELEASE_CHECK_PATH = "/canvas";
 const RELEASE_CHECK_TIMEOUT_MS = 8_000;
 const RELEASE_CHECK_MIN_GAP_MS = 15_000;
@@ -10,11 +10,13 @@ export function hasCanvasBuildChanged(currentBuildId: string, availableBuildId: 
 
 export function readCanvasBuildId(html: string) {
   const parsed = new DOMParser().parseFromString(html, "text/html");
-  return parsed.querySelector<HTMLMetaElement>(`meta[name="${BUILD_META_NAME}"]`)?.content.trim() || null;
+  return (
+    parsed.querySelector<HTMLMetaElement>(`meta[name="${BUILD_META_NAME}"]`)?.content.trim() || null
+  );
 }
 
 export async function isNewCanvasReleaseAvailable(
-  currentBuildId = __KACHANG_CANVAS_BUILD_ID__,
+  currentBuildId = __WEFTCANVAS_CANVAS_BUILD_ID__,
   fetchHtml: typeof window.fetch = window.fetch.bind(window),
 ) {
   const requestUrl = new URL(RELEASE_CHECK_PATH, window.location.origin);

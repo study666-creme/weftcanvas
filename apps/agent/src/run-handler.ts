@@ -1,7 +1,11 @@
 import { ZodError } from "zod";
 
 import { OpenAICompatibleClient, OpenAICompatibleError } from "./openai-compatible.js";
-import { parseAgentModelOutput, type AgentModelOutput, type AgentToolCall } from "./agent-output.js";
+import {
+  parseAgentModelOutput,
+  type AgentModelOutput,
+  type AgentToolCall,
+} from "./agent-output.js";
 import { readProfessionalBaselineStatus } from "./creative-guidance.js";
 import type { AgentKnowledgeRetriever } from "./knowledge.js";
 import type { AgentModelRegistry } from "./models.js";
@@ -40,9 +44,7 @@ export class AgentRunHandler {
           ok: false,
           error: {
             code: "INVALID_REQUEST",
-            message: error instanceof ZodError
-              ? "请求体不符合 Agent 运行时契约"
-              : "请求体无效",
+            message: error instanceof ZodError ? "请求体不符合 Agent 运行时契约" : "请求体无效",
           },
         },
       };
@@ -66,17 +68,29 @@ export class AgentRunHandler {
       const knowledgeContext = await this.retrieveKnowledge(latestQuery, signal);
       const tools = await this.loadTools(request, signal);
       const toolCatalog = tools.length ? formatToolCatalog(tools) : "";
-      let messages = buildChatMessages(request.messages, request.canvasContext, knowledgeContext, toolCatalog);
+      let messages = buildChatMessages(
+        request.messages,
+        request.canvasContext,
+        knowledgeContext,
+        toolCatalog,
+      );
       let output = parseAgentModelOutput("");
 
       for (let round = 0; round <= MAX_TOOL_ROUNDS; round += 1) {
-        const raw = await this.model.complete(messages, request.modelId, signal, request.reasoningEffort);
+        const raw = await this.model.complete(
+          messages,
+          request.modelId,
+          signal,
+          request.reasoningEffort,
+        );
         output = enforceProfessionalBaseline(
           parseAgentModelOutput(raw),
           request.canvasContext.creativeGuidance,
         );
         // 画布操作与工具调用互斥：有画布操作时忽略工具调用，避免同一轮既有落盘又有本机副作用。
-        const calls = output.actions.length ? [] : output.toolCalls.slice(0, MAX_TOOL_CALLS_PER_ROUND);
+        const calls = output.actions.length
+          ? []
+          : output.toolCalls.slice(0, MAX_TOOL_CALLS_PER_ROUND);
         if (!calls.length || round === MAX_TOOL_ROUNDS) break;
         const results = await Promise.all(calls.map((call) => runTool(tools, call, signal)));
         messages = [
@@ -123,7 +137,10 @@ export class AgentRunHandler {
    * 连接探测失败不应让整轮对话失败：拿不到工具就按"本轮没有本机工具"继续，
    * 模型不会因此以为 Blender 或 Codex 可用。
    */
-  private async loadTools(request: AgentExecutionRequest, signal?: AbortSignal): Promise<AgentTool[]> {
+  private async loadTools(
+    request: AgentExecutionRequest,
+    signal?: AbortSignal,
+  ): Promise<AgentTool[]> {
     if (!this.tooling) return [];
     try {
       return await this.tooling.buildTools(request, signal);
@@ -170,7 +187,8 @@ function enforceProfessionalBaseline(
   guidance: ReturnType<typeof parseAgentExecutionRequest>["canvasContext"]["creativeGuidance"],
 ): AgentModelOutput {
   const status = readProfessionalBaselineStatus(guidance);
-  if (!status.required || status.ready || (!output.actions.length && !output.toolCalls.length)) return output;
+  if (!status.required || status.ready || (!output.actions.length && !output.toolCalls.length))
+    return output;
   return {
     content: `专业辅助会先定好创作基线。请先确认${status.missing.join("、")}，再继续创作。`,
     actions: [],

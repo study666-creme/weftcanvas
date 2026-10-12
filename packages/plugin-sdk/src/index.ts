@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 
 /**
- * @kachang/plugin-sdk（docs/PLUGIN-ROADMAP.md §6 P3）
+ * @weftcanvas/plugin-sdk（docs/PLUGIN-ROADMAP.md §6 P3）
  *
  * 插件与宿主之间的全部契约都在这里。类型Only + 一个身份校验函数，零运行时
  * 依赖；React 仅以类型形式出现（插件跟宿主共享同一份 React，不自带）。
@@ -86,12 +86,16 @@ export type PluginKV = {
  * 没有可用通道时宿主抛出明确的不可用错误，不假装成功。
  */
 export type AiApi = {
-  generateText(input: { prompt: string; modelId?: string; maxOutputTokens?: number }): Promise<string>;
+  generateText(input: {
+    prompt: string;
+    modelId?: string;
+    maxOutputTokens?: number;
+  }): Promise<string>;
 };
 
 /**
  * 画布操作原语：与 Agent 命令（applyAgentActions）同一套 schema 校验与
- * 执行路径。动作形状见 @kachang/contracts 的 agentActionSchema
+ * 执行路径。动作形状见 @weftcanvas/contracts 的 agentActionSchema
  * （canvas_add_node / canvas_update_node / canvas_connect_nodes …）。
  */
 export type PluginOp = { type: string; [key: string]: unknown };

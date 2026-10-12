@@ -32,10 +32,13 @@ export class MediaMultipartWorkerRuntime {
     this.now = options.now ?? Date.now;
     this.leaseDurationMs = positiveInteger(options.leaseDurationMs ?? 60_000, "leaseDurationMs");
     this.heartbeatMs = positiveInteger(options.heartbeatMs ?? 20_000, "heartbeatMs");
-    if (this.heartbeatMs >= this.leaseDurationMs) throw new Error("heartbeatMs must be shorter than leaseDurationMs");
+    if (this.heartbeatMs >= this.leaseDurationMs)
+      throw new Error("heartbeatMs must be shorter than leaseDurationMs");
     this.idleDelayMs = positiveInteger(options.idleDelayMs ?? 1_000, "idleDelayMs");
     this.sleep = options.sleep ?? sleep;
-    this.onError = options.onError ?? ((error) => console.error("Multipart media worker iteration failed", error));
+    this.onError =
+      options.onError ??
+      ((error) => console.error("Multipart media worker iteration failed", error));
   }
 
   async run(signal: AbortSignal) {
@@ -46,7 +49,8 @@ export class MediaMultipartWorkerRuntime {
       } catch (error) {
         this.onError(error);
       }
-      if (!worked && !signal.aborted) await this.sleep(this.idleDelayMs, signal).catch(() => undefined);
+      if (!worked && !signal.aborted)
+        await this.sleep(this.idleDelayMs, signal).catch(() => undefined);
     }
   }
 
@@ -66,7 +70,9 @@ export class MediaMultipartWorkerRuntime {
   private async processLease(lease: MediaMultipartLease) {
     const heartbeatController = new AbortController();
     let leaseLost = false;
-    const heartbeat = this.heartbeat(lease, heartbeatController.signal, () => { leaseLost = true; });
+    const heartbeat = this.heartbeat(lease, heartbeatController.signal, () => {
+      leaseLost = true;
+    });
     try {
       await this.media.completeDirectUpload(
         lease.ownerId,
@@ -136,7 +142,14 @@ export class MediaMultipartWorkerRuntime {
       await this.sleep(this.heartbeatMs, signal).catch(() => undefined);
       if (signal.aborted) return;
       try {
-        if (!await this.queue.renew(lease.mediaId, lease.token, this.timestamp(), this.leaseDurationMs)) {
+        if (
+          !(await this.queue.renew(
+            lease.mediaId,
+            lease.token,
+            this.timestamp(),
+            this.leaseDurationMs,
+          ))
+        ) {
           lost();
           return;
         }
@@ -155,12 +168,18 @@ export class MediaMultipartWorkerRuntime {
 
 function workerFailure(error: unknown) {
   if (error instanceof MediaServiceError) {
-    const temporary = error.status >= 500 || [
-      "MEDIA_UPLOAD_IN_PROGRESS",
-      "MEDIA_UPLOAD_CONFLICT",
-      "MEDIA_FINALIZATION_UNCONFIRMED",
-    ].includes(error.code);
-    return { code: safeCode(error.code), message: safeMessage(error.message), terminal: !temporary };
+    const temporary =
+      error.status >= 500 ||
+      [
+        "MEDIA_UPLOAD_IN_PROGRESS",
+        "MEDIA_UPLOAD_CONFLICT",
+        "MEDIA_FINALIZATION_UNCONFIRMED",
+      ].includes(error.code);
+    return {
+      code: safeCode(error.code),
+      message: safeMessage(error.message),
+      terminal: !temporary,
+    };
   }
   const message = error instanceof Error ? error.message : "Multipart media processing failed";
   return {
@@ -180,11 +199,17 @@ function safeCode(value: string) {
 }
 
 function safeMessage(value: string) {
-  return value.replace(/[\r\n\t]+/g, " ").trim().slice(0, 1_000) || "Multipart media processing failed";
+  return (
+    value
+      .replace(/[\r\n\t]+/g, " ")
+      .trim()
+      .slice(0, 1_000) || "Multipart media processing failed"
+  );
 }
 
 function positiveInteger(value: number, name: string) {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${name} must be a positive safe integer`);
+  if (!Number.isSafeInteger(value) || value <= 0)
+    throw new Error(`${name} must be a positive safe integer`);
   return value;
 }
 
@@ -195,9 +220,13 @@ function sleep(milliseconds: number, signal?: AbortSignal) {
       return;
     }
     const timer = setTimeout(resolve, milliseconds);
-    signal?.addEventListener("abort", () => {
-      clearTimeout(timer);
-      reject(signal.reason);
-    }, { once: true });
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        reject(signal.reason);
+      },
+      { once: true },
+    );
   });
 }

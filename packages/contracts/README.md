@@ -22,7 +22,7 @@ trusted dimensions and duration, integrity hashes, and safe errors. Object keys,
 storage credentials, upload claims, revisions, and owner ids are private API
 records and cannot be supplied through the public schema.
 
-`pnpm --filter @kachang/contracts build` emits the ESM runtime used by Node
+`pnpm --filter @weftcanvas/contracts build` emits the ESM runtime used by Node
 services. TypeScript consumers continue to read the source declarations, while
 browser and server runtimes import the generated JavaScript package entry.
 

@@ -1,4 +1,4 @@
-import type { WalletSummary } from "@kachang/contracts";
+import type { WalletSummary } from "@weftcanvas/contracts";
 
 /**
  * Canvas's browser-owned API connection is currently in a free preview. Keep
@@ -46,12 +46,13 @@ export function resolveCanvasApiAccess(membership: CanvasApiMembershipInput): Ca
 export function resolveCanvasApiAccess(
   input: CanvasApiAccessContext | CanvasApiMembershipInput,
 ): CanvasApiAccess {
-  const context: CanvasApiAccessContext = input && "authenticated" in input
-    ? input
-    : {
-      authenticated: input !== null && input !== undefined,
-      membership: input,
-    };
+  const context: CanvasApiAccessContext =
+    input && "authenticated" in input
+      ? input
+      : {
+          authenticated: input !== null && input !== undefined,
+          membership: input,
+        };
   const memberEligible = hasCanvasApiMembership(context.membership);
   const preview = context.previewEnabled ?? CANVAS_API_FREE_PREVIEW_ENABLED;
   if (!context.authenticated) {

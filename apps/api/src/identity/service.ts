@@ -6,7 +6,7 @@ import {
   identitySessionSchema,
   publicIdentityUserSchema,
   type IdentitySession,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 
 import { DUMMY_PASSWORD_HASH, ScryptPasswordHasher } from "./password.js";
 import {
@@ -57,13 +57,22 @@ export class IdentityService implements IdentityProvider {
   private readonly sessionTtlMs: number;
   private readonly initialCreditMicros: number;
 
-  constructor(private readonly store: IdentityStore, options: IdentityServiceOptions = {}) {
+  constructor(
+    private readonly store: IdentityStore,
+    options: IdentityServiceOptions = {},
+  ) {
     this.now = options.now ?? Date.now;
     this.createId = options.createId ?? randomUUID;
     this.createToken = options.createToken ?? (() => randomBytes(32).toString("base64url"));
     this.passwordHasher = options.passwordHasher ?? new ScryptPasswordHasher();
-    this.sessionTtlMs = positiveInteger(options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS, "sessionTtlMs");
-    this.initialCreditMicros = nonNegativeInteger(options.initialCreditMicros ?? 0, "initialCreditMicros");
+    this.sessionTtlMs = positiveInteger(
+      options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS,
+      "sessionTtlMs",
+    );
+    this.initialCreditMicros = nonNegativeInteger(
+      options.initialCreditMicros ?? 0,
+      "initialCreditMicros",
+    );
   }
 
   async register(value: unknown): Promise<IdentityRegistrationResult> {
@@ -104,14 +113,17 @@ export class IdentityService implements IdentityProvider {
   async login(value: unknown): Promise<IssuedIdentitySession> {
     const input = identityLoginRequestSchema.parse(value);
     const user = await this.store.findUserByNormalizedEmail(input.email);
-    const verified = await this.passwordHasher.verify(input.password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
+    const verified = await this.passwordHasher.verify(
+      input.password,
+      user?.passwordHash ?? DUMMY_PASSWORD_HASH,
+    );
     if (!user || user.status !== "active" || !verified) {
       throw new IdentityServiceError("INVALID_CREDENTIALS", "邮箱或密码不正确");
     }
 
     const now = this.now();
     const issued = this.issueSession(user.id, now);
-    if (!await this.store.createSession(issued.record, new Date(now).toISOString())) {
+    if (!(await this.store.createSession(issued.record, new Date(now).toISOString()))) {
       throw new IdentityServiceError("INVALID_CREDENTIALS", "邮箱或密码不正确");
     }
     return publicSession(user, issued.token, issued.record.expiresAt);
@@ -119,7 +131,10 @@ export class IdentityService implements IdentityProvider {
 
   async authenticate(token: string | undefined): Promise<IdentitySession | null> {
     if (!token || !SESSION_TOKEN_PATTERN.test(token)) return null;
-    const active = await this.store.findActiveSession(hashSessionToken(token), new Date(this.now()).toISOString());
+    const active = await this.store.findActiveSession(
+      hashSessionToken(token),
+      new Date(this.now()).toISOString(),
+    );
     if (!active) return null;
     return identitySessionSchema.parse({
       user: publicIdentityUserSchema.parse(active.user),
@@ -134,7 +149,8 @@ export class IdentityService implements IdentityProvider {
 
   private issueSession(userId: string, now: number) {
     const token = this.createToken();
-    if (!SESSION_TOKEN_PATTERN.test(token)) throw new Error("Session token generator returned an invalid token");
+    if (!SESSION_TOKEN_PATTERN.test(token))
+      throw new Error("Session token generator returned an invalid token");
     const createdAt = new Date(now).toISOString();
     const record: IdentitySessionRecord = {
       tokenHash: hashSessionToken(token),
@@ -152,7 +168,11 @@ export function hashSessionToken(token: string) {
   return createHash("sha256").update(token, "utf8").digest("hex");
 }
 
-function publicSession(user: IdentityUserRecord, token: string, expiresAt: string): IssuedIdentitySession {
+function publicSession(
+  user: IdentityUserRecord,
+  token: string,
+  expiresAt: string,
+): IssuedIdentitySession {
   return {
     token,
     ...identitySessionSchema.parse({ user: publicIdentityUserSchema.parse(user), expiresAt }),
@@ -164,11 +184,13 @@ function defaultDisplayName(email: string) {
 }
 
 function positiveInteger(value: number, name: string) {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${name} must be a positive safe integer`);
+  if (!Number.isSafeInteger(value) || value <= 0)
+    throw new Error(`${name} must be a positive safe integer`);
   return value;
 }
 
 function nonNegativeInteger(value: number, name: string) {
-  if (!Number.isSafeInteger(value) || value < 0) throw new Error(`${name} must be a non-negative safe integer`);
+  if (!Number.isSafeInteger(value) || value < 0)
+    throw new Error(`${name} must be a non-negative safe integer`);
   return value;
 }

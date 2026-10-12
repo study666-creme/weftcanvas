@@ -1,7 +1,7 @@
-import type { CanvasMedia, PublicModel } from "@kachang/contracts";
+import type { CanvasMedia, PublicModel } from "@weftcanvas/contracts";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { KachangNode } from "../types";
+import type { WeftcanvasNode } from "../types";
 
 const mocks = vi.hoisted(() => ({
   createMediaUpload: vi.fn(),
@@ -26,12 +26,21 @@ vi.mock("./media-store", () => ({
 
 vi.mock("../state/canvas-store", () => ({
   useCanvasStore: {
-    getState: () => ({ projectId: mocks.projectId, nodes: [], updateNodeData: mocks.updateNodeData }),
+    getState: () => ({
+      projectId: mocks.projectId,
+      nodes: [],
+      updateNodeData: mocks.updateNodeData,
+    }),
   },
 }));
 
 import { useCloudProjectStore } from "../state/cloud-project-store";
-import { collectGenerationReferences, prepareCustomGenerationInputs, prepareGenerationInputs, type GenerationReferences } from "./generation-inputs";
+import {
+  collectGenerationReferences,
+  prepareCustomGenerationInputs,
+  prepareGenerationInputs,
+  type GenerationReferences,
+} from "./generation-inputs";
 
 describe("prepareGenerationInputs", () => {
   beforeEach(() => {
@@ -59,12 +68,14 @@ describe("prepareGenerationInputs", () => {
     const inputs = await prepareGenerationInputs(references(media));
 
     expect(inputs.images).toEqual(["durable-reference"]);
-    expect(mocks.createMediaUpload).toHaveBeenCalledWith(expect.objectContaining({
-      kind: "image",
-      name: media.name,
-      mimeType: "image/png",
-      size: 3,
-    }));
+    expect(mocks.createMediaUpload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "image",
+        name: media.name,
+        mimeType: "image/png",
+        size: 3,
+      }),
+    );
     expect(mocks.uploadMediaBlob).toHaveBeenCalledWith(
       expect.objectContaining({ id: "durable-reference" }),
       expect.any(Object),
@@ -115,7 +126,9 @@ describe("prepareGenerationInputs", () => {
 
   it("converts custom API references to provider-accessible HTTPS URLs when required", async () => {
     const media = { ...serverMedia("generated-image"), serverId: "durable-reference" };
-    mocks.createProviderMediaReference.mockResolvedValue("https://media.example/signed-reference.png");
+    mocks.createProviderMediaReference.mockResolvedValue(
+      "https://media.example/signed-reference.png",
+    );
 
     const inputs = await prepareCustomGenerationInputs(references(media), new Set(["image"]));
 
@@ -130,9 +143,18 @@ describe("prepareGenerationInputs", () => {
     mocks.createProviderMediaReference.mockResolvedValue("https://media.example/element.png");
 
     const hosted = await prepareGenerationInputs(references(styleMedia, "styleImages"));
-    const custom = await prepareCustomGenerationInputs(references(elementMedia, "elementImages"), new Set(["image"]));
+    const custom = await prepareCustomGenerationInputs(
+      references(elementMedia, "elementImages"),
+      new Set(["image"]),
+    );
 
-    expect(hosted).toEqual({ images: [], styleImages: ["durable-style"], elementImages: [], videos: [], audios: [] });
+    expect(hosted).toEqual({
+      images: [],
+      styleImages: ["durable-style"],
+      elementImages: [],
+      videos: [],
+      audios: [],
+    });
     expect(custom).toEqual({
       images: [],
       styleImages: [],
@@ -158,13 +180,18 @@ describe("prepareGenerationInputs", () => {
     }));
     const [imageRef, styleRef, elementRef, videoRef, audioRef] = refs;
     const resolvers = new Map<string, (value: unknown) => void>();
-    mocks.readMedia.mockImplementation((id: string) => new Promise((resolve) => {
-      resolvers.set(id, resolve);
-    }));
-    mocks.createMediaUpload.mockImplementation(({ name }: { name: string }) => Promise.resolve({
-      media: { id: `ready-${name}`, status: "ready" },
-      upload: null,
-    }));
+    mocks.readMedia.mockImplementation(
+      (id: string) =>
+        new Promise((resolve) => {
+          resolvers.set(id, resolve);
+        }),
+    );
+    mocks.createMediaUpload.mockImplementation(({ name }: { name: string }) =>
+      Promise.resolve({
+        media: { id: `ready-${name}`, status: "ready" },
+        upload: null,
+      }),
+    );
 
     const pending = prepareGenerationInputs({
       images: [imageRef!],
@@ -215,15 +242,24 @@ describe("prepareGenerationInputs", () => {
     mocks.cacheServerMedia.mockResolvedValue(true);
     mocks.createMediaUpload.mockResolvedValue({
       media: { id: "collaborator-personal-reference", status: "pending" },
-      upload: { url: "/api/v1/media/collaborator-personal-reference/content", method: "PUT", headers: {} },
+      upload: {
+        url: "/api/v1/media/collaborator-personal-reference/content",
+        method: "PUT",
+        headers: {},
+      },
     });
-    mocks.uploadMediaBlob.mockResolvedValue({ id: "collaborator-personal-reference", status: "ready" });
+    mocks.uploadMediaBlob.mockResolvedValue({
+      id: "collaborator-personal-reference",
+      status: "ready",
+    });
 
     const inputs = await prepareGenerationInputs(references(media));
 
     expect(inputs.images).toEqual(["collaborator-personal-reference"]);
     expect(mocks.cacheServerMedia).toHaveBeenCalledWith(media, "shared-project");
-    expect(mocks.createMediaUpload).toHaveBeenCalledWith(expect.not.objectContaining({ projectId: expect.anything() }));
+    expect(mocks.createMediaUpload).toHaveBeenCalledWith(
+      expect.not.objectContaining({ projectId: expect.anything() }),
+    );
     expect(mocks.updateNodeData).not.toHaveBeenCalled();
   });
 
@@ -248,15 +284,27 @@ describe("prepareGenerationInputs", () => {
     mocks.cacheServerMedia.mockResolvedValue(true);
     mocks.createMediaUpload.mockResolvedValue({
       media: { id: "collaborator-personal-reference", status: "pending" },
-      upload: { url: "/api/v1/media/collaborator-personal-reference/content", method: "PUT", headers: {} },
+      upload: {
+        url: "/api/v1/media/collaborator-personal-reference/content",
+        method: "PUT",
+        headers: {},
+      },
     });
-    mocks.uploadMediaBlob.mockResolvedValue({ id: "collaborator-personal-reference", status: "ready" });
-    mocks.createProviderMediaReference.mockResolvedValue("https://media.example/collaborator-reference.png");
+    mocks.uploadMediaBlob.mockResolvedValue({
+      id: "collaborator-personal-reference",
+      status: "ready",
+    });
+    mocks.createProviderMediaReference.mockResolvedValue(
+      "https://media.example/collaborator-reference.png",
+    );
 
     const inputs = await prepareCustomGenerationInputs(references(media), new Set(["image"]));
 
     expect(inputs.images).toEqual(["https://media.example/collaborator-reference.png"]);
-    expect(mocks.createProviderMediaReference).toHaveBeenCalledWith("collaborator-personal-reference", "image");
+    expect(mocks.createProviderMediaReference).toHaveBeenCalledWith(
+      "collaborator-personal-reference",
+      "image",
+    );
     expect(mocks.updateNodeData).not.toHaveBeenCalled();
   });
 
@@ -287,7 +335,13 @@ describe("prepareGenerationInputs", () => {
 
     const inputs = await prepareCustomGenerationInputs(references, new Set(["image"]));
 
-    expect(inputs).toEqual({ images: ["https://media.example/frame-a.png"], styleImages: [], elementImages: [], videos: [], audios: [] });
+    expect(inputs).toEqual({
+      images: ["https://media.example/frame-a.png"],
+      styleImages: [],
+      elementImages: [],
+      videos: [],
+      audios: [],
+    });
     expect(mocks.createProviderMediaReference).toHaveBeenCalledWith("durable-frame", "image");
   });
 });
@@ -310,10 +364,10 @@ function node(
   id: string,
   kind: "text" | "image" | "video" | "audio",
   nodeMedia: CanvasMedia | null,
-): KachangNode {
+): WeftcanvasNode {
   return {
     id,
-    type: "kachang",
+    type: "weftcanvas",
     position: { x: 0, y: 0 },
     data: {
       kind,

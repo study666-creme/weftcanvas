@@ -1,7 +1,17 @@
-import { canvasProjectSchema, type CanvasMedia, type CanvasProject, type MediaKind } from "@kachang/contracts";
+import {
+  canvasProjectSchema,
+  type CanvasMedia,
+  type CanvasProject,
+  type MediaKind,
+} from "@weftcanvas/contracts";
 
 import { useCanvasStore } from "../state/canvas-store";
-import { CanvasApiError, createMediaUpload, fetchMediaMetadata, uploadMediaBlob } from "./api-client";
+import {
+  CanvasApiError,
+  createMediaUpload,
+  fetchMediaMetadata,
+  uploadMediaBlob,
+} from "./api-client";
 import { cloudUploadsSkipped } from "./cloud-media-preference";
 import { cacheServerMedia, readMedia } from "./media-store";
 
@@ -63,7 +73,9 @@ export async function prepareProjectMediaForCloud(
       idempotencyKey: await mediaUploadRequestKey(project.id, mediaId),
       projectId: project.id,
     });
-    const ready = intent.upload ? await uploadMediaBlob(intent.media, intent.upload, stored.blob) : intent.media;
+    const ready = intent.upload
+      ? await uploadMediaBlob(intent.media, intent.upload, stored.blob)
+      : intent.media;
     if (ready.status !== "ready") throw new CloudProjectMediaError("素材尚未完成云端处理");
     uploads.set(mediaId, ready.id);
   });
@@ -80,9 +92,12 @@ export async function prepareProjectMediaForCloud(
     project.nodes.forEach((node) => {
       const media = node.data.media;
       if (!media?.serverId) return;
-      const current = useCanvasStore.getState().nodes.find((item) => item.id === node.id)?.data.media;
+      const current = useCanvasStore.getState().nodes.find((item) => item.id === node.id)
+        ?.data.media;
       if (current?.id === media.id && current.serverId !== media.serverId) {
-        useCanvasStore.getState().updateNodeData(node.id, { media: { ...current, serverId: media.serverId } }, false);
+        useCanvasStore
+          .getState()
+          .updateNodeData(node.id, { media: { ...current, serverId: media.serverId } }, false);
       }
     });
   }
@@ -91,12 +106,21 @@ export async function prepareProjectMediaForCloud(
 
 async function mediaUploadRequestKey(projectId: string, localId: string) {
   if (!crypto.subtle) return `cloud-upload:${crypto.randomUUID()}`;
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${projectId}:${localId}`));
-  const hex = [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join("");
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(`${projectId}:${localId}`),
+  );
+  const hex = [...new Uint8Array(digest)]
+    .map((value) => value.toString(16).padStart(2, "0"))
+    .join("");
   return `cloud-upload:${hex}`;
 }
 
-async function mapWithConcurrency<T>(items: T[], concurrency: number, action: (item: T) => Promise<void>) {
+async function mapWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  action: (item: T) => Promise<void>,
+) {
   let nextIndex = 0;
   const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
     while (nextIndex < items.length) {

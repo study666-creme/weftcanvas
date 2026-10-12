@@ -34,10 +34,16 @@ function required(name: string) {
 }
 
 function workerIdentity(configured: string | undefined) {
-  const machine = hostname().replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "host";
+  const machine =
+    hostname()
+      .replace(/[^A-Za-z0-9._-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 80) || "host";
   const value = configured?.trim() || `worker:${machine}:${process.pid}`;
   if (!/^[A-Za-z0-9._:-]{1,128}$/.test(value)) {
-    throw new Error("WORKER_ID may only contain letters, numbers, dots, underscores, colons, and hyphens");
+    throw new Error(
+      "WORKER_ID may only contain letters, numbers, dots, underscores, colons, and hyphens",
+    );
   }
   return value;
 }

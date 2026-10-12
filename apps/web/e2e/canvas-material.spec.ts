@@ -3,27 +3,36 @@ import { expect, test } from "@playwright/test";
 import { seedStarterCanvas } from "./starter-canvas.fixture";
 
 test.beforeEach(async ({ page }) => {
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({ json: { ok: true, data: null } }));
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({ json: { ok: true, data: null } }),
+  );
   await page.addInitScript(() => {
-    if (sessionStorage.getItem("kachang-material-e2e-cleaned")) return;
+    if (sessionStorage.getItem("weftcanvas-material-e2e-cleaned")) return;
     localStorage.clear();
-    sessionStorage.setItem("kachang-material-e2e-cleaned", "1");
+    sessionStorage.setItem("weftcanvas-material-e2e-cleaned", "1");
   });
   await seedStarterCanvas(page);
 });
 
-test("default canvas keeps transparent nodes visible with stable control feedback states", async ({ page }, testInfo) => {
+test("default canvas keeps transparent nodes visible with stable control feedback states", async ({
+  page,
+}, testInfo) => {
   await page.goto("/canvas");
 
-  const textNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="text"])');
-  const nodeWrap = textNode.locator(".kc-node-wrap");
-  const surface = textNode.locator(".kc-node-surface");
+  const textNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="text"])',
+  );
+  const nodeWrap = textNode.locator(".wc-node-wrap");
+  const surface = textNode.locator(".wc-node-surface");
   await expect(nodeWrap).toHaveAttribute("data-node-status", "idle");
   await expect(nodeWrap).toHaveAttribute("aria-busy", "false");
   await expect(page.locator("html")).toHaveAttribute("data-canvas-style", "studio");
   await expect(surface).toHaveCSS("border-radius", "7px");
-  await expect(textNode.locator(".kc-node-type-label svg")).toHaveCSS("border-top-width", "0px");
-  await expect(textNode.locator(".kc-node-port-zone--right")).toHaveAttribute("data-node-port-style", "classic");
+  await expect(textNode.locator(".wc-node-type-label svg")).toHaveCSS("border-top-width", "0px");
+  await expect(textNode.locator(".wc-node-port-zone--right")).toHaveAttribute(
+    "data-node-port-style",
+    "classic",
+  );
   const studioMaterial = await surface.evaluate((element) => {
     const style = getComputedStyle(element);
     const afterStyle = getComputedStyle(element, "::after");
@@ -49,9 +58,11 @@ test("default canvas keeps transparent nodes visible with stable control feedbac
     const style = getComputedStyle(element);
     return { name: style.animationName, duration: style.animationDuration };
   });
-  expect(entrance).toEqual({ name: "kc-node-enter", duration: "0.22s" });
+  expect(entrance).toEqual({ name: "wc-node-enter", duration: "0.22s" });
 
-  const imageNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="image"])');
+  const imageNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="image"])',
+  );
   const preview = await page.evaluate(() => {
     const canvas = document.createElement("canvas");
     canvas.width = 64;
@@ -68,10 +79,10 @@ test("default canvas keeps transparent nodes visible with stable control feedbac
     mimeType: "image/png",
     buffer: Buffer.from(preview, "base64"),
   });
-  await expect(imageNode.locator(".kc-node-media-frame img")).toBeVisible();
+  await expect(imageNode.locator(".wc-node-media-frame img")).toBeVisible();
   const imageMaterial = await imageNode.evaluate((node) => {
-    const imageSurface = node.querySelector<HTMLElement>(".kc-node-surface")!;
-    const frame = node.querySelector<HTMLElement>(".kc-node-media-frame")!;
+    const imageSurface = node.querySelector<HTMLElement>(".wc-node-surface")!;
+    const frame = node.querySelector<HTMLElement>(".wc-node-media-frame")!;
     const surfaceStyle = getComputedStyle(imageSurface);
     const frameAfterStyle = getComputedStyle(frame, "::after");
     return {
@@ -98,12 +109,14 @@ test("default canvas keeps transparent nodes visible with stable control feedbac
   await expect(toolbar.getByLabel("删除节点")).toHaveAttribute("data-toolbar-action", "delete");
 
   await imageNode.hover();
-  const imageToolbar = page.locator('.kc-node-action-toolbar[data-node-kind="image"]');
+  const imageToolbar = page.locator('.wc-node-action-toolbar[data-node-kind="image"]');
   await expect(imageToolbar.locator('[data-toolbar-action="face-grid"]')).toBeVisible();
 
-  await textNode.locator(".kc-node-drag-strip").click();
+  await textNode.locator(".wc-node-drag-strip").click();
   await expect(textNode).toHaveClass(/selected/);
-  expect(await surface.evaluate((element) => getComputedStyle(element, "::before").content)).toBe("none");
+  expect(await surface.evaluate((element) => getComputedStyle(element, "::before").content)).toBe(
+    "none",
+  );
 
   const panButton = page.getByRole("navigation", { name: "编辑工具" }).getByLabel("平移画布");
   await expect(panButton).toHaveAttribute("aria-pressed", "false");
@@ -112,10 +125,14 @@ test("default canvas keeps transparent nodes visible with stable control feedbac
 
   const zoom = page.getByLabel("画布缩放");
   await expect(zoom).toHaveAttribute("aria-valuetext", /%$/);
-  expect(await zoom.evaluate((element) => element.style.getPropertyValue("--kc-zoom-progress"))).toMatch(/%$/);
+  expect(
+    await zoom.evaluate((element) => element.style.getPropertyValue("--wc-zoom-progress")),
+  ).toMatch(/%$/);
 });
 
-test("connected material rail only shows direct media and can unlink it without deleting nodes", async ({ page }) => {
+test("connected material rail only shows direct media and can unlink it without deleting nodes", async ({
+  page,
+}) => {
   const now = Date.now();
   const generation = {
     modelId: null,
@@ -149,7 +166,7 @@ test("connected material rail only shows direct media and can unlink it without 
     body = "",
   ) => ({
     id,
-    type: "kachang",
+    type: "weftcanvas",
     position: { x, y: 180 },
     selected,
     data: {
@@ -188,22 +205,36 @@ test("connected material rail only shows direct media and can unlink it without 
     updatedAt: now,
   };
   await page.addInitScript((seed) => {
-    localStorage.setItem(`kachang-canvas:project-data:v1:${encodeURIComponent(seed.id)}`, JSON.stringify(seed));
-    localStorage.setItem("kachang-canvas:projects:v1", JSON.stringify({
-      version: 1,
-      projects: [{ id: seed.id, name: seed.name, createdAt: seed.createdAt, updatedAt: seed.updatedAt, nodeCount: seed.nodes.length }],
-    }));
-    localStorage.setItem("kachang-canvas:active-project:v1", seed.id);
+    localStorage.setItem(
+      `weftcanvas:project-data:v1:${encodeURIComponent(seed.id)}`,
+      JSON.stringify(seed),
+    );
+    localStorage.setItem(
+      "weftcanvas:projects:v1",
+      JSON.stringify({
+        version: 1,
+        projects: [
+          {
+            id: seed.id,
+            name: seed.name,
+            createdAt: seed.createdAt,
+            updatedAt: seed.updatedAt,
+            nodeCount: seed.nodes.length,
+          },
+        ],
+      }),
+    );
+    localStorage.setItem("weftcanvas:active-project:v1", seed.id);
   }, project);
   await page.goto("/canvas");
   await expect(page.locator(".react-flow__edge")).toHaveCount(3);
   const rail = page.getByLabel("已连接素材");
-  await expect(rail.locator(".kc-node-reference-chip")).toHaveCount(2);
+  await expect(rail.locator(".wc-node-reference-chip")).toHaveCount(2);
   const directChoice = rail.getByRole("button", { name: "引用素材 直接视频素材" });
   const material = directChoice.locator("..");
   await expect(rail.getByRole("button", { name: "引用素材 同媒体直连副本" })).toBeVisible();
   await expect(rail).not.toContainText("间接图片素材");
-  const unlink = material.locator(".kc-node-reference-remove");
+  const unlink = material.locator(".wc-node-reference-remove");
   await expect(unlink).toHaveAttribute("aria-label", "取消素材链接 直接视频素材");
   await expect(unlink).toHaveCSS("opacity", "0");
   await expect(unlink).toHaveCSS("pointer-events", "none");
@@ -212,8 +243,8 @@ test("connected material rail only shows direct media and can unlink it without 
   await expect(unlink).toHaveCSS("pointer-events", "auto");
 
   await unlink.click();
-  await expect(rail.locator(".kc-node-reference-chip")).toHaveCount(1);
-  await expect(page.locator(".react-flow__node-kachang")).toHaveCount(4);
+  await expect(rail.locator(".wc-node-reference-chip")).toHaveCount(1);
+  await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(4);
   await expect(page.locator(".react-flow__edge")).toHaveCount(2);
   await expect(page.locator('.react-flow__edge[data-id="transitive-direct"]')).toHaveCount(1);
   await expect(page.locator('.react-flow__edge[data-id="direct-target"]')).toHaveCount(0);

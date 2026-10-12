@@ -28,10 +28,12 @@ function scheduleMediaRead<T>(task: () => Promise<T>, onStart: () => void): Prom
     const run = () => {
       activeMediaReads += 1;
       onStart();
-      task().then(resolve, reject).finally(() => {
-        activeMediaReads -= 1;
-        queuedMediaReads.shift()?.();
-      });
+      task()
+        .then(resolve, reject)
+        .finally(() => {
+          activeMediaReads -= 1;
+          queuedMediaReads.shift()?.();
+        });
     };
     if (activeMediaReads < MAX_CONCURRENT_MEDIA_READS) run();
     else queuedMediaReads.push(run);

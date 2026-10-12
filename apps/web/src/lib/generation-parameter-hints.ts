@@ -1,4 +1,4 @@
-import type { ModelParameter } from "@kachang/contracts";
+import type { ModelParameter } from "@weftcanvas/contracts";
 
 /**
  * 目录参数的站内解释与文案。
@@ -52,7 +52,14 @@ const PARAMETER_META: Record<string, GenerationParameterMeta> = {
 /** Midjourney 后续动作参数名：它是对已完成任务的二次操作，与直接生成分属两种流程。 */
 export const MJ_ACTION_PARAMETER_NAME = "action";
 /** 后续动作的配套参数；选择动作后按需出现，取消动作时一并清空。 */
-export const MJ_ACTION_DEPENDENT_NAMES = ["task_id", "index", "custom_id", "direction", "zoom_ratio", "dimensions"] as const;
+export const MJ_ACTION_DEPENDENT_NAMES = [
+  "task_id",
+  "index",
+  "custom_id",
+  "direction",
+  "zoom_ratio",
+  "dimensions",
+] as const;
 
 export type MjActionMeta = {
   label: string;
@@ -148,7 +155,9 @@ const MJ_QUALITY_OPTION_LABELS: Record<string, string> = {
 };
 
 const PARAMETER_OPTION_LABELS: Record<string, Record<string, string>> = {
-  action: Object.fromEntries(Object.entries(MJ_ACTION_OPTIONS).map(([value, meta]) => [value, meta.label])),
+  action: Object.fromEntries(
+    Object.entries(MJ_ACTION_OPTIONS).map(([value, meta]) => [value, meta.label]),
+  ),
   direction: { left: "向左", right: "向右", up: "向上", down: "向下" },
   dimensions: { SQUARE: "方形 1:1", PORTRAIT: "竖幅 2:3", LANDSCAPE: "横幅 3:2" },
   quality: MJ_QUALITY_OPTION_LABELS,
@@ -156,26 +165,34 @@ const PARAMETER_OPTION_LABELS: Record<string, Record<string, string>> = {
 
 /** 参数的一句话解释：目录自带 description 时优先目录，否则查站内文案。 */
 export function generationParameterHint(parameter: ModelParameter): string | null {
-  if (typeof parameter.description === "string" && parameter.description.trim()) return parameter.description.trim();
+  if (typeof parameter.description === "string" && parameter.description.trim())
+    return parameter.description.trim();
   return PARAMETER_META[parameter.name.trim().toLowerCase()]?.hint ?? null;
 }
 
 /** 枚举选项的站内文案；未命中返回 null（沿用原值）。 */
-export function generationParameterOptionMetaLabel(parameter: ModelParameter, option: string): string | null {
+export function generationParameterOptionMetaLabel(
+  parameter: ModelParameter,
+  option: string,
+): string | null {
   return PARAMETER_OPTION_LABELS[parameter.name.trim().toLowerCase()]?.[option] ?? null;
 }
 
 /** 判断模型是否带「后续动作」参数（Midjourney 官转系目录）。 */
-export function findMjActionParameter(model: { parameters: ModelParameter[] }): ModelParameter | null {
+export function findMjActionParameter(model: {
+  parameters: ModelParameter[];
+}): ModelParameter | null {
   return model.parameters.find((parameter) => parameter.name === MJ_ACTION_PARAMETER_NAME) ?? null;
 }
 
 /**
  * 后续动作的配套参数对象（按目录里实际存在的字段返回，保持目录顺序）。
  */
-export function mjActionDependentParameters(model: { parameters: ModelParameter[] }): ModelParameter[] {
+export function mjActionDependentParameters(model: {
+  parameters: ModelParameter[];
+}): ModelParameter[] {
   const byName = new Map(model.parameters.map((parameter) => [parameter.name, parameter]));
-  return MJ_ACTION_DEPENDENT_NAMES
-    .map((name) => byName.get(name))
-    .filter((parameter): parameter is ModelParameter => parameter !== undefined);
+  return MJ_ACTION_DEPENDENT_NAMES.map((name) => byName.get(name)).filter(
+    (parameter): parameter is ModelParameter => parameter !== undefined,
+  );
 }

@@ -81,7 +81,6 @@ export class S3MediaObjectStore implements MultipartMediaObjectStore {
   private readonly uploadTtlSeconds: number;
   private readonly downloadTtlSeconds: number;
   private readonly maxMaterializedBytes: number;
-  private readonly maxSockets: number;
   private readonly transportFailureThreshold: number;
   private readonly transportFailureCooldownMs: number;
   private readonly presign: Presign;
@@ -93,16 +92,27 @@ export class S3MediaObjectStore implements MultipartMediaObjectStore {
     this.bucket = requiredToken(options.bucket, "S3 bucket", /^[A-Za-z0-9][A-Za-z0-9._-]{1,254}$/);
     this.keyPrefix = normalizePrefix(options.keyPrefix);
     this.keyDerivationSecret = secret(options.keyDerivationSecret, "S3 key derivation secret");
-    this.temporaryDirectory = resolve(options.temporaryDirectory || join(tmpdir(), "kachang-canvas-media"));
-    this.uploadTtlSeconds = boundedInteger(options.uploadTtlSeconds ?? 15 * 60, "uploadTtlSeconds", 60, 60 * 60);
-    this.downloadTtlSeconds = boundedInteger(options.downloadTtlSeconds ?? 5 * 60, "downloadTtlSeconds", 30, 60 * 60);
+    this.temporaryDirectory = resolve(
+      options.temporaryDirectory || join(tmpdir(), "weftcanvas-media"),
+    );
+    this.uploadTtlSeconds = boundedInteger(
+      options.uploadTtlSeconds ?? 15 * 60,
+      "uploadTtlSeconds",
+      60,
+      60 * 60,
+    );
+    this.downloadTtlSeconds = boundedInteger(
+      options.downloadTtlSeconds ?? 5 * 60,
+      "downloadTtlSeconds",
+      30,
+      60 * 60,
+    );
     this.maxMaterializedBytes = boundedInteger(
       options.maxMaterializedBytes ?? DEFAULT_MAX_MATERIALIZED_BYTES,
       "maxMaterializedBytes",
       1,
       Number.MAX_SAFE_INTEGER,
     );
-    this.maxSockets = boundedInteger(options.maxSockets ?? 50, "maxSockets", 8, 200);
     this.transportFailureThreshold = boundedInteger(
       options.transportFailureThreshold ?? 3,
       "transportFailureThreshold",
@@ -133,7 +143,11 @@ export class S3MediaObjectStore implements MultipartMediaObjectStore {
    */
   private async send<T = unknown>(command: unknown): Promise<T> {
     if (this.now() < this.transportFailFastUntil) {
-      throw new MediaObjectWriteError("MEDIA_STORAGE_UNAVAILABLE", STORAGE_UNAVAILABLE_MESSAGE, false);
+      throw new MediaObjectWriteError(
+        "MEDIA_STORAGE_UNAVAILABLE",
+        STORAGE_UNAVAILABLE_MESSAGE,
+        false,
+      );
     }
     try {
       const result = await (this.client.send as (input: unknown) => Promise<T>)(command);
@@ -142,7 +156,10 @@ export class S3MediaObjectStore implements MultipartMediaObjectStore {
       return result;
     } catch (error) {
       const classified = classifyObjectStoreFailure(error);
-      if (classified instanceof MediaObjectWriteError && classified.code === "MEDIA_STORAGE_UNAVAILABLE") {
+      if (
+        classified instanceof MediaObjectWriteError &&
+        classified.code === "MEDIA_STORAGE_UNAVAILABLE"
+      ) {
         this.consecutiveTransportFailures += 1;
         if (this.consecutiveTransportFailures >= this.transportFailureThreshold) {
           this.transportFailFastUntil = this.now() + this.transportFailureCooldownMs;
@@ -160,23 +177,30 @@ export class S3MediaObjectStore implements MultipartMediaObjectStore {
   ) {
     const temporary = await this.temporaryPath("write");
     try {
-      const written = await writeExactFile(temporary.path, source, options.expectedSize, options.maxBytes);
+      const written = await writeExactFile(
+        temporary.path,
+        source,
+        options.expectedSize,
+        options.maxBytes,
+      );
       // 缓冲 PUT：字节经本地临时文件读回为单个 Buffer 后整体上传（确定性
       // 请求体；上传完整性由写入时的 size/sha256 校验保证，见 writeExactFile）。
       // 注意：上传自带的 ChecksumSHA256 会让 R2 在之后的 Range GET 响应里返回
       // 全对象摘要——响应校验由 clientConfig 的 WHEN_REQUIRED 统一关闭，两处
       // 需一起维护。
       const body = await readFile(temporary.path);
-      await this.send(new PutObjectCommand({
-        Bucket: this.bucket,
-        Key: this.objectKey(key),
-        Body: body,
-        ContentLength: written.size,
-        ...(options.contentType ? { ContentType: options.contentType } : {}),
-        CacheControl: PRIVATE_MEDIA_CACHE_CONTROL,
-        ChecksumSHA256: hexToBase64(written.sha256),
-        Metadata: { "canvas-sha256": written.sha256 },
-      }));
+      await this.send(
+        new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: this.objectKey(key),
+          Body: body,
+          ContentLength: written.size,
+          ...(options.contentType ? { ContentType: options.contentType } : {}),
+          CacheControl: PRIVATE_MEDIA_CACHE_CONTROL,
+          ChecksumSHA256: hexToBase64(written.sha256),
+          Metadata: { "canvas-sha256": written.sha256 },
+        }),
+      );
       return written;
     } catch (error) {
       if (error instanceof MediaObjectWriteError) throw error;
@@ -197,10 +221,14 @@ export class S3MediaObjectStore implements MultipartMediaObjectStore {
     key: string,
     action: (file: { path: string; versionToken: string }) => Promise<T>,
   ) {
-    return this.withObjectLocalFile(this.pendingObjectKey(key), (path, versionToken) => {
-      if (!versionToken) throw new Error("Pending media object version is unavailable");
-      return action({ path, versionToken });
-    }, true);
+    return this.withObjectLocalFile(
+      this.pendingObjectKey(key),
+      (path, versionToken) => {
+        if (!versionToken) throw new Error("Pending media object version is unavailable");
+        return action({ path, versionToken });
+      },
+      true,
+    );
   }
 
   async promotePendingUpload(
@@ -208,24 +236,28 @@ export class S3MediaObjectStore implements MultipartMediaObjectStore {
     options: { contentType: string; size: number; sha256: string; versionToken: string },
   ) {
     const source = this.pendingObjectKey(key);
-    await this.send(new CopyObjectCommand({
-      Bucket: this.bucket,
-      Key: this.objectKey(key),
-      CopySource: copySource(this.bucket, source),
-      CopySourceIfMatch: validEtag(options.versionToken),
-      ContentType: options.contentType,
-      CacheControl: PRIVATE_MEDIA_CACHE_CONTROL,
-      MetadataDirective: "REPLACE",
-      Metadata: {
-        "canvas-sha256": options.sha256,
-        "canvas-size": String(positiveInteger(options.size, "size")),
-      },
-      ChecksumAlgorithm: "SHA256",
-    }));
+    await this.send(
+      new CopyObjectCommand({
+        Bucket: this.bucket,
+        Key: this.objectKey(key),
+        CopySource: copySource(this.bucket, source),
+        CopySourceIfMatch: validEtag(options.versionToken),
+        ContentType: options.contentType,
+        CacheControl: PRIVATE_MEDIA_CACHE_CONTROL,
+        MetadataDirective: "REPLACE",
+        Metadata: {
+          "canvas-sha256": options.sha256,
+          "canvas-size": String(positiveInteger(options.size, "size")),
+        },
+        ChecksumAlgorithm: "SHA256",
+      }),
+    );
   }
 
   async removePendingUpload(key: string) {
-    await this.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: this.pendingObjectKey(key) }));
+    await this.send(
+      new DeleteObjectCommand({ Bucket: this.bucket, Key: this.pendingObjectKey(key) }),
+    );
   }
 
   private async withObjectLocalFile<T>(
@@ -233,19 +265,24 @@ export class S3MediaObjectStore implements MultipartMediaObjectStore {
     action: (path: string, versionToken: string | undefined) => Promise<T>,
     lockVersion = false,
   ) {
-    const metadata = await this.send<HeadObjectCommandOutput>(new HeadObjectCommand({ Bucket: this.bucket, Key: objectKey }));
+    const metadata = await this.send<HeadObjectCommandOutput>(
+      new HeadObjectCommand({ Bucket: this.bucket, Key: objectKey }),
+    );
     const size = validObjectSize(metadata.ContentLength, this.maxMaterializedBytes);
     const versionToken = lockVersion ? validEtag(metadata.ETag) : undefined;
     const temporary = await this.temporaryPath("read");
     try {
-      const response = await this.send<GetObjectCommandOutput>(new GetObjectCommand({
-        Bucket: this.bucket,
-        Key: objectKey,
-        ...(versionToken ? { IfMatch: versionToken } : {}),
-      }));
+      const response = await this.send<GetObjectCommandOutput>(
+        new GetObjectCommand({
+          Bucket: this.bucket,
+          Key: objectKey,
+          ...(versionToken ? { IfMatch: versionToken } : {}),
+        }),
+      );
       const source = nodeReadable(response.Body);
       const written = await writeExactFile(temporary.path, source, size, this.maxMaterializedBytes);
-      if (written.size !== size) throw new Error("Stored media object size changed during materialization");
+      if (written.size !== size)
+        throw new Error("Stored media object size changed during materialization");
       return await action(temporary.path, versionToken);
     } finally {
       await temporary.remove();
@@ -254,17 +291,25 @@ export class S3MediaObjectStore implements MultipartMediaObjectStore {
 
   async open(key: string, range?: { start: number; end: number }, signal?: AbortSignal) {
     const objectKey = this.objectKey(key);
-    const metadata = await this.send<HeadObjectCommandOutput>(new HeadObjectCommand({ Bucket: this.bucket, Key: objectKey, ...(signal ? { abortSignal: signal } : {}) }));
+    const metadata = await this.send<HeadObjectCommandOutput>(
+      new HeadObjectCommand({
+        Bucket: this.bucket,
+        Key: objectKey,
+        ...(signal ? { abortSignal: signal } : {}),
+      }),
+    );
     const totalSize = validObjectSize(metadata.ContentLength, this.maxMaterializedBytes);
     const start = range?.start ?? 0;
     const end = range?.end ?? totalSize - 1;
     assertRange(start, end, totalSize);
-    const response = await this.send<GetObjectCommandOutput>(new GetObjectCommand({
-      Bucket: this.bucket,
-      Key: objectKey,
-      ...(range ? { Range: `bytes=${start}-${end}` } : {}),
-      ...(signal ? { abortSignal: signal } : {}),
-    }));
+    const response = await this.send<GetObjectCommandOutput>(
+      new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: objectKey,
+        ...(range ? { Range: `bytes=${start}-${end}` } : {}),
+        ...(signal ? { abortSignal: signal } : {}),
+      }),
+    );
     const contentLength = response.ContentLength;
     if (contentLength !== undefined && contentLength !== end - start + 1) {
       throw new Error("Stored media range length is invalid");
@@ -288,16 +333,24 @@ export class S3MediaObjectStore implements MultipartMediaObjectStore {
   async cleanupTemporaryFiles(olderThanMs: number) {
     const age = boundedInteger(olderThanMs, "olderThanMs", 60_000, Number.MAX_SAFE_INTEGER);
     const cutoff = this.now() - age;
-    const entries = await readdir(this.temporaryDirectory, { withFileTypes: true }).catch((error: NodeJS.ErrnoException) => {
-      if (error.code === "ENOENT") return [];
-      throw error;
-    });
+    const entries = await readdir(this.temporaryDirectory, { withFileTypes: true }).catch(
+      (error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return [];
+        throw error;
+      },
+    );
     let removed = 0;
     for (const entry of entries) {
       if (!entry.isDirectory() || !/^(?:read|write)-[A-Za-z0-9_-]+$/.test(entry.name)) continue;
       const path = resolve(this.temporaryDirectory, entry.name);
       const metadata = await lstat(path).catch(() => null);
-      if (!metadata || metadata.isSymbolicLink() || !metadata.isDirectory() || metadata.mtimeMs > cutoff) continue;
+      if (
+        !metadata ||
+        metadata.isSymbolicLink() ||
+        !metadata.isDirectory() ||
+        metadata.mtimeMs > cutoff
+      )
+        continue;
       await rm(path, { recursive: true, force: true });
       removed += 1;
     }
@@ -306,13 +359,15 @@ export class S3MediaObjectStore implements MultipartMediaObjectStore {
 
   async createMultipartUpload(key: string, options: { contentType: string; sessionId: string }) {
     const sessionId = validSessionId(options.sessionId);
-    const response = await this.send<CreateMultipartUploadCommandOutput>(new CreateMultipartUploadCommand({
-      Bucket: this.bucket,
-      Key: this.pendingObjectKey(key),
-      ContentType: options.contentType,
-      CacheControl: PRIVATE_MEDIA_CACHE_CONTROL,
-      Metadata: { "canvas-session-id": sessionId },
-    }));
+    const response = await this.send<CreateMultipartUploadCommandOutput>(
+      new CreateMultipartUploadCommand({
+        Bucket: this.bucket,
+        Key: this.pendingObjectKey(key),
+        ContentType: options.contentType,
+        CacheControl: PRIVATE_MEDIA_CACHE_CONTROL,
+        Metadata: { "canvas-session-id": sessionId },
+      }),
+    );
     return { providerUploadId: validProviderUploadId(response.UploadId) };
   }
 
@@ -345,18 +400,22 @@ export class S3MediaObjectStore implements MultipartMediaObjectStore {
     let partNumberMarker: string | undefined;
     let pages = 0;
     do {
-      const result = await this.send<ListPartsCommandOutput>(new ListPartsCommand({
-        Bucket: this.bucket,
-        Key: objectKey,
-        UploadId: uploadId,
-        PartNumberMarker: partNumberMarker,
-        MaxParts: 1_000,
-      }));
-      parts.push(...(result.Parts ?? []).map((part) => ({
-        partNumber: validPartNumber(part.PartNumber),
-        size: validPartSize(part.Size),
-        versionToken: validEtag(part.ETag),
-      })));
+      const result = await this.send<ListPartsCommandOutput>(
+        new ListPartsCommand({
+          Bucket: this.bucket,
+          Key: objectKey,
+          UploadId: uploadId,
+          PartNumberMarker: partNumberMarker,
+          MaxParts: 1_000,
+        }),
+      );
+      parts.push(
+        ...(result.Parts ?? []).map((part) => ({
+          partNumber: validPartNumber(part.PartNumber),
+          size: validPartSize(part.Size),
+          versionToken: validEtag(part.ETag),
+        })),
+      );
       pages += 1;
       if (!result.IsTruncated) {
         partNumberMarker = undefined;
@@ -364,12 +423,15 @@ export class S3MediaObjectStore implements MultipartMediaObjectStore {
       }
       if (pages >= 10) throw new Error("Multipart upload contains too many parts");
       const nextMarker = validPartNumberMarker(result.NextPartNumberMarker);
-      if (nextMarker === partNumberMarker) throw new Error("Multipart part listing did not advance");
+      if (nextMarker === partNumberMarker)
+        throw new Error("Multipart part listing did not advance");
       partNumberMarker = nextMarker;
     } while (partNumberMarker);
 
     parts.sort((left, right) => left.partNumber - right.partNumber);
-    if (parts.some((part, index) => index > 0 && part.partNumber === parts[index - 1]!.partNumber)) {
+    if (
+      parts.some((part, index) => index > 0 && part.partNumber === parts[index - 1]!.partNumber)
+    ) {
       throw new Error("Multipart upload returned duplicate parts");
     }
     return parts;
@@ -381,33 +443,39 @@ export class S3MediaObjectStore implements MultipartMediaObjectStore {
     parts: readonly MediaMultipartObjectPart[],
   ) {
     const completedParts = validatedCompletedParts(parts);
-    await this.send(new CompleteMultipartUploadCommand({
-      Bucket: this.bucket,
-      Key: this.pendingObjectKey(key),
-      UploadId: validProviderUploadId(providerUploadId),
-      MultipartUpload: {
-        Parts: completedParts.map((part) => ({
-          PartNumber: part.partNumber,
-          ETag: part.versionToken,
-        })),
-      },
-    }));
+    await this.send(
+      new CompleteMultipartUploadCommand({
+        Bucket: this.bucket,
+        Key: this.pendingObjectKey(key),
+        UploadId: validProviderUploadId(providerUploadId),
+        MultipartUpload: {
+          Parts: completedParts.map((part) => ({
+            PartNumber: part.partNumber,
+            ETag: part.versionToken,
+          })),
+        },
+      }),
+    );
     return this.headPendingMultipartUpload(key);
   }
 
   async abortMultipartUpload(key: string, providerUploadId: string) {
-    await this.send(new AbortMultipartUploadCommand({
-      Bucket: this.bucket,
-      Key: this.pendingObjectKey(key),
-      UploadId: validProviderUploadId(providerUploadId),
-    }));
+    await this.send(
+      new AbortMultipartUploadCommand({
+        Bucket: this.bucket,
+        Key: this.pendingObjectKey(key),
+        UploadId: validProviderUploadId(providerUploadId),
+      }),
+    );
   }
 
   async headPendingMultipartUpload(key: string) {
-    const metadata = await this.send<HeadObjectCommandOutput>(new HeadObjectCommand({
-      Bucket: this.bucket,
-      Key: this.pendingObjectKey(key),
-    }));
+    const metadata = await this.send<HeadObjectCommandOutput>(
+      new HeadObjectCommand({
+        Bucket: this.bucket,
+        Key: this.pendingObjectKey(key),
+      }),
+    );
     return {
       size: validObjectSize(metadata.ContentLength, this.maxMaterializedBytes),
       versionToken: validEtag(metadata.ETag),
@@ -417,7 +485,12 @@ export class S3MediaObjectStore implements MultipartMediaObjectStore {
 
   async createUploadInstruction(
     key: string,
-    options: { contentType: string; contentLength: number; sha256: string | null; expiresAt: string },
+    options: {
+      contentType: string;
+      contentLength: number;
+      sha256: string | null;
+      expiresAt: string;
+    },
   ) {
     const expiresIn = this.uploadExpirySeconds(options.expiresAt);
     const checksum = options.sha256 ? hexToBase64(options.sha256) : undefined;
@@ -443,7 +516,10 @@ export class S3MediaObjectStore implements MultipartMediaObjectStore {
     if (!Number.isFinite(requestedExpiry) || requestedExpiry <= this.now()) {
       throw new Error("Media upload expiry is invalid");
     }
-    return Math.min(this.uploadTtlSeconds, Math.max(1, Math.ceil((requestedExpiry - this.now()) / 1_000)));
+    return Math.min(
+      this.uploadTtlSeconds,
+      Math.max(1, Math.ceil((requestedExpiry - this.now()) / 1_000)),
+    );
   }
 
   async createDownloadInstruction(key: string, options: { contentType: string; name: string }) {
@@ -531,9 +607,14 @@ function clientConfig(options: S3MediaObjectStoreOptions): S3ClientConfig {
     }),
     ...(options.endpoint ? { endpoint: safeEndpoint(options.endpoint) } : {}),
     ...(options.forcePathStyle !== undefined ? { forcePathStyle: options.forcePathStyle } : {}),
-    ...(options.accessKeyId && options.secretAccessKey ? {
-      credentials: { accessKeyId: options.accessKeyId, secretAccessKey: options.secretAccessKey },
-    } : {}),
+    ...(options.accessKeyId && options.secretAccessKey
+      ? {
+          credentials: {
+            accessKeyId: options.accessKeyId,
+            secretAccessKey: options.secretAccessKey,
+          },
+        }
+      : {}),
   };
 }
 
@@ -569,7 +650,8 @@ const TRANSPORT_FAILURE_NAMES = new Set([
 ]);
 
 /** 传输失败的兜底文案判定（错误码缺失时按消息识别）。 */
-const TRANSPORT_FAILURE_MESSAGES = /socket did not establish a connection|socket hang up|ECONNRESET|getaddrinfo|network error|connection (?:refused|reset|timed out)/i;
+const TRANSPORT_FAILURE_MESSAGES =
+  /socket did not establish a connection|socket hang up|ECONNRESET|getaddrinfo|network error|connection (?:refused|reset|timed out)/i;
 
 export function isObjectStoreTransportFailure(error: unknown) {
   if (!(error instanceof Error)) return false;
@@ -609,12 +691,17 @@ async function writeExactFile(
   });
   try {
     await mkdir(dirname(path), { recursive: true });
-    await pipeline(Readable.from(source), meter, createWriteStream(path, { flags: "wx", mode: 0o600 }));
+    await pipeline(
+      Readable.from(source),
+      meter,
+      createWriteStream(path, { flags: "wx", mode: 0o600 }),
+    );
     if (size !== expected) {
       throw new MediaObjectWriteError("MEDIA_SIZE_MISMATCH", "上传内容大小与文件信息不一致", true);
     }
     const metadata = await stat(path);
-    if (!metadata.isFile() || metadata.size !== size) throw new Error("Temporary media file is invalid");
+    if (!metadata.isFile() || metadata.size !== size)
+      throw new Error("Temporary media file is invalid");
     return { size, sha256: hash.digest("hex") };
   } catch (error) {
     await unlink(path).catch(() => undefined);
@@ -624,7 +711,10 @@ async function writeExactFile(
 
 function nodeReadable(body: unknown): Readable {
   if (body instanceof Readable) return body;
-  if (body && typeof (body as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] === "function") {
+  if (
+    body &&
+    typeof (body as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] === "function"
+  ) {
     return Readable.from(body as AsyncIterable<Uint8Array>);
   }
   throw new Error("Stored media object body is unavailable");
@@ -648,7 +738,6 @@ function trackedNodeReadable(body: unknown, signal?: AbortSignal): Readable {
   const raw = source as Readable & { destroy?: (error?: Error) => Readable };
   const tracked = new PassThrough();
   let released = false;
-  let consuming = false;
   let watchdog: ReturnType<typeof setTimeout> | null = null;
   const clearWatchdog = () => {
     if (watchdog) clearTimeout(watchdog);
@@ -690,7 +779,6 @@ function trackedNodeReadable(body: unknown, signal?: AbortSignal): Readable {
   tracked.on("close", () => release());
   tracked.on("error", () => release());
   tracked.on("data", () => {
-    consuming = true;
     armWatchdog(IDLE_STREAM_MS);
   });
 
@@ -713,7 +801,10 @@ function validProviderUploadId(value: string | undefined) {
 }
 
 function validSessionId(value: string | undefined) {
-  if (!value || !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value)) {
+  if (
+    !value ||
+    !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value)
+  ) {
     throw new Error("Multipart upload session id is invalid");
   }
   return value;
@@ -735,13 +826,18 @@ function validPartNumberMarker(value: string | undefined) {
 }
 
 function validatedCompletedParts(parts: readonly MediaMultipartObjectPart[]) {
-  if (!parts.length || parts.length > 10_000) throw new Error("Multipart completion parts are invalid");
-  const sorted = parts.map((part) => ({
-    partNumber: validPartNumber(part.partNumber),
-    size: validPartSize(part.size),
-    versionToken: validEtag(part.versionToken),
-  })).sort((left, right) => left.partNumber - right.partNumber);
-  if (sorted.some((part, index) => index > 0 && part.partNumber === sorted[index - 1]!.partNumber)) {
+  if (!parts.length || parts.length > 10_000)
+    throw new Error("Multipart completion parts are invalid");
+  const sorted = parts
+    .map((part) => ({
+      partNumber: validPartNumber(part.partNumber),
+      size: validPartSize(part.size),
+      versionToken: validEtag(part.versionToken),
+    }))
+    .sort((left, right) => left.partNumber - right.partNumber);
+  if (
+    sorted.some((part, index) => index > 0 && part.partNumber === sorted[index - 1]!.partNumber)
+  ) {
     throw new Error("Multipart completion contains duplicate parts");
   }
   return sorted;
@@ -755,12 +851,19 @@ function validObjectSize(value: number | undefined, maximum: number) {
 }
 
 function validEtag(value: string | undefined) {
-  if (!value || value.length > 256 || /[\r\n\u0000]/.test(value)) throw new Error("Stored media object version is invalid");
+  if (!value || value.length > 256 || /[\r\n\u0000]/.test(value))
+    throw new Error("Stored media object version is invalid");
   return value;
 }
 
 function assertRange(start: number, end: number, totalSize: number) {
-  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start || end >= totalSize) {
+  if (
+    !Number.isSafeInteger(start) ||
+    !Number.isSafeInteger(end) ||
+    start < 0 ||
+    end < start ||
+    end >= totalSize
+  ) {
     throw new RangeError("Requested media range is invalid");
   }
 }
@@ -776,16 +879,23 @@ function normalizePrefix(value: string | undefined) {
 
 function safeEndpoint(value: string) {
   const url = new URL(value);
-  if (url.protocol !== "https:" && !(url.protocol === "http:" && ["127.0.0.1", "localhost", "::1"].includes(url.hostname))) {
+  if (
+    url.protocol !== "https:" &&
+    !(url.protocol === "http:" && ["127.0.0.1", "localhost", "::1"].includes(url.hostname))
+  ) {
     throw new Error("S3 endpoint must use HTTPS");
   }
-  if (url.username || url.password || url.search || url.hash) throw new Error("S3 endpoint is invalid");
+  if (url.username || url.password || url.search || url.hash)
+    throw new Error("S3 endpoint is invalid");
   return url.toString().replace(/\/$/, "");
 }
 
 function safeSignedUrl(value: string) {
   const url = new URL(value);
-  if (url.protocol !== "https:" && !(url.protocol === "http:" && ["127.0.0.1", "localhost", "::1"].includes(url.hostname))) {
+  if (
+    url.protocol !== "https:" &&
+    !(url.protocol === "http:" && ["127.0.0.1", "localhost", "::1"].includes(url.hostname))
+  ) {
     throw new Error("Signed media URL must use HTTPS");
   }
   if (url.username || url.password || url.hash) throw new Error("Signed media URL is invalid");
@@ -793,7 +903,10 @@ function safeSignedUrl(value: string) {
 }
 
 function safeDownloadName(value: string) {
-  const name = basename(value).replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^\.+/, "").slice(0, 128);
+  const name = basename(value)
+    .replace(/[^A-Za-z0-9._-]+/g, "_")
+    .replace(/^\.+/, "")
+    .slice(0, 128);
   return name || "media";
 }
 
@@ -815,7 +928,8 @@ function secret(value: string, name: string) {
 }
 
 function positiveInteger(value: number, name: string) {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${name} must be a positive safe integer`);
+  if (!Number.isSafeInteger(value) || value <= 0)
+    throw new Error(`${name} must be a positive safe integer`);
   return value;
 }
 

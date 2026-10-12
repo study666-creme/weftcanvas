@@ -9,16 +9,28 @@ import {
   type AgentConnectorUpdateRequest,
   type CanvasControlCommand,
   type CanvasControlReceiptRequest,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 
 import { AgentExecutionError } from "./service.js";
 
 export type AgentConnectorGateway = {
   list(signal?: AbortSignal): Promise<AgentConnector[]>;
-  update(id: AgentConnectorId, patch: AgentConnectorUpdateRequest, signal?: AbortSignal): Promise<AgentConnector>;
+  update(
+    id: AgentConnectorId,
+    patch: AgentConnectorUpdateRequest,
+    signal?: AbortSignal,
+  ): Promise<AgentConnector>;
   /** 一键接入：运行时会写 Codex 配置 / 安装 Blender 插件，可能耗时较久。 */
-  connect(id: AgentConnectorId, options: { launch?: boolean }, signal?: AbortSignal): Promise<AgentConnector>;
-  pending(projectId: string, context: AgentCanvasContext | undefined, signal?: AbortSignal): Promise<CanvasControlCommand[]>;
+  connect(
+    id: AgentConnectorId,
+    options: { launch?: boolean },
+    signal?: AbortSignal,
+  ): Promise<AgentConnector>;
+  pending(
+    projectId: string,
+    context: AgentCanvasContext | undefined,
+    signal?: AbortSignal,
+  ): Promise<CanvasControlCommand[]>;
   recordReceipt(receipt: CanvasControlReceiptRequest, signal?: AbortSignal): Promise<boolean>;
 };
 
@@ -35,10 +47,16 @@ export class HttpAgentConnectorGateway implements AgentConnectorGateway {
   constructor(
     baseUrl: string,
     private readonly token: string,
-    options: { fetchImpl?: typeof fetch; timeoutMs?: number; pollTimeoutMs?: number; connectTimeoutMs?: number } = {},
+    options: {
+      fetchImpl?: typeof fetch;
+      timeoutMs?: number;
+      pollTimeoutMs?: number;
+      connectTimeoutMs?: number;
+    } = {},
   ) {
     const url = new URL(baseUrl);
-    if (!/^https?:$/.test(url.protocol)) throw new Error("Agent runtime URL must use HTTP or HTTPS");
+    if (!/^https?:$/.test(url.protocol))
+      throw new Error("Agent runtime URL must use HTTP or HTTPS");
     if (!token.trim()) throw new Error("Agent runtime token is required");
     this.baseUrl = url.toString().replace(/\/+$/, "");
     this.fetchImpl = options.fetchImpl ?? fetch;
@@ -73,21 +91,29 @@ export class HttpAgentConnectorGateway implements AgentConnectorGateway {
   }
 
   async pending(projectId: string, context: AgentCanvasContext | undefined, signal?: AbortSignal) {
-    const data = await this.request("/internal/v1/canvas-control/pending", canvasControlPendingResponseSchema, {
-      method: "POST",
-      body: JSON.stringify({ projectId, ...(context ? { context } : {}) }),
-      signal,
-      timeoutMs: this.pollTimeoutMs,
-    });
+    const data = await this.request(
+      "/internal/v1/canvas-control/pending",
+      canvasControlPendingResponseSchema,
+      {
+        method: "POST",
+        body: JSON.stringify({ projectId, ...(context ? { context } : {}) }),
+        signal,
+        timeoutMs: this.pollTimeoutMs,
+      },
+    );
     return data.commands;
   }
 
   async recordReceipt(receipt: CanvasControlReceiptRequest, signal?: AbortSignal) {
-    const data = await this.request("/internal/v1/canvas-control/receipts", canvasControlReceiptResponseSchema, {
-      method: "POST",
-      body: JSON.stringify(receipt),
-      signal,
-    });
+    const data = await this.request(
+      "/internal/v1/canvas-control/receipts",
+      canvasControlReceiptResponseSchema,
+      {
+        method: "POST",
+        body: JSON.stringify(receipt),
+        signal,
+      },
+    );
     return data.accepted;
   }
 
@@ -100,7 +126,10 @@ export class HttpAgentConnectorGateway implements AgentConnectorGateway {
     const controller = new AbortController();
     const abort = () => controller.abort(rest.signal?.reason);
     rest.signal?.addEventListener("abort", abort, { once: true });
-    const timer = setTimeout(() => controller.abort(new Error("Connector request timed out")), timeoutMs ?? 15_000);
+    const timer = setTimeout(
+      () => controller.abort(new Error("Connector request timed out")),
+      timeoutMs ?? 15_000,
+    );
     try {
       const response = await this.fetchImpl(`${this.baseUrl}${path}`, {
         ...rest,
@@ -123,19 +152,35 @@ export class HttpAgentConnectorGateway implements AgentConnectorGateway {
       try {
         payload = await response.json();
       } catch {
-        throw new AgentExecutionError("CONNECTOR_INVALID_RESPONSE", "本机连接服务返回了无法识别的结果", true);
+        throw new AgentExecutionError(
+          "CONNECTOR_INVALID_RESPONSE",
+          "本机连接服务返回了无法识别的结果",
+          true,
+        );
       }
       if ((payload as { ok?: unknown })?.ok !== true) {
-        throw new AgentExecutionError("CONNECTOR_REQUEST_FAILED", "本机连接服务没有完成这次请求", false);
+        throw new AgentExecutionError(
+          "CONNECTOR_REQUEST_FAILED",
+          "本机连接服务没有完成这次请求",
+          false,
+        );
       }
       try {
         return schema.parse(payload).data;
       } catch {
-        throw new AgentExecutionError("CONNECTOR_INVALID_RESPONSE", "本机连接服务返回了无法识别的结果", true);
+        throw new AgentExecutionError(
+          "CONNECTOR_INVALID_RESPONSE",
+          "本机连接服务返回了无法识别的结果",
+          true,
+        );
       }
     } catch (cause) {
       if (cause instanceof AgentExecutionError) throw cause;
-      throw new AgentExecutionError("CONNECTOR_RUNTIME_UNAVAILABLE", "本机连接服务暂时不可用", true);
+      throw new AgentExecutionError(
+        "CONNECTOR_RUNTIME_UNAVAILABLE",
+        "本机连接服务暂时不可用",
+        true,
+      );
     } finally {
       clearTimeout(timer);
       rest.signal?.removeEventListener("abort", abort);

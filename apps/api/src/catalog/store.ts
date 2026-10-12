@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
-import { publicModelCatalogSchema } from "@kachang/contracts";
+import { publicModelCatalogSchema } from "@weftcanvas/contracts";
 import type { Pool } from "pg";
 import { z } from "zod";
 
@@ -11,11 +11,13 @@ const storedCatalogSnapshotSchema = z.object({
   catalog: publicModelCatalogSchema,
   sourceModels: z.record(z.string(), z.string().min(1)),
   routes: z.record(z.string(), privateModelRouteSchema).default({}),
-  videoAvailability: z.object({
-    publicModelIds: z.array(z.string().min(1)),
-    disabledModelIds: z.array(z.string().min(1)).default([]),
-    validatedAt: z.number().int().nonnegative(),
-  }).optional(),
+  videoAvailability: z
+    .object({
+      publicModelIds: z.array(z.string().min(1)),
+      disabledModelIds: z.array(z.string().min(1)).default([]),
+      validatedAt: z.number().int().nonnegative(),
+    })
+    .optional(),
   etag: z.string().min(1).optional(),
   validatedAt: z.number().int().nonnegative(),
   normalizationVersion: z.number().int().positive().optional(),
@@ -104,7 +106,7 @@ export class ResilientCatalogSnapshotStore implements CatalogSnapshotStore {
     const results = await Promise.allSettled(this.stores.map((store) => store.save(snapshot)));
     if (results.some((result) => result.status === "fulfilled")) return;
     throw new AggregateError(
-      results.flatMap((result) => result.status === "rejected" ? [result.reason] : []),
+      results.flatMap((result) => (result.status === "rejected" ? [result.reason] : [])),
       "No catalog snapshot store accepted the update",
     );
   }

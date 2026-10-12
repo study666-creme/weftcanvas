@@ -14,7 +14,7 @@ import {
   resolvePendingSubmissionIdentity,
 } from "./browser-generation-runtime";
 
-const PENDING_SUBMISSION_STORAGE_KEY = "kachang-canvas:pending-generation-requests:v1";
+const PENDING_SUBMISSION_STORAGE_KEY = "weftcanvas:pending-generation-requests:v1";
 
 describe("browser generation runtime", () => {
   afterEach(() => {
@@ -91,7 +91,12 @@ describe("durable pending submission identity", () => {
     persistBrowserSubmissionIdentity("project-a", "node-a", "job:key-one");
     const createKey = vi.fn(() => "job:fresh");
 
-    const { key, reused } = resolvePendingSubmissionIdentity("project-a", "node-a", "submission_unknown", createKey);
+    const { key, reused } = resolvePendingSubmissionIdentity(
+      "project-a",
+      "node-a",
+      "submission_unknown",
+      createKey,
+    );
 
     expect(reused).toBe(true);
     expect(key).toBe("job:key-one");
@@ -103,7 +108,12 @@ describe("durable pending submission identity", () => {
     persistBrowserSubmissionIdentity("project-a", "node-a", "job:key-one");
     const createKey = vi.fn(() => "job:fresh");
 
-    const { key, reused } = resolvePendingSubmissionIdentity("project-a", "node-a", "submitting", createKey);
+    const { key, reused } = resolvePendingSubmissionIdentity(
+      "project-a",
+      "node-a",
+      "submitting",
+      createKey,
+    );
 
     expect(reused).toBe(true);
     expect(key).toBe("job:key-one");
@@ -124,7 +134,12 @@ describe("durable pending submission identity", () => {
   it("mints a fresh identity for a genuinely new submission and clears stale state", () => {
     persistBrowserSubmissionIdentity("project-a", "node-a", "job:stale");
 
-    const { key, reused } = resolvePendingSubmissionIdentity("project-a", "node-a", "completed", () => "job:fresh");
+    const { key, reused } = resolvePendingSubmissionIdentity(
+      "project-a",
+      "node-a",
+      "completed",
+      () => "job:fresh",
+    );
 
     expect(reused).toBe(false);
     expect(key).toBe("job:fresh");
@@ -164,17 +179,22 @@ describe("durable pending submission identity storage safety", () => {
 
     expect(runtime.browserSubmissionIdentity("project-a", "node-a")).toBeNull();
     runtime.persistBrowserSubmissionIdentity("project-a", "node-a", "job:fresh-after-corrupt");
-    expect(runtime.browserSubmissionIdentity("project-a", "node-a")?.key).toBe("job:fresh-after-corrupt");
+    expect(runtime.browserSubmissionIdentity("project-a", "node-a")?.key).toBe(
+      "job:fresh-after-corrupt",
+    );
   });
 
   it("skips malformed per-entry records instead of failing the whole map", async () => {
     const runtime = await import("./browser-generation-runtime");
-    localStorage.setItem(PENDING_SUBMISSION_STORAGE_KEY, JSON.stringify({
-      "project-a:node-a": { key: "job:valid", createdAt: 123 },
-      "project-a:node-b": { key: 7, createdAt: "not-a-number" },
-      "project-a:node-c": "not-an-object",
-      "project-a:node-d": null,
-    }));
+    localStorage.setItem(
+      PENDING_SUBMISSION_STORAGE_KEY,
+      JSON.stringify({
+        "project-a:node-a": { key: "job:valid", createdAt: 123 },
+        "project-a:node-b": { key: 7, createdAt: "not-a-number" },
+        "project-a:node-c": "not-an-object",
+        "project-a:node-d": null,
+      }),
+    );
 
     expect(runtime.browserSubmissionIdentity("project-a", "node-a")?.key).toBe("job:valid");
     expect(runtime.browserSubmissionIdentity("project-a", "node-b")).toBeNull();
@@ -187,7 +207,9 @@ describe("durable pending submission identity storage safety", () => {
     const failing = storageWithRejectedWrites();
     Object.defineProperty(globalThis, "localStorage", { configurable: true, value: failing });
 
-    expect(() => runtime.persistBrowserSubmissionIdentity("project-a", "node-a", "job:memory-only")).not.toThrow();
+    expect(() =>
+      runtime.persistBrowserSubmissionIdentity("project-a", "node-a", "job:memory-only"),
+    ).not.toThrow();
     expect(runtime.browserSubmissionIdentity("project-a", "node-a")?.key).toBe("job:memory-only");
   });
 
@@ -213,7 +235,10 @@ describe("durable pending submission identity storage safety", () => {
     const stored = JSON.parse(localStorage.getItem(PENDING_SUBMISSION_STORAGE_KEY) ?? "{}");
     expect(Object.keys(stored)).toHaveLength(cap);
     expect(stored["project-0:node-a"]).toBeUndefined();
-    expect(stored[`project-${cap - 1}:node-a`]).toEqual({ key: `job:key-${cap - 1}`, createdAt: expect.any(Number) });
+    expect(stored[`project-${cap - 1}:node-a`]).toEqual({
+      key: `job:key-${cap - 1}`,
+      createdAt: expect.any(Number),
+    });
   });
 });
 
@@ -234,17 +259,23 @@ describe("durable pending submission identity parser bounds", () => {
   });
 
   it("keeps only well-formed records and drops empty, oversized, and dangerous keys", async () => {
-    localStorage.setItem(PENDING_SUBMISSION_STORAGE_KEY, JSON.stringify({
-      "": { key: "job:valid", createdAt: 1_000 },
-      [`p1:n-${"x".repeat(600)}`]: { key: "job:valid", createdAt: 1_000 },
-      "p\n:n-ctrl": { key: "job:valid", createdAt: 1_000 },
-      "p1:n-empty-key": { key: "", createdAt: 1_000 },
-      "p1:n-oversized-key": { key: "y".repeat(300), createdAt: 1_000 },
-      "p1:n-valid": { key: "job:valid", createdAt: 1_000 },
-    }));
+    localStorage.setItem(
+      PENDING_SUBMISSION_STORAGE_KEY,
+      JSON.stringify({
+        "": { key: "job:valid", createdAt: 1_000 },
+        [`p1:n-${"x".repeat(600)}`]: { key: "job:valid", createdAt: 1_000 },
+        "p\n:n-ctrl": { key: "job:valid", createdAt: 1_000 },
+        "p1:n-empty-key": { key: "", createdAt: 1_000 },
+        "p1:n-oversized-key": { key: "y".repeat(300), createdAt: 1_000 },
+        "p1:n-valid": { key: "job:valid", createdAt: 1_000 },
+      }),
+    );
     const runtime = await import("./browser-generation-runtime");
 
-    expect(runtime.browserSubmissionIdentity("p1", "n-valid")).toEqual({ key: "job:valid", createdAt: 1_000 });
+    expect(runtime.browserSubmissionIdentity("p1", "n-valid")).toEqual({
+      key: "job:valid",
+      createdAt: 1_000,
+    });
     expect(runtime.browserSubmissionIdentity("p1", "n-empty-key")).toBeNull();
     expect(runtime.browserSubmissionIdentity("p1", "n-oversized-key")).toBeNull();
     expect(runtime.browserSubmissionIdentity("p\n", "n-ctrl")).toBeNull();
@@ -252,16 +283,22 @@ describe("durable pending submission identity parser bounds", () => {
   });
 
   it("rejects non-finite, negative, and future-impossible timestamps", async () => {
-    localStorage.setItem(PENDING_SUBMISSION_STORAGE_KEY, JSON.stringify({
-      "p1:n-nan": { key: "job:nan", createdAt: Number.NaN },
-      "p1:n-infinity": { key: "job:infinity", createdAt: Number.POSITIVE_INFINITY },
-      "p1:n-negative": { key: "job:negative", createdAt: -5 },
-      "p1:n-future": { key: "job:future", createdAt: Date.now() + 30 * 24 * 60 * 60 * 1000 },
-      "p1:n-valid": { key: "job:valid", createdAt: 1_000 },
-    }));
+    localStorage.setItem(
+      PENDING_SUBMISSION_STORAGE_KEY,
+      JSON.stringify({
+        "p1:n-nan": { key: "job:nan", createdAt: Number.NaN },
+        "p1:n-infinity": { key: "job:infinity", createdAt: Number.POSITIVE_INFINITY },
+        "p1:n-negative": { key: "job:negative", createdAt: -5 },
+        "p1:n-future": { key: "job:future", createdAt: Date.now() + 30 * 24 * 60 * 60 * 1000 },
+        "p1:n-valid": { key: "job:valid", createdAt: 1_000 },
+      }),
+    );
     const runtime = await import("./browser-generation-runtime");
 
-    expect(runtime.browserSubmissionIdentity("p1", "n-valid")).toEqual({ key: "job:valid", createdAt: 1_000 });
+    expect(runtime.browserSubmissionIdentity("p1", "n-valid")).toEqual({
+      key: "job:valid",
+      createdAt: 1_000,
+    });
     expect(runtime.browserSubmissionIdentity("p1", "n-nan")).toBeNull();
     expect(runtime.browserSubmissionIdentity("p1", "n-infinity")).toBeNull();
     expect(runtime.browserSubmissionIdentity("p1", "n-negative")).toBeNull();
@@ -276,7 +313,10 @@ describe("durable pending submission identity parser bounds", () => {
     localStorage.setItem(PENDING_SUBMISSION_STORAGE_KEY, JSON.stringify(record));
     const runtime = await import("./browser-generation-runtime");
 
-    expect(runtime.browserSubmissionIdentity("p1", "n-0")).toEqual({ key: "job:key-0", createdAt: 1_000 });
+    expect(runtime.browserSubmissionIdentity("p1", "n-0")).toEqual({
+      key: "job:key-0",
+      createdAt: 1_000,
+    });
     expect(runtime.browserSubmissionIdentity("p1", "n-1999")).toEqual({
       key: "job:key-1999",
       createdAt: 1_000 + 1999,
@@ -291,7 +331,9 @@ describe("durable pending submission identity parser bounds", () => {
       throw new Error("quota exceeded");
     });
 
-    expect(() => runtime.persistBrowserSubmissionIdentity("project-a", "node-a", "job:memory-key")).not.toThrow();
+    expect(() =>
+      runtime.persistBrowserSubmissionIdentity("project-a", "node-a", "job:memory-key"),
+    ).not.toThrow();
     expect(runtime.browserSubmissionIdentity("project-a", "node-a")?.key).toBe("job:memory-key");
 
     spy.mockRestore();
@@ -301,12 +343,18 @@ describe("durable pending submission identity parser bounds", () => {
 function installMemoryStorage() {
   const entries = new Map<string, string>();
   const storage: Storage = {
-    get length() { return entries.size; },
+    get length() {
+      return entries.size;
+    },
     clear: () => entries.clear(),
     getItem: (key) => entries.get(key) ?? null,
     key: (index) => [...entries.keys()][index] ?? null,
-    removeItem: (key) => { entries.delete(key); },
-    setItem: (key, value) => { entries.set(key, value); },
+    removeItem: (key) => {
+      entries.delete(key);
+    },
+    setItem: (key, value) => {
+      entries.set(key, value);
+    },
   };
   Object.defineProperty(globalThis, "localStorage", { configurable: true, value: storage });
 }
@@ -314,12 +362,18 @@ function installMemoryStorage() {
 function storageWithRejectedWrites() {
   const entries = new Map<string, string>();
   const storage: Storage = {
-    get length() { return entries.size; },
+    get length() {
+      return entries.size;
+    },
     clear: () => entries.clear(),
     getItem: (key) => entries.get(key) ?? null,
     key: (index) => [...entries.keys()][index] ?? null,
-    removeItem: (key) => { entries.delete(key); },
-    setItem: () => { throw new DOMException("quota exceeded", "QuotaExceededError"); },
+    removeItem: (key) => {
+      entries.delete(key);
+    },
+    setItem: () => {
+      throw new DOMException("quota exceeded", "QuotaExceededError");
+    },
   };
   return storage;
 }

@@ -33,7 +33,9 @@ export class MediaCacheIdleQueue {
 
   enqueue(key: string, run: () => Promise<boolean>): Promise<boolean> {
     let settle!: (ok: boolean) => void;
-    const promise = new Promise<boolean>((resolve) => { settle = resolve; });
+    const promise = new Promise<boolean>((resolve) => {
+      settle = resolve;
+    });
     this.pending.set(key, { run, settled: false, settle });
     this.evictIfNeeded();
     this.schedule();
@@ -119,10 +121,10 @@ export class MediaCacheIdleQueue {
 }
 
 export function workspaceMediaGestureActive(): boolean {
-  const workspace = document.querySelector<HTMLElement>(".kc-workspace");
+  const workspace = document.querySelector<HTMLElement>(".wc-workspace");
   return Boolean(
-    workspace?.classList.contains("is-viewport-moving")
-      || workspace?.classList.contains("is-node-dragging")
-      || workspace?.classList.contains("is-space-pan"),
+    workspace?.classList.contains("is-viewport-moving") ||
+    workspace?.classList.contains("is-node-dragging") ||
+    workspace?.classList.contains("is-space-pan"),
   );
 }

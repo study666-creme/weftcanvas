@@ -21,11 +21,13 @@ export class HostedKnowledgeClient implements AgentKnowledgeRetriever {
     private readonly fetchImpl: typeof fetch = fetch,
   ) {
     const url = new URL(endpoint);
-    const loopback = url.hostname === "127.0.0.1" || url.hostname === "localhost" || url.hostname === "::1";
+    const loopback =
+      url.hostname === "127.0.0.1" || url.hostname === "localhost" || url.hostname === "::1";
     if (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) {
       throw new Error("CANVAS_KNOWLEDGE_SERVICE_URL must use HTTPS or local HTTP");
     }
-    if (url.username || url.password || url.hash) throw new Error("CANVAS_KNOWLEDGE_SERVICE_URL is invalid");
+    if (url.username || url.password || url.hash)
+      throw new Error("CANVAS_KNOWLEDGE_SERVICE_URL is invalid");
     if (token.trim().length < 24) throw new Error("CANVAS_KNOWLEDGE_SERVICE_TOKEN is invalid");
     if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > 8_000) {
       throw new Error("CANVAS_KNOWLEDGE_TIMEOUT_MS is invalid");
@@ -58,7 +60,9 @@ export class HostedKnowledgeClient implements AgentKnowledgeRetriever {
   }
 }
 
-export function createKnowledgeRetriever(environment: NodeJS.ProcessEnv = process.env): AgentKnowledgeRetriever | undefined {
+export function createKnowledgeRetriever(
+  environment: NodeJS.ProcessEnv = process.env,
+): AgentKnowledgeRetriever | undefined {
   const endpoint = environment.CANVAS_KNOWLEDGE_SERVICE_URL?.trim();
   const token = environment.CANVAS_KNOWLEDGE_SERVICE_TOKEN?.trim();
   if (!endpoint || !token) return undefined;

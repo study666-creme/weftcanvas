@@ -78,11 +78,11 @@ import {
   type PublicGenerationJob,
   type PublicModel,
   type PublicModelCatalog,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 import { type Context, Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { streamSSE } from "hono/streaming";
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { Readable } from "node:stream";
 import { z, ZodError } from "zod";
 
@@ -91,19 +91,23 @@ import type { AgentConnectorGateway } from "./agent/connector-gateway.js";
 import type { ExternalConnectorService } from "./connectors/external-connector-service.js";
 import type { CanvasCommandBroker } from "./connectors/canvas-command-broker.js";
 import { handleCodexMcpMessage } from "./connectors/codex-mcp.js";
-import { CatalogUnavailableError, KachangCatalogAdapter } from "./catalog/adapter.js";
+import { CatalogUnavailableError, WeftcanvasCatalogAdapter } from "./catalog/adapter.js";
 import {
   modelOverridesSchema,
-  type ModelOverride,
   type ModelOverrideStore,
   type ModelOverrides,
 } from "./catalog/overrides.js";
 import { toPublicCatalogView } from "./catalog/public-view.js";
 import { GenerationQuoteService, QuoteValidationError } from "./catalog/quote.js";
 import type { ApiReadinessProbe } from "./database/readiness.js";
-import { IdentityProviderError, type IdentityProvider, type IdentityRegistrationResult, type IssuedIdentitySession } from "./identity/provider.js";
+import {
+  IdentityProviderError,
+  type IdentityProvider,
+  type IdentityRegistrationResult,
+  type IssuedIdentitySession,
+} from "./identity/provider.js";
 import { GenerationApiGuard, GenerationApiLimitError } from "./generation/api-rate-limit.js";
-import { GenerationJobService, GenerationJobServiceError } from "./generation/service.js";
+import { GenerationJobServiceError } from "./generation/service.js";
 import type { HostedGenerationResult } from "./generation/hosted-result.js";
 import { MediaService, MediaServiceError } from "./media/service.js";
 import type { CloudResourceService } from "./media/cloud-resource-service.js";
@@ -111,7 +115,10 @@ import type { MediaMultipartService } from "./media/multipart-service.js";
 import { SignedMediaAccess } from "./media/signed-access.js";
 import { isBlockedTargetUrl } from "./identity/safe-host.js";
 import { CloudProjectService, CloudProjectServiceError } from "./project/service.js";
-import { CollaborationServiceError, CloudProjectCollaborationService } from "./project/collaboration-service.js";
+import {
+  CollaborationServiceError,
+  CloudProjectCollaborationService,
+} from "./project/collaboration-service.js";
 import type { CloudProjectEntitlementResolver } from "./project/types.js";
 import {
   WalletProviderError,
@@ -120,7 +127,8 @@ import {
 } from "./wallet/provider.js";
 import type { AccountRouteRegistrar } from "./account-routes/contract.js";
 
-export type AgentApi = Pick<AgentService,
+export type AgentApi = Pick<
+  AgentService,
   | "createConversation"
   | "listConversations"
   | "getDetail"
@@ -133,8 +141,16 @@ export type AgentApi = Pick<AgentService,
 >;
 
 type GenerationApi = {
-  submit(ownerId: string, value: unknown, token?: string): Promise<PublicGenerationJob | HostedGenerationResult<PublicGenerationJob>>;
-  get(ownerId: string, jobId: string, token?: string): Promise<PublicGenerationJob | HostedGenerationResult<PublicGenerationJob>>;
+  submit(
+    ownerId: string,
+    value: unknown,
+    token?: string,
+  ): Promise<PublicGenerationJob | HostedGenerationResult<PublicGenerationJob>>;
+  get(
+    ownerId: string,
+    jobId: string,
+    token?: string,
+  ): Promise<PublicGenerationJob | HostedGenerationResult<PublicGenerationJob>>;
   list(
     ownerId: string,
     value: { projectId?: string; limit?: number },
@@ -178,9 +194,10 @@ type GenerationApi = {
   ): Promise<HostedGenerationResult<{ url: string }>>;
 };
 
-type ProjectApi = Pick<CloudProjectService, "list" | "get" | "create" | "save" | "delete">
-  & Partial<Pick<CloudProjectService, "getForActor" | "saveForActor" | "resolveMediaAccess">>;
-type CollaborationApi = Pick<CloudProjectCollaborationService,
+type ProjectApi = Pick<CloudProjectService, "list" | "get" | "create" | "save" | "delete"> &
+  Partial<Pick<CloudProjectService, "getForActor" | "saveForActor" | "resolveMediaAccess">>;
+type CollaborationApi = Pick<
+  CloudProjectCollaborationService,
   | "listMembers"
   | "invite"
   | "listInvitations"
@@ -222,7 +239,7 @@ type ApiDependencies = {
     globalReadsPerMinute?: number;
     now?: () => number;
   };
-  catalog: Pick<KachangCatalogAdapter, "getCatalog">;
+  catalog: Pick<WeftcanvasCatalogAdapter, "getCatalog">;
   /** 账号侧内容库（收藏卡片/社区）的路由挂载器：私有 overlay 提供；开源构建缺省不挂载。 */
   registerAccountRoutes?: AccountRouteRegistrar;
   quotes: Pick<GenerationQuoteService, "createQuote">;
@@ -234,7 +251,10 @@ type ApiDependencies = {
   allowedOrigins?: readonly string[];
   media?: MediaService;
   cloudResources?: CloudResourceService;
-  multipartMedia?: Pick<MediaMultipartService, "createUpload" | "signParts" | "getState" | "complete" | "abort">;
+  multipartMedia?: Pick<
+    MediaMultipartService,
+    "createUpload" | "signParts" | "getState" | "complete" | "abort"
+  >;
   entitlements?: CloudProjectEntitlementResolver;
   projects?: ProjectApi;
   collaboration?: CollaborationApi;
@@ -270,8 +290,11 @@ type ApiDependencies = {
   modelOverridesAdminSecret?: string;
 };
 
-const DEFAULT_IDENTITY_COOKIE = { name: "kachang_canvas_session", secure: false } as const;
-const DEFAULT_ANONYMOUS_AGENT_COOKIE = { name: "kachang_canvas_agent_guest", secure: false } as const;
+const DEFAULT_IDENTITY_COOKIE = { name: "weftcanvas_session", secure: false } as const;
+const DEFAULT_ANONYMOUS_AGENT_COOKIE = {
+  name: "weftcanvas_agent_guest",
+  secure: false,
+} as const;
 const MEDIA_PROXY_MAX_REDIRECT_HOPS = 5;
 // 音乐链接代拉：流式播放不能整段限时（一首歌 3-5 分钟），超时只管连接与取头；
 // 大小上限与本地上传音频一致（100MB）。
@@ -281,7 +304,8 @@ const MUSIC_PAGE_MAX_BYTES = 512 * 1024;
 const MUSIC_STREAM_MAX_BYTES = 100 * 1024 * 1024;
 const MUSIC_COVER_MAX_BYTES = 10 * 1024 * 1024;
 const MUSIC_AUDIO_URL_PATTERN = /\.(mp3|flac|wav|wave|ogg|oga|m4a|aac|opus|weba)$/i;
-const MUSIC_FETCH_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+const MUSIC_FETCH_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
 export function createApiApp(dependencies: ApiDependencies) {
   const app = new Hono();
@@ -346,7 +370,7 @@ export function createApiApp(dependencies: ApiDependencies) {
   app.get("/api/ready", async (context) => {
     context.header("Cache-Control", "no-store");
     try {
-      if (!dependencies.readiness || await dependencies.readiness.check()) {
+      if (!dependencies.readiness || (await dependencies.readiness.check())) {
         return context.json({ ok: true, service: "canvas-api" });
       }
     } catch {
@@ -374,7 +398,12 @@ export function createApiApp(dependencies: ApiDependencies) {
     try {
       target = normalizeMusicInputUrl(input.url);
     } catch {
-      return errorResponse(context, 400, "INVALID_MUSIC_URL", "链接格式不对，请粘贴完整的网页或音频地址");
+      return errorResponse(
+        context,
+        400,
+        "INVALID_MUSIC_URL",
+        "链接格式不对，请粘贴完整的网页或音频地址",
+      );
     }
     const blocked = await isBlockedTargetUrl(target.toString());
     if (blocked) return errorResponse(context, 400, "MUSIC_URL_BLOCKED", "该链接不可用");
@@ -385,7 +414,8 @@ export function createApiApp(dependencies: ApiDependencies) {
       const data = await resolveMusicLink({ target, source, signal: controller.signal });
       return context.json(musicLinkResolveResponseSchema.parse({ ok: true, data }));
     } catch (error) {
-      if (error instanceof MusicProxyError) return errorResponse(context, error.status, error.code, error.message);
+      if (error instanceof MusicProxyError)
+        return errorResponse(context, error.status, error.code, error.message);
       if (error instanceof Error && error.name === "AbortError") {
         return errorResponse(context, 503, "MUSIC_RESOLVE_TIMEOUT", "链接解析超时，请稍后再试");
       }
@@ -408,9 +438,14 @@ export function createApiApp(dependencies: ApiDependencies) {
     const connectTimer = setTimeout(() => controller.abort(), MUSIC_RESOLVE_TIMEOUT_MS);
     let upstream: Response;
     try {
-      upstream = await musicGuardedFetch(input.u, { accept: "audio/*,*/*;q=0.5", signal: controller.signal, range });
+      upstream = await musicGuardedFetch(input.u, {
+        accept: "audio/*,*/*;q=0.5",
+        signal: controller.signal,
+        range,
+      });
     } catch (error) {
-      if (error instanceof MusicProxyError) return errorResponse(context, error.status, error.code, error.message);
+      if (error instanceof MusicProxyError)
+        return errorResponse(context, error.status, error.code, error.message);
       if (error instanceof Error && error.name === "AbortError") {
         return errorResponse(context, 503, "MUSIC_STREAM_TIMEOUT", "音频源连接超时");
       }
@@ -422,16 +457,18 @@ export function createApiApp(dependencies: ApiDependencies) {
       await upstream.body?.cancel().catch(() => undefined);
       return errorResponse(context, 503, "MUSIC_STREAM_UNAVAILABLE", "音频源没有返回内容");
     }
-    const declaredType = (upstream.headers.get("content-type") || "").split(";")[0]?.trim().toLowerCase() ?? "";
+    const declaredType =
+      (upstream.headers.get("content-type") || "").split(";")[0]?.trim().toLowerCase() ?? "";
     let audioExtension = false;
     try {
       audioExtension = MUSIC_AUDIO_URL_PATTERN.test(new URL(input.u).pathname);
     } catch {
       audioExtension = false;
     }
-    const declaredAudio = declaredType.startsWith("audio/")
-      || declaredType === "application/ogg"
-      || (declaredType === "application/octet-stream" && audioExtension);
+    const declaredAudio =
+      declaredType.startsWith("audio/") ||
+      declaredType === "application/ogg" ||
+      (declaredType === "application/octet-stream" && audioExtension);
     if (!declaredAudio) {
       await upstream.body?.cancel().catch(() => undefined);
       return errorResponse(context, 415, "MUSIC_NOT_AUDIO", "这个地址不是音频内容");
@@ -441,7 +478,8 @@ export function createApiApp(dependencies: ApiDependencies) {
       await upstream.body?.cancel().catch(() => undefined);
       return errorResponse(context, 413, "MUSIC_TOO_LARGE", "音频文件过大");
     }
-    if (!upstream.body) return errorResponse(context, 503, "MUSIC_STREAM_FAILED", "音频暂时无法读取");
+    if (!upstream.body)
+      return errorResponse(context, 503, "MUSIC_STREAM_FAILED", "音频暂时无法读取");
 
     const headers = new Headers();
     headers.set("Content-Type", declaredType || "audio/mpeg");
@@ -527,12 +565,16 @@ export function createApiApp(dependencies: ApiDependencies) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), MUSIC_COVER_TIMEOUT_MS);
     try {
-      const upstream = await musicGuardedFetch(input.u, { accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8", signal: controller.signal });
+      const upstream = await musicGuardedFetch(input.u, {
+        accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        signal: controller.signal,
+      });
       if (!upstream.ok) {
         await upstream.body?.cancel().catch(() => undefined);
         return errorResponse(context, 503, "MUSIC_COVER_UNAVAILABLE", "封面暂时无法读取");
       }
-      const contentType = (upstream.headers.get("content-type") || "").split(";")[0]?.trim().toLowerCase() ?? "";
+      const contentType =
+        (upstream.headers.get("content-type") || "").split(";")[0]?.trim().toLowerCase() ?? "";
       if (!contentType.startsWith("image/") && contentType !== "application/octet-stream") {
         await upstream.body?.cancel().catch(() => undefined);
         return errorResponse(context, 415, "MUSIC_NOT_IMAGE", "封面地址不是图片内容");
@@ -549,7 +591,8 @@ export function createApiApp(dependencies: ApiDependencies) {
       if (contentLength) headers.set("Content-Length", String(contentLength));
       return new Response(upstream.body, { status: 200, headers });
     } catch (error) {
-      if (error instanceof MusicProxyError) return errorResponse(context, error.status, error.code, error.message);
+      if (error instanceof MusicProxyError)
+        return errorResponse(context, error.status, error.code, error.message);
       if (error instanceof Error && error.name === "AbortError") {
         return errorResponse(context, 503, "MUSIC_COVER_TIMEOUT", "封面下载超时");
       }
@@ -563,7 +606,8 @@ export function createApiApp(dependencies: ApiDependencies) {
     const forceRefresh = context.req.query("refresh") === "1";
     const requestedModality = context.req.query("modality");
     const modality = requestedModality ? modelModalitySchema.safeParse(requestedModality) : null;
-    if (modality && !modality.success) return errorResponse(context, 400, "INVALID_MODALITY", "不支持这个模型类型");
+    if (modality && !modality.success)
+      return errorResponse(context, 400, "INVALID_MODALITY", "不支持这个模型类型");
     const catalog = toPublicCatalogView(
       await dependencies.catalog.getCatalog({
         forceRefresh,
@@ -572,13 +616,16 @@ export function createApiApp(dependencies: ApiDependencies) {
         awaitVideoAvailability: modality?.success ? modality.data === "video" : true,
       }),
     );
-    const data = modality?.success ? { ...catalog, models: catalog.models.filter((model) => model.modality === modality.data) } : catalog;
+    const data = modality?.success
+      ? { ...catalog, models: catalog.models.filter((model) => model.modality === modality.data) }
+      : catalog;
     const catalogViewVersion = modelCatalogViewVersion(data);
     const etag = `"${data.version}:${data.capabilityVersion}:${data.pricingVersion}:${catalogViewVersion}:${data.quoteAvailable ? "fresh" : "stale"}:${data.expiresAt}:${modality?.success ? modality.data : "all"}"`;
     context.header("ETag", etag);
-    context.header("Cache-Control", forceRefresh
-      ? "private, no-store"
-      : "private, max-age=60, stale-while-revalidate=300");
+    context.header(
+      "Cache-Control",
+      forceRefresh ? "private, no-store" : "private, max-age=60, stale-while-revalidate=300",
+    );
     if (context.req.header("If-None-Match") === etag) return context.body(null, 304);
     return context.json(modelCatalogResponseSchema.parse({ ok: true, data }));
   });
@@ -609,7 +656,11 @@ export function createApiApp(dependencies: ApiDependencies) {
   // secret is not configured the whole surface is invisible.
   app.get("/api/v1/admin/model-overrides", async (context) => {
     const secret = dependencies.modelOverridesAdminSecret;
-    if (!dependencies.modelOverrides || !secret || context.req.header("x-model-overrides-secret") !== secret) {
+    if (
+      !dependencies.modelOverrides ||
+      !secret ||
+      context.req.header("x-model-overrides-secret") !== secret
+    ) {
       return context.notFound();
     }
     const [overrides, catalog] = await Promise.all([
@@ -617,22 +668,33 @@ export function createApiApp(dependencies: ApiDependencies) {
       dependencies.catalog.getCatalog({ includeOverrides: false }),
     ]);
     context.header("Cache-Control", "no-store");
-    return context.json({ ok: true, data: { overrides, models: modelOverrideAdminRows(catalog.models, overrides) } });
+    return context.json({
+      ok: true,
+      data: { overrides, models: modelOverrideAdminRows(catalog.models, overrides) },
+    });
   });
 
   app.put("/api/v1/admin/model-overrides", async (context) => {
     const secret = dependencies.modelOverridesAdminSecret;
-    if (!dependencies.modelOverrides || !secret || context.req.header("x-model-overrides-secret") !== secret) {
+    if (
+      !dependencies.modelOverrides ||
+      !secret ||
+      context.req.header("x-model-overrides-secret") !== secret
+    ) {
       return context.notFound();
     }
     const body = await readJsonBody(context);
     if (body instanceof Response) return body;
     const parsed = modelOverridesSchema.safeParse(body);
-    if (!parsed.success) return errorResponse(context, 422, "INVALID_MODEL_OVERRIDES", "模型覆盖配置格式不正确");
+    if (!parsed.success)
+      return errorResponse(context, 422, "INVALID_MODEL_OVERRIDES", "模型覆盖配置格式不正确");
     await dependencies.modelOverrides.save(parsed.data);
     const catalog = await dependencies.catalog.getCatalog({ includeOverrides: false });
     context.header("Cache-Control", "no-store");
-    return context.json({ ok: true, data: { overrides: parsed.data, models: modelOverrideAdminRows(catalog.models, parsed.data) } });
+    return context.json({
+      ok: true,
+      data: { overrides: parsed.data, models: modelOverrideAdminRows(catalog.models, parsed.data) },
+    });
   });
 
   app.get("/admin/model-overrides", (context) => {
@@ -651,16 +713,26 @@ export function createApiApp(dependencies: ApiDependencies) {
   });
 
   app.post("/api/v1/generation-jobs", async (context) => {
-    if (!dependencies.generation) return generationUnavailable(context, dependencies.generationUnavailableMessage);
+    if (!dependencies.generation)
+      return generationUnavailable(context, dependencies.generationUnavailableMessage);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点提交生成任务");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点提交生成任务",
+      );
     }
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
     if (session instanceof Response) return session;
     await dependencies.generationGuard?.checkSubmission(session.user.id);
     const body = await readJsonBody(context);
     if (body instanceof Response) return body;
-    const result = await dependencies.generation.submit(session.user.id, body, getCookie(context, identityCookie.name));
+    const result = await dependencies.generation.submit(
+      session.user.id,
+      body,
+      getCookie(context, identityCookie.name),
+    );
     const job = unwrapGenerationResult(result);
     refreshIdentityCookie(context, identityCookie, generationRefresh(result));
     context.header("Cache-Control", "no-store");
@@ -668,16 +740,23 @@ export function createApiApp(dependencies: ApiDependencies) {
   });
 
   app.get("/api/v1/generation-jobs", async (context) => {
-    if (!dependencies.generation) return generationUnavailable(context, dependencies.generationUnavailableMessage);
+    if (!dependencies.generation)
+      return generationUnavailable(context, dependencies.generationUnavailableMessage);
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
     if (session instanceof Response) return session;
     await dependencies.generationGuard?.checkRead(session.user.id);
     const limit = optionalQueryInteger(context, context.req.query("limit"), 50);
     if (limit instanceof Response) return limit;
-    const result = await dependencies.generation.list(session.user.id, {
-      ...(context.req.query("projectId") !== undefined ? { projectId: context.req.query("projectId") } : {}),
-      limit,
-    }, getCookie(context, identityCookie.name));
+    const result = await dependencies.generation.list(
+      session.user.id,
+      {
+        ...(context.req.query("projectId") !== undefined
+          ? { projectId: context.req.query("projectId") }
+          : {}),
+        limit,
+      },
+      getCookie(context, identityCookie.name),
+    );
     const jobs = unwrapGenerationResult(result);
     refreshIdentityCookie(context, identityCookie, generationRefresh(result));
     context.header("Cache-Control", "private, no-store");
@@ -692,8 +771,8 @@ export function createApiApp(dependencies: ApiDependencies) {
       return context.notFound();
     }
     if (
-      context.req.header("x-forwarded-for") !== undefined
-      || context.req.header("x-storage-sweep-secret") !== dependencies.storageSweepSecret
+      context.req.header("x-forwarded-for") !== undefined ||
+      context.req.header("x-storage-sweep-secret") !== dependencies.storageSweepSecret
     ) {
       return context.notFound();
     }
@@ -709,16 +788,24 @@ export function createApiApp(dependencies: ApiDependencies) {
   // replays, mutates a job, or contacts a provider. A 404 is the unambiguous
   // authoritative miss the browser uses to settle an expired request.
   app.get("/api/v1/generation-jobs/reconcile", async (context) => {
-    if (!dependencies.generation) return generationUnavailable(context, dependencies.generationUnavailableMessage);
+    if (!dependencies.generation)
+      return generationUnavailable(context, dependencies.generationUnavailableMessage);
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
     if (session instanceof Response) return session;
     await dependencies.generationGuard?.checkRead(session.user.id);
-    const parsed = generationJobReconcileQuerySchema.safeParse({ key: context.req.query("key") ?? "" });
+    const parsed = generationJobReconcileQuerySchema.safeParse({
+      key: context.req.query("key") ?? "",
+    });
     if (!parsed.success) {
       return errorResponse(context, 422, "INVALID_IDEMPOTENCY_KEY", "任务标识格式不正确");
     }
     if (!dependencies.generation.resolveByIdempotency) {
-      return errorResponse(context, 503, "GENERATION_RECONCILE_UNAVAILABLE", "任务核对服务暂不可用");
+      return errorResponse(
+        context,
+        503,
+        "GENERATION_RECONCILE_UNAVAILABLE",
+        "任务核对服务暂不可用",
+      );
     }
     const result = await dependencies.generation.resolveByIdempotency(
       session.user.id,
@@ -736,7 +823,8 @@ export function createApiApp(dependencies: ApiDependencies) {
   });
 
   app.get("/api/v1/generation-jobs/:jobId", async (context) => {
-    if (!dependencies.generation) return generationUnavailable(context, dependencies.generationUnavailableMessage);
+    if (!dependencies.generation)
+      return generationUnavailable(context, dependencies.generationUnavailableMessage);
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
     if (session instanceof Response) return session;
     await dependencies.generationGuard?.checkRead(session.user.id);
@@ -752,14 +840,21 @@ export function createApiApp(dependencies: ApiDependencies) {
   });
 
   app.get("/api/v1/generation-jobs/:jobId/events", async (context) => {
-    if (!dependencies.generation) return generationUnavailable(context, dependencies.generationUnavailableMessage);
+    if (!dependencies.generation)
+      return generationUnavailable(context, dependencies.generationUnavailableMessage);
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
     if (session instanceof Response) return session;
-    const release = dependencies.generationGuard ? await dependencies.generationGuard.acquireStream(session.user.id) : () => undefined;
+    const release = dependencies.generationGuard
+      ? await dependencies.generationGuard.acquireStream(session.user.id)
+      : () => undefined;
     const sessionToken = getCookie(context, identityCookie.name);
     let initial;
     try {
-      const initialResult = await dependencies.generation.get(session.user.id, context.req.param("jobId"), sessionToken);
+      const initialResult = await dependencies.generation.get(
+        session.user.id,
+        context.req.param("jobId"),
+        sessionToken,
+      );
       // The first hosted status read happens before the SSE response starts,
       // so a rotated Prompt Hub session can still be written to the browser.
       refreshIdentityCookie(context, identityCookie, generationRefresh(initialResult));
@@ -774,12 +869,18 @@ export function createApiApp(dependencies: ApiDependencies) {
       maxDurationMs: 10 * 60_000,
     };
     const now = settings.now ?? Date.now;
-    const lastVersion = lastEventVersion(context.req.header("Last-Event-ID"), initial.id, initial.version);
+    const lastVersion = lastEventVersion(
+      context.req.header("Last-Event-ID"),
+      initial.id,
+      initial.version,
+    );
     context.header("Cache-Control", "private, no-cache, no-transform");
     context.header("X-Accel-Buffering", "no");
     return streamSSE(context, async (stream) => {
       let aborted = false;
-      stream.onAbort(() => { aborted = true; });
+      stream.onAbort(() => {
+        aborted = true;
+      });
       let current = initial;
       let emittedVersion = isGenerationObservationTerminal(current.status) ? -1 : lastVersion;
       let heartbeatAt = now() + settings.heartbeatMs;
@@ -803,7 +904,11 @@ export function createApiApp(dependencies: ApiDependencies) {
           }
           await stream.sleep(settings.pollIntervalMs);
           if (aborted) return;
-          const nextResult = await dependencies.generation!.get(session.user.id, current.id, sessionToken);
+          const nextResult = await dependencies.generation!.get(
+            session.user.id,
+            current.id,
+            sessionToken,
+          );
           current = unwrapGenerationResult(nextResult);
           if (generationRefresh(nextResult).refreshedToken) {
             // Set-Cookie cannot be changed reliably after an SSE body starts.
@@ -811,7 +916,10 @@ export function createApiApp(dependencies: ApiDependencies) {
             // persist the rotated HttpOnly session before continuing.
             await stream.writeSSE({
               event: "status-error",
-              data: JSON.stringify({ code: "SESSION_REFRESH_REQUIRED", message: "正在更新登录状态" }),
+              data: JSON.stringify({
+                code: "SESSION_REFRESH_REQUIRED",
+                message: "正在更新登录状态",
+              }),
               retry: 1_000,
             });
             return;
@@ -819,11 +927,16 @@ export function createApiApp(dependencies: ApiDependencies) {
         }
       } catch {
         if (!aborted) {
-          await stream.writeSSE({
-            event: "status-error",
-            data: JSON.stringify({ code: "GENERATION_STATUS_UNAVAILABLE", message: "任务状态暂时无法更新" }),
-            retry: 2_000,
-          }).catch(() => undefined);
+          await stream
+            .writeSSE({
+              event: "status-error",
+              data: JSON.stringify({
+                code: "GENERATION_STATUS_UNAVAILABLE",
+                message: "任务状态暂时无法更新",
+              }),
+              retry: 2_000,
+            })
+            .catch(() => undefined);
         }
       } finally {
         release();
@@ -834,9 +947,18 @@ export function createApiApp(dependencies: ApiDependencies) {
   app.post("/api/v1/auth/register", async (context) => {
     if (!dependencies.identity) return identityUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点提交账号请求");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点提交账号请求",
+      );
     }
-    const registerLimited = sensitiveActionGuard.consume(`register:${clientIdentifier(context)}`, 10, 60 * 60_000);
+    const registerLimited = sensitiveActionGuard.consume(
+      `register:${clientIdentifier(context)}`,
+      10,
+      60 * 60_000,
+    );
     if (registerLimited) return rateLimitedResponse(context, registerLimited);
     const body = await readJsonBody(context);
     if (body instanceof Response) return body;
@@ -850,34 +972,52 @@ export function createApiApp(dependencies: ApiDependencies) {
     }
     if (result.status === "authenticated") {
       setIdentityCookie(context, identityCookie, result.session);
-      return context.json(identityRegistrationResponseSchema.parse({
-        ok: true,
-        status: "authenticated",
-        data: publicIssuedSession(result.session),
-        capabilities: identityCapabilities(dependencies.identity),
-      }), 201);
+      return context.json(
+        identityRegistrationResponseSchema.parse({
+          ok: true,
+          status: "authenticated",
+          data: publicIssuedSession(result.session),
+          capabilities: identityCapabilities(dependencies.identity),
+        }),
+        201,
+      );
     }
-    return context.json(identityRegistrationResponseSchema.parse({
-      ok: true,
-      status: "verification_required",
-      data: { email: result.email },
-      capabilities: identityCapabilities(dependencies.identity),
-    }), 201);
+    return context.json(
+      identityRegistrationResponseSchema.parse({
+        ok: true,
+        status: "verification_required",
+        data: { email: result.email },
+        capabilities: identityCapabilities(dependencies.identity),
+      }),
+      201,
+    );
   });
 
   app.post("/api/v1/auth/login", async (context) => {
     if (!dependencies.identity) return identityUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点提交登录请求");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点提交登录请求",
+      );
     }
     const body = await readJsonBody(context);
     if (body instanceof Response) return body;
     // 登录撞库面：按 IP+邮箱 每 10 次/分钟，另按邮箱 30 次/5 分钟（防换 IP 打同一账号）。
-    const loginEmail = typeof body === "object" && body !== null && typeof (body as { email?: unknown }).email === "string"
-      ? (body as { email: string }).email.trim().toLowerCase()
-      : "";
-    const loginLimited = sensitiveActionGuard.consume(`login:${clientIdentifier(context)}:${loginEmail}`, 10, 60_000)
-      ?? sensitiveActionGuard.consume(`login-email:${loginEmail}`, 30, 5 * 60_000);
+    const loginEmail =
+      typeof body === "object" &&
+      body !== null &&
+      typeof (body as { email?: unknown }).email === "string"
+        ? (body as { email: string }).email.trim().toLowerCase()
+        : "";
+    const loginLimited =
+      sensitiveActionGuard.consume(
+        `login:${clientIdentifier(context)}:${loginEmail}`,
+        10,
+        60_000,
+      ) ?? sensitiveActionGuard.consume(`login-email:${loginEmail}`, 30, 5 * 60_000);
     if (loginLimited) return rateLimitedResponse(context, loginLimited);
     let issued: IssuedIdentitySession;
     try {
@@ -888,33 +1028,44 @@ export function createApiApp(dependencies: ApiDependencies) {
       throw error;
     }
     setIdentityCookie(context, identityCookie, issued);
-    return context.json(identitySessionResponseSchema.parse({
-      ok: true,
-      data: publicIssuedSession(issued),
-      capabilities: identityCapabilities(dependencies.identity),
-    }));
+    return context.json(
+      identitySessionResponseSchema.parse({
+        ok: true,
+        data: publicIssuedSession(issued),
+        capabilities: identityCapabilities(dependencies.identity),
+      }),
+    );
   });
 
   app.get("/api/v1/auth/session", async (context) => {
     if (!dependencies.identity) {
-      return context.json(identitySessionStateResponseSchema.parse({
-        ok: true,
-        data: null,
-        capabilities: identityCapabilities(undefined),
-      }));
+      return context.json(
+        identitySessionStateResponseSchema.parse({
+          ok: true,
+          data: null,
+          capabilities: identityCapabilities(undefined),
+        }),
+      );
     }
     const session = await authenticateIdentity(context, dependencies.identity, identityCookie);
-    return context.json(identitySessionStateResponseSchema.parse({
-      ok: true,
-      data: session,
-      capabilities: identityCapabilities(dependencies.identity),
-    }));
+    return context.json(
+      identitySessionStateResponseSchema.parse({
+        ok: true,
+        data: session,
+        capabilities: identityCapabilities(dependencies.identity),
+      }),
+    );
   });
 
   app.post("/api/v1/auth/logout", async (context) => {
     if (!dependencies.identity) return identityUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点提交退出请求");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点提交退出请求",
+      );
     }
     try {
       await dependencies.identity.logout(getCookie(context, identityCookie.name));
@@ -936,21 +1087,29 @@ export function createApiApp(dependencies: ApiDependencies) {
     if (!dependencies.wallet) return walletUnavailable(context);
     const limit = optionalQueryInteger(context, context.req.query("limit"), 20);
     if (limit instanceof Response) return limit;
-    if (limit < 1 || limit > 50) return errorResponse(context, 400, "INVALID_LIMIT", "积分流水数量范围不正确");
-    const result = await dependencies.wallet.getLedger(getCookie(context, identityCookie.name), limit);
+    if (limit < 1 || limit > 50)
+      return errorResponse(context, 400, "INVALID_LIMIT", "积分流水数量范围不正确");
+    const result = await dependencies.wallet.getLedger(
+      getCookie(context, identityCookie.name),
+      limit,
+    );
     refreshIdentityCookie(context, identityCookie, result);
-    return context.json(walletLedgerResponseSchema.parse({ ok: true, data: { items: result.data } }));
+    return context.json(
+      walletLedgerResponseSchema.parse({ ok: true, data: { items: result.data } }),
+    );
   });
 
   app.get("/api/v1/wallet/products", async (context) => {
     if (!dependencies.wallet) return walletUnavailable(context);
     const result = await dependencies.wallet.getProducts(getCookie(context, identityCookie.name));
     refreshIdentityCookie(context, identityCookie, result);
-    return context.json(walletProductsResponseSchema.parse({
-      ok: true,
-      data: result.data.products,
-      customCreditTopUp: result.data.customCreditTopUp,
-    }));
+    return context.json(
+      walletProductsResponseSchema.parse({
+        ok: true,
+        data: result.data.products,
+        customCreditTopUp: result.data.customCreditTopUp,
+      }),
+    );
   });
 
   app.get("/api/v1/membership/tasks", async (context) => {
@@ -966,10 +1125,19 @@ export function createApiApp(dependencies: ApiDependencies) {
   app.post("/api/v1/membership/tasks/canvas-create-node", async (context) => {
     if (!dependencies.membershipTasks) return walletUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点提交画布任务");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点提交画布任务",
+      );
     }
     // 事件没有服务端完成条件校验，只能靠限速挡住脚本化刷进度。
-    const eventLimited = sensitiveActionGuard.consume(`canvas-node-event:${clientIdentifier(context)}`, 20, 60_000);
+    const eventLimited = sensitiveActionGuard.consume(
+      `canvas-node-event:${clientIdentifier(context)}`,
+      20,
+      60_000,
+    );
     if (eventLimited) return rateLimitedResponse(context, eventLimited);
     const result = await dependencies.membershipTasks.recordCanvasNodeCreated(
       getCookie(context, identityCookie.name),
@@ -982,7 +1150,12 @@ export function createApiApp(dependencies: ApiDependencies) {
   app.post("/api/v1/membership/tasks/:taskKey/claim", async (context) => {
     if (!dependencies.membershipTasks) return walletUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点领取任务奖励");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点领取任务奖励",
+      );
     }
     const taskKey = membershipTaskKeySchema.parse(context.req.param("taskKey"));
     // taskKey 本身是个可枚举空间：按 IP+key 限速，压住批量试探。
@@ -1016,7 +1189,12 @@ export function createApiApp(dependencies: ApiDependencies) {
   app.post("/api/v1/cloud-projects", async (context) => {
     if (!dependencies.projects) return cloudProjectsUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "Cloud projects cannot be changed from another site");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "Cloud projects cannot be changed from another site",
+      );
     }
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
     if (session instanceof Response) return session;
@@ -1039,16 +1217,16 @@ export function createApiApp(dependencies: ApiDependencies) {
     const projectOwnerId = optionalProjectOwnerId(context.req.query("ownerId"));
     const result = dependencies.projects.getForActor
       ? await dependencies.projects.getForActor(
-        session.user.id,
-        context.req.param("projectId"),
-        getCookie(context, identityCookie.name),
-        projectOwnerId,
-      )
+          session.user.id,
+          context.req.param("projectId"),
+          getCookie(context, identityCookie.name),
+          projectOwnerId,
+        )
       : await dependencies.projects.get(
-        session.user.id,
-        context.req.param("projectId"),
-        getCookie(context, identityCookie.name),
-      );
+          session.user.id,
+          context.req.param("projectId"),
+          getCookie(context, identityCookie.name),
+        );
     refreshIdentityCookie(context, identityCookie, result);
     setCloudProjectEtag(context, result.data.id, result.data.revision);
     return context.json(cloudProjectResponseSchema.parse({ ok: true, data: result.data }));
@@ -1057,7 +1235,12 @@ export function createApiApp(dependencies: ApiDependencies) {
   app.put("/api/v1/cloud-projects/:projectId", async (context) => {
     if (!dependencies.projects) return cloudProjectsUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "Cloud projects cannot be changed from another site");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "Cloud projects cannot be changed from another site",
+      );
     }
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
     if (session instanceof Response) return session;
@@ -1066,18 +1249,18 @@ export function createApiApp(dependencies: ApiDependencies) {
     const projectOwnerId = optionalProjectOwnerId(context.req.query("ownerId"));
     const result = dependencies.projects.saveForActor
       ? await dependencies.projects.saveForActor(
-        session.user.id,
-        context.req.param("projectId"),
-        body,
-        getCookie(context, identityCookie.name),
-        projectOwnerId,
-      )
+          session.user.id,
+          context.req.param("projectId"),
+          body,
+          getCookie(context, identityCookie.name),
+          projectOwnerId,
+        )
       : await dependencies.projects.save(
-        session.user.id,
-        context.req.param("projectId"),
-        body,
-        getCookie(context, identityCookie.name),
-      );
+          session.user.id,
+          context.req.param("projectId"),
+          body,
+          getCookie(context, identityCookie.name),
+        );
     refreshIdentityCookie(context, identityCookie, result);
     setCloudProjectEtag(context, result.data.id, result.data.revision);
     return context.json(cloudProjectResponseSchema.parse({ ok: true, data: result.data }));
@@ -1086,18 +1269,27 @@ export function createApiApp(dependencies: ApiDependencies) {
   app.delete("/api/v1/cloud-projects/:projectId", async (context) => {
     if (!dependencies.projects) return cloudProjectsUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "Cloud projects cannot be changed from another site");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "Cloud projects cannot be changed from another site",
+      );
     }
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
     if (session instanceof Response) return session;
-    const baseRevision = z.coerce.number().int().positive().parse(context.req.query("baseRevision"));
+    const baseRevision = z.coerce
+      .number()
+      .int()
+      .positive()
+      .parse(context.req.query("baseRevision"));
     // 项目删除会级联移除绑定关系，但不会删除 canvas_media 记录本身；删除前采集
     // 被该项目绑定的素材，删除后释放其中已无任何项目引用的独占素材（含对象字节），
     // 否则账号存储配额会一直被“已删除画布”的素材占满。
     const boundMediaIds = dependencies.cloudResources
       ? await dependencies.cloudResources
-        .listProjectBoundMediaIds(session.user.id, context.req.param("projectId"))
-        .catch(() => [] as string[])
+          .listProjectBoundMediaIds(session.user.id, context.req.param("projectId"))
+          .catch(() => [] as string[])
       : [];
     const result = await dependencies.projects.delete(
       session.user.id,
@@ -1107,9 +1299,11 @@ export function createApiApp(dependencies: ApiDependencies) {
     );
     refreshIdentityCookie(context, identityCookie, result);
     if (dependencies.cloudResources && boundMediaIds.length) {
-      await dependencies.cloudResources.releaseUnbound(session.user.id, boundMediaIds).catch((error) => {
-        console.error("Failed to release deleted project media", error);
-      });
+      await dependencies.cloudResources
+        .releaseUnbound(session.user.id, boundMediaIds)
+        .catch((error) => {
+          console.error("Failed to release deleted project media", error);
+        });
     }
     return context.json(cloudProjectDeleteResponseSchema.parse(result.data));
   });
@@ -1126,13 +1320,20 @@ export function createApiApp(dependencies: ApiDependencies) {
       projectOwnerId,
     );
     refreshIdentityCookie(context, identityCookie, result);
-    return context.json(cloudProjectMemberListResponseSchema.parse({ ok: true, data: result.data }));
+    return context.json(
+      cloudProjectMemberListResponseSchema.parse({ ok: true, data: result.data }),
+    );
   });
 
   app.post("/api/v1/cloud-projects/:projectId/members/invitations", async (context) => {
     if (!dependencies.collaboration) return collaborationUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "Project invitations cannot be changed from another site");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "Project invitations cannot be changed from another site",
+      );
     }
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
     if (session instanceof Response) return session;
@@ -1145,28 +1346,44 @@ export function createApiApp(dependencies: ApiDependencies) {
       getCookie(context, identityCookie.name),
     );
     refreshIdentityCookie(context, identityCookie, result);
-    return context.json(cloudProjectInvitationResponseSchema.parse({ ok: true, data: result.data }), 201);
+    return context.json(
+      cloudProjectInvitationResponseSchema.parse({ ok: true, data: result.data }),
+      201,
+    );
   });
 
-  app.delete("/api/v1/cloud-projects/:projectId/members/invitations/:invitationId", async (context) => {
-    if (!dependencies.collaboration) return collaborationUnavailable(context);
-    if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "Project invitations cannot be changed from another site");
-    }
-    const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
-    if (session instanceof Response) return session;
-    const result = await dependencies.collaboration.revokeInvitation(
-      session.user.id,
-      context.req.param("projectId"),
-      context.req.param("invitationId"),
-    );
-    return context.json(cloudProjectDeleteResponseSchema.parse(result.data));
-  });
+  app.delete(
+    "/api/v1/cloud-projects/:projectId/members/invitations/:invitationId",
+    async (context) => {
+      if (!dependencies.collaboration) return collaborationUnavailable(context);
+      if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
+        return errorResponse(
+          context,
+          403,
+          "CROSS_SITE_REQUEST_REJECTED",
+          "Project invitations cannot be changed from another site",
+        );
+      }
+      const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
+      if (session instanceof Response) return session;
+      const result = await dependencies.collaboration.revokeInvitation(
+        session.user.id,
+        context.req.param("projectId"),
+        context.req.param("invitationId"),
+      );
+      return context.json(cloudProjectDeleteResponseSchema.parse(result.data));
+    },
+  );
 
   app.delete("/api/v1/cloud-projects/:projectId/members/:memberId", async (context) => {
     if (!dependencies.collaboration) return collaborationUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "Project members cannot be changed from another site");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "Project members cannot be changed from another site",
+      );
     }
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
     if (session instanceof Response) return session;
@@ -1189,13 +1406,20 @@ export function createApiApp(dependencies: ApiDependencies) {
       getCookie(context, identityCookie.name),
     );
     refreshIdentityCookie(context, identityCookie, result);
-    return context.json(cloudProjectInvitationListResponseSchema.parse({ ok: true, data: result.data }));
+    return context.json(
+      cloudProjectInvitationListResponseSchema.parse({ ok: true, data: result.data }),
+    );
   });
 
   app.post("/api/v1/cloud-project-invitations/:invitationId/accept", async (context) => {
     if (!dependencies.collaboration) return collaborationUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "Project invitations cannot be changed from another site");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "Project invitations cannot be changed from another site",
+      );
     }
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
     if (session instanceof Response) return session;
@@ -1211,7 +1435,12 @@ export function createApiApp(dependencies: ApiDependencies) {
   app.delete("/api/v1/cloud-project-invitations/:invitationId", async (context) => {
     if (!dependencies.collaboration) return collaborationUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "Project invitations cannot be changed from another site");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "Project invitations cannot be changed from another site",
+      );
     }
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
     if (session instanceof Response) return session;
@@ -1225,12 +1454,20 @@ export function createApiApp(dependencies: ApiDependencies) {
   app.post("/api/v1/wallet/checkout", async (context) => {
     if (!dependencies.wallet) return walletUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点创建充值订单");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点创建充值订单",
+      );
     }
     const body = await readJsonBody(context);
     if (body instanceof Response) return body;
     const input = walletCheckoutRequestSchema.parse(body);
-    const result = await dependencies.wallet.createCheckout(getCookie(context, identityCookie.name), input);
+    const result = await dependencies.wallet.createCheckout(
+      getCookie(context, identityCookie.name),
+      input,
+    );
     refreshIdentityCookie(context, identityCookie, result);
     return context.json(walletCheckoutResponseSchema.parse({ ok: true, data: result.data }), 201);
   });
@@ -1251,7 +1488,11 @@ export function createApiApp(dependencies: ApiDependencies) {
       return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点兑换激活码");
     }
     // 兑换码是低熵 secret：按 IP 限速，降低暴力枚举的速度。
-    const redeemLimited = sensitiveActionGuard.consume(`redeem:${clientIdentifier(context)}`, 10, 60_000);
+    const redeemLimited = sensitiveActionGuard.consume(
+      `redeem:${clientIdentifier(context)}`,
+      10,
+      60_000,
+    );
     if (redeemLimited) return rateLimitedResponse(context, redeemLimited);
     const body = await readJsonBody(context);
     if (body instanceof Response) return body;
@@ -1275,9 +1516,19 @@ export function createApiApp(dependencies: ApiDependencies) {
   app.get("/api/v1/agent/models", async (context) => {
     if (!dependencies.agent && !dependencies.anonymousAgent) return agentUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点读取 Agent 模型");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点读取 Agent 模型",
+      );
     }
-    const access = await resolveAgentAccess(context, dependencies, identityCookie, anonymousAgentCookie);
+    const access = await resolveAgentAccess(
+      context,
+      dependencies,
+      identityCookie,
+      anonymousAgentCookie,
+    );
     if (access instanceof Response) return access;
     if (access.anonymous) {
       const limited = anonymousAgentGuard.consumeRead(access.ownerId);
@@ -1291,9 +1542,19 @@ export function createApiApp(dependencies: ApiDependencies) {
   app.get("/api/v1/agent/conversations", async (context) => {
     if (!dependencies.agent && !dependencies.anonymousAgent) return agentUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点读取 Agent 对话");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点读取 Agent 对话",
+      );
     }
-    const access = await resolveAgentAccess(context, dependencies, identityCookie, anonymousAgentCookie);
+    const access = await resolveAgentAccess(
+      context,
+      dependencies,
+      identityCookie,
+      anonymousAgentCookie,
+    );
     if (access instanceof Response) return access;
     if (access.anonymous) {
       const limited = anonymousAgentGuard.consumeRead(access.ownerId);
@@ -1305,15 +1566,27 @@ export function createApiApp(dependencies: ApiDependencies) {
     if (limit instanceof Response) return limit;
     const conversations = await access.agent.listConversations(access.ownerId, projectId, limit);
     context.header("Cache-Control", "private, no-store");
-    return context.json(agentConversationListResponseSchema.parse({ ok: true, data: conversations }));
+    return context.json(
+      agentConversationListResponseSchema.parse({ ok: true, data: conversations }),
+    );
   });
 
   app.post("/api/v1/agent/conversations", async (context) => {
     if (!dependencies.agent && !dependencies.anonymousAgent) return agentUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点创建 Agent 对话");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点创建 Agent 对话",
+      );
     }
-    const access = await resolveAgentAccess(context, dependencies, identityCookie, anonymousAgentCookie);
+    const access = await resolveAgentAccess(
+      context,
+      dependencies,
+      identityCookie,
+      anonymousAgentCookie,
+    );
     if (access instanceof Response) return access;
     if (access.anonymous) {
       const limited = anonymousAgentGuard.consumeRead(access.ownerId);
@@ -1327,17 +1600,33 @@ export function createApiApp(dependencies: ApiDependencies) {
     if (body instanceof Response) return body;
     const conversation = await access.agent.createConversation(access.ownerId, body);
     context.header("Cache-Control", "no-store");
-    return context.json(agentConversationResponseSchema.parse({ ok: true, data: conversation }), 201);
+    return context.json(
+      agentConversationResponseSchema.parse({ ok: true, data: conversation }),
+      201,
+    );
   });
 
   app.get("/api/v1/agent/conversations/:conversationId", async (context) => {
     if (!dependencies.agent && !dependencies.anonymousAgent) return agentUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点读取 Agent 对话");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点读取 Agent 对话",
+      );
     }
-    const access = await resolveAgentAccess(context, dependencies, identityCookie, anonymousAgentCookie);
+    const access = await resolveAgentAccess(
+      context,
+      dependencies,
+      identityCookie,
+      anonymousAgentCookie,
+    );
     if (access instanceof Response) return access;
-    const detail = await access.agent.getDetail(access.ownerId, context.req.param("conversationId"));
+    const detail = await access.agent.getDetail(
+      access.ownerId,
+      context.req.param("conversationId"),
+    );
     context.header("Cache-Control", "private, no-store");
     return context.json(agentConversationDetailResponseSchema.parse({ ok: true, data: detail }));
   });
@@ -1345,9 +1634,19 @@ export function createApiApp(dependencies: ApiDependencies) {
   app.post("/api/v1/agent/conversations/:conversationId/messages", async (context) => {
     if (!dependencies.agent && !dependencies.anonymousAgent) return agentUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点提交 Agent 任务");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点提交 Agent 任务",
+      );
     }
-    const access = await resolveAgentAccess(context, dependencies, identityCookie, anonymousAgentCookie);
+    const access = await resolveAgentAccess(
+      context,
+      dependencies,
+      identityCookie,
+      anonymousAgentCookie,
+    );
     if (access instanceof Response) return access;
     if (access.anonymous) {
       const limited = anonymousAgentGuard.consumeSubmission(access.ownerId);
@@ -1362,67 +1661,119 @@ export function createApiApp(dependencies: ApiDependencies) {
       getCookie(context, identityCookie.name),
     );
     context.header("Cache-Control", "no-store");
-    return context.json(agentConversationDetailResponseSchema.parse({ ok: true, data: detail }), 202);
+    return context.json(
+      agentConversationDetailResponseSchema.parse({ ok: true, data: detail }),
+      202,
+    );
   });
 
   app.post("/api/v1/agent/conversations/:conversationId/runs/:runId/cancel", async (context) => {
     if (!dependencies.agent && !dependencies.anonymousAgent) return agentUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点取消 Agent 任务");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点取消 Agent 任务",
+      );
     }
-    const access = await resolveAgentAccess(context, dependencies, identityCookie, anonymousAgentCookie);
+    const access = await resolveAgentAccess(
+      context,
+      dependencies,
+      identityCookie,
+      anonymousAgentCookie,
+    );
     if (access instanceof Response) return access;
     await access.agent.cancelRun(
       access.ownerId,
       context.req.param("runId"),
       getCookie(context, identityCookie.name),
     );
-    const detail = await access.agent.getDetail(access.ownerId, context.req.param("conversationId"));
-    context.header("Cache-Control", "no-store");
-    return context.json(agentConversationDetailResponseSchema.parse({ ok: true, data: detail }));
-  });
-
-  app.post("/api/v1/agent/conversations/:conversationId/runs/:runId/proposal/confirm", async (context) => {
-    if (!dependencies.agent && !dependencies.anonymousAgent) return agentUnavailable(context);
-    if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点确认 Agent 提案");
-    }
-    const access = await resolveAgentAccess(context, dependencies, identityCookie, anonymousAgentCookie);
-    if (access instanceof Response) return access;
-    const body = await readJsonBody(context);
-    if (body instanceof Response) return body;
-    const detail = await access.agent.confirmProposal(
+    const detail = await access.agent.getDetail(
       access.ownerId,
       context.req.param("conversationId"),
-      context.req.param("runId"),
-      body,
     );
     context.header("Cache-Control", "no-store");
     return context.json(agentConversationDetailResponseSchema.parse({ ok: true, data: detail }));
   });
 
-  app.post("/api/v1/agent/conversations/:conversationId/runs/:runId/proposal/dismiss", async (context) => {
-    if (!dependencies.agent && !dependencies.anonymousAgent) return agentUnavailable(context);
-    if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点取消 Agent 提案");
-    }
-    const access = await resolveAgentAccess(context, dependencies, identityCookie, anonymousAgentCookie);
-    if (access instanceof Response) return access;
-    const detail = await access.agent.dismissProposal(
-      access.ownerId,
-      context.req.param("conversationId"),
-      context.req.param("runId"),
-    );
-    context.header("Cache-Control", "no-store");
-    return context.json(agentConversationDetailResponseSchema.parse({ ok: true, data: detail }));
-  });
+  app.post(
+    "/api/v1/agent/conversations/:conversationId/runs/:runId/proposal/confirm",
+    async (context) => {
+      if (!dependencies.agent && !dependencies.anonymousAgent) return agentUnavailable(context);
+      if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
+        return errorResponse(
+          context,
+          403,
+          "CROSS_SITE_REQUEST_REJECTED",
+          "无法从其他站点确认 Agent 提案",
+        );
+      }
+      const access = await resolveAgentAccess(
+        context,
+        dependencies,
+        identityCookie,
+        anonymousAgentCookie,
+      );
+      if (access instanceof Response) return access;
+      const body = await readJsonBody(context);
+      if (body instanceof Response) return body;
+      const detail = await access.agent.confirmProposal(
+        access.ownerId,
+        context.req.param("conversationId"),
+        context.req.param("runId"),
+        body,
+      );
+      context.header("Cache-Control", "no-store");
+      return context.json(agentConversationDetailResponseSchema.parse({ ok: true, data: detail }));
+    },
+  );
+
+  app.post(
+    "/api/v1/agent/conversations/:conversationId/runs/:runId/proposal/dismiss",
+    async (context) => {
+      if (!dependencies.agent && !dependencies.anonymousAgent) return agentUnavailable(context);
+      if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
+        return errorResponse(
+          context,
+          403,
+          "CROSS_SITE_REQUEST_REJECTED",
+          "无法从其他站点取消 Agent 提案",
+        );
+      }
+      const access = await resolveAgentAccess(
+        context,
+        dependencies,
+        identityCookie,
+        anonymousAgentCookie,
+      );
+      if (access instanceof Response) return access;
+      const detail = await access.agent.dismissProposal(
+        access.ownerId,
+        context.req.param("conversationId"),
+        context.req.param("runId"),
+      );
+      context.header("Cache-Control", "no-store");
+      return context.json(agentConversationDetailResponseSchema.parse({ ok: true, data: detail }));
+    },
+  );
 
   app.post("/api/v1/agent/conversations/:conversationId/runs/:runId/receipt", async (context) => {
     if (!dependencies.agent && !dependencies.anonymousAgent) return agentUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点提交 Agent 执行回执");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点提交 Agent 执行回执",
+      );
     }
-    const access = await resolveAgentAccess(context, dependencies, identityCookie, anonymousAgentCookie);
+    const access = await resolveAgentAccess(
+      context,
+      dependencies,
+      identityCookie,
+      anonymousAgentCookie,
+    );
     if (access instanceof Response) return access;
     const body = await readJsonBody(context);
     if (body instanceof Response) return body;
@@ -1440,7 +1791,12 @@ export function createApiApp(dependencies: ApiDependencies) {
     const gateway = dependencies.connectors;
     if (!gateway) return connectorUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点读取本机连接");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点读取本机连接",
+      );
     }
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
     if (session instanceof Response) return session;
@@ -1457,12 +1813,18 @@ export function createApiApp(dependencies: ApiDependencies) {
     const gateway = dependencies.connectors;
     if (!gateway) return connectorUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点修改本机连接");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点修改本机连接",
+      );
     }
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
     if (session instanceof Response) return session;
     const connectorId = agentConnectorIdSchema.safeParse(context.req.param("connectorId"));
-    if (!connectorId.success) return errorResponse(context, 404, "CONNECTOR_NOT_FOUND", "没有这个连接");
+    if (!connectorId.success)
+      return errorResponse(context, 404, "CONNECTOR_NOT_FOUND", "没有这个连接");
     const body = await readJsonBody(context);
     if (body instanceof Response) return body;
     const patch = agentConnectorUpdateRequestSchema.safeParse(body);
@@ -1480,12 +1842,18 @@ export function createApiApp(dependencies: ApiDependencies) {
     const gateway = dependencies.connectors;
     if (!gateway) return connectorUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点接入本机连接");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点接入本机连接",
+      );
     }
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
     if (session instanceof Response) return session;
     const connectorId = agentConnectorIdSchema.safeParse(context.req.param("connectorId"));
-    if (!connectorId.success) return errorResponse(context, 404, "CONNECTOR_NOT_FOUND", "没有这个连接");
+    if (!connectorId.success)
+      return errorResponse(context, 404, "CONNECTOR_NOT_FOUND", "没有这个连接");
     const body = await readJsonBody(context);
     if (body instanceof Response) return body;
     const input = connectorConnectRequestSchema.safeParse(body);
@@ -1508,7 +1876,12 @@ export function createApiApp(dependencies: ApiDependencies) {
     const broker = dependencies.canvasCommands;
     if (!gateway && !broker) return connectorUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点读取画布指令");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点读取画布指令",
+      );
     }
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
     if (session instanceof Response) return session;
@@ -1521,11 +1894,18 @@ export function createApiApp(dependencies: ApiDependencies) {
     // 浏览器上报的画布摘要：托管站点上 Codex 的 canvas_read 靠它读到真实节点 id。
     broker?.rememberContext(ownerId, input.data.projectId, input.data.context);
 
-    const commands = (broker?.pendingFor(ownerId) ?? [])
-      .filter((command) => command.projectId === input.data.projectId);
+    const commands = (broker?.pendingFor(ownerId) ?? []).filter(
+      (command) => command.projectId === input.data.projectId,
+    );
     if (gateway) {
       try {
-        commands.push(...await gateway.pending(input.data.projectId, input.data.context, context.req.raw.signal));
+        commands.push(
+          ...(await gateway.pending(
+            input.data.projectId,
+            input.data.context,
+            context.req.raw.signal,
+          )),
+        );
       } catch {
         // 本机运行时不可达不该影响托管站点的外部连接通道。
       }
@@ -1539,7 +1919,12 @@ export function createApiApp(dependencies: ApiDependencies) {
     const broker = dependencies.canvasCommands;
     if (!gateway && !broker) return connectorUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点提交画布回执");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点提交画布回执",
+      );
     }
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
     if (session instanceof Response) return session;
@@ -1553,7 +1938,9 @@ export function createApiApp(dependencies: ApiDependencies) {
       try {
         const forwarded = await gateway.recordReceipt(receipt.data, context.req.raw.signal);
         context.header("Cache-Control", "no-store");
-        return context.json(canvasControlReceiptResponseSchema.parse({ ok: true, data: { accepted: forwarded } }));
+        return context.json(
+          canvasControlReceiptResponseSchema.parse({ ok: true, data: { accepted: forwarded } }),
+        );
       } catch (error) {
         return connectorFailure(context, error);
       }
@@ -1568,15 +1955,22 @@ export function createApiApp(dependencies: ApiDependencies) {
     const service = dependencies.externalConnectors;
     if (!service) return connectorUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点读取连接状态");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点读取连接状态",
+      );
     }
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
     if (session instanceof Response) return session;
     context.header("Cache-Control", "private, no-store");
-    return context.json(connectorClientListResponseSchema.parse({
-      ok: true,
-      data: service.listStatus(session.user.id, agentConnectorIds),
-    }));
+    return context.json(
+      connectorClientListResponseSchema.parse({
+        ok: true,
+        data: service.listStatus(session.user.id, agentConnectorIds),
+      }),
+    );
   });
 
   app.post("/api/v1/agent/connectors/pairing", async (context) => {
@@ -1592,10 +1986,12 @@ export function createApiApp(dependencies: ApiDependencies) {
     const input = connectorPairingRequestSchema.safeParse(body);
     if (!input.success) return errorResponse(context, 400, "INVALID_REQUEST", "配对参数无效");
     context.header("Cache-Control", "no-store");
-    return context.json(connectorPairingResponseSchema.parse({
-      ok: true,
-      data: service.createPairing(session.user.id, input.data.connectorId),
-    }));
+    return context.json(
+      connectorPairingResponseSchema.parse({
+        ok: true,
+        data: service.createPairing(session.user.id, input.data.connectorId),
+      }),
+    );
   });
 
   app.delete("/api/v1/agent/connectors/pairing/:connectorId", async (context) => {
@@ -1607,7 +2003,8 @@ export function createApiApp(dependencies: ApiDependencies) {
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
     if (session instanceof Response) return session;
     const connectorId = agentConnectorIdSchema.safeParse(context.req.param("connectorId"));
-    if (!connectorId.success) return errorResponse(context, 404, "CONNECTOR_NOT_FOUND", "没有这个连接");
+    if (!connectorId.success)
+      return errorResponse(context, 404, "CONNECTOR_NOT_FOUND", "没有这个连接");
     const revoked = service.revokePairing(session.user.id, connectorId.data);
     context.header("Cache-Control", "no-store");
     return context.json({ ok: true, data: { revoked } });
@@ -1646,10 +2043,12 @@ export function createApiApp(dependencies: ApiDependencies) {
       return errorResponse(context, 401, "UNAUTHORIZED", "配对令牌无效、已撤销，或与连接不匹配");
     }
     context.header("Cache-Control", "no-store");
-    return context.json(externalPollResponseSchema.parse({
-      ok: true,
-      data: { tasks: polled.tasks, pollAfterMs: service.pollAfterMs() },
-    }));
+    return context.json(
+      externalPollResponseSchema.parse({
+        ok: true,
+        data: { tasks: polled.tasks, pollAfterMs: service.pollAfterMs() },
+      }),
+    );
   });
 
   app.post("/api/external/v1/connectors/results", async (context) => {
@@ -1662,10 +2061,17 @@ export function createApiApp(dependencies: ApiDependencies) {
     const token = readBearerToken(context.req.header("authorization"));
     const accepted = token ? service.submitResult(token, input.data) : false;
     if (!accepted) {
-      return errorResponse(context, 401, "UNAUTHORIZED", "配对令牌无效、已撤销，或任务不属于这个连接");
+      return errorResponse(
+        context,
+        401,
+        "UNAUTHORIZED",
+        "配对令牌无效、已撤销，或任务不属于这个连接",
+      );
     }
     context.header("Cache-Control", "no-store");
-    return context.json(externalTaskResultResponseSchema.parse({ ok: true, data: { accepted: true } }));
+    return context.json(
+      externalTaskResultResponseSchema.parse({ ok: true, data: { accepted: true } }),
+    );
   });
 
   /**
@@ -1711,10 +2117,11 @@ export function createApiApp(dependencies: ApiDependencies) {
     // 避免持令牌客户端用超大 / 非 JSON 请求体消耗服务端资源。
     const message = await readJsonBody(context);
     if (message instanceof Response) return message;
-    const response = await handleCodexMcpMessage(
-      message as Record<string, unknown>,
-      { ownerId: owner.ownerId, broker, signal: context.req.raw.signal },
-    );
+    const response = await handleCodexMcpMessage(message as Record<string, unknown>, {
+      ownerId: owner.ownerId,
+      broker,
+      signal: context.req.raw.signal,
+    });
     context.header("Cache-Control", "no-store");
     // 通知没有响应体（MCP 约定 202 + 空体）。
     if (response === null) return context.body(null, 202);
@@ -1723,7 +2130,8 @@ export function createApiApp(dependencies: ApiDependencies) {
 
   app.post("/api/v1/media/uploads", async (context) => {
     const mediaService = dependencies.media;
-    if (!mediaService && !dependencies.generation?.createReferenceUpload) return mediaUnavailable(context);
+    if (!mediaService && !dependencies.generation?.createReferenceUpload)
+      return mediaUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
       return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点上传素材");
     }
@@ -1748,50 +2156,71 @@ export function createApiApp(dependencies: ApiDependencies) {
       );
       refreshIdentityCookie(context, identityCookie, result);
       context.header("Cache-Control", "no-store");
-      return context.json(mediaUploadIntentResponseSchema.parse({
-        ok: true,
-        data: scopeMediaUploadIntent(mediaUploadIntentSchema.parse(result.data), input.projectId),
-      }));
+      return context.json(
+        mediaUploadIntentResponseSchema.parse({
+          ok: true,
+          data: scopeMediaUploadIntent(mediaUploadIntentSchema.parse(result.data), input.projectId),
+        }),
+      );
     }
-    const resolvedEntitlements = input.projectId ? undefined : await dependencies.entitlements?.resolve(
-      mediaAccess.ownerId,
-      mediaAccess.token,
-      { allowStale: false },
-    );
+    const resolvedEntitlements = input.projectId
+      ? undefined
+      : await dependencies.entitlements?.resolve(mediaAccess.ownerId, mediaAccess.token, {
+          allowStale: false,
+        });
     if (resolvedEntitlements) refreshIdentityCookie(context, identityCookie, resolvedEntitlements);
     const created = await mediaService!.createUpload(
       mediaAccess.ownerId,
       input,
       mediaAccess.mediaStorageBytes ?? resolvedEntitlements?.data.mediaStorageBytes,
     );
-    const multipartUpload = created.uploadRequired && created.media.size >= MEDIA_MULTIPART_THRESHOLD
-      ? await dependencies.multipartMedia?.createUpload(mediaAccess.ownerId, created.media.id, input.projectId) ?? null
-      : null;
-    const directUpload = created.uploadRequired && !multipartUpload
-      ? await mediaService!.createDirectUploadInstruction(mediaAccess.ownerId, created.media.id, input.projectId)
-      : null;
+    const multipartUpload =
+      created.uploadRequired && created.media.size >= MEDIA_MULTIPART_THRESHOLD
+        ? ((await dependencies.multipartMedia?.createUpload(
+            mediaAccess.ownerId,
+            created.media.id,
+            input.projectId,
+          )) ?? null)
+        : null;
+    const directUpload =
+      created.uploadRequired && !multipartUpload
+        ? await mediaService!.createDirectUploadInstruction(
+            mediaAccess.ownerId,
+            created.media.id,
+            input.projectId,
+          )
+        : null;
     const upload = created.uploadRequired
-      ? multipartUpload ?? (directUpload ? {
-        ...directUpload,
-        completeUrl: mediaProjectUrl(`/api/v1/media/${created.media.id}/complete`, input.projectId),
-      } : {
-        method: "PUT" as const,
-        url: mediaProjectUrl(`/api/v1/media/${created.media.id}/content`, input.projectId),
-        headers: { "Content-Type": created.contentType },
-        expiresAt: created.uploadExpiresAt,
-        completeUrl: null,
-      })
+      ? (multipartUpload ??
+        (directUpload
+          ? {
+              ...directUpload,
+              completeUrl: mediaProjectUrl(
+                `/api/v1/media/${created.media.id}/complete`,
+                input.projectId,
+              ),
+            }
+          : {
+              method: "PUT" as const,
+              url: mediaProjectUrl(`/api/v1/media/${created.media.id}/content`, input.projectId),
+              headers: { "Content-Type": created.contentType },
+              expiresAt: created.uploadExpiresAt,
+              completeUrl: null,
+            }))
       : null;
     context.header("Cache-Control", "no-store");
-    return context.json(mediaUploadIntentResponseSchema.parse({
-      ok: true,
-      data: scopeMediaUploadIntent({ media: created.media, upload }, input.projectId),
-    }));
+    return context.json(
+      mediaUploadIntentResponseSchema.parse({
+        ok: true,
+        data: scopeMediaUploadIntent({ media: created.media, upload }, input.projectId),
+      }),
+    );
   });
 
   app.put("/api/v1/media/:mediaId/content", async (context) => {
     const mediaService = dependencies.media;
-    if (!mediaService && !dependencies.generation?.uploadReference) return mediaUnavailable(context);
+    if (!mediaService && !dependencies.generation?.uploadReference)
+      return mediaUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
       return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点上传素材");
     }
@@ -1864,7 +2293,12 @@ export function createApiApp(dependencies: ApiDependencies) {
   app.post("/api/v1/media/:mediaId/multipart/:sessionId/parts", async (context) => {
     if (!dependencies.multipartMedia) return mediaUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点签发上传分片");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点签发上传分片",
+      );
     }
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
     if (session instanceof Response) return session;
@@ -1917,7 +2351,12 @@ export function createApiApp(dependencies: ApiDependencies) {
   app.post("/api/v1/media/:mediaId/multipart/:sessionId/complete", async (context) => {
     if (!dependencies.multipartMedia) return mediaUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点确认上传分片");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点确认上传分片",
+      );
     }
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
     if (session instanceof Response) return session;
@@ -1946,7 +2385,12 @@ export function createApiApp(dependencies: ApiDependencies) {
   app.delete("/api/v1/media/:mediaId/multipart/:sessionId", async (context) => {
     if (!dependencies.multipartMedia) return mediaUnavailable(context);
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点取消上传分片");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点取消上传分片",
+      );
     }
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
     if (session instanceof Response) return session;
@@ -1973,11 +2417,19 @@ export function createApiApp(dependencies: ApiDependencies) {
   });
 
   app.post("/api/v1/media/:mediaId/provider-reference", async (context) => {
-    if (!dependencies.generation?.createProviderReference && (!dependencies.media || !dependencies.signedMedia)) {
+    if (
+      !dependencies.generation?.createProviderReference &&
+      (!dependencies.media || !dependencies.signedMedia)
+    ) {
       return mediaUnavailable(context);
     }
     if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点创建素材引用");
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点创建素材引用",
+      );
     }
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
     if (session instanceof Response) return session;
@@ -2004,7 +2456,9 @@ export function createApiApp(dependencies: ApiDependencies) {
       );
       refreshIdentityCookie(context, identityCookie, result);
       context.header("Cache-Control", "private, no-store");
-      return context.json(providerMediaReferenceResponseSchema.parse({ ok: true, data: result.data }));
+      return context.json(
+        providerMediaReferenceResponseSchema.parse({ ok: true, data: result.data }),
+      );
     }
 
     const media = await dependencies.media!.get(mediaAccess.ownerId, mediaId, input.projectId);
@@ -2015,7 +2469,12 @@ export function createApiApp(dependencies: ApiDependencies) {
     try {
       url = dependencies.signedMedia!.createUrl(media.id, input.kind);
     } catch {
-      return errorResponse(context, 503, "REFERENCE_PUBLIC_URL_UNAVAILABLE", "公网素材地址尚未配置");
+      return errorResponse(
+        context,
+        503,
+        "REFERENCE_PUBLIC_URL_UNAVAILABLE",
+        "公网素材地址尚未配置",
+      );
     }
     context.header("Cache-Control", "private, no-store");
     return context.json(providerMediaReferenceResponseSchema.parse({ ok: true, data: { url } }));
@@ -2054,7 +2513,11 @@ export function createApiApp(dependencies: ApiDependencies) {
       getCookie(context, identityCookie.name),
       identityCookie,
     );
-    const result = await dependencies.cloudResources.cleanup(session.user.id, input.mediaIds, quotaBytes);
+    const result = await dependencies.cloudResources.cleanup(
+      session.user.id,
+      input.mediaIds,
+      quotaBytes,
+    );
     return context.json(cloudResourceCleanupResponseSchema.parse({ ok: true, data: result }));
   });
 
@@ -2065,10 +2528,18 @@ export function createApiApp(dependencies: ApiDependencies) {
     }
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
     if (session instanceof Response) return session;
-    const mediaAccess = await resolveProjectMediaAccess(context, dependencies, identityCookie, session.user.id);
+    const mediaAccess = await resolveProjectMediaAccess(
+      context,
+      dependencies,
+      identityCookie,
+      session.user.id,
+    );
     if (mediaAccess instanceof Response) return mediaAccess;
     try {
-      const deleted = await dependencies.media.delete(mediaAccess.ownerId, context.req.param("mediaId"));
+      const deleted = await dependencies.media.delete(
+        mediaAccess.ownerId,
+        context.req.param("mediaId"),
+      );
       return context.json(mediaResponseSchema.parse({ ok: true, data: deleted }));
     } catch (error) {
       if (error instanceof MediaServiceError) {
@@ -2091,14 +2562,21 @@ export function createApiApp(dependencies: ApiDependencies) {
       projectId,
     );
     if (mediaAccess instanceof Response) return mediaAccess;
-    const media = await dependencies.media.get(mediaAccess.ownerId, context.req.param("mediaId"), projectId);
+    const media = await dependencies.media.get(
+      mediaAccess.ownerId,
+      context.req.param("mediaId"),
+      projectId,
+    );
     context.header("Cache-Control", "private, no-store");
     return context.json(mediaResponseSchema.parse({ ok: true, data: media }));
   });
 
   app.get("/api/v1/media/:mediaId/content", async (context) => {
     const mediaId = context.req.param("mediaId");
-    if (!dependencies.media && !(mediaId.startsWith("phm_") && dependencies.generation?.openMedia)) {
+    if (
+      !dependencies.media &&
+      !(mediaId.startsWith("phm_") && dependencies.generation?.openMedia)
+    ) {
       return mediaUnavailable(context);
     }
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
@@ -2129,7 +2607,8 @@ export function createApiApp(dependencies: ApiDependencies) {
     }
     if (!dependencies.media) return mediaUnavailable(context);
     const media = await dependencies.media.get(mediaAccess.ownerId, mediaId, projectId);
-    if (media.status !== "ready") return errorResponse(context, 409, "MEDIA_NOT_READY", "素材尚未处理完成");
+    if (media.status !== "ready")
+      return errorResponse(context, 409, "MEDIA_NOT_READY", "素材尚未处理完成");
     if (wantsThumb && !download && media.kind === "image") {
       const thumb = await dependencies.media.openThumb(mediaAccess.ownerId, media.id, projectId);
       // 缩略响应附原始宽高：前端节点尺寸记录必须用原图宽高（缩略图是等比
@@ -2139,32 +2618,7 @@ export function createApiApp(dependencies: ApiDependencies) {
         context.header("X-Media-Original-Height", String(media.height));
       }
       return mediaContentResponse(thumb, false);
-    }    let range: { start: number; end: number } | undefined;
-    try {
-      range = parseByteRange(context.req.header("Range"), media.size);
-    } catch {
-      context.header("Content-Range", `bytes */${media.size}`);
-      return errorResponse(context, 416, "MEDIA_RANGE_INVALID", "请求的素材范围无效");
     }
-    const direct = await dependencies.media.createPrivateDownload(mediaAccess.ownerId, media.id, projectId);
-    if (direct && !download) {
-      context.header("Cache-Control", "private, no-store");
-      return context.redirect(direct.url, 307);
-    }
-    const content = await dependencies.media.open(mediaAccess.ownerId, media.id, range, projectId, context.req.raw.signal);
-    return mediaContentResponse(content, range !== undefined, download);
-  });
-
-  app.get("/api/v1/provider-media/:mediaId/content", async (context) => {
-    if (!dependencies.media || !dependencies.signedMedia) return errorResponse(context, 404, "NOT_FOUND", "没有找到这个接口");
-    const parsedKind = mediaKindSchema.safeParse(context.req.query("kind"));
-    if (!parsedKind.success || !dependencies.signedMedia.verify(
-      context.req.param("mediaId"),
-      parsedKind.data,
-      context.req.query("expires"),
-      context.req.query("signature"),
-    )) return errorResponse(context, 404, "MEDIA_NOT_FOUND", "没有找到这个素材");
-    const media = await dependencies.media.getForSignedDelivery(context.req.param("mediaId"), parsedKind.data);
     let range: { start: number; end: number } | undefined;
     try {
       range = parseByteRange(context.req.header("Range"), media.size);
@@ -2172,7 +2626,55 @@ export function createApiApp(dependencies: ApiDependencies) {
       context.header("Content-Range", `bytes */${media.size}`);
       return errorResponse(context, 416, "MEDIA_RANGE_INVALID", "请求的素材范围无效");
     }
-    const content = await dependencies.media.openForSignedDelivery(media.id, parsedKind.data, range);
+    const direct = await dependencies.media.createPrivateDownload(
+      mediaAccess.ownerId,
+      media.id,
+      projectId,
+    );
+    if (direct && !download) {
+      context.header("Cache-Control", "private, no-store");
+      return context.redirect(direct.url, 307);
+    }
+    const content = await dependencies.media.open(
+      mediaAccess.ownerId,
+      media.id,
+      range,
+      projectId,
+      context.req.raw.signal,
+    );
+    return mediaContentResponse(content, range !== undefined, download);
+  });
+
+  app.get("/api/v1/provider-media/:mediaId/content", async (context) => {
+    if (!dependencies.media || !dependencies.signedMedia)
+      return errorResponse(context, 404, "NOT_FOUND", "没有找到这个接口");
+    const parsedKind = mediaKindSchema.safeParse(context.req.query("kind"));
+    if (
+      !parsedKind.success ||
+      !dependencies.signedMedia.verify(
+        context.req.param("mediaId"),
+        parsedKind.data,
+        context.req.query("expires"),
+        context.req.query("signature"),
+      )
+    )
+      return errorResponse(context, 404, "MEDIA_NOT_FOUND", "没有找到这个素材");
+    const media = await dependencies.media.getForSignedDelivery(
+      context.req.param("mediaId"),
+      parsedKind.data,
+    );
+    let range: { start: number; end: number } | undefined;
+    try {
+      range = parseByteRange(context.req.header("Range"), media.size);
+    } catch {
+      context.header("Content-Range", `bytes */${media.size}`);
+      return errorResponse(context, 416, "MEDIA_RANGE_INVALID", "请求的素材范围无效");
+    }
+    const content = await dependencies.media.openForSignedDelivery(
+      media.id,
+      parsedKind.data,
+      range,
+    );
     return mediaContentResponse(content, range !== undefined);
   });
 
@@ -2183,33 +2685,34 @@ export function createApiApp(dependencies: ApiDependencies) {
       return errorResponse(context, error.status, error.code, error.message);
     }
     if (error instanceof CloudProjectServiceError) {
-      if (error.currentRevision !== null) context.header("X-Canvas-Current-Revision", String(error.currentRevision));
+      if (error.currentRevision !== null)
+        context.header("X-Canvas-Current-Revision", String(error.currentRevision));
       return errorResponse(context, error.status, error.code, error.message);
     }
     if (error instanceof AgentServiceError) {
       // 余额不足按 402 返回，前端据此提示"积分不足，请充值后重试"。
-      const status: ApiErrorStatus = error.code === "INSUFFICIENT_CREDITS"
-        ? 402
-        : error.code === "PROJECT_CONTEXT_MISMATCH"
-          ? 409
-          : (
-              error.code === "PROJECT_CONTEXT_STALE"
-              || error.code === "PROPOSAL_NOT_AVAILABLE"
-              || error.code === "RUN_STATE_CONFLICT"
-            )
+      const status: ApiErrorStatus =
+        error.code === "INSUFFICIENT_CREDITS"
+          ? 402
+          : error.code === "PROJECT_CONTEXT_MISMATCH"
             ? 409
-            : error.code === "EXECUTION_RECEIPT_INVALID"
-              ? 422
-              : error.code === "MODEL_NOT_AVAILABLE"
+            : error.code === "PROJECT_CONTEXT_STALE" ||
+                error.code === "PROPOSAL_NOT_AVAILABLE" ||
+                error.code === "RUN_STATE_CONFLICT"
+              ? 409
+              : error.code === "EXECUTION_RECEIPT_INVALID"
                 ? 422
-                : error.code === "MODEL_CATALOG_UNAVAILABLE" || error.code === "AGENT_UNAVAILABLE"
-                  ? 503
-                  : 404;
+                : error.code === "MODEL_NOT_AVAILABLE"
+                  ? 422
+                  : error.code === "MODEL_CATALOG_UNAVAILABLE" || error.code === "AGENT_UNAVAILABLE"
+                    ? 503
+                    : 404;
       return errorResponse(context, status, error.code, error.message);
     }
     if (error instanceof MediaServiceError) {
       refreshIdentityCookieFromError(context, identityCookie, error);
-      if (error.status === 401 || error.code === "UNAUTHENTICATED") clearIdentityCookie(context, identityCookie);
+      if (error.status === 401 || error.code === "UNAUTHENTICATED")
+        clearIdentityCookie(context, identityCookie);
       return errorResponse(context, error.status, error.code, error.message);
     }
     if (error instanceof GenerationApiLimitError) {
@@ -2219,15 +2722,18 @@ export function createApiApp(dependencies: ApiDependencies) {
     if (error instanceof GenerationJobServiceError) {
       const status = generationErrorStatus(error.code);
       refreshIdentityCookieFromError(context, identityCookie, error);
-      if (status === 401 || error.code === "UNAUTHENTICATED") clearIdentityCookie(context, identityCookie);
+      if (status === 401 || error.code === "UNAUTHENTICATED")
+        clearIdentityCookie(context, identityCookie);
       return errorResponse(context, status, error.code, error.message);
     }
     if (error instanceof IdentityProviderError) {
-      if (error.retryAfterSeconds !== null) context.header("Retry-After", String(error.retryAfterSeconds));
+      if (error.retryAfterSeconds !== null)
+        context.header("Retry-After", String(error.retryAfterSeconds));
       return errorResponse(context, error.status, error.code, error.message);
     }
     if (error instanceof WalletProviderError) {
-      if (error.retryAfterSeconds !== null) context.header("Retry-After", String(error.retryAfterSeconds));
+      if (error.retryAfterSeconds !== null)
+        context.header("Retry-After", String(error.retryAfterSeconds));
       if (error.refreshedToken && error.expiresAt && error.status !== 401) {
         setIdentityCookie(context, identityCookie, {
           token: error.refreshedToken,
@@ -2237,9 +2743,12 @@ export function createApiApp(dependencies: ApiDependencies) {
       if (error.status === 401) clearIdentityCookie(context, identityCookie);
       return errorResponse(context, error.status, error.code, error.message);
     }
-    if (error instanceof QuoteValidationError) return errorResponse(context, 422, error.code, error.message);
-    if (error instanceof CatalogUnavailableError) return errorResponse(context, 503, error.code, error.message);
-    if (error instanceof ZodError) return errorResponse(context, 400, "INVALID_REQUEST", "请求参数不完整或格式不正确");
+    if (error instanceof QuoteValidationError)
+      return errorResponse(context, 422, error.code, error.message);
+    if (error instanceof CatalogUnavailableError)
+      return errorResponse(context, 503, error.code, error.message);
+    if (error instanceof ZodError)
+      return errorResponse(context, 400, "INVALID_REQUEST", "请求参数不完整或格式不正确");
     const hostedError = hostedGenerationError(error);
     if (hostedError) {
       refreshIdentityCookieFromError(context, identityCookie, error);
@@ -2277,7 +2786,8 @@ function normalizeMusicInputUrl(value: string): URL {
   const trimmed = value.trim();
   const candidate = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`;
   const url = new URL(candidate);
-  if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("protocol not allowed");
+  if (url.protocol !== "http:" && url.protocol !== "https:")
+    throw new Error("protocol not allowed");
   return url;
 }
 
@@ -2293,7 +2803,10 @@ function detectMusicSource(url: URL): MusicLinkSource {
  * 手动跟随重定向的守卫式抓取：每一跳重新过 SSRF 守卫（redirect:"follow"
  * 只校验初始 URL，302 到 169.254.169.254 的绕过就发生在这）。
  */
-async function musicGuardedFetch(url: string, init: { accept: string; signal: AbortSignal; range?: string }) {
+async function musicGuardedFetch(
+  url: string,
+  init: { accept: string; signal: AbortSignal; range?: string },
+) {
   let current = url;
   for (let hop = 0; hop <= MEDIA_PROXY_MAX_REDIRECT_HOPS; hop += 1) {
     const blocked = await isBlockedTargetUrl(current);
@@ -2328,7 +2841,8 @@ async function musicGuardedFetch(url: string, init: { accept: string; signal: Ab
 /** 音频魔数（WAV/FLAC/MP3/AAC/Ogg/MP4-M4A）；MP4 容器音频视频共用，由声明类型把关。 */
 function sniffAudioBytes(bytes: Uint8Array): boolean {
   if (bytes.length < 12) return false;
-  const asciiAt = (offset: number, length: number) => String.fromCharCode(...bytes.slice(offset, offset + length));
+  const asciiAt = (offset: number, length: number) =>
+    String.fromCharCode(...bytes.slice(offset, offset + length));
   if (asciiAt(0, 4) === "RIFF" && asciiAt(8, 4) === "WAVE") return true;
   if (asciiAt(0, 4) === "fLaC") return true;
   if (asciiAt(0, 3) === "ID3") return true;
@@ -2357,18 +2871,24 @@ function concatBytes(chunks: Uint8Array[]): Uint8Array {
  * 不为探测拉完整文件。过小文件（平台的“版权保护”提示音等占位）判不可用。
  */
 async function probeMusicAudio(url: string, signal: AbortSignal) {
-  const response = await musicGuardedFetch(url, { accept: "audio/*,*/*;q=0.5", signal, range: "bytes=0-1023" });
+  const response = await musicGuardedFetch(url, {
+    accept: "audio/*,*/*;q=0.5",
+    signal,
+    range: "bytes=0-1023",
+  });
   if (!response.ok && response.status !== 206) return false;
-  const declaredType = (response.headers.get("content-type") || "").split(";")[0]?.trim().toLowerCase() ?? "";
+  const declaredType =
+    (response.headers.get("content-type") || "").split(";")[0]?.trim().toLowerCase() ?? "";
   let audioExtension = false;
   try {
     audioExtension = MUSIC_AUDIO_URL_PATTERN.test(new URL(url).pathname);
   } catch {
     audioExtension = false;
   }
-  const declaredAudio = declaredType.startsWith("audio/")
-    || declaredType === "application/ogg"
-    || (declaredType === "application/octet-stream" && audioExtension);
+  const declaredAudio =
+    declaredType.startsWith("audio/") ||
+    declaredType === "application/ogg" ||
+    (declaredType === "application/octet-stream" && audioExtension);
   if (!declaredAudio) {
     await response.body?.cancel().catch(() => undefined);
     return false;
@@ -2388,7 +2908,8 @@ async function probeMusicAudio(url: string, signal: AbortSignal) {
   // 占位提示音检查看的是完整文件大小：Range 响应的 Content-Length 是分片
   // 大小（如 1024），完整大小在 Content-Range 的 “/total” 里。
   const contentRangeTotal = Number(response.headers.get("content-range")?.split("/")[1] || 0);
-  const fullLength = contentRangeTotal > 0 ? contentRangeTotal : Number(response.headers.get("content-length") || 0);
+  const fullLength =
+    contentRangeTotal > 0 ? contentRangeTotal : Number(response.headers.get("content-length") || 0);
   if (fullLength > 0 && fullLength < 8_192) return false;
   return true;
 }
@@ -2402,18 +2923,22 @@ function neteaseSongId(url: URL): string | null {
 
 function decodeHtmlEntities(value: string) {
   return value
-    .replace(/&#x([0-9a-f]+);/gi, (_match, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
+    .replace(/&#x([0-9a-f]+);/gi, (_match, hex: string) =>
+      String.fromCodePoint(Number.parseInt(hex, 16)),
+    )
     .replace(/&#(\d+);/g, (_match, dec: string) => String.fromCodePoint(Number.parseInt(dec, 10)))
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, "\"")
+    .replace(/&quot;/g, '"')
     .replace(/&(?:apos|#39);/g, "'");
 }
 
 function readMetaTag(html: string, key: string): string {
   for (const tag of html.match(/<meta\b[^>]*>/gi) ?? []) {
-    const property = tag.match(/\b(?:property|name|itemprop)=["']([^"']*)["']/i)?.[1]?.toLowerCase();
+    const property = tag
+      .match(/\b(?:property|name|itemprop)=["']([^"']*)["']/i)?.[1]
+      ?.toLowerCase();
     if (property !== key.toLowerCase()) continue;
     const content = tag.match(/\bcontent=["']([^"']*)["']/i)?.[1] ?? "";
     if (content.trim()) return decodeHtmlEntities(content).trim();
@@ -2422,17 +2947,23 @@ function readMetaTag(html: string, key: string): string {
 }
 
 // 平台页标题的尾部后缀（「- 单曲 - 网易云音乐」「- QQ音乐-千万正版…」等）。
-const MUSIC_TITLE_TAIL_PATTERN = /^(单曲|歌曲|专辑|歌单|电台|主播|声音|网易云音乐|qq音乐|汽水音乐|抖音|音乐|高品?质|无损|hi-?res|flac|mp3|.*千万正版音乐.*|.*海量无损曲库.*|.*音乐平台.*|.*music.*)$/i;
+const MUSIC_TITLE_TAIL_PATTERN =
+  /^(单曲|歌曲|专辑|歌单|电台|主播|声音|网易云音乐|qq音乐|汽水音乐|抖音|音乐|高品?质|无损|hi-?res|flac|mp3|.*千万正版音乐.*|.*海量无损曲库.*|.*音乐平台.*|.*music.*)$/i;
 
 /** 从分享页 HTML 提取标题/歌手/封面；各平台 og 标签或 <title> 尽力而为。 */
 function parseMusicPageMeta(html: string): { title: string; artist: string; cover: string | null } {
-  const rawTitle = readMetaTag(html, "og:title")
-    || readMetaTag(html, "title")
-    || decodeHtmlEntities(html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1] ?? "").trim();
+  const rawTitle =
+    readMetaTag(html, "og:title") ||
+    readMetaTag(html, "title") ||
+    decodeHtmlEntities(html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1] ?? "").trim();
   const cover = readMetaTag(html, "og:image") || readMetaTag(html, "twitter:image") || null;
   let artist = readMetaTag(html, "og:music:artist") || readMetaTag(html, "author");
-  const parts = rawTitle.split(/\s+[-–—]\s+/).map((part) => part.trim()).filter(Boolean);
-  while (parts.length > 1 && MUSIC_TITLE_TAIL_PATTERN.test(parts[parts.length - 1] ?? "")) parts.pop();
+  const parts = rawTitle
+    .split(/\s+[-–—]\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  while (parts.length > 1 && MUSIC_TITLE_TAIL_PATTERN.test(parts[parts.length - 1] ?? ""))
+    parts.pop();
   let title = parts[0] ?? "";
   if (!artist && parts.length >= 2) artist = parts[1] ?? "";
   return {
@@ -2443,7 +2974,10 @@ function parseMusicPageMeta(html: string): { title: string; artist: string; cove
 }
 
 async function fetchMusicPageMeta(url: string, signal: AbortSignal) {
-  const response = await musicGuardedFetch(url, { accept: "text/html,application/xhtml+xml", signal });
+  const response = await musicGuardedFetch(url, {
+    accept: "text/html,application/xhtml+xml",
+    signal,
+  });
   if (!response.ok) return null;
   const reader = response.body?.getReader();
   if (!reader) return null;
@@ -2488,7 +3022,11 @@ function musicResolveData(input: {
   };
 }
 
-async function resolveMusicLink(input: { target: URL; source: MusicLinkSource; signal: AbortSignal }): Promise<MusicLinkResolveData> {
+async function resolveMusicLink(input: {
+  target: URL;
+  source: MusicLinkSource;
+  signal: AbortSignal;
+}): Promise<MusicLinkResolveData> {
   const pageUrl = input.target.toString().slice(0, 2_048);
   if (input.source === "netease") {
     const songId = neteaseSongId(input.target);
@@ -2563,14 +3101,17 @@ function generationErrorStatus(code: string): ApiErrorStatus {
   if (code === "JOB_NOT_FOUND" || code === "REFERENCE_NOT_FOUND") return 404;
   if (code === "INSUFFICIENT_CREDITS") return 402;
   if (["QUOTE_CHANGED", "ACTIVE_JOB_LIMIT", "JOB_CONFLICT"].includes(code)) return 409;
-  if ([
-    "MODEL_CATALOG_UNAVAILABLE",
-    "REFERENCE_VALIDATION_UNAVAILABLE",
-    "GENERATION_PROVIDER_UNAVAILABLE",
-    "GENERATION_INVALID_RESPONSE",
-    "RESULT_DOWNLOAD_FAILED",
-    "RESULT_DOWNLOAD_UNAVAILABLE",
-  ].includes(code)) return 503;
+  if (
+    [
+      "MODEL_CATALOG_UNAVAILABLE",
+      "REFERENCE_VALIDATION_UNAVAILABLE",
+      "GENERATION_PROVIDER_UNAVAILABLE",
+      "GENERATION_INVALID_RESPONSE",
+      "RESULT_DOWNLOAD_FAILED",
+      "RESULT_DOWNLOAD_UNAVAILABLE",
+    ].includes(code)
+  )
+    return 503;
   return 422;
 }
 
@@ -2592,10 +3133,20 @@ function identityRequestErrorResponse(
   if (!(error instanceof ZodError)) return null;
   const field = error.issues[0]?.path[0];
   if (field === "email") {
-    return errorResponse(context, 400, "INVALID_REQUEST", "邮箱地址格式不正确，请填写完整邮箱（例如 name@example.com）");
+    return errorResponse(
+      context,
+      400,
+      "INVALID_REQUEST",
+      "邮箱地址格式不正确，请填写完整邮箱（例如 name@example.com）",
+    );
   }
   if (field === "password") {
-    return errorResponse(context, 400, "INVALID_REQUEST", mode === "register" ? "密码需为 10-128 位" : "请输入密码");
+    return errorResponse(
+      context,
+      400,
+      "INVALID_REQUEST",
+      mode === "register" ? "密码需为 10-128 位" : "请输入密码",
+    );
   }
   if (field === "displayName") {
     return errorResponse(context, 400, "INVALID_REQUEST", "昵称需为 1-48 个字符");
@@ -2611,20 +3162,26 @@ function connectorUnavailable(context: Context) {
   return errorResponse(context, 503, "CONNECTORS_UNAVAILABLE", "本机连接服务暂未配置");
 }
 
-const connectorConnectRequestSchema = z.object({
-  /** Blender 接入时是否顺手把 Blender 启动起来。 */
-  launch: z.boolean().optional(),
-}).strict();
+const connectorConnectRequestSchema = z
+  .object({
+    /** Blender 接入时是否顺手把 Blender 启动起来。 */
+    launch: z.boolean().optional(),
+  })
+  .strict();
 
-const connectorPairingRequestSchema = z.object({
-  connectorId: agentConnectorIdSchema,
-}).strict();
+const connectorPairingRequestSchema = z
+  .object({
+    connectorId: agentConnectorIdSchema,
+  })
+  .strict();
 
 /** 运行时 → API：把一段 Python 派发到用户自己机器上的 Blender。 */
-const blenderDispatchRequestSchema = z.object({
-  ownerId: z.string().trim().min(1).max(128),
-  code: z.string().trim().min(1).max(20_000),
-}).strict();
+const blenderDispatchRequestSchema = z
+  .object({
+    ownerId: z.string().trim().min(1).max(128),
+    code: z.string().trim().min(1).max(20_000),
+  })
+  .strict();
 
 /** 定长比较，避免用字符串相等泄漏令牌。 */
 function constantTimeEquals(left: string, right: string) {
@@ -2645,11 +3202,12 @@ function readBearerToken(header: string | undefined) {
 
 function connectorFailure(context: Context, error: unknown) {
   if (error instanceof AgentExecutionError) {
-    const status: ApiErrorStatus = error.code === "CONNECTOR_RUNTIME_UNAVAILABLE"
-      ? 503
-      : error.code === "CONNECTOR_INVALID_RESPONSE"
+    const status: ApiErrorStatus =
+      error.code === "CONNECTOR_RUNTIME_UNAVAILABLE"
         ? 503
-        : 422;
+        : error.code === "CONNECTOR_INVALID_RESPONSE"
+          ? 503
+          : 422;
     return errorResponse(context, status, error.code, error.message);
   }
   return errorResponse(context, 503, "CONNECTORS_UNAVAILABLE", "本机连接服务暂时不可用");
@@ -2733,11 +3291,21 @@ function mediaProjectUrl(value: string, projectId?: string) {
 }
 
 function cloudProjectsUnavailable(context: Context) {
-  return errorResponse(context, 503, "CLOUD_PROJECTS_UNAVAILABLE", "Cloud project storage is not configured");
+  return errorResponse(
+    context,
+    503,
+    "CLOUD_PROJECTS_UNAVAILABLE",
+    "Cloud project storage is not configured",
+  );
 }
 
 function collaborationUnavailable(context: Context) {
-  return errorResponse(context, 503, "COLLABORATION_UNAVAILABLE", "Project collaboration is not configured");
+  return errorResponse(
+    context,
+    503,
+    "COLLABORATION_UNAVAILABLE",
+    "Project collaboration is not configured",
+  );
 }
 
 function generationUnavailable(context: Context, message?: string) {
@@ -2754,9 +3322,11 @@ function setCloudProjectEtag(context: Context, projectId: string, revision: numb
 
 function optionalQueryInteger(context: Context, value: string | undefined, fallback: number) {
   if (value === undefined) return fallback;
-  if (!/^\d+$/.test(value)) return errorResponse(context, 400, "INVALID_LIMIT", "任务数量范围不正确");
+  if (!/^\d+$/.test(value))
+    return errorResponse(context, 400, "INVALID_LIMIT", "任务数量范围不正确");
   const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed)) return errorResponse(context, 400, "INVALID_LIMIT", "任务数量范围不正确");
+  if (!Number.isSafeInteger(parsed))
+    return errorResponse(context, 400, "INVALID_LIMIT", "任务数量范围不正确");
   return parsed;
 }
 
@@ -2799,30 +3369,15 @@ async function resolveAgentAccess(
     return { agent: dependencies.agent, ownerId: session.user.id, anonymous: false };
   }
   if (session && dependencies.anonymousAgent) {
-    return { agent: dependencies.anonymousAgent, ownerId: `account:${session.user.id}`, anonymous: false };
+    return {
+      agent: dependencies.anonymousAgent,
+      ownerId: `account:${session.user.id}`,
+      anonymous: false,
+    };
   }
   // Agent 是付费能力：必须有登录会话，游客一律 401（不再签发匿名访客身份）。
   if (!dependencies.identity) return identityUnavailable(context);
   return errorResponse(context, 401, "UNAUTHENTICATED", "请先登录");
-}
-
-function anonymousAgentOwnerId(token: string) {
-  return `guest:${createHash("sha256").update(token, "utf8").digest("base64url")}`;
-}
-
-function setAnonymousAgentCookie(
-  context: Context,
-  cookie: NonNullable<ApiDependencies["anonymousAgentCookie"]>,
-  token: string,
-) {
-  setCookie(context, cookie.name, token, {
-    httpOnly: true,
-    secure: cookie.secure,
-    sameSite: "Strict",
-    path: "/",
-    maxAge: 7 * 24 * 60 * 60,
-    priority: "High",
-  });
 }
 
 function anonymousAgentRateLimited(context: Context, retryAfterSeconds: number) {
@@ -2840,13 +3395,18 @@ class AnonymousAgentGuard {
   private readonly globalSubmissionsPerMinute: number;
   private readonly globalSubmissionsPerDay: number;
   private readonly globalReadsPerMinute: number;
-  private readonly buckets = new Map<string, { startedAt: number; count: number; durationMs: number }>();
+  private readonly buckets = new Map<
+    string,
+    { startedAt: number; count: number; durationMs: number }
+  >();
 
-  constructor(options: ApiDependencies["anonymousAgentLimits"] = {
-    conversationsPerMinute: 8,
-    submissionsPerMinute: 6,
-    submissionsPerDay: 60,
-  }) {
+  constructor(
+    options: ApiDependencies["anonymousAgentLimits"] = {
+      conversationsPerMinute: 8,
+      submissionsPerMinute: 6,
+      submissionsPerDay: 60,
+    },
+  ) {
     this.now = options?.now ?? Date.now;
     this.conversationsPerMinute = positiveLimit(options?.conversationsPerMinute, 8);
     this.submissionsPerMinute = positiveLimit(options?.submissionsPerMinute, 6);
@@ -2859,20 +3419,26 @@ class AnonymousAgentGuard {
   }
 
   consumeConversation(ownerId: string) {
-    return this.consume("global:conversation-minute", this.globalConversationsPerMinute, 60_000)
-      ?? this.consume(`${ownerId}:conversation`, this.conversationsPerMinute, 60_000);
+    return (
+      this.consume("global:conversation-minute", this.globalConversationsPerMinute, 60_000) ??
+      this.consume(`${ownerId}:conversation`, this.conversationsPerMinute, 60_000)
+    );
   }
 
   consumeSubmission(ownerId: string) {
-    return this.consume("global:submit-minute", this.globalSubmissionsPerMinute, 60_000)
-      ?? this.consume("global:submit-day", this.globalSubmissionsPerDay, 24 * 60 * 60_000)
-      ?? this.consume(`${ownerId}:submit-minute`, this.submissionsPerMinute, 60_000)
-      ?? this.consume(`${ownerId}:submit-day`, this.submissionsPerDay, 24 * 60 * 60_000);
+    return (
+      this.consume("global:submit-minute", this.globalSubmissionsPerMinute, 60_000) ??
+      this.consume("global:submit-day", this.globalSubmissionsPerDay, 24 * 60 * 60_000) ??
+      this.consume(`${ownerId}:submit-minute`, this.submissionsPerMinute, 60_000) ??
+      this.consume(`${ownerId}:submit-day`, this.submissionsPerDay, 24 * 60 * 60_000)
+    );
   }
 
   consumeRead(ownerId: string) {
-    return this.consume("global:read-minute", this.globalReadsPerMinute, 60_000)
-      ?? this.consume(`${ownerId}:read-minute`, this.readsPerMinute, 60_000);
+    return (
+      this.consume("global:read-minute", this.globalReadsPerMinute, 60_000) ??
+      this.consume(`${ownerId}:read-minute`, this.readsPerMinute, 60_000)
+    );
   }
 
   private consume(key: string, limit: number, durationMs: number) {
@@ -2883,7 +3449,8 @@ class AnonymousAgentGuard {
       this.prune(now);
       return null;
     }
-    if (bucket.count >= limit) return Math.max(1, Math.ceil((durationMs - (now - bucket.startedAt)) / 1_000));
+    if (bucket.count >= limit)
+      return Math.max(1, Math.ceil((durationMs - (now - bucket.startedAt)) / 1_000));
     bucket.count += 1;
     return null;
   }
@@ -2911,7 +3478,10 @@ function positiveLimit(value: number | undefined, fallback: number) {
  * 需要跨实例一致时应换成 PostgresFixedWindowRateLimiter。
  */
 class SensitiveActionGuard {
-  private readonly buckets = new Map<string, { startedAt: number; count: number; durationMs: number }>();
+  private readonly buckets = new Map<
+    string,
+    { startedAt: number; count: number; durationMs: number }
+  >();
 
   constructor(private readonly now: () => number = Date.now) {}
 
@@ -2998,9 +3568,11 @@ async function readJsonBody(context: Context) {
   }
   const declaredLength = context.req.header("Content-Length");
   if (declaredLength !== undefined) {
-    if (!/^\d+$/.test(declaredLength)) return errorResponse(context, 400, "CONTENT_LENGTH_INVALID", "请求大小信息无效");
+    if (!/^\d+$/.test(declaredLength))
+      return errorResponse(context, 400, "CONTENT_LENGTH_INVALID", "请求大小信息无效");
     const parsed = Number(declaredLength);
-    if (!Number.isSafeInteger(parsed)) return errorResponse(context, 400, "CONTENT_LENGTH_INVALID", "请求大小信息无效");
+    if (!Number.isSafeInteger(parsed))
+      return errorResponse(context, 400, "CONTENT_LENGTH_INVALID", "请求大小信息无效");
     if (parsed > 1024 * 1024) return errorResponse(context, 413, "JSON_TOO_LARGE", "请求内容过大");
   }
   const body = context.req.raw.body;
@@ -3019,7 +3591,10 @@ async function readJsonBody(context: Context) {
       }
       chunks.push(value);
     }
-    const bytes = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)), size);
+    const bytes = Buffer.concat(
+      chunks.map((chunk) => Buffer.from(chunk)),
+      size,
+    );
     const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     return JSON.parse(text) as unknown;
   } catch {
@@ -3071,7 +3646,12 @@ function refreshIdentityCookieFromError(
   error: unknown,
 ) {
   if (!error || typeof error !== "object" || Array.isArray(error)) return;
-  const value = error as { refreshedToken?: unknown; expiresAt?: unknown; status?: unknown; code?: unknown };
+  const value = error as {
+    refreshedToken?: unknown;
+    expiresAt?: unknown;
+    status?: unknown;
+    code?: unknown;
+  };
   if (value.status === 401 || value.code === "UNAUTHENTICATED") return;
   if (typeof value.refreshedToken !== "string" || typeof value.expiresAt !== "string") return;
   refreshIdentityCookie(context, cookie, {
@@ -3080,27 +3660,30 @@ function refreshIdentityCookieFromError(
   });
 }
 
-function hostedGenerationError(error: unknown): { status: ApiErrorStatus; code: string; message: string } | null {
+function hostedGenerationError(
+  error: unknown,
+): { status: ApiErrorStatus; code: string; message: string } | null {
   if (!(error instanceof Error) || error.name !== "PromptHubRequestError") return null;
   const value = error as Error & { code?: unknown };
   if (typeof value.code !== "string" || !value.code.trim()) return null;
   const code = value.code.trim().slice(0, 80);
-  const status: ApiErrorStatus = code === "UNAUTHENTICATED"
-    ? 401
-    : code === "GENERATION_RATE_LIMITED"
-      ? 429
-      : code === "INSUFFICIENT_CREDITS"
-        ? 402
-        : code === "GENERATION_PROVIDER_UNAVAILABLE" || code === "GENERATION_INVALID_RESPONSE"
-      ? 503
-        : 422;
+  const status: ApiErrorStatus =
+    code === "UNAUTHENTICATED"
+      ? 401
+      : code === "GENERATION_RATE_LIMITED"
+        ? 429
+        : code === "INSUFFICIENT_CREDITS"
+          ? 402
+          : code === "GENERATION_PROVIDER_UNAVAILABLE" || code === "GENERATION_INVALID_RESPONSE"
+            ? 503
+            : 422;
   return { status, code, message: error.message.slice(0, 240) || "生成请求没有完成" };
 }
 
 function unwrapGenerationResult<T>(result: T | HostedGenerationResult<T>): T {
   return result && typeof result === "object" && !Array.isArray(result) && "data" in result
     ? (result as HostedGenerationResult<T>).data
-    : result as T;
+    : (result as T);
 }
 
 function generationRefresh(result: unknown) {
@@ -3146,14 +3729,23 @@ type ModelOverrideAdminRow = {
   zone: "stable" | "promo" | null;
 };
 
-export function modelOverrideAdminRows(models: readonly PublicModel[], overrides: ModelOverrides): ModelOverrideAdminRow[] {
+export function modelOverrideAdminRows(
+  models: readonly PublicModel[],
+  overrides: ModelOverrides,
+): ModelOverrideAdminRow[] {
   return models.map((model) => {
     const override = overrides.models[model.id];
-    const resolutionParameter = model.parameters.find((parameter) => parameter.name === "resolution");
+    const resolutionParameter = model.parameters.find(
+      (parameter) => parameter.name === "resolution",
+    );
     const resolutions = resolutionParameter
       ? Array.isArray(resolutionParameter.options)
-        ? resolutionParameter.options.filter((option): option is string => typeof option === "string")
-        : typeof resolutionParameter.fixed === "string" ? [resolutionParameter.fixed] : []
+        ? resolutionParameter.options.filter(
+            (option): option is string => typeof option === "string",
+          )
+        : typeof resolutionParameter.fixed === "string"
+          ? [resolutionParameter.fixed]
+          : []
       : [];
     return {
       id: model.id,
@@ -3163,13 +3755,18 @@ export function modelOverrideAdminRows(models: readonly PublicModel[], overrides
       unit: model.pricing.unit,
       pricingMode: model.pricing.mode,
       creditsPerYuan: model.pricing.creditsPerYuan,
-      baseYuan: model.pricing.baseYuanMicros !== undefined ? model.pricing.baseYuanMicros / 1_000_000 : null,
-      inputYuanPerMillion: model.pricing.inputYuanMicrosPerMillion !== undefined
-        ? model.pricing.inputYuanMicrosPerMillion / 1_000_000
-        : null,
-      outputYuanPerMillion: model.pricing.outputYuanMicrosPerMillion !== undefined
-        ? model.pricing.outputYuanMicrosPerMillion / 1_000_000
-        : null,
+      baseYuan:
+        model.pricing.baseYuanMicros !== undefined
+          ? model.pricing.baseYuanMicros / 1_000_000
+          : null,
+      inputYuanPerMillion:
+        model.pricing.inputYuanMicrosPerMillion !== undefined
+          ? model.pricing.inputYuanMicrosPerMillion / 1_000_000
+          : null,
+      outputYuanPerMillion:
+        model.pricing.outputYuanMicrosPerMillion !== undefined
+          ? model.pricing.outputYuanMicrosPerMillion / 1_000_000
+          : null,
       resolutions,
       listed: model.listed !== false,
       hidden: override?.hidden === true,
@@ -3433,15 +4030,20 @@ function hostedMediaResponse(upstream: Response) {
 }
 
 function identityCapabilities(identity: IdentityProvider | undefined) {
-  return identity?.capabilities ?? {
-    available: false,
-    registration: "disabled" as const,
-    registrationUrl: null,
-    passwordResetUrl: null,
-  };
+  return (
+    identity?.capabilities ?? {
+      available: false,
+      registration: "disabled" as const,
+      registrationUrl: null,
+      passwordResetUrl: null,
+    }
+  );
 }
 
-function clearIdentityCookie(context: Context, cookie: NonNullable<ApiDependencies["identityCookie"]>) {
+function clearIdentityCookie(
+  context: Context,
+  cookie: NonNullable<ApiDependencies["identityCookie"]>,
+) {
   deleteCookie(context, cookie.name, {
     secure: cookie.secure,
     sameSite: "Strict",
@@ -3463,9 +4065,11 @@ function isTrustedBrowserRequest(request: Request, allowedOrigins: readonly stri
 
 function readContentLength(value: string | undefined) {
   if (value === undefined) return null;
-  if (!/^\d+$/.test(value)) throw new MediaServiceError("MEDIA_SIZE_INVALID", "上传内容大小无效", 400);
+  if (!/^\d+$/.test(value))
+    throw new MediaServiceError("MEDIA_SIZE_INVALID", "上传内容大小无效", 400);
   const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed < 0) throw new MediaServiceError("MEDIA_SIZE_INVALID", "上传内容大小无效", 400);
+  if (!Number.isSafeInteger(parsed) || parsed < 0)
+    throw new MediaServiceError("MEDIA_SIZE_INVALID", "上传内容大小无效", 400);
   return parsed;
 }
 
@@ -3480,7 +4084,13 @@ function parseByteRange(value: string | undefined, size: number) {
   }
   const start = Number(match[1]);
   const requestedEnd = match[2] ? Number(match[2]) : size - 1;
-  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(requestedEnd) || start < 0 || start >= size || requestedEnd < start) {
+  if (
+    !Number.isSafeInteger(start) ||
+    !Number.isSafeInteger(requestedEnd) ||
+    start < 0 ||
+    start >= size ||
+    requestedEnd < start
+  ) {
     throw new RangeError("Invalid byte range");
   }
   return { start, end: Math.min(requestedEnd, size - 1) };
@@ -3499,7 +4109,8 @@ function mediaContentResponse(
     "Content-Type": content.media.mimeType,
     "X-Content-Type-Options": "nosniff",
   });
-  if (partial) headers.set("Content-Range", `bytes ${object.start}-${object.end}/${object.totalSize}`);
+  if (partial)
+    headers.set("Content-Range", `bytes ${object.start}-${object.end}/${object.totalSize}`);
   if (download) headers.set("Content-Disposition", downloadContentDisposition(content.media.name));
   return new Response(Readable.toWeb(object.stream) as ReadableStream<Uint8Array>, {
     status: partial ? 206 : 200,

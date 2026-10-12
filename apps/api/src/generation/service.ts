@@ -8,7 +8,7 @@ import {
   type GenerationJobSubmission,
   type GenerationQuote,
   type PublicGenerationJob,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 
 import { transitionGenerationJob } from "./job-state.js";
 import type { ResolvedGenerationRoute } from "../catalog/execution-route.js";
@@ -41,8 +41,7 @@ type ExecutionRouteProvider = {
 };
 
 export type GenerationInputAuthorizationResult =
-  | { ok: true }
-  | { ok: false; code: string; message: string };
+  { ok: true } | { ok: false; code: string; message: string };
 
 export interface GenerationInputAuthorizer {
   authorize(
@@ -53,7 +52,11 @@ export interface GenerationInputAuthorizer {
 }
 
 export class GenerationJobServiceError extends Error {
-  constructor(readonly code: string, message: string, readonly currentQuote?: GenerationQuote) {
+  constructor(
+    readonly code: string,
+    message: string,
+    readonly currentQuote?: GenerationQuote,
+  ) {
     super(message);
     this.name = "GenerationJobServiceError";
   }
@@ -88,17 +91,26 @@ export class GenerationJobService {
     const existing = await this.store.findByIdempotency(ownerId, submission.idempotencyKey);
     if (existing) return toPublicGenerationJob(existing);
 
-    const referenceCount = submission.inputs.images.length
-      + submission.inputs.styleImages.length
-      + submission.inputs.elementImages.length
-      + submission.inputs.videos.length
-      + submission.inputs.audios.length;
+    const referenceCount =
+      submission.inputs.images.length +
+      submission.inputs.styleImages.length +
+      submission.inputs.elementImages.length +
+      submission.inputs.videos.length +
+      submission.inputs.audios.length;
     if (referenceCount > 0) {
       if (!this.options.inputAuthorizer) {
-        throw new GenerationJobServiceError("REFERENCE_VALIDATION_UNAVAILABLE", "参考素材暂时无法校验");
+        throw new GenerationJobServiceError(
+          "REFERENCE_VALIDATION_UNAVAILABLE",
+          "参考素材暂时无法校验",
+        );
       }
-      const authorization = await this.options.inputAuthorizer.authorize(ownerId, submission.projectId, submission.inputs);
-      if (!authorization.ok) throw new GenerationJobServiceError(authorization.code, authorization.message);
+      const authorization = await this.options.inputAuthorizer.authorize(
+        ownerId,
+        submission.projectId,
+        submission.inputs,
+      );
+      if (!authorization.ok)
+        throw new GenerationJobServiceError(authorization.code, authorization.message);
     }
 
     const quote = await this.quotes.createQuote(toQuoteRequest(submission));
@@ -108,7 +120,14 @@ export class GenerationJobService {
     assertExpectedQuote(submission, quote, this.now());
     const resolvedRoute = await this.routes.getExecutionRoute(quote.modelId);
     assertExecutionRoute(quote, resolvedRoute);
-    const job = createReservedJob(ownerId, submission, quote, resolvedRoute!, this.createId(), this.now());
+    const job = createReservedJob(
+      ownerId,
+      submission,
+      quote,
+      resolvedRoute!,
+      this.createId(),
+      this.now(),
+    );
     const created = await this.store.createWithReservation(job, quote.creditMicros, {
       maxActiveJobs: this.maxActiveJobs,
     });
@@ -123,7 +142,8 @@ export class GenerationJobService {
 
   async get(ownerId: string, jobId: string) {
     const job = await this.store.getById(jobId);
-    if (!job || job.ownerId !== ownerId) throw new GenerationJobServiceError("JOB_NOT_FOUND", "没有找到这个生成任务");
+    if (!job || job.ownerId !== ownerId)
+      throw new GenerationJobServiceError("JOB_NOT_FOUND", "没有找到这个生成任务");
     return toPublicGenerationJob(job);
   }
 
@@ -151,10 +171,12 @@ export class GenerationJobService {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
       throw new GenerationJobServiceError("INVALID_LIMIT", "任务数量范围不正确");
     }
-    return (await this.store.listByOwner(ownerId, {
-      ...(projectId ? { projectId } : {}),
-      limit,
-    })).map(toPublicGenerationJob);
+    return (
+      await this.store.listByOwner(ownerId, {
+        ...(projectId ? { projectId } : {}),
+        limit,
+      })
+    ).map(toPublicGenerationJob);
   }
 }
 
@@ -180,7 +202,9 @@ export class GenerationJobProcessor {
     this.now = options.now ?? Date.now;
     this.submissionTimeoutMs = options.submissionTimeoutMs ?? 2 * 60_000;
     this.imageLifetimeMs = options.imageLifetimeMs ?? IMAGE_GENERATION_MAX_LIFETIME_MS;
-    this.onCleanupError = options.onCleanupError ?? ((error) => console.error("Generation result cleanup failed", error));
+    this.onCleanupError =
+      options.onCleanupError ??
+      ((error) => console.error("Generation result cleanup failed", error));
   }
 
   async process(jobId: string): Promise<GenerationJobRecord> {
@@ -220,9 +244,13 @@ export class GenerationJobProcessor {
   }
 
   private async poll(job: GenerationJobRecord) {
-    if (!job.providerTaskId) return this.fail(job, "PROVIDER_TASK_MISSING", "生成任务缺少恢复标识", false);
+    if (!job.providerTaskId)
+      return this.fail(job, "PROVIDER_TASK_MISSING", "生成任务缺少恢复标识", false);
     try {
-      return await this.applyProviderState(job, await this.provider.poll(job.providerTaskId, providerRequest(job)));
+      return await this.applyProviderState(
+        job,
+        await this.provider.poll(job.providerTaskId, providerRequest(job)),
+      );
     } catch (error) {
       if (error instanceof GenerationProviderError && error.outcome === "rejected") {
         return this.fail(job, error.code, error.message, false);
@@ -231,21 +259,41 @@ export class GenerationJobProcessor {
     }
   }
 
-  private async applyProviderState(job: GenerationJobRecord, state: ProviderExecutionState): Promise<GenerationJobRecord> {
-    if (state.kind === "queued") return this.save(job, { type: "provider_queued", taskId: state.taskId, progress: state.progress });
-    if (state.kind === "running") return this.save(job, { type: "provider_running", taskId: state.taskId, progress: state.progress });
-    if (state.kind === "failed") return this.fail(job, state.code, state.message, state.retryable ?? false);
-    const validating = await this.save(job, { type: "provider_output", resultRef: state.resultRef, taskId: state.taskId });
+  private async applyProviderState(
+    job: GenerationJobRecord,
+    state: ProviderExecutionState,
+  ): Promise<GenerationJobRecord> {
+    if (state.kind === "queued")
+      return this.save(job, {
+        type: "provider_queued",
+        taskId: state.taskId,
+        progress: state.progress,
+      });
+    if (state.kind === "running")
+      return this.save(job, {
+        type: "provider_running",
+        taskId: state.taskId,
+        progress: state.progress,
+      });
+    if (state.kind === "failed")
+      return this.fail(job, state.code, state.message, state.retryable ?? false);
+    const validating = await this.save(job, {
+      type: "provider_output",
+      resultRef: state.resultRef,
+      taskId: state.taskId,
+    });
     return this.validate(validating);
   }
 
   private async validate(job: GenerationJobRecord) {
-    if (!job.providerResultRef) return this.fail(job, "RESULT_REFERENCE_MISSING", "生成结果缺少校验引用", false);
+    if (!job.providerResultRef)
+      return this.fail(job, "RESULT_REFERENCE_MISSING", "生成结果缺少校验引用", false);
     let persisted: Awaited<ReturnType<GenerationArtifactStore["persist"]>>;
     try {
       persisted = await this.artifacts.persist(job, job.providerResultRef);
     } catch (error) {
-      if (error instanceof GenerationArtifactError) return this.fail(job, error.code, error.message, false);
+      if (error instanceof GenerationArtifactError)
+        return this.fail(job, error.code, error.message, false);
       throw error;
     }
     if (!persisted.artifacts.length) {
@@ -254,29 +302,47 @@ export class GenerationJobProcessor {
     if (persisted.artifacts.some((artifact) => artifact.kind !== job.modality)) {
       return this.fail(job, "RESULT_TYPE_MISMATCH", "生成结果类型与当前节点不一致", false);
     }
-    const captureCreditMicros = persisted.captureCreditMicros ?? (job.quote.estimated ? undefined : job.quote.creditMicros);
-    if (captureCreditMicros === undefined
-      || !Number.isSafeInteger(captureCreditMicros)
-      || captureCreditMicros < 0
-      || captureCreditMicros > job.quote.creditMicros) {
+    const captureCreditMicros =
+      persisted.captureCreditMicros ?? (job.quote.estimated ? undefined : job.quote.creditMicros);
+    if (
+      captureCreditMicros === undefined ||
+      !Number.isSafeInteger(captureCreditMicros) ||
+      captureCreditMicros < 0 ||
+      captureCreditMicros > job.quote.creditMicros
+    ) {
       return this.fail(job, "SETTLEMENT_AMOUNT_INVALID", "本次生成暂时无法完成结算", false);
     }
-    const completed = transitionGenerationJob(job, { type: "validation_completed", artifacts: persisted.artifacts }, this.now());
-    const saved = await this.store.completeWithCapture(completed, job.revision, captureCreditMicros);
+    const completed = transitionGenerationJob(
+      job,
+      { type: "validation_completed", artifacts: persisted.artifacts },
+      this.now(),
+    );
+    const saved = await this.store.completeWithCapture(
+      completed,
+      job.revision,
+      captureCreditMicros,
+    );
     if (!saved) throw conflict();
     await this.cleanupResult(saved.providerResultRef);
     return saved;
   }
 
   private async fail(job: GenerationJobRecord, code: string, message: string, retryable: boolean) {
-    const failed = transitionGenerationJob(job, { type: "failed", error: { code, message, retryable } }, this.now());
+    const failed = transitionGenerationJob(
+      job,
+      { type: "failed", error: { code, message, retryable } },
+      this.now(),
+    );
     const saved = await this.store.failWithRelease(failed, job.revision);
     if (!saved) throw conflict();
     await this.cleanupResult(saved.providerResultRef);
     return saved;
   }
 
-  private async save(job: GenerationJobRecord, event: Parameters<typeof transitionGenerationJob>[1]) {
+  private async save(
+    job: GenerationJobRecord,
+    event: Parameters<typeof transitionGenerationJob>[1],
+  ) {
     const next = transitionGenerationJob(job, event, this.now());
     const saved = await this.store.save(next, job.revision);
     if (!saved) throw conflict();
@@ -371,16 +437,26 @@ function toQuoteRequest(submission: GenerationJobSubmission) {
   };
 }
 
-function assertExpectedQuote(submission: GenerationJobSubmission, quote: GenerationQuote, now: number) {
+function assertExpectedQuote(
+  submission: GenerationJobSubmission,
+  quote: GenerationQuote,
+  now: number,
+) {
   const expected = submission.expectedQuote;
-  const matches = expected.modelId === quote.modelId
-    && submission.modelId === quote.modelId
-    && submission.modality === quote.modality
-    && submission.quantity === quote.quantity
-    && expected.pricingVersion === quote.pricingVersion
-    && expected.creditMicros === quote.creditMicros
-    && Date.parse(expected.expiresAt) > now;
-  if (!matches) throw new GenerationJobServiceError("QUOTE_CHANGED", "价格或可用参数已更新，请确认后再生成", quote);
+  const matches =
+    expected.modelId === quote.modelId &&
+    submission.modelId === quote.modelId &&
+    submission.modality === quote.modality &&
+    submission.quantity === quote.quantity &&
+    expected.pricingVersion === quote.pricingVersion &&
+    expected.creditMicros === quote.creditMicros &&
+    Date.parse(expected.expiresAt) > now;
+  if (!matches)
+    throw new GenerationJobServiceError(
+      "QUOTE_CHANGED",
+      "价格或可用参数已更新，请确认后再生成",
+      quote,
+    );
 }
 
 function providerRequest(job: GenerationJobRecord): ProviderGenerationRequest {
@@ -398,12 +474,18 @@ function providerRequest(job: GenerationJobRecord): ProviderGenerationRequest {
 }
 
 function assertExecutionRoute(quote: GenerationQuote, resolved: ResolvedGenerationRoute | null) {
-  const matches = resolved
-    && resolved.route.modality === quote.modality
-    && resolved.catalogVersion === quote.catalogVersion
-    && resolved.capabilityVersion === quote.capabilityVersion
-    && resolved.pricingVersion === quote.pricingVersion;
-  if (!matches) throw new GenerationJobServiceError("QUOTE_CHANGED", "模型能力或价格已更新，请确认后再生成", quote);
+  const matches =
+    resolved &&
+    resolved.route.modality === quote.modality &&
+    resolved.catalogVersion === quote.catalogVersion &&
+    resolved.capabilityVersion === quote.capabilityVersion &&
+    resolved.pricingVersion === quote.pricingVersion;
+  if (!matches)
+    throw new GenerationJobServiceError(
+      "QUOTE_CHANGED",
+      "模型能力或价格已更新，请确认后再生成",
+      quote,
+    );
 }
 
 function conflict() {
@@ -411,6 +493,7 @@ function conflict() {
 }
 
 function positiveInteger(value: number, name: string) {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${name} must be a positive safe integer`);
+  if (!Number.isSafeInteger(value) || value <= 0)
+    throw new Error(`${name} must be a positive safe integer`);
   return value;
 }

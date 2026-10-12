@@ -1,4 +1,4 @@
-import type { PublicModel } from "@kachang/contracts";
+import type { PublicModel } from "@weftcanvas/contracts";
 import { z } from "zod";
 
 import type { ModelOverrides } from "../catalog/overrides.js";
@@ -60,7 +60,9 @@ export function agentTextModelGroup(haystack: string) {
 export function agentThinkingFromParameters(
   parameters: ReadonlyArray<{ name: string; options?: readonly unknown[]; default?: unknown }>,
 ) {
-  const parameter = parameters.find((item) => item.name === "reasoning_effort" && Array.isArray(item.options));
+  const parameter = parameters.find(
+    (item) => item.name === "reasoning_effort" && Array.isArray(item.options),
+  );
   if (!parameter) return undefined;
   const levels = (parameter.options ?? [])
     .filter((value): value is string => typeof value === "string")
@@ -90,7 +92,10 @@ export function agentTokenPriceLabel(pricing: {
     return null;
   };
   const input = perMillion(pricing.inputCreditMicrosPerMillion, pricing.inputYuanMicrosPerMillion);
-  const output = perMillion(pricing.outputCreditMicrosPerMillion, pricing.outputYuanMicrosPerMillion);
+  const output = perMillion(
+    pricing.outputCreditMicrosPerMillion,
+    pricing.outputYuanMicrosPerMillion,
+  );
   if (input === null && output === null) return "按 Token 计费";
   return `${input === null ? "—" : formatCredits(input)}/${output === null ? "—" : formatCredits(output)} 积分 · 每M`;
 }
@@ -114,11 +119,15 @@ export type StationTextPricing = {
   requestPricedModelIds: ReadonlySet<string>;
 };
 
-const stationPriceRowSchema = z.object({
-  model_name: z.string().trim().min(1),
-  price: z.object({ unit: z.string().optional() }).passthrough().nullish(),
-  group_prices: z.record(z.string(), z.object({ unit: z.string().optional() }).passthrough()).nullish(),
-}).passthrough();
+const stationPriceRowSchema = z
+  .object({
+    model_name: z.string().trim().min(1),
+    price: z.object({ unit: z.string().optional() }).passthrough().nullish(),
+    group_prices: z
+      .record(z.string(), z.object({ unit: z.string().optional() }).passthrough())
+      .nullish(),
+  })
+  .passthrough();
 
 const stationPricingSchema = z.object({ data: z.array(stationPriceRowSchema) }).passthrough();
 
@@ -133,7 +142,8 @@ export function parseStationTextPricing(value: unknown): StationTextPricing {
       row.price?.unit,
       ...Object.values(row.group_prices ?? {}).map((group) => group.unit),
     ];
-    if (units.some((unit) => unit === "request" || unit === "per-request")) requestPricedModelIds.add(id);
+    if (units.some((unit) => unit === "request" || unit === "per-request"))
+      requestPricedModelIds.add(id);
   }
   return { knownModelIds, requestPricedModelIds };
 }
@@ -206,8 +216,9 @@ export function buildAgentTextModels(input: {
   for (const model of models) {
     if (model.modality !== "text" || model.listed === false) continue;
     const id = model.id.toLowerCase();
-    const requestEligible = requestPriced.has(id)
-      || (!known.has(id) && (model.perRequest === true || model.pricing.mode !== "token"));
+    const requestEligible =
+      requestPriced.has(id) ||
+      (!known.has(id) && (model.perRequest === true || model.pricing.mode !== "token"));
     if (!requestEligible && !includeTokenModels) continue;
     const billing: "request" | "token" = requestEligible ? "request" : "token";
     const overrideYuan = overrides.models[model.id]?.price?.yuan;
@@ -217,9 +228,13 @@ export function buildAgentTextModels(input: {
       label: model.label,
       ...(model.description ? { description: model.description } : {}),
       group: agentTextModelGroup(`${model.id} ${model.label}`),
-      meta: billing === "token"
-        ? agentTokenPriceLabel(model.pricing)
-        : agentRequestPriceLabel(agentRequestPriceYuan(model, overrideYuan), model.pricing.creditsPerYuan),
+      meta:
+        billing === "token"
+          ? agentTokenPriceLabel(model.pricing)
+          : agentRequestPriceLabel(
+              agentRequestPriceYuan(model, overrideYuan),
+              model.pricing.creditsPerYuan,
+            ),
       billing,
       ...(thinking ? { thinking } : {}),
     });

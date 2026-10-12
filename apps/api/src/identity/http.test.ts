@@ -32,31 +32,39 @@ describe("identity HTTP API", () => {
     expect(payload).toMatchObject({ ok: true, data: { user: { email: "creator@example.com" } } });
     expect(JSON.stringify(payload)).not.toContain(TOKEN);
     const setCookie = register.headers.get("Set-Cookie")!;
-    expect(setCookie).toContain("kachang_canvas_session=");
+    expect(setCookie).toContain("weftcanvas_session=");
     expect(setCookie).toMatch(/HttpOnly/i);
     expect(setCookie).toMatch(/SameSite=Strict/i);
     expect(setCookie).toMatch(/Path=\//i);
     const cookie = setCookie.split(";", 1)[0]!;
 
-    const session = await app.request("http://localhost/api/v1/auth/session", { headers: { Cookie: cookie } });
-    expect(await session.json()).toMatchObject({ ok: true, data: { user: { displayName: "创作者" } } });
+    const session = await app.request("http://localhost/api/v1/auth/session", {
+      headers: { Cookie: cookie },
+    });
+    expect(await session.json()).toMatchObject({
+      ok: true,
+      data: { user: { displayName: "创作者" } },
+    });
 
     const logout = await app.request("http://localhost/api/v1/auth/logout", {
       method: "POST",
       headers: { Cookie: cookie, Origin: "http://localhost" },
     });
     expect(await logout.json()).toEqual({ ok: true });
-    await expect((await app.request("http://localhost/api/v1/auth/session", { headers: { Cookie: cookie } })).json())
-      .resolves.toEqual({
-        ok: true,
-        data: null,
-        capabilities: {
-          available: true,
-          registration: "native",
-          registrationUrl: null,
-          passwordResetUrl: null,
-        },
-      });
+    await expect(
+      (
+        await app.request("http://localhost/api/v1/auth/session", { headers: { Cookie: cookie } })
+      ).json(),
+    ).resolves.toEqual({
+      ok: true,
+      data: null,
+      capabilities: {
+        available: true,
+        registration: "native",
+        registrationUrl: null,
+        passwordResetUrl: null,
+      },
+    });
   });
 
   it("rejects cross-site browser account requests and non-JSON credentials", async () => {
@@ -90,7 +98,10 @@ describe("identity HTTP API", () => {
     expect(phoneAsEmail.status).toBe(400);
     expect(await phoneAsEmail.json()).toEqual({
       ok: false,
-      error: { code: "INVALID_REQUEST", message: "邮箱地址格式不正确，请填写完整邮箱（例如 name@example.com）" },
+      error: {
+        code: "INVALID_REQUEST",
+        message: "邮箱地址格式不正确，请填写完整邮箱（例如 name@example.com）",
+      },
     });
 
     const shortPassword = await app.request("http://localhost/api/v1/auth/register", {
@@ -107,7 +118,11 @@ describe("identity HTTP API", () => {
     const unknownField = await app.request("http://localhost/api/v1/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json", Origin: "http://localhost" },
-      body: JSON.stringify({ email: "creator@example.com", password: "private-password", role: "admin" }),
+      body: JSON.stringify({
+        email: "creator@example.com",
+        password: "private-password",
+        role: "admin",
+      }),
     });
     expect(await unknownField.json()).toEqual({
       ok: false,
@@ -135,8 +150,16 @@ describe("identity HTTP API", () => {
 
 function createApp(identity?: IdentityService) {
   return createApiApp({
-    catalog: { getCatalog: async () => { throw new Error("catalog should not be called"); } },
-    quotes: { createQuote: async () => { throw new Error("quotes should not be called"); } },
+    catalog: {
+      getCatalog: async () => {
+        throw new Error("catalog should not be called");
+      },
+    },
+    quotes: {
+      createQuote: async () => {
+        throw new Error("quotes should not be called");
+      },
+    },
     identity,
   });
 }
@@ -155,7 +178,10 @@ class MemoryIdentityStore implements IdentityStore {
   private user: IdentityUserRecord | null = null;
   private sessions: IdentitySessionRecord[] = [];
 
-  async createAccount(user: IdentityUserRecord, session: IdentitySessionRecord): Promise<CreateIdentityAccountResult> {
+  async createAccount(
+    user: IdentityUserRecord,
+    session: IdentitySessionRecord,
+  ): Promise<CreateIdentityAccountResult> {
     if (this.user) return { kind: "email_taken" };
     this.user = structuredClone(user);
     this.sessions.push(structuredClone(session));

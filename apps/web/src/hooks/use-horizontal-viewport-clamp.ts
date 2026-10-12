@@ -16,20 +16,28 @@ export function useHorizontalViewportClamp(
     element.style.setProperty(cssVariable, "0px");
     if (verticalCssVariable) element.style.setProperty(verticalCssVariable, "0px");
     const rect = element.getBoundingClientRect();
-    const horizontalShift = rect.left < margin
-      ? margin - rect.left
-      : rect.right > window.innerWidth - margin
-        ? window.innerWidth - margin - rect.right
-        : 0;
-    const scale = element.offsetWidth > 0 ? rect.width / element.offsetWidth : 1;
-    element.style.setProperty(cssVariable, `${Math.round(horizontalShift / Math.max(scale, 0.01))}px`);
-    if (verticalCssVariable) {
-      const verticalShift = rect.top < margin
-        ? margin - rect.top
-        : rect.bottom > window.innerHeight - margin
-          ? window.innerHeight - margin - rect.bottom
+    const horizontalShift =
+      rect.left < margin
+        ? margin - rect.left
+        : rect.right > window.innerWidth - margin
+          ? window.innerWidth - margin - rect.right
           : 0;
-      element.style.setProperty(verticalCssVariable, `${Math.round(verticalShift / Math.max(scale, 0.01))}px`);
+    const scale = element.offsetWidth > 0 ? rect.width / element.offsetWidth : 1;
+    element.style.setProperty(
+      cssVariable,
+      `${Math.round(horizontalShift / Math.max(scale, 0.01))}px`,
+    );
+    if (verticalCssVariable) {
+      const verticalShift =
+        rect.top < margin
+          ? margin - rect.top
+          : rect.bottom > window.innerHeight - margin
+            ? window.innerHeight - margin - rect.bottom
+            : 0;
+      element.style.setProperty(
+        verticalCssVariable,
+        `${Math.round(verticalShift / Math.max(scale, 0.01))}px`,
+      );
     }
   }, [cssVariable, margin, ref, verticalCssVariable]);
 
@@ -53,12 +61,19 @@ export function useHorizontalViewportClamp(
     const unsubscribe = flowStore.subscribe((state, previous) => {
       if (state.transform !== previous.transform) scheduleAfterViewportMove();
     });
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(scheduleClamp);
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(scheduleClamp);
     if (ref.current) observer?.observe(ref.current);
     const positioningElement = ref.current?.closest(".react-flow__node, .react-flow__node-toolbar");
-    const positionObserver = typeof MutationObserver === "undefined" ? null : new MutationObserver(scheduleAfterPositionMove);
+    const positionObserver =
+      typeof MutationObserver === "undefined"
+        ? null
+        : new MutationObserver(scheduleAfterPositionMove);
     if (positioningElement) {
-      positionObserver?.observe(positioningElement, { attributes: true, attributeFilter: ["style"] });
+      positionObserver?.observe(positioningElement, {
+        attributes: true,
+        attributeFilter: ["style"],
+      });
     }
     window.addEventListener("resize", scheduleClamp);
     return () => {

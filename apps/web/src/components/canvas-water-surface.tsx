@@ -24,7 +24,9 @@ export const CanvasWaterSurface = memo(function CanvasWaterSurface() {
 
     const renderViewport = () => {
       frameId = null;
-      const transform = getWaterMaterialTransform(getWaterSurfaceOffset(latestViewport, originViewport));
+      const transform = getWaterMaterialTransform(
+        getWaterSurfaceOffset(latestViewport, originViewport),
+      );
       if (transform === appliedTransform) return;
       material.style.transform = transform;
       appliedTransform = transform;
@@ -34,10 +36,8 @@ export const CanvasWaterSurface = memo(function CanvasWaterSurface() {
     const unsubscribe = store.subscribe((state, previousState) => {
       const nextTransform = state.transform;
       const previousTransform = previousState.transform;
-      if (
-        nextTransform[0] === previousTransform[0]
-        && nextTransform[1] === previousTransform[1]
-      ) return;
+      if (nextTransform[0] === previousTransform[0] && nextTransform[1] === previousTransform[1])
+        return;
 
       latestViewport = viewportFromTransform(nextTransform);
       if (workspaceIsMoving()) return;
@@ -72,13 +72,16 @@ export const CanvasWaterSurface = memo(function CanvasWaterSurface() {
   }, [store]);
 
   return (
-    <div className="kc-canvas-water" data-testid="canvas-water-surface" aria-hidden="true">
-      <span ref={materialRef} className="kc-canvas-water-material" />
+    <div className="wc-canvas-water" data-testid="canvas-water-surface" aria-hidden="true">
+      <span ref={materialRef} className="wc-canvas-water-material" />
     </div>
   );
 });
 
-export function getWaterSurfaceOffset(viewport: ViewportLike, origin: ViewportLike = { x: 0, y: 0 }) {
+export function getWaterSurfaceOffset(
+  viewport: ViewportLike,
+  origin: ViewportLike = { x: 0, y: 0 },
+) {
   const x = finiteCoordinate(viewport.x) - finiteCoordinate(origin.x);
   const y = finiteCoordinate(viewport.y) - finiteCoordinate(origin.y);
 

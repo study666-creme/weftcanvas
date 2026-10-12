@@ -1,4 +1,4 @@
-import type { MediaKind, ReferenceImagePurpose } from "@kachang/contracts";
+import type { MediaKind, ReferenceImagePurpose } from "@weftcanvas/contracts";
 import { create } from "zustand";
 
 import {
@@ -28,28 +28,41 @@ export type DirectModalityKey = "image" | "video";
 type DirectReferenceState = {
   references: Record<DirectModalityKey, DirectReference[]>;
   addReferences: (modality: DirectModalityKey, items: DirectReference[]) => void;
-  updateReference: (modality: DirectModalityKey, id: string, patch: Partial<DirectReference>) => void;
+  updateReference: (
+    modality: DirectModalityKey,
+    id: string,
+    patch: Partial<DirectReference>,
+  ) => void;
   removeReference: (modality: DirectModalityKey, id: string) => void;
   setReferences: (modality: DirectModalityKey, items: DirectReference[]) => void;
 };
 
 export const useDirectReferenceStore = create<DirectReferenceState>((set) => ({
   references: initialDirectReferenceSession(),
-  addReferences: (modality, items) => set((state) => ({
-    references: { ...state.references, [modality]: [...state.references[modality], ...items] },
-  })),
-  updateReference: (modality, id, patch) => set((state) => ({
-    references: {
-      ...state.references,
-      [modality]: state.references[modality].map((item) => (item.id === id ? { ...item, ...patch } : item)),
-    },
-  })),
-  removeReference: (modality, id) => set((state) => ({
-    references: { ...state.references, [modality]: state.references[modality].filter((item) => item.id !== id) },
-  })),
-  setReferences: (modality, items) => set((state) => ({
-    references: { ...state.references, [modality]: items },
-  })),
+  addReferences: (modality, items) =>
+    set((state) => ({
+      references: { ...state.references, [modality]: [...state.references[modality], ...items] },
+    })),
+  updateReference: (modality, id, patch) =>
+    set((state) => ({
+      references: {
+        ...state.references,
+        [modality]: state.references[modality].map((item) =>
+          item.id === id ? { ...item, ...patch } : item,
+        ),
+      },
+    })),
+  removeReference: (modality, id) =>
+    set((state) => ({
+      references: {
+        ...state.references,
+        [modality]: state.references[modality].filter((item) => item.id !== id),
+      },
+    })),
+  setReferences: (modality, items) =>
+    set((state) => ({
+      references: { ...state.references, [modality]: items },
+    })),
 }));
 
 // 写穿：任何引用变更立即同步到标签页会话存储（仅持久化 ready + serverId），

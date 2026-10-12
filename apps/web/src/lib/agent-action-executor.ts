@@ -1,9 +1,9 @@
-import { normalizeDirectorStagePacket, type AgentAction } from "@kachang/contracts";
+import { normalizeDirectorStagePacket, type AgentAction } from "@weftcanvas/contracts";
 
 import { useCanvasStore } from "../state/canvas-store";
 import { useDirectorStageLaunchStore } from "../state/director-stage-launch-store";
 
-const EXECUTED_RUNS_KEY = "kachang-canvas:agent-action-runs:v2";
+const EXECUTED_RUNS_KEY = "weftcanvas:agent-action-runs:v2";
 
 type StoredExecution = {
   id: string;
@@ -21,12 +21,19 @@ export type AgentActionExecutionResult = {
   alreadyApplied: boolean;
 };
 
-export function readAgentActionExecution(projectId: string, runId: string): AgentActionExecutionResult | null {
+export function readAgentActionExecution(
+  projectId: string,
+  runId: string,
+): AgentActionExecutionResult | null {
   const execution = readExecution(`${projectId}:${runId}`);
   return execution ? { ...execution, alreadyApplied: true } : null;
 }
 
-export function executeAgentActions(projectId: string, runId: string, actions: AgentAction[]): AgentActionExecutionResult {
+export function executeAgentActions(
+  projectId: string,
+  runId: string,
+  actions: AgentAction[],
+): AgentActionExecutionResult {
   const storageId = `${projectId}:${runId}`;
   if (!actions.length) return { applied: 0, skipped: 0, skippedActions: [], alreadyApplied: true };
   const previous = readExecution(storageId);
@@ -54,7 +61,10 @@ function readExecution(id: string): StoredExecution | null {
   try {
     const values = JSON.parse(window.localStorage.getItem(EXECUTED_RUNS_KEY) || "[]") as unknown;
     if (!Array.isArray(values)) return null;
-    const found = values.find((value): value is StoredExecution => isStoredExecution(value) && value.id === id) ?? null;
+    const found =
+      values.find(
+        (value): value is StoredExecution => isStoredExecution(value) && value.id === id,
+      ) ?? null;
     if (found) memoryRuns.set(id, found);
     return found;
   } catch {
@@ -67,9 +77,15 @@ function markExecuted(execution: StoredExecution) {
   try {
     const current = JSON.parse(window.localStorage.getItem(EXECUTED_RUNS_KEY) || "[]") as unknown;
     const values = Array.isArray(current)
-      ? current.filter((value): value is StoredExecution => isStoredExecution(value) && value.id !== execution.id)
+      ? current.filter(
+          (value): value is StoredExecution =>
+            isStoredExecution(value) && value.id !== execution.id,
+        )
       : [];
-    window.localStorage.setItem(EXECUTED_RUNS_KEY, JSON.stringify([...values.slice(-99), execution]));
+    window.localStorage.setItem(
+      EXECUTED_RUNS_KEY,
+      JSON.stringify([...values.slice(-99), execution]),
+    );
   } catch {
     // In-memory deduplication still protects the current session.
   }
@@ -78,8 +94,10 @@ function markExecuted(execution: StoredExecution) {
 function isStoredExecution(value: unknown): value is StoredExecution {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const record = value as Partial<StoredExecution>;
-  return typeof record.id === "string"
-    && Number.isInteger(record.applied)
-    && Number.isInteger(record.skipped)
-    && Array.isArray(record.skippedActions);
+  return (
+    typeof record.id === "string" &&
+    Number.isInteger(record.applied) &&
+    Number.isInteger(record.skipped) &&
+    Array.isArray(record.skippedActions)
+  );
 }

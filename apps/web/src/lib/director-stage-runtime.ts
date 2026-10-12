@@ -2,7 +2,7 @@ import type {
   DirectorStageCapture,
   DirectorStageCamera,
   DirectorStageSlot,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
@@ -142,8 +142,10 @@ export class DirectorStageRuntime {
 
   beginEntityDrag(event: PointerEvent) {
     if (event.button !== 0 || !this.updateRay(event)) return null;
-    if (this.transformControls.axis || this.transformControls.dragging) return this.getSelectedEntity();
-    const hit = this.raycaster.intersectObjects(Array.from(this.entityObjects.values()), true)[0]?.object;
+    if (this.transformControls.axis || this.transformControls.dragging)
+      return this.getSelectedEntity();
+    const hit = this.raycaster.intersectObjects(Array.from(this.entityObjects.values()), true)[0]
+      ?.object;
     const entityId = findEntityId(hit);
     if (!entityId) {
       this.clearSelection();
@@ -187,7 +189,8 @@ export class DirectorStageRuntime {
     const drag = this.dragState;
     if (!drag || drag.pointerId !== event.pointerId) return null;
     const snapshot = this.getEntity(drag.entityId);
-    if (this.canvas.hasPointerCapture(event.pointerId)) this.canvas.releasePointerCapture(event.pointerId);
+    if (this.canvas.hasPointerCapture(event.pointerId))
+      this.canvas.releasePointerCapture(event.pointerId);
     this.dragState = null;
     this.controls.enabled = true;
     return snapshot;
@@ -250,7 +253,10 @@ export class DirectorStageRuntime {
     if (!object) return null;
     return {
       id,
-      label: typeof object.userData.entityLabel === "string" ? object.userData.entityLabel : id.replace(/^(actor|prop):/, ""),
+      label:
+        typeof object.userData.entityLabel === "string"
+          ? object.userData.entityLabel
+          : id.replace(/^(actor|prop):/, ""),
       kind: id.startsWith("actor:") ? "actor" : "prop",
       x: object.position.x,
       y: object.position.y,
@@ -344,7 +350,9 @@ export class DirectorStageRuntime {
   };
 
   private buildEnvironment(dark: boolean) {
-    this.scene.add(new THREE.HemisphereLight(dark ? 0xdce8e4 : 0xffffff, dark ? 0x1a211f : 0x8b9691, 2.2));
+    this.scene.add(
+      new THREE.HemisphereLight(dark ? 0xdce8e4 : 0xffffff, dark ? 0x1a211f : 0x8b9691, 2.2),
+    );
 
     const key = new THREE.DirectionalLight(0xfff3df, 3.25);
     key.position.set(4.5, 8, 5.5);
@@ -376,7 +384,12 @@ export class DirectorStageRuntime {
     backWall.receiveShadow = true;
     this.scene.add(backWall);
 
-    const grid = new THREE.GridHelper(24, 24, dark ? 0x53635f : 0x82908b, dark ? 0x323b38 : 0xaeb7b3);
+    const grid = new THREE.GridHelper(
+      24,
+      24,
+      dark ? 0x53635f : 0x82908b,
+      dark ? 0x323b38 : 0xaeb7b3,
+    );
     grid.position.y = 0.008;
     const materials = Array.isArray(grid.material) ? grid.material : [grid.material];
     materials.forEach((material) => {
@@ -409,7 +422,12 @@ function createActor(index: number, entityId: string, label: string) {
 
   const marker = new THREE.Mesh(
     new THREE.RingGeometry(0.42, 0.48, 32),
-    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.74, side: THREE.DoubleSide }),
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.74,
+      side: THREE.DoubleSide,
+    }),
   );
   marker.rotation.x = -Math.PI / 2;
   marker.position.y = 0.014;
@@ -431,7 +449,8 @@ function createProp(label: string, index: number, entityId: string) {
   else if (/椅|chair/.test(lower)) addChair(group, material);
   else if (/沙发|sofa/.test(lower)) addSofa(group, material);
   else if (/床|bed/.test(lower)) addBed(group, material);
-  else if (/门|door/.test(lower)) group.add(mesh(new THREE.BoxGeometry(1.05, 2.2, 0.12), material, 1.1));
+  else if (/门|door/.test(lower))
+    group.add(mesh(new THREE.BoxGeometry(1.05, 2.2, 0.12), material, 1.1));
   else if (/窗|window/.test(lower)) addWindow(group, material);
   else if (/灯|lamp/.test(lower)) addLamp(group, material);
   else group.add(mesh(new THREE.BoxGeometry(0.72, 0.72, 0.72), material, 0.36));
@@ -442,11 +461,13 @@ function createProp(label: string, index: number, entityId: string) {
 
 function addTable(group: THREE.Group, material: THREE.Material) {
   group.add(mesh(new THREE.BoxGeometry(1.35, 0.12, 0.72), material, 0.78));
-  [-0.52, 0.52].forEach((x) => [-0.24, 0.24].forEach((z) => {
-    const leg = mesh(new THREE.BoxGeometry(0.09, 0.72, 0.09), material, 0.36);
-    leg.position.set(x, leg.position.y, z);
-    group.add(leg);
-  }));
+  [-0.52, 0.52].forEach((x) =>
+    [-0.24, 0.24].forEach((z) => {
+      const leg = mesh(new THREE.BoxGeometry(0.09, 0.72, 0.09), material, 0.36);
+      leg.position.set(x, leg.position.y, z);
+      group.add(leg);
+    }),
+  );
 }
 
 function addChair(group: THREE.Group, material: THREE.Material) {
@@ -454,11 +475,13 @@ function addChair(group: THREE.Group, material: THREE.Material) {
   const back = mesh(new THREE.BoxGeometry(0.64, 0.82, 0.1), material, 0.9);
   back.position.z = -0.27;
   group.add(back);
-  [-0.24, 0.24].forEach((x) => [-0.24, 0.24].forEach((z) => {
-    const leg = mesh(new THREE.BoxGeometry(0.07, 0.45, 0.07), material, 0.225);
-    leg.position.set(x, leg.position.y, z);
-    group.add(leg);
-  }));
+  [-0.24, 0.24].forEach((x) =>
+    [-0.24, 0.24].forEach((z) => {
+      const leg = mesh(new THREE.BoxGeometry(0.07, 0.45, 0.07), material, 0.225);
+      leg.position.set(x, leg.position.y, z);
+      group.add(leg);
+    }),
+  );
 }
 
 function addSofa(group: THREE.Group, material: THREE.Material) {
@@ -542,7 +565,9 @@ function responsiveFov(baseFov: number, aspect: number) {
   if (aspect >= referenceAspect) return baseFov;
   const vertical = THREE.MathUtils.degToRad(baseFov);
   const horizontal = 2 * Math.atan(Math.tan(vertical / 2) * referenceAspect);
-  const adapted = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(horizontal / 2) / Math.max(0.2, aspect)));
+  const adapted = THREE.MathUtils.radToDeg(
+    2 * Math.atan(Math.tan(horizontal / 2) / Math.max(0.2, aspect)),
+  );
   return Math.min(100, Math.max(baseFov, adapted));
 }
 

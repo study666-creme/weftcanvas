@@ -44,8 +44,11 @@ describe.skipIf(!databaseUrl)("PostgreSQL identity store", () => {
     expect(result.user.id).toBe(USER_ID);
     expect(await count(pool, "canvas_users")).toBe(1);
     expect(await count(pool, "canvas_sessions")).toBe(1);
-    expect(await pool.query("SELECT available_credit_micros FROM canvas_wallets WHERE owner_id = $1", [USER_ID]))
-      .toMatchObject({ rows: [{ available_credit_micros: "2500000" }] });
+    expect(
+      await pool.query("SELECT available_credit_micros FROM canvas_wallets WHERE owner_id = $1", [
+        USER_ID,
+      ]),
+    ).toMatchObject({ rows: [{ available_credit_micros: "2500000" }] });
     expect(await count(pool, "canvas_wallet_ledger")).toBe(1);
   });
 
@@ -67,11 +70,16 @@ describe.skipIf(!databaseUrl)("PostgreSQL identity store", () => {
   it("resolves and revokes login sessions without storing the raw token", async () => {
     const service = createService(pool, [TOKEN_A, TOKEN_B]);
     await service.register({ email: "creator@example.com", password: "private-password" });
-    const login = await service.login({ email: "creator@example.com", password: "private-password" });
+    const login = await service.login({
+      email: "creator@example.com",
+      password: "private-password",
+    });
 
     expect(login.token).toBe(TOKEN_B);
     expect(await service.authenticate(TOKEN_B)).toMatchObject({ user: { id: USER_ID } });
-    expect(JSON.stringify((await pool.query("SELECT * FROM canvas_sessions")).rows)).not.toContain(TOKEN_B);
+    expect(JSON.stringify((await pool.query("SELECT * FROM canvas_sessions")).rows)).not.toContain(
+      TOKEN_B,
+    );
     await service.logout(TOKEN_B);
     expect(await service.authenticate(TOKEN_B)).toBeNull();
   });
@@ -99,7 +107,10 @@ class TestPasswordHasher implements IdentityPasswordHasher {
   }
 }
 
-async function count(pool: Pool, table: "canvas_users" | "canvas_sessions" | "canvas_wallets" | "canvas_wallet_ledger") {
+async function count(
+  pool: Pool,
+  table: "canvas_users" | "canvas_sessions" | "canvas_wallets" | "canvas_wallet_ledger",
+) {
   const result = await pool.query<{ count: string }>(`SELECT COUNT(*) AS count FROM ${table}`);
   return Number(result.rows[0]?.count);
 }

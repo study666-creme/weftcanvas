@@ -1,13 +1,13 @@
 import type { XYPosition } from "@xyflow/react";
 
-import type { KachangNode } from "../types";
+import type { WeftcanvasNode } from "../types";
 
 const NODE_GAP = 30;
 
 export function findOpenNodePosition(
   preferred: XYPosition,
   dimensions: { width: number; height: number },
-  nodes: KachangNode[],
+  nodes: WeftcanvasNode[],
 ): XYPosition {
   const xStep = Math.max(dimensions.width, ...nodes.map(nodeWidth)) + NODE_GAP * 2;
   const yStep = Math.max(dimensions.height, ...nodes.map(nodeHeight)) + NODE_GAP * 2;
@@ -22,24 +22,26 @@ export function findOpenNodePosition(
 
   for (const [column, row] of offsets) {
     const candidate = { x: preferred.x + column * xStep, y: preferred.y + row * yStep };
-    if (nodes.every((node) => !overlaps(candidate, dimensions.width, dimensions.height, node))) return candidate;
+    if (nodes.every((node) => !overlaps(candidate, dimensions.width, dimensions.height, node)))
+      return candidate;
   }
 
   return { x: preferred.x + xStep * 7, y: preferred.y };
 }
 
 export function findConnectedNodePosition(
-  anchor: KachangNode,
-  draft: KachangNode,
+  anchor: WeftcanvasNode,
+  draft: WeftcanvasNode,
   side: "left" | "right",
-  nodes: KachangNode[],
+  nodes: WeftcanvasNode[],
 ): XYPosition {
   const anchorWidth = nodeWidth(anchor);
   const anchorHeight = nodeHeight(anchor);
   const draftWidth = nodeWidth(draft);
   const draftHeight = nodeHeight(draft);
   const base = {
-    x: side === "right" ? anchor.position.x + anchorWidth + 64 : anchor.position.x - draftWidth - 64,
+    x:
+      side === "right" ? anchor.position.x + anchorWidth + 64 : anchor.position.x - draftWidth - 64,
     y: anchor.position.y + (anchorHeight - draftHeight) / 2,
   };
   const verticalStep = Math.max(anchorHeight, draftHeight) + NODE_GAP * 2;
@@ -47,7 +49,8 @@ export function findConnectedNodePosition(
 
   for (const offset of offsets) {
     const candidate = { x: base.x, y: base.y + offset * verticalStep };
-    if (nodes.every((node) => !overlaps(candidate, draftWidth, draftHeight, node))) return candidate;
+    if (nodes.every((node) => !overlaps(candidate, draftWidth, draftHeight, node)))
+      return candidate;
   }
 
   return { x: base.x, y: base.y + offsets.length * verticalStep };
@@ -61,9 +64,9 @@ export function findConnectedNodePosition(
  * never independently scattered by the generic collision search.
  */
 export function findConnectedNodeColumnPositions(
-  anchor: KachangNode,
-  drafts: KachangNode[],
-  nodes: KachangNode[],
+  anchor: WeftcanvasNode,
+  drafts: WeftcanvasNode[],
+  nodes: WeftcanvasNode[],
 ): XYPosition[] {
   if (!drafts.length) return [];
   const anchorWidth = nodeWidth(anchor);
@@ -71,11 +74,24 @@ export function findConnectedNodeColumnPositions(
   const x = anchor.position.x + anchorWidth + 64;
   const gap = NODE_GAP;
   const heights = drafts.map(nodeHeight);
-  const totalHeight = heights.reduce((sum, height) => sum + height, 0) + gap * Math.max(0, drafts.length - 1);
+  const totalHeight =
+    heights.reduce((sum, height) => sum + height, 0) + gap * Math.max(0, drafts.length - 1);
   const firstY = anchor.position.y + (anchorHeight - totalHeight) / 2;
-  const occupied = nodes.filter((node) => node.id !== anchor.id && !drafts.some((draft) => draft.id === node.id));
+  const occupied = nodes.filter(
+    (node) => node.id !== anchor.id && !drafts.some((draft) => draft.id === node.id),
+  );
   const shiftStep = Math.max(anchorHeight, ...heights) + gap * 2;
-  const shifts = [0, shiftStep, -shiftStep, shiftStep * 2, -shiftStep * 2, shiftStep * 3, -shiftStep * 3, shiftStep * 4, -shiftStep * 4];
+  const shifts = [
+    0,
+    shiftStep,
+    -shiftStep,
+    shiftStep * 2,
+    -shiftStep * 2,
+    shiftStep * 3,
+    -shiftStep * 3,
+    shiftStep * 4,
+    -shiftStep * 4,
+  ];
 
   for (const shift of shifts) {
     const positions: XYPosition[] = [];
@@ -84,34 +100,43 @@ export function findConnectedNodeColumnPositions(
       positions.push({ x, y });
       y += height + gap;
     }
-    if (positions.every((position, index) => occupied.every((node) => !overlaps(position, nodeWidth(drafts[index]!), heights[index]!, node)))) {
+    if (
+      positions.every((position, index) =>
+        occupied.every(
+          (node) => !overlaps(position, nodeWidth(drafts[index]!), heights[index]!, node),
+        ),
+      )
+    ) {
       return positions;
     }
   }
 
-  return heights.map((height, index) => ({
+  return heights.map((_height, index) => ({
     x,
-    y: firstY + shiftStep * 5 + heights.slice(0, index).reduce((sum, value) => sum + value + gap, 0),
+    y:
+      firstY + shiftStep * 5 + heights.slice(0, index).reduce((sum, value) => sum + value + gap, 0),
   }));
 }
 
-function overlaps(position: XYPosition, width: number, height: number, node: KachangNode) {
+function overlaps(position: XYPosition, width: number, height: number, node: WeftcanvasNode) {
   const other = {
     left: node.position.x,
     top: node.position.y,
     right: node.position.x + nodeWidth(node),
     bottom: node.position.y + nodeHeight(node),
   };
-  return position.x < other.right + NODE_GAP
-    && position.x + width > other.left - NODE_GAP
-    && position.y < other.bottom + NODE_GAP
-    && position.y + height > other.top - NODE_GAP;
+  return (
+    position.x < other.right + NODE_GAP &&
+    position.x + width > other.left - NODE_GAP &&
+    position.y < other.bottom + NODE_GAP &&
+    position.y + height > other.top - NODE_GAP
+  );
 }
 
-function nodeWidth(node: KachangNode) {
+function nodeWidth(node: WeftcanvasNode) {
   return node.width ?? node.measured?.width ?? 300;
 }
 
-function nodeHeight(node: KachangNode) {
+function nodeHeight(node: WeftcanvasNode) {
   return node.height ?? node.measured?.height ?? 176;
 }

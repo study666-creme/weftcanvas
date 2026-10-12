@@ -1,24 +1,33 @@
 {
-  "name": "kachang-canvas",
+  "name": "weftcanvas",
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=20.19.0",
+    "pnpm": ">=9.0.0"
+  },
   "scripts": {
-    "predev": "pnpm --filter @kachang/contracts build",
-    "dev": "pnpm --parallel --filter @kachang/contracts --filter @kachang/canvas-api --filter @kachang/canvas-web run dev",
-    "predev:web": "pnpm --filter @kachang/contracts build",
-    "dev:web": "pnpm --filter @kachang/canvas-web dev",
-    "predev:api": "pnpm --filter @kachang/contracts build",
-    "dev:api": "pnpm --filter @kachang/canvas-api dev",
-    "predev:worker": "pnpm --filter @kachang/canvas-api build",
-    "dev:worker": "pnpm --filter @kachang/canvas-worker dev",
-    "predev:agent": "pnpm --filter @kachang/contracts build",
-    "dev:agent": "pnpm --filter @kachang/canvas-agent dev",
+    "predev": "pnpm --filter @weftcanvas/contracts build",
+    "dev": "pnpm --parallel --filter @weftcanvas/contracts --filter @weftcanvas/canvas-api --filter @weftcanvas/canvas-web run dev",
+    "predev:web": "pnpm --filter @weftcanvas/contracts build",
+    "dev:web": "pnpm --filter @weftcanvas/canvas-web dev",
+    "predev:api": "pnpm --filter @weftcanvas/contracts build",
+    "dev:api": "pnpm --filter @weftcanvas/canvas-api dev",
+    "predev:worker": "pnpm --filter @weftcanvas/canvas-api build",
+    "dev:worker": "pnpm --filter @weftcanvas/canvas-worker dev",
+    "predev:agent": "pnpm --filter @weftcanvas/contracts build",
+    "dev:agent": "pnpm --filter @weftcanvas/canvas-agent dev",
     "build": "pnpm -r --if-present run build",
     "typecheck": "pnpm -r --if-present run typecheck",
-    "pretest": "pnpm --filter @kachang/contracts build",
+    "pretest": "pnpm --filter @weftcanvas/contracts build",
     "test": "pnpm -r --if-present run test",
-    "pretest:e2e": "pnpm --filter @kachang/contracts build",
-    "test:e2e": "pnpm --filter @kachang/canvas-web test:e2e"
+    "pretest:e2e": "pnpm --filter @weftcanvas/contracts build",
+    "test:e2e": "pnpm --filter @weftcanvas/canvas-web test:e2e",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "prettier": "^3.9.10"
   }
 }

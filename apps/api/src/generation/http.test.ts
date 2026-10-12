@@ -1,4 +1,4 @@
-import type { PublicGenerationJob } from "@kachang/contracts";
+import type { PublicGenerationJob } from "@weftcanvas/contracts";
 import { describe, expect, it } from "vitest";
 
 import { createApiApp } from "../app.js";
@@ -47,17 +47,25 @@ describe("generation job HTTP API", () => {
     expect(await submitted.json()).toMatchObject({ ok: true, data: { id: "job-1", version: 0 } });
     expect(generation.lastSubmission).toEqual({ ownerId: USER_ID, value: { request: "job" } });
 
-    const list = await app.request("http://localhost/api/v1/generation-jobs?projectId=project-1&limit=10", {
-      headers: { Cookie: cookie },
-    });
+    const list = await app.request(
+      "http://localhost/api/v1/generation-jobs?projectId=project-1&limit=10",
+      {
+        headers: { Cookie: cookie },
+      },
+    );
     expect(await list.json()).toMatchObject({ data: [{ id: "job-1", projectId: "project-1" }] });
-    expect(generation.lastList).toEqual({ ownerId: USER_ID, value: { projectId: "project-1", limit: 10 } });
+    expect(generation.lastList).toEqual({
+      ownerId: USER_ID,
+      value: { projectId: "project-1", limit: 10 },
+    });
 
     const item = await app.request("http://localhost/api/v1/generation-jobs/job-1", {
       headers: { Cookie: cookie },
     });
     expect(item.headers.get("Cache-Control")).toBe("private, no-store");
-    expect(await item.json()).toMatchObject({ data: { status: "completed", artifacts: [{ kind: "image" }] } });
+    expect(await item.json()).toMatchObject({
+      data: { status: "completed", artifacts: [{ kind: "image" }] },
+    });
   });
 
   it("streams a versioned terminal snapshot and releases the connection slot", async () => {
@@ -206,19 +214,31 @@ describe("generation job HTTP API", () => {
     const app = createApp(generation, guard);
     const cookie = await register(app);
 
-    const missing = await app.request("http://localhost/api/v1/generation-jobs/reconcile?key=request-0001", {
-      headers: { Cookie: cookie },
-    });
+    const missing = await app.request(
+      "http://localhost/api/v1/generation-jobs/reconcile?key=request-0001",
+      {
+        headers: { Cookie: cookie },
+      },
+    );
     expect(missing.status).toBe(404);
-    expect(await missing.json()).toMatchObject({ ok: false, error: { code: "GENERATION_JOB_NOT_FOUND" } });
+    expect(await missing.json()).toMatchObject({
+      ok: false,
+      error: { code: "GENERATION_JOB_NOT_FOUND" },
+    });
 
     generation.reconciledJob = { ...generation.job, status: "completed" };
-    const found = await app.request("http://localhost/api/v1/generation-jobs/reconcile?key=request-0001", {
-      headers: { Cookie: cookie },
-    });
+    const found = await app.request(
+      "http://localhost/api/v1/generation-jobs/reconcile?key=request-0001",
+      {
+        headers: { Cookie: cookie },
+      },
+    );
     expect(found.status).toBe(200);
     expect(found.headers.get("Cache-Control")).toBe("private, no-store");
-    expect(await found.json()).toMatchObject({ ok: true, data: { id: "job-1", status: "completed" } });
+    expect(await found.json()).toMatchObject({
+      ok: true,
+      data: { id: "job-1", status: "completed" },
+    });
     expect(generation.reconcileCalls).toEqual([
       { ownerId: USER_ID, key: "request-0001" },
       { ownerId: USER_ID, key: "request-0001" },
@@ -242,7 +262,9 @@ describe("generation job HTTP API", () => {
     }
     expect(generation.reconcileCalls).toHaveLength(0);
 
-    const unauthenticated = await app.request("http://localhost/api/v1/generation-jobs/reconcile?key=request-0001");
+    const unauthenticated = await app.request(
+      "http://localhost/api/v1/generation-jobs/reconcile?key=request-0001",
+    );
     expect(unauthenticated.status).toBe(401);
     expect(generation.reconcileCalls).toHaveLength(0);
   });
@@ -261,8 +283,16 @@ function createApp(
     sessionTtlMs: 60_000,
   });
   return createApiApp({
-    catalog: { getCatalog: async () => { throw new Error("unused"); } },
-    quotes: { createQuote: async () => { throw new Error("unused"); } },
+    catalog: {
+      getCatalog: async () => {
+        throw new Error("unused");
+      },
+    },
+    quotes: {
+      createQuote: async () => {
+        throw new Error("unused");
+      },
+    },
     identity,
     generation,
     generationGuard: guard,
@@ -345,7 +375,10 @@ class MemoryIdentityStore implements IdentityStore {
   private user: IdentityUserRecord | null = null;
   private session: IdentitySessionRecord | null = null;
 
-  async createAccount(user: IdentityUserRecord, session: IdentitySessionRecord): Promise<CreateIdentityAccountResult> {
+  async createAccount(
+    user: IdentityUserRecord,
+    session: IdentitySessionRecord,
+  ): Promise<CreateIdentityAccountResult> {
     this.user = structuredClone(user);
     this.session = structuredClone(session);
     return { kind: "created" };
@@ -361,7 +394,13 @@ class MemoryIdentityStore implements IdentityStore {
   }
 
   async findActiveSession(tokenHash: string, now: string): Promise<ActiveIdentitySession | null> {
-    if (!this.user || !this.session || this.session.tokenHash !== tokenHash || this.session.expiresAt <= now) return null;
+    if (
+      !this.user ||
+      !this.session ||
+      this.session.tokenHash !== tokenHash ||
+      this.session.expiresAt <= now
+    )
+      return null;
     return { user: structuredClone(this.user), session: structuredClone(this.session) };
   }
 
@@ -410,17 +449,19 @@ function completedJob(): PublicGenerationJob {
       pricingVersion: "pricing-1",
       expiresAt: "2026-07-15T22:02:00.000Z",
     },
-    artifacts: [{
-      id: "artifact-1",
-      kind: "image",
-      mediaId: "media-1",
-      name: "result.png",
-      mimeType: "image/png",
-      size: 1024,
-      width: 1024,
-      height: 1024,
-      createdAt: "2026-07-15T22:00:01.000Z",
-    }],
+    artifacts: [
+      {
+        id: "artifact-1",
+        kind: "image",
+        mediaId: "media-1",
+        name: "result.png",
+        mimeType: "image/png",
+        size: 1024,
+        width: 1024,
+        height: 1024,
+        createdAt: "2026-07-15T22:00:01.000Z",
+      },
+    ],
     error: null,
     createdAt: "2026-07-15T22:00:00.000Z",
     updatedAt: "2026-07-15T22:00:01.000Z",

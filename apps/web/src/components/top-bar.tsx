@@ -4,7 +4,10 @@ import { memo, useEffect, type RefObject } from "react";
 import type { ThemeMode } from "../App";
 import { useCanvasStore } from "../state/canvas-store";
 import { useIdentityStore } from "../state/identity-store";
-import { countClaimableMembershipTasks, useMembershipTaskStore } from "../state/membership-task-store";
+import {
+  countClaimableMembershipTasks,
+  useMembershipTaskStore,
+} from "../state/membership-task-store";
 import { useProjectAssetStore } from "../state/project-asset-store";
 import { useProjectLibraryStore } from "../state/project-library-store";
 import { useWalletStore } from "../state/wallet-store";
@@ -57,12 +60,11 @@ export const TopBar = memo(function TopBar({
   const identitySession = useIdentityStore((state) => state.session);
   const openAccount = useIdentityStore((state) => state.openDialog);
   const credits = useWalletStore((state) => state.summary?.credits ?? null);
-  const requestProduct = useWalletStore((state) => state.requestProduct);
   const membership = useWalletStore((state) => state.summary?.membership ?? null);
   const membershipTasks = useMembershipTaskStore((state) => state.data);
   const membershipTasksStatus = useMembershipTaskStore((state) => state.status);
   const requestMembershipTasks = useMembershipTaskStore((state) => state.requestOpen);
-  const activeMembershipTier = membership?.active ? membership.tier?.toLowerCase() ?? null : null;
+  const activeMembershipTier = membership?.active ? (membership.tier?.toLowerCase() ?? null) : null;
   const claimableTaskCount = countClaimableMembershipTasks(membershipTasks);
   const isAuthenticated = identityStatus === "authenticated";
 
@@ -77,41 +79,57 @@ export const TopBar = memo(function TopBar({
   // 会员等级颜色环——刻意避开红色系（红=报错联想，负反馈太强）：
   // pro=琥珀金（高级感） / standard=蓝 / basic=玉绿 / lite=中性素环（入门档不染色）。
   const tierRingColor =
-    activeMembershipTier === "pro" ? "var(--kc-amber)"
-    : activeMembershipTier === "standard" ? "var(--kc-blue)"
-    : activeMembershipTier === "basic" ? "var(--kc-jade)"
-    : activeMembershipTier === "lite" ? "var(--kc-border-strong)"
-    : null;
+    activeMembershipTier === "pro"
+      ? "var(--wc-amber)"
+      : activeMembershipTier === "standard"
+        ? "var(--wc-blue)"
+        : activeMembershipTier === "basic"
+          ? "var(--wc-jade)"
+          : activeMembershipTier === "lite"
+            ? "var(--wc-border-strong)"
+            : null;
   // 头像默认底色——与色环同系淡染；lite/免费档用中性底
   const avatarFallbackBg =
-    activeMembershipTier === "pro" ? "color-mix(in srgb, var(--kc-amber) 30%, var(--kc-surface-strong))"
-    : activeMembershipTier === "standard" ? "color-mix(in srgb, var(--kc-blue) 28%, var(--kc-surface-strong))"
-    : activeMembershipTier === "basic" ? "color-mix(in srgb, var(--kc-jade) 28%, var(--kc-surface-strong))"
-    : "color-mix(in srgb, var(--kc-surface-strong) 84%, var(--kc-canvas))";
+    activeMembershipTier === "pro"
+      ? "color-mix(in srgb, var(--wc-amber) 30%, var(--wc-surface-strong))"
+      : activeMembershipTier === "standard"
+        ? "color-mix(in srgb, var(--wc-blue) 28%, var(--wc-surface-strong))"
+        : activeMembershipTier === "basic"
+          ? "color-mix(in srgb, var(--wc-jade) 28%, var(--wc-surface-strong))"
+          : "color-mix(in srgb, var(--wc-surface-strong) 84%, var(--wc-canvas))";
 
   return (
-    <header className="kc-topbar">
-      <div className="kc-project-console" aria-label="卡藏画布">
-        <button type="button" className="kc-brand-mark" aria-label="项目菜单" title="项目菜单" aria-expanded={projectSidebarOpen} onClick={toggleProjectSidebar}>
+    <header className="wc-topbar">
+      <div className="wc-project-console" aria-label="纬线画布">
+        <button
+          type="button"
+          className="wc-brand-mark"
+          aria-label="项目菜单"
+          title="项目菜单"
+          aria-expanded={projectSidebarOpen}
+          onClick={toggleProjectSidebar}
+        >
           <Menu aria-hidden="true" />
         </button>
-        <span className="kc-project-console-mark" aria-hidden="true"><PanelsTopLeft /></span>
-        <div className="kc-project-heading">
-          <span>卡藏画布</span>
+        <span className="wc-project-console-mark" aria-hidden="true">
+          <PanelsTopLeft />
+        </span>
+        <div className="wc-project-heading">
+          <span>纬线画布</span>
           <input
-            className="kc-project-name"
+            className="wc-project-name"
             value={projectName}
             aria-label="项目名称"
             onChange={(event) => setProjectName(event.target.value)}
             onBlur={(event) => setProjectName(event.target.value.trim())}
           />
         </div>
-        {/* data-kc-preserve-drawers：这个键自己管理开合（点击 = 切换面板），不能走面板的
+        {/* data-wc-preserve-drawers：这个键自己管理开合（点击 = 切换面板），不能走面板的
             "点外关闭"——否则同一击会先被面板判成点外、再被按钮当成第二次点击。 */}
         <button
           type="button"
-          data-kc-preserve-drawers
-          className={`kc-workspace-assets-trigger ${assetPanelOpen ? "is-open" : ""}`}
+          data-wc-preserve-drawers
+          className={`wc-workspace-assets-trigger ${assetPanelOpen ? "is-open" : ""}`}
           data-save-state={saveState}
           aria-label="工作资产库"
           title="工作资产库 · 本项目的资产都收在这里"
@@ -122,19 +140,19 @@ export const TopBar = memo(function TopBar({
           <Boxes aria-hidden="true" />
           <span>工作资产库</span>
           {!assetPanelOpen && assetPendingNew > 0 ? (
-            <span className="kc-workspace-assets-trigger-badge" aria-hidden="true">
+            <span className="wc-workspace-assets-trigger-badge" aria-hidden="true">
               {assetPendingNew > 9 ? "9+" : assetPendingNew}
             </span>
           ) : null}
         </button>
       </div>
 
-      <div className="kc-topbar-actions">
+      <div className="wc-topbar-actions">
         {/* 日夜切换 + 画布快捷键 + 设置键：常驻在外 */}
         <button
           type="button"
-          className="kc-icon-button"
-          data-kc-preserve-drawers
+          className="wc-icon-button"
+          data-wc-preserve-drawers
           aria-label="切换主题"
           title={theme === "light" ? "深色模式" : "浅色模式"}
           onClick={onToggleTheme}
@@ -143,7 +161,7 @@ export const TopBar = memo(function TopBar({
         </button>
         <button
           type="button"
-          className="kc-icon-button"
+          className="wc-icon-button"
           aria-label="画布快捷键"
           title="画布快捷键 (?)"
           onClick={onOpenShortcuts}
@@ -164,7 +182,7 @@ export const TopBar = memo(function TopBar({
         {/* 任务记录与积分流水：保持在外部入口（设置键右、头像左），不进任何下拉 */}
         <button
           type="button"
-          className="kc-icon-button kc-activity-trigger"
+          className="wc-icon-button wc-activity-trigger"
           aria-label="任务记录与积分明细"
           title="任务记录与积分明细"
           onClick={onToggleActivity}
@@ -176,30 +194,45 @@ export const TopBar = memo(function TopBar({
         {isAuthenticated ? (
           <button
             type="button"
-            className={`kc-account-chip ${activeMembershipTier ? `is-member is-${activeMembershipTier}` : ""}`}
-            aria-label={identitySession ? `账号：${identitySession.user.displayName}，积分 ${formatCredits(credits)}${claimableTaskCount ? `，${claimableTaskCount} 项奖励可领取` : ""}` : "登录画布账号"}
+            className={`wc-account-chip ${activeMembershipTier ? `is-member is-${activeMembershipTier}` : ""}`}
+            aria-label={
+              identitySession
+                ? `账号：${identitySession.user.displayName}，积分 ${formatCredits(credits)}${claimableTaskCount ? `，${claimableTaskCount} 项奖励可领取` : ""}`
+                : "登录画布账号"
+            }
             title={
               claimableTaskCount
                 ? `${claimableTaskCount} 项奖励可领取`
-                : identitySession?.user.displayName ?? "登录画布账号"
+                : (identitySession?.user.displayName ?? "登录画布账号")
             }
             onClick={() => {
               if (claimableTaskCount) requestMembershipTasks();
               openAccount();
             }}
           >
-            <span className="kc-account-chip-meta">
-              <Coins aria-hidden="true" className="kc-account-chip-credits-icon" />
-              <span className="kc-account-chip-credits" aria-hidden="true">{formatCredits(credits)}</span>
+            <span className="wc-account-chip-meta">
+              <Coins aria-hidden="true" className="wc-account-chip-credits-icon" />
+              <span className="wc-account-chip-credits" aria-hidden="true">
+                {formatCredits(credits)}
+              </span>
             </span>
             <span
-              className="kc-account-chip-avatar"
+              className="wc-account-chip-avatar"
               data-tier={activeMembershipTier ?? "free"}
-              style={tierRingColor ? { ["--kc-account-ring" as string]: tierRingColor, ["--kc-account-avatar-bg" as string]: avatarFallbackBg } : undefined}
+              style={
+                tierRingColor
+                  ? {
+                      ["--wc-account-ring" as string]: tierRingColor,
+                      ["--wc-account-avatar-bg" as string]: avatarFallbackBg,
+                    }
+                  : undefined
+              }
             >
               <span aria-hidden="true">{avatarInitial}</span>
               {claimableTaskCount ? (
-                <span className="kc-account-chip-badge" aria-hidden="true">{Math.min(claimableTaskCount, 99)}</span>
+                <span className="wc-account-chip-badge" aria-hidden="true">
+                  {Math.min(claimableTaskCount, 99)}
+                </span>
               ) : null}
             </span>
           </button>

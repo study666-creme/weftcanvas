@@ -1,4 +1,4 @@
-import type { CanvasNodeData } from "@kachang/contracts";
+import type { CanvasNodeData } from "@weftcanvas/contracts";
 import { nodeLabel } from "../lib/node-registry";
 import { AtSign, Check, Image as ImageIcon, Music2, Plus, Video, X } from "lucide-react";
 import {
@@ -34,7 +34,7 @@ import {
 } from "../lib/prompt-references";
 import { collectUpstreamTextContent } from "../lib/generation-inputs";
 import { useCanvasStore } from "../state/canvas-store";
-import type { KachangEdge, KachangNode } from "../types";
+import type { WeftcanvasEdge, WeftcanvasNode } from "../types";
 import { NodeGenerationPanel } from "./node-generation-panel";
 
 const MAX_REFERENCE_NODES = 32;
@@ -57,7 +57,7 @@ type PendingPromptSelection = PromptSelection & {
 };
 
 type ReferenceCandidate = {
-  node: KachangNode;
+  node: WeftcanvasNode;
   ordinal: number;
   sourceLabel: string;
   label: string;
@@ -70,14 +70,14 @@ type NodePromptComposerProps = {
   dragging?: boolean;
 };
 
-export const NodePromptComposer = memo(function NodePromptComposer({ nodeId, data, dragging = false }: NodePromptComposerProps) {
+export const NodePromptComposer = memo(function NodePromptComposer({
+  nodeId,
+  data,
+  dragging = false,
+}: NodePromptComposerProps) {
   const { nodes, edges } = useCanvasStore(selectCanvasContentGraph);
-  const {
-    updateNodeData,
-    disconnectNodes,
-    beginTransaction,
-    commitTransaction,
-  } = useCanvasStore.getState();
+  const { updateNodeData, disconnectNodes, beginTransaction, commitTransaction } =
+    useCanvasStore.getState();
   const shellRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const renderedEditorChildrenRef = useRef<ChildNode[]>([]);
@@ -94,18 +94,26 @@ export const NodePromptComposer = memo(function NodePromptComposer({ nodeId, dat
   const [activeIndex, setActiveIndex] = useState(0);
   useNodeOverlayPosition(nodeId, shellRef);
 
-  const candidates = useMemo(() => collectMediaCandidates(nodeId, nodes, edges), [edges, nodeId, nodes]);
+  const candidates = useMemo(
+    () => collectMediaCandidates(nodeId, nodes, edges),
+    [edges, nodeId, nodes],
+  );
   const upstreamTextContent = useMemo(
-    () => data.kind === "text" ? [] : collectUpstreamTextContent(nodeId, nodes, edges),
+    () => (data.kind === "text" ? [] : collectUpstreamTextContent(nodeId, nodes, edges)),
     [data.kind, edges, nodeId, nodes],
   );
   const promptPlaceholder = upstreamTextContent.length
     ? `已连接 ${upstreamTextContent.length} 条文本，生成时自动使用`
     : "描述想生成的内容";
   const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
-  const candidateById = useMemo(() => new Map(candidates.map((candidate) => [candidate.node.id, candidate])), [candidates]);
-  const selectedCandidates = useMemo(() => data.generation.referenceNodeIds
-    .flatMap((id) => candidateById.get(id) ?? []), [candidateById, data.generation.referenceNodeIds]);
+  const candidateById = useMemo(
+    () => new Map(candidates.map((candidate) => [candidate.node.id, candidate])),
+    [candidates],
+  );
+  const selectedCandidates = useMemo(
+    () => data.generation.referenceNodeIds.flatMap((id) => candidateById.get(id) ?? []),
+    [candidateById, data.generation.referenceNodeIds],
+  );
   const mentionNodeIds = useMemo(
     () => generationReferenceMentionNodeIds(nodeId, data.generation.referenceNodeIds, nodes),
     [data.generation.referenceNodeIds, nodeId, nodes],
@@ -120,7 +128,9 @@ export const NodePromptComposer = memo(function NodePromptComposer({ nodeId, dat
   );
   const filteredCandidates = useMemo(() => {
     const query = (mention?.query ?? "").trim().toLocaleLowerCase("zh-CN");
-    const matches = query ? candidates.filter((candidate) => candidate.searchText.includes(query)) : candidates;
+    const matches = query
+      ? candidates.filter((candidate) => candidate.searchText.includes(query))
+      : candidates;
     return matches.slice(0, MAX_VISIBLE_CANDIDATES);
   }, [candidates, mention?.query]);
 
@@ -179,7 +189,11 @@ export const NodePromptComposer = memo(function NodePromptComposer({ nodeId, dat
     const presentIds = new Set(referenceIdsPresentInBody(body, currentMentionIds, nodes));
     const boundReferenceNodeIds = referenceNodeIds.filter((id) => presentIds.has(id));
     if (!sameIds(boundReferenceNodeIds, referenceNodeIds)) {
-      const nextMentionIds = generationReferenceMentionNodeIds(nodeId, boundReferenceNodeIds, nodes);
+      const nextMentionIds = generationReferenceMentionNodeIds(
+        nodeId,
+        boundReferenceNodeIds,
+        nodes,
+      );
       body = stripUnboundReferenceMentions(
         reconcileReferenceMentions(body, currentMentionIds, nextMentionIds, nodes),
         nextMentionIds,
@@ -189,48 +203,85 @@ export const NodePromptComposer = memo(function NodePromptComposer({ nodeId, dat
     }
 
     if (sameIds(referenceNodeIds, previousNodeIds) && body === data.body) return;
-    updateNodeData(nodeId, {
-      body,
-      generation: {
-        ...data.generation,
-        referenceMode: explicit ? "explicit" : "auto",
-        referenceNodeIds,
-        error: null,
+    updateNodeData(
+      nodeId,
+      {
+        body,
+        generation: {
+          ...data.generation,
+          referenceMode: explicit ? "explicit" : "auto",
+          referenceNodeIds,
+          error: null,
+        },
       },
-    }, false);
-  }, [candidates, data.body, data.generation, data.generation.referenceNodeIds, nodeId, nodes, updateNodeData]);
+      false,
+    );
+  }, [
+    candidates,
+    data.body,
+    data.generation,
+    data.generation.referenceNodeIds,
+    nodeId,
+    nodes,
+    updateNodeData,
+  ]);
 
   const persistPromptChange = (rawBody: string, requestedSelection: PromptSelection) => {
     const state = useCanvasStore.getState();
     const current = state.nodes.find((node) => node.id === nodeId);
     if (!current) return;
     const previousNodeIds = current.data.generation.referenceNodeIds;
-    const previousMentionIds = generationReferenceMentionNodeIds(nodeId, previousNodeIds, state.nodes);
+    const previousMentionIds = generationReferenceMentionNodeIds(
+      nodeId,
+      previousNodeIds,
+      state.nodes,
+    );
     let body = rawBody.slice(0, MAX_PROMPT_LENGTH);
     const presentIds = new Set(referenceIdsPresentInBody(body, previousMentionIds, state.nodes));
     const referenceNodeIds = previousNodeIds.filter((id) => presentIds.has(id));
     if (!sameIds(referenceNodeIds, previousNodeIds)) {
-      const nextMentionIds = generationReferenceMentionNodeIds(nodeId, referenceNodeIds, state.nodes);
+      const nextMentionIds = generationReferenceMentionNodeIds(
+        nodeId,
+        referenceNodeIds,
+        state.nodes,
+      );
       body = reconcileReferenceMentions(body, previousMentionIds, nextMentionIds, state.nodes);
     }
     const selection = {
       start: Math.min(requestedSelection.start, body.length),
       end: Math.min(requestedSelection.end, body.length),
     };
-    pendingSelectionRef.current = { ...selection, focus: document.activeElement === editorRef.current };
-    state.updateNodeData(nodeId, {
-      body,
-      ...(sameIds(referenceNodeIds, previousNodeIds) ? {} : {
-        generation: {
-          ...current.data.generation,
-          referenceMode: "explicit" as const,
-          referenceNodeIds,
-          error: null,
-        },
-      }),
-    }, false);
+    pendingSelectionRef.current = {
+      ...selection,
+      focus: document.activeElement === editorRef.current,
+    };
+    state.updateNodeData(
+      nodeId,
+      {
+        body,
+        ...(sameIds(referenceNodeIds, previousNodeIds)
+          ? {}
+          : {
+              generation: {
+                ...current.data.generation,
+                referenceMode: "explicit" as const,
+                referenceNodeIds,
+                error: null,
+              },
+            }),
+      },
+      false,
+    );
     lastSelectionRef.current = selection;
-    const activeMention = findActiveMention(body, selection.end, findPromptReferenceRanges(body, generationReferenceMentionNodeIds(nodeId, referenceNodeIds, state.nodes), state.nodes));
+    const activeMention = findActiveMention(
+      body,
+      selection.end,
+      findPromptReferenceRanges(
+        body,
+        generationReferenceMentionNodeIds(nodeId, referenceNodeIds, state.nodes),
+        state.nodes,
+      ),
+    );
     setMention(activeMention);
     if (activeMention) {
       setPickerOpen(true);
@@ -246,7 +297,8 @@ export const NodePromptComposer = memo(function NodePromptComposer({ nodeId, dat
     const current = state.nodes.find((node) => node.id === nodeId);
     if (!current) return;
     const alreadySelected = current.data.generation.referenceNodeIds.includes(candidate.node.id);
-    if (!alreadySelected && current.data.generation.referenceNodeIds.length >= MAX_REFERENCE_NODES) return;
+    if (!alreadySelected && current.data.generation.referenceNodeIds.length >= MAX_REFERENCE_NODES)
+      return;
     const referenceNodeIds = alreadySelected
       ? current.data.generation.referenceNodeIds
       : [...current.data.generation.referenceNodeIds, candidate.node.id];
@@ -257,19 +309,29 @@ export const NodePromptComposer = memo(function NodePromptComposer({ nodeId, dat
       current.data.body,
       mention,
       lastSelectionRef.current,
-      buttonTriggerStartRef.current === mention?.start ? buttonTriggerInsertionStartRef.current : null,
+      buttonTriggerStartRef.current === mention?.start
+        ? buttonTriggerInsertionStartRef.current
+        : null,
       `@${mentionLabel}`,
     );
-    pendingSelectionRef.current = { start: promptUpdate.caret, end: promptUpdate.caret, focus: true };
-    state.updateNodeData(nodeId, {
-      body: promptUpdate.body,
-      generation: {
-        ...current.data.generation,
-        referenceMode: "explicit",
-        referenceNodeIds,
-        error: null,
+    pendingSelectionRef.current = {
+      start: promptUpdate.caret,
+      end: promptUpdate.caret,
+      focus: true,
+    };
+    state.updateNodeData(
+      nodeId,
+      {
+        body: promptUpdate.body,
+        generation: {
+          ...current.data.generation,
+          referenceMode: "explicit",
+          referenceNodeIds,
+          error: null,
+        },
       },
-    }, false);
+      false,
+    );
     setPickerOpen(false);
     setMention(null);
     buttonTriggerStartRef.current = null;
@@ -281,11 +343,20 @@ export const NodePromptComposer = memo(function NodePromptComposer({ nodeId, dat
     const state = useCanvasStore.getState();
     const current = state.nodes.find((node) => node.id === nodeId);
     if (!current) return;
-    const referenceNodeIds = current.data.generation.referenceNodeIds.filter((id) => id !== referenceNodeId);
-    const currentMentionIds = generationReferenceMentionNodeIds(nodeId, current.data.generation.referenceNodeIds, state.nodes);
+    const referenceNodeIds = current.data.generation.referenceNodeIds.filter(
+      (id) => id !== referenceNodeId,
+    );
+    const currentMentionIds = generationReferenceMentionNodeIds(
+      nodeId,
+      current.data.generation.referenceNodeIds,
+      state.nodes,
+    );
     const nextMentionIds = generationReferenceMentionNodeIds(nodeId, referenceNodeIds, state.nodes);
-    const removedRange = findPromptReferenceRanges(current.data.body, currentMentionIds, state.nodes)
-      .find((range) => range.nodeId === referenceNodeId);
+    const removedRange = findPromptReferenceRanges(
+      current.data.body,
+      currentMentionIds,
+      state.nodes,
+    ).find((range) => range.nodeId === referenceNodeId);
     const body = stripUnboundReferenceMentions(
       reconcileReferenceMentions(current.data.body, currentMentionIds, nextMentionIds, state.nodes),
       nextMentionIds,
@@ -313,7 +384,13 @@ export const NodePromptComposer = memo(function NodePromptComposer({ nodeId, dat
     const current = useCanvasStore.getState().nodes.find((node) => node.id === nodeId);
     const triggerStart = buttonTriggerStartRef.current;
     const insertionStart = buttonTriggerInsertionStartRef.current;
-    if (removeEmptyButtonTrigger && current && mention && mention.query === "" && triggerStart === mention.start) {
+    if (
+      removeEmptyButtonTrigger &&
+      current &&
+      mention &&
+      mention.query === "" &&
+      triggerStart === mention.start
+    ) {
       const removalStart = insertionStart ?? mention.start;
       const body = `${current.data.body.slice(0, removalStart)}${current.data.body.slice(mention.end)}`;
       lastSelectionRef.current = { start: removalStart, end: removalStart };
@@ -359,14 +436,19 @@ export const NodePromptComposer = memo(function NodePromptComposer({ nodeId, dat
     const selection = readPromptSelection(editor);
     if (!selection) return;
     if (
-      !allowStartReset
-      && selection.start === 0
-      && selection.end === 0
-      && (lastSelectionRef.current.start > 0 || lastSelectionRef.current.end > 0)
-    ) return;
+      !allowStartReset &&
+      selection.start === 0 &&
+      selection.end === 0 &&
+      (lastSelectionRef.current.start > 0 || lastSelectionRef.current.end > 0)
+    )
+      return;
     const body = serializePromptEditor(editor);
     lastSelectionRef.current = selection;
-    const activeMention = findActiveMention(body, selection.end, findPromptReferenceRanges(body, mentionNodeIds, nodes));
+    const activeMention = findActiveMention(
+      body,
+      selection.end,
+      findPromptReferenceRanges(body, mentionNodeIds, nodes),
+    );
     if (activeMention?.start !== buttonTriggerStartRef.current) {
       buttonTriggerStartRef.current = null;
       buttonTriggerInsertionStartRef.current = null;
@@ -406,15 +488,19 @@ export const NodePromptComposer = memo(function NodePromptComposer({ nodeId, dat
     if (!editor || !current) return;
     const liveSelection = readPromptSelection(editor);
     const rememberedSelection = lastSelectionRef.current;
-    const selection = liveSelection
-      && current.data.body.length > 0
-      && liveSelection.start === 0
-      && liveSelection.end === 0
-      && (rememberedSelection.start > 0 || rememberedSelection.end > 0)
-      ? rememberedSelection
-      : liveSelection ?? rememberedSelection;
+    const selection =
+      liveSelection &&
+      current.data.body.length > 0 &&
+      liveSelection.start === 0 &&
+      liveSelection.end === 0 &&
+      (rememberedSelection.start > 0 || rememberedSelection.end > 0)
+        ? rememberedSelection
+        : (liveSelection ?? rememberedSelection);
     const normalized = text.replace(/\r\n?/gu, "\n");
-    const available = Math.max(0, MAX_PROMPT_LENGTH - (current.data.body.length - (selection.end - selection.start)));
+    const available = Math.max(
+      0,
+      MAX_PROMPT_LENGTH - (current.data.body.length - (selection.end - selection.start)),
+    );
     const inserted = normalized.slice(0, available);
     const body = `${current.data.body.slice(0, selection.start)}${inserted}${current.data.body.slice(selection.end)}`;
     const caret = selection.start + inserted.length;
@@ -448,7 +534,7 @@ export const NodePromptComposer = memo(function NodePromptComposer({ nodeId, dat
     const replacedWholeBody = inputEvent?.inputType === "insertText" && inputEvent.data === body;
     const selection = replacedWholeBody
       ? { start: body.length, end: body.length }
-      : liveSelection ?? { start: body.length, end: body.length };
+      : (liveSelection ?? { start: body.length, end: body.length });
     restoreRenderedPromptChildren(editor, renderedEditorChildrenRef.current);
     persistPromptChange(body, selection);
   };
@@ -524,7 +610,9 @@ export const NodePromptComposer = memo(function NodePromptComposer({ nodeId, dat
       }
       if (event.key === "ArrowUp" && filteredCandidates.length) {
         event.preventDefault();
-        setActiveIndex((index) => (index - 1 + filteredCandidates.length) % filteredCandidates.length);
+        setActiveIndex(
+          (index) => (index - 1 + filteredCandidates.length) % filteredCandidates.length,
+        );
         return;
       }
       if ((event.key === "Enter" || event.key === "Tab") && filteredCandidates[activeIndex]) {
@@ -538,7 +626,10 @@ export const NodePromptComposer = memo(function NodePromptComposer({ nodeId, dat
         return;
       }
     }
-    if ((event.key === "Backspace" || event.key === "Delete") && deleteReferenceFromEditor(event.key === "Backspace" ? "backward" : "forward")) {
+    if (
+      (event.key === "Backspace" || event.key === "Delete") &&
+      deleteReferenceFromEditor(event.key === "Backspace" ? "backward" : "forward")
+    ) {
       event.preventDefault();
       return;
     }
@@ -549,201 +640,234 @@ export const NodePromptComposer = memo(function NodePromptComposer({ nodeId, dat
   };
 
   return createPortal(
-      <div
-        ref={shellRef}
-        className={`kc-node-prompt-shell ${data.kind === "text" ? "" : "kc-node-prompt-shell--generation"} ${dragging ? "is-node-dragging" : ""}`}
-        data-node-prompt-composer
-        role="region"
-        aria-label={`${nodeLabel(data.kind)}编辑器`}
-        onPointerDown={(event) => event.stopPropagation()}
-      >
-        <div className="kc-node-prompt-composer nodrag nowheel nopan">
-          {candidates.length ? (
-            <div className="kc-node-reference-chips" aria-label="已连接素材">
-              <div className="kc-node-reference-chips-header">
-                <span>已连接素材</span>
-                <small>{selectedCandidates.length}/{candidates.length} 已引用</small>
-              </div>
-              <div className="kc-node-reference-chips-track">
-                {candidates.map((candidate) => {
-                  const selected = data.generation.referenceNodeIds.includes(candidate.node.id);
-                  const mentionLabel = selectedMentions.get(candidate.node.id) ?? candidate.sourceLabel;
-                  return (
-                    <div
-                      key={candidate.node.id}
-                      className={`kc-node-reference-chip ${selected ? "is-selected" : ""}`}
+    <div
+      ref={shellRef}
+      className={`wc-node-prompt-shell ${data.kind === "text" ? "" : "wc-node-prompt-shell--generation"} ${dragging ? "is-node-dragging" : ""}`}
+      data-node-prompt-composer
+      role="region"
+      aria-label={`${nodeLabel(data.kind)}编辑器`}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <div className="wc-node-prompt-composer nodrag nowheel nopan">
+        {candidates.length ? (
+          <div className="wc-node-reference-chips" aria-label="已连接素材">
+            <div className="wc-node-reference-chips-header">
+              <span>已连接素材</span>
+              <small>
+                {selectedCandidates.length}/{candidates.length} 已引用
+              </small>
+            </div>
+            <div className="wc-node-reference-chips-track">
+              {candidates.map((candidate) => {
+                const selected = data.generation.referenceNodeIds.includes(candidate.node.id);
+                const mentionLabel =
+                  selectedMentions.get(candidate.node.id) ?? candidate.sourceLabel;
+                return (
+                  <div
+                    key={candidate.node.id}
+                    className={`wc-node-reference-chip ${selected ? "is-selected" : ""}`}
+                  >
+                    <button
+                      type="button"
+                      className="wc-node-reference-choice"
+                      aria-pressed={selected}
+                      aria-label={
+                        selected ? `已引用素材 ${candidate.label}` : `引用素材 ${candidate.label}`
+                      }
+                      title={`${selected ? `@${mentionLabel}` : "单击引用"} · ${candidate.label}`}
+                      onClick={() => chooseReference(candidate)}
                     >
-                      <button
-                        type="button"
-                        className="kc-node-reference-choice"
-                        aria-pressed={selected}
-                        aria-label={selected ? `已引用素材 ${candidate.label}` : `引用素材 ${candidate.label}`}
-                        title={`${selected ? `@${mentionLabel}` : "单击引用"} · ${candidate.label}`}
-                        onClick={() => chooseReference(candidate)}
-                      >
-                        <ReferenceThumbnail node={candidate.node} />
-                        <span><b>{selected ? `@${mentionLabel}` : candidate.sourceLabel}</b><small>{candidate.label}</small></span>
-                        {selected ? <Check className="kc-node-reference-selected" aria-hidden="true" /> : null}
-                      </button>
-                      <button
-                        type="button"
-                        className="kc-node-reference-remove"
-                        aria-label={`取消素材链接 ${candidate.label}`}
-                        title={`取消素材链接 ${candidate.label}`}
-                        onKeyDown={(event) => event.stopPropagation()}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          disconnectReference(candidate.node.id);
-                        }}
-                      >
-                        <X aria-hidden="true" />
-                      </button>
-                    </div>
+                      <ReferenceThumbnail node={candidate.node} />
+                      <span>
+                        <b>{selected ? `@${mentionLabel}` : candidate.sourceLabel}</b>
+                        <small>{candidate.label}</small>
+                      </span>
+                      {selected ? (
+                        <Check className="wc-node-reference-selected" aria-hidden="true" />
+                      ) : null}
+                    </button>
+                    <button
+                      type="button"
+                      className="wc-node-reference-remove"
+                      aria-label={`取消素材链接 ${candidate.label}`}
+                      title={`取消素材链接 ${candidate.label}`}
+                      onKeyDown={(event) => event.stopPropagation()}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        disconnectReference(candidate.node.id);
+                      }}
+                    >
+                      <X aria-hidden="true" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="wc-node-prompt-row">
+          <div
+            ref={editorRef}
+            className="wc-node-prompt-editor"
+            data-prompt-editor
+            data-placeholder={promptPlaceholder}
+            contentEditable
+            suppressContentEditableWarning
+            role="textbox"
+            aria-label={`${nodeLabel(data.kind)}提示词`}
+            aria-multiline="true"
+            aria-placeholder={promptPlaceholder}
+            spellCheck
+            onFocus={() => {
+              beginTransaction();
+              syncMentionFromCaret(false);
+            }}
+            onBlur={() => {
+              if (composingRef.current) {
+                composingRef.current = false;
+                handleInput();
+              }
+              commitTransaction();
+            }}
+            onInput={handleInput}
+            onCompositionStart={() => {
+              composingRef.current = true;
+            }}
+            onCompositionEnd={() => {
+              window.queueMicrotask(() => {
+                if (!composingRef.current) return;
+                composingRef.current = false;
+                handleInput();
+              });
+            }}
+            onClick={() => syncMentionFromCaret(true)}
+            onSelect={() => syncMentionFromCaret(false)}
+            onKeyUp={() => syncMentionFromCaret(true)}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            onDrop={(event) => event.preventDefault()}
+            aria-activedescendant={
+              pickerOpen && filteredCandidates[activeIndex]
+                ? referenceOptionId(filteredCandidates[activeIndex].node.id)
+                : undefined
+            }
+          >
+            {renderPromptEditorContent(
+              data.body,
+              promptReferenceRanges,
+              nodeById,
+              candidateById,
+              removeReference,
+            )}
+          </div>
+        </div>
+
+        {data.kind === "text" ? (
+          <div className="wc-generation-compact-bar wc-node-text-reference-bar">
+            <div className="wc-generation-leading-control">
+              <button
+                type="button"
+                className={`wc-node-reference-trigger ${pickerOpen ? "is-active" : ""}`}
+                aria-label="引用画布素材"
+                title="引用画布素材"
+                aria-expanded={pickerOpen}
+                onClick={openReferencePicker}
+              >
+                <AtSign aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {pickerOpen ? (
+          <div className="wc-node-reference-picker" role="listbox" aria-label="选择参考素材">
+            <div className="wc-node-reference-picker-header">
+              <strong>{mention?.query ? `匹配“${mention.query}”` : "选择已连接素材"}</strong>
+              <span>
+                {filteredCandidates.length}/{candidates.length}
+              </span>
+            </div>
+            {filteredCandidates.length ? (
+              <div className="wc-node-reference-options">
+                {filteredCandidates.map((candidate, index) => {
+                  const selected = data.generation.referenceNodeIds.includes(candidate.node.id);
+                  const selectedOfKind = selectedCandidates.filter(
+                    (item) => item.node.data.kind === candidate.node.data.kind,
+                  ).length;
+                  const mentionLabel =
+                    selectedMentions.get(candidate.node.id) ??
+                    `${referenceKindLabel(candidate.node.data.kind)}${selectedOfKind + 1}`;
+                  return (
+                    <button
+                      id={referenceOptionId(candidate.node.id)}
+                      ref={(element) => {
+                        if (element) optionRefs.current.set(candidate.node.id, element);
+                        else optionRefs.current.delete(candidate.node.id);
+                      }}
+                      key={candidate.node.id}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      aria-label={`引用参考素材 ${candidate.label}`}
+                      className={index === activeIndex ? "is-active" : undefined}
+                      disabled={
+                        !selected && data.generation.referenceNodeIds.length >= MAX_REFERENCE_NODES
+                      }
+                      title={`@${mentionLabel} · ${candidate.label}`}
+                      onPointerDown={(event) => event.preventDefault()}
+                      onMouseEnter={() => setActiveIndex(index)}
+                      onClick={() => chooseReference(candidate)}
+                    >
+                      <ReferenceThumbnail node={candidate.node} />
+                      <span>
+                        <b>@{mentionLabel}</b>
+                        <small>{candidate.label}</small>
+                      </span>
+                      {selected ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}
+                    </button>
                   );
                 })}
               </div>
-            </div>
-          ) : null}
-
-          <div className="kc-node-prompt-row">
-            <div
-              ref={editorRef}
-              className="kc-node-prompt-editor"
-              data-prompt-editor
-              data-placeholder={promptPlaceholder}
-              contentEditable
-              suppressContentEditableWarning
-              role="textbox"
-              aria-label={`${nodeLabel(data.kind)}提示词`}
-              aria-multiline="true"
-              aria-placeholder={promptPlaceholder}
-              spellCheck
-              onFocus={() => {
-                beginTransaction();
-                syncMentionFromCaret(false);
-              }}
-              onBlur={() => {
-                if (composingRef.current) {
-                  composingRef.current = false;
-                  handleInput();
-                }
-                commitTransaction();
-              }}
-              onInput={handleInput}
-              onCompositionStart={() => {
-                composingRef.current = true;
-              }}
-              onCompositionEnd={() => {
-                window.queueMicrotask(() => {
-                  if (!composingRef.current) return;
-                  composingRef.current = false;
-                  handleInput();
-                });
-              }}
-              onClick={() => syncMentionFromCaret(true)}
-              onSelect={() => syncMentionFromCaret(false)}
-              onKeyUp={() => syncMentionFromCaret(true)}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-              onDrop={(event) => event.preventDefault()}
-              aria-activedescendant={pickerOpen && filteredCandidates[activeIndex] ? referenceOptionId(filteredCandidates[activeIndex].node.id) : undefined}
-            >
-              {renderPromptEditorContent(data.body, promptReferenceRanges, nodeById, candidateById, removeReference)}
-            </div>
+            ) : (
+              <div className="wc-node-reference-empty">
+                <ImageIcon aria-hidden="true" />
+                <span>{candidates.length ? "没有匹配的参考素材" : "请先连接含媒体的上游节点"}</span>
+              </div>
+            )}
           </div>
-
-          {data.kind === "text" ? (
-            <div className="kc-generation-compact-bar kc-node-text-reference-bar">
-              <div className="kc-generation-leading-control">
-                <button
-                  type="button"
-                  className={`kc-node-reference-trigger ${pickerOpen ? "is-active" : ""}`}
-                  aria-label="引用画布素材"
-                  title="引用画布素材"
-                  aria-expanded={pickerOpen}
-                  onClick={openReferencePicker}
-                >
-                  <AtSign aria-hidden="true" />
-                </button>
-              </div>
-            </div>
-          ) : null}
-
-          {pickerOpen ? (
-            <div className="kc-node-reference-picker" role="listbox" aria-label="选择参考素材">
-              <div className="kc-node-reference-picker-header">
-                <strong>{mention?.query ? `匹配“${mention.query}”` : "选择已连接素材"}</strong>
-                <span>{filteredCandidates.length}/{candidates.length}</span>
-              </div>
-              {filteredCandidates.length ? (
-                <div className="kc-node-reference-options">
-                  {filteredCandidates.map((candidate, index) => {
-                    const selected = data.generation.referenceNodeIds.includes(candidate.node.id);
-                    const selectedOfKind = selectedCandidates.filter((item) => item.node.data.kind === candidate.node.data.kind).length;
-                    const mentionLabel = selectedMentions.get(candidate.node.id)
-                      ?? `${referenceKindLabel(candidate.node.data.kind)}${selectedOfKind + 1}`;
-                    return (
-                      <button
-                        id={referenceOptionId(candidate.node.id)}
-                        ref={(element) => {
-                          if (element) optionRefs.current.set(candidate.node.id, element);
-                          else optionRefs.current.delete(candidate.node.id);
-                        }}
-                        key={candidate.node.id}
-                        type="button"
-                        role="option"
-                        aria-selected={selected}
-                        aria-label={`引用参考素材 ${candidate.label}`}
-                        className={index === activeIndex ? "is-active" : undefined}
-                        disabled={!selected && data.generation.referenceNodeIds.length >= MAX_REFERENCE_NODES}
-                        title={`@${mentionLabel} · ${candidate.label}`}
-                        onPointerDown={(event) => event.preventDefault()}
-                        onMouseEnter={() => setActiveIndex(index)}
-                        onClick={() => chooseReference(candidate)}
-                      >
-                        <ReferenceThumbnail node={candidate.node} />
-                        <span><b>@{mentionLabel}</b><small>{candidate.label}</small></span>
-                        {selected ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="kc-node-reference-empty"><ImageIcon aria-hidden="true" /><span>{candidates.length ? "没有匹配的参考素材" : "请先连接含媒体的上游节点"}</span></div>
-              )}
-            </div>
-          ) : null}
-          {data.kind !== "text" ? (
-            <NodeGenerationPanel
-              nodeId={nodeId}
-              data={data}
-              presentation="embedded"
-              submitButtonRef={submitButtonRef}
-              leadingControl={(
-                <button
-                  type="button"
-                  className={`kc-node-reference-trigger ${pickerOpen ? "is-active" : ""}`}
-                  aria-label="引用画布素材"
-                  title="引用画布素材"
-                  aria-expanded={pickerOpen}
-                  onClick={openReferencePicker}
-                >
-                  <AtSign aria-hidden="true" />
-                </button>
-              )}
-              onClose={() => undefined}
-            />
-          ) : null}
-        </div>
+        ) : null}
+        {data.kind !== "text" ? (
+          <NodeGenerationPanel
+            nodeId={nodeId}
+            data={data}
+            presentation="embedded"
+            submitButtonRef={submitButtonRef}
+            leadingControl={
+              <button
+                type="button"
+                className={`wc-node-reference-trigger ${pickerOpen ? "is-active" : ""}`}
+                aria-label="引用画布素材"
+                title="引用画布素材"
+                aria-expanded={pickerOpen}
+                onClick={openReferencePicker}
+              >
+                <AtSign aria-hidden="true" />
+              </button>
+            }
+            onClose={() => undefined}
+          />
+        ) : null}
       </div>
-    , document.body,
+    </div>,
+    document.body,
   );
 });
 
 function renderPromptEditorContent(
   body: string,
   ranges: readonly { nodeId: string; start: number; end: number }[],
-  nodeById: ReadonlyMap<string, KachangNode>,
+  nodeById: ReadonlyMap<string, WeftcanvasNode>,
   candidateById: ReadonlyMap<string, ReferenceCandidate>,
   onRemove: (nodeId: string) => void,
 ) {
@@ -760,14 +884,15 @@ function renderPromptEditorContent(
     } else {
       const occurrence = occurrences.get(range.nodeId) ?? 0;
       occurrences.set(range.nodeId, occurrence + 1);
-      const label = candidateById.get(range.nodeId)?.label
-        || node.data.body.trim()
-        || node.data.media?.name
-        || referenceKindLabel(node.data.kind);
+      const label =
+        candidateById.get(range.nodeId)?.label ||
+        node.data.body.trim() ||
+        node.data.media?.name ||
+        referenceKindLabel(node.data.kind);
       content.push(
         <span
           key={`${range.nodeId}-${occurrence}`}
-          className="kc-node-reference-token"
+          className="wc-node-reference-token"
           data-reference-token={token}
           data-reference-node-id={range.nodeId}
           contentEditable={false}
@@ -776,7 +901,7 @@ function renderPromptEditorContent(
           title={`${token} · ${label}`}
         >
           <ReferenceThumbnail node={node} />
-          <span className="kc-node-reference-token-label">{token}</span>
+          <span className="wc-node-reference-token-label">{token}</span>
           <button
             type="button"
             tabIndex={-1}
@@ -803,26 +928,39 @@ function renderPromptEditorContent(
   return content;
 }
 
-function ReferenceThumbnail({ node }: { node: KachangNode }) {
+function ReferenceThumbnail({ node }: { node: WeftcanvasNode }) {
   const { url } = useMediaUrl(node.data.media);
-  const [previewPosition, setPreviewPosition] = useState<{ left: number; top: number } | null>(null);
+  const [previewPosition, setPreviewPosition] = useState<{ left: number; top: number } | null>(
+    null,
+  );
   const thumbnailRef = useRef<HTMLElement>(null);
   const updatePreviewPosition = useCallback(() => {
     const thumbnail = thumbnailRef.current;
     if (!thumbnail || !url) return;
     const rect = thumbnail.getBoundingClientRect();
-    if (rect.bottom <= 0 || rect.top >= window.innerHeight || rect.right <= 0 || rect.left >= window.innerWidth) {
+    if (
+      rect.bottom <= 0 ||
+      rect.top >= window.innerHeight ||
+      rect.right <= 0 ||
+      rect.left >= window.innerWidth
+    ) {
       setPreviewPosition(null);
       return;
     }
     const width = Math.min(280, window.innerWidth - 24);
     const height = 196;
-    const left = Math.max(12, Math.min(window.innerWidth - width - 12, rect.left + rect.width / 2 - width / 2));
-    const top = rect.top - height - 10 >= 12
-      ? rect.top - height - 10
-      : Math.min(window.innerHeight - height - 12, rect.bottom + 10);
+    const left = Math.max(
+      12,
+      Math.min(window.innerWidth - width - 12, rect.left + rect.width / 2 - width / 2),
+    );
+    const top =
+      rect.top - height - 10 >= 12
+        ? rect.top - height - 10
+        : Math.min(window.innerHeight - height - 12, rect.bottom + 10);
     const next = { left, top: Math.max(12, top) };
-    setPreviewPosition((current) => current?.left === next.left && current.top === next.top ? current : next);
+    setPreviewPosition((current) =>
+      current?.left === next.left && current.top === next.top ? current : next,
+    );
   }, [url]);
   const previewOpen = previewPosition !== null;
   useLayoutEffect(() => {
@@ -838,41 +976,59 @@ function ReferenceThumbnail({ node }: { node: KachangNode }) {
     <>
       <i
         ref={thumbnailRef}
-        className="kc-node-reference-thumbnail"
+        className="wc-node-reference-thumbnail"
         aria-hidden="true"
         onPointerEnter={updatePreviewPosition}
         onPointerLeave={() => setPreviewPosition(null)}
       >
-        {node.data.kind === "image" && url ? <img src={url} alt="" draggable={false} loading="lazy" /> : null}
+        {node.data.kind === "image" && url ? (
+          <img src={url} alt="" draggable={false} loading="lazy" />
+        ) : null}
         {node.data.kind === "video" ? <Video /> : null}
         {node.data.kind === "audio" ? <Music2 /> : null}
-        {!isReferenceKind(node.data.kind) || (node.data.kind === "image" && !url) ? <ImageIcon /> : null}
+        {!isReferenceKind(node.data.kind) || (node.data.kind === "image" && !url) ? (
+          <ImageIcon />
+        ) : null}
       </i>
-      {previewPosition && url ? createPortal(
-        <div
-          className={`kc-node-reference-preview is-${node.data.kind}`}
-          data-reference-preview
-          style={{ left: previewPosition.left, top: previewPosition.top }}
-          role="tooltip"
-        >
-          <div className="kc-node-reference-preview-media">
-            {node.data.kind === "image" ? <img src={url} alt={node.data.media?.name ?? "参考图片"} draggable={false} /> : null}
-            {node.data.kind === "video" ? <video src={url} muted autoPlay loop playsInline preload="metadata" /> : null}
-            {node.data.kind === "audio" ? <Music2 aria-hidden="true" /> : null}
-          </div>
-          <span>{node.data.body.trim() || node.data.media?.name || `${referenceKindLabel(node.data.kind)}素材`}</span>
-        </div>,
-        document.body,
-      ) : null}
+      {previewPosition && url
+        ? createPortal(
+            <div
+              className={`wc-node-reference-preview is-${node.data.kind}`}
+              data-reference-preview
+              style={{ left: previewPosition.left, top: previewPosition.top }}
+              role="tooltip"
+            >
+              <div className="wc-node-reference-preview-media">
+                {node.data.kind === "image" ? (
+                  <img src={url} alt={node.data.media?.name ?? "参考图片"} draggable={false} />
+                ) : null}
+                {node.data.kind === "video" ? (
+                  <video src={url} muted autoPlay loop playsInline preload="metadata" />
+                ) : null}
+                {node.data.kind === "audio" ? <Music2 aria-hidden="true" /> : null}
+              </div>
+              <span>
+                {node.data.body.trim() ||
+                  node.data.media?.name ||
+                  `${referenceKindLabel(node.data.kind)}素材`}
+              </span>
+            </div>,
+            document.body,
+          )
+        : null}
     </>
   );
 }
 
-function collectMediaCandidates(nodeId: string, nodes: KachangNode[], edges: KachangEdge[]): ReferenceCandidate[] {
+function collectMediaCandidates(
+  nodeId: string,
+  nodes: WeftcanvasNode[],
+  edges: WeftcanvasEdge[],
+): ReferenceCandidate[] {
   const nodesById = new Map(nodes.map((node) => [node.id, node]));
   const target = nodesById.get(nodeId);
   const directIncomingNodeIds = indexIncomingNodeIds(edges).get(nodeId) ?? [];
-  const connectedMedia: KachangNode[] = [];
+  const connectedMedia: WeftcanvasNode[] = [];
 
   for (const currentId of directIncomingNodeIds) {
     const node = nodesById.get(currentId);
@@ -894,7 +1050,10 @@ function collectMediaCandidates(nodeId: string, nodes: KachangNode[], edges: Kac
       ordinal,
       sourceLabel: `${kindLabel}${ordinal}`,
       label,
-      searchText: `${kindLabel}${ordinal} ${kindLabel} ${label} ${node.data.media?.name ?? ""}`.toLocaleLowerCase("zh-CN"),
+      searchText:
+        `${kindLabel}${ordinal} ${kindLabel} ${label} ${node.data.media?.name ?? ""}`.toLocaleLowerCase(
+          "zh-CN",
+        ),
     };
   });
 }
@@ -919,8 +1078,12 @@ function replaceActiveMention(
   insertionStart: number | null,
   replacement: string,
 ) {
-  const start = mention ? insertionStart ?? mention.start : Math.min(selection.start, selection.end, body.length);
-  const end = mention ? mention.end : Math.min(Math.max(selection.start, selection.end), body.length);
+  const start = mention
+    ? (insertionStart ?? mention.start)
+    : Math.min(selection.start, selection.end, body.length);
+  const end = mention
+    ? mention.end
+    : Math.min(Math.max(selection.start, selection.end), body.length);
   const insertedPrefix = mention ? body.slice(start, mention.start) : "";
   let before = `${body.slice(0, start)}${insertedPrefix}`;
   let after = body.slice(end);
@@ -932,7 +1095,7 @@ function replaceActiveMention(
 }
 
 function referenceOptionId(nodeId: string) {
-  return `kc-reference-option-${nodeId}`;
+  return `wc-reference-option-${nodeId}`;
 }
 
 function serializePromptEditor(root: ParentNode) {
@@ -961,8 +1124,11 @@ function serializePromptNode(node: Node): string {
  */
 function restoreRenderedPromptChildren(root: HTMLElement, renderedChildren: readonly ChildNode[]) {
   const liveChildren = Array.from(root.childNodes);
-  if (liveChildren.length === renderedChildren.length
-    && liveChildren.every((child, index) => child === renderedChildren[index])) return;
+  if (
+    liveChildren.length === renderedChildren.length &&
+    liveChildren.every((child, index) => child === renderedChildren[index])
+  )
+    return;
   root.replaceChildren(...renderedChildren);
 }
 
@@ -995,7 +1161,10 @@ function restorePromptSelection(root: HTMLElement, selection: PromptSelection) {
   browserSelection.addRange(range);
 }
 
-function resolvePromptDomPoint(root: HTMLElement, requestedOffset: number): { node: Node; offset: number } {
+function resolvePromptDomPoint(
+  root: HTMLElement,
+  requestedOffset: number,
+): { node: Node; offset: number } {
   let remaining = Math.max(0, requestedOffset);
   for (let index = 0; index < root.childNodes.length; index += 1) {
     const node = root.childNodes[index]!;
@@ -1013,7 +1182,8 @@ function resolvePromptDomPoint(root: HTMLElement, requestedOffset: number): { no
       continue;
     }
     const length = serializePromptNode(node).length;
-    if (remaining <= length && node instanceof HTMLElement) return resolvePromptDomPoint(node, remaining);
+    if (remaining <= length && node instanceof HTMLElement)
+      return resolvePromptDomPoint(node, remaining);
     remaining -= length;
   }
   return { node: root, offset: root.childNodes.length };

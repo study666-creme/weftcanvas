@@ -11,10 +11,12 @@ describe("generation billing text", () => {
   });
 
   it("separates the actual charge from the estimate and reports refunds", () => {
-    expect(generationBillingText({ billing: { chargedCreditMicros: 322_920_000, refunded: false } }))
-      .toBe("实扣 322.92 积分");
-    expect(generationBillingText({ billing: { chargedCreditMicros: 322_920_000, refunded: true } }))
-      .toBe("已退回 322.92 积分");
+    expect(
+      generationBillingText({ billing: { chargedCreditMicros: 322_920_000, refunded: false } }),
+    ).toBe("实扣 322.92 积分");
+    expect(
+      generationBillingText({ billing: { chargedCreditMicros: 322_920_000, refunded: true } }),
+    ).toBe("已退回 322.92 积分");
   });
 
   it("shows nothing when the upstream never reported a charge", () => {

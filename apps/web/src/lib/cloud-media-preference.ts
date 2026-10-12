@@ -1,4 +1,4 @@
-const SKIP_CLOUD_UPLOAD_KEY = "kachang-canvas:cloud-media-preference:v1";
+const SKIP_CLOUD_UPLOAD_KEY = "weftcanvas:cloud-media-preference:v1";
 
 /**
  * “不再保存素材到云端”偏好。放在独立模块，避免 cloud-project-media 为了读这个

@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { PublicGenerationJob } from "@kachang/contracts";
+import type { PublicGenerationJob } from "@weftcanvas/contracts";
 
 import { createCanvasNode } from "../lib/node-factory";
 import { generationParametersAspectRatio, parseMediaAspectRatio } from "../lib/node-size";
-import type { KachangNode } from "../types";
+import type { WeftcanvasNode } from "../types";
 import { queueCanvasNodePositionChanges, selectProject, useCanvasStore } from "./canvas-store";
 import { useUiPreferencesStore } from "./ui-preferences-store";
 
@@ -62,7 +62,9 @@ describe("canvas reference lifecycle", () => {
     let state = useCanvasStore.getState();
     expect(state.nodes).toHaveLength(2);
     expect(state.edges).toEqual([]);
-    expect(state.nodes.find((node) => node.id === "target")?.data.generation.referenceNodeIds).toEqual([]);
+    expect(
+      state.nodes.find((node) => node.id === "target")?.data.generation.referenceNodeIds,
+    ).toEqual([]);
     expect(state.past).toHaveLength(1);
     expect(state.saveState).toBe("saving");
 
@@ -70,7 +72,9 @@ describe("canvas reference lifecycle", () => {
     state = useCanvasStore.getState();
     expect(state.nodes).toHaveLength(2);
     expect(state.edges).toHaveLength(1);
-    expect(state.nodes.find((node) => node.id === "target")?.data.generation.referenceNodeIds).toEqual(["reference"]);
+    expect(
+      state.nodes.find((node) => node.id === "target")?.data.generation.referenceNodeIds,
+    ).toEqual(["reference"]);
   });
 
   it("connects every selected node to one target as one undoable batch", () => {
@@ -100,7 +104,12 @@ describe("canvas reference lifecycle", () => {
     source.selected = false;
     first.selected = true;
     second.selected = true;
-    const existing = { id: "existing", type: "kachang" as const, source: source.id, target: first.id };
+    const existing = {
+      id: "existing",
+      type: "weftcanvas" as const,
+      source: source.id,
+      target: first.id,
+    };
     useCanvasStore.setState({ nodes: [source, first, second], edges: [existing] });
 
     expect(useCanvasStore.getState().connectSelectionToNode(source.id, "incoming")).toBe(1);
@@ -114,7 +123,9 @@ describe("canvas reference lifecycle", () => {
 
   it("remaps references when duplicating a selected graph", () => {
     const nodes = referenceGraph();
-    nodes.forEach((node) => { node.selected = true; });
+    nodes.forEach((node) => {
+      node.selected = true;
+    });
     useCanvasStore.setState({ nodes });
 
     useCanvasStore.getState().duplicateSelection();
@@ -124,7 +135,9 @@ describe("canvas reference lifecycle", () => {
 
   it("remaps references when copying and pasting a selected graph", () => {
     const nodes = referenceGraph();
-    nodes.forEach((node) => { node.selected = true; });
+    nodes.forEach((node) => {
+      node.selected = true;
+    });
     useCanvasStore.setState({ nodes });
 
     useCanvasStore.getState().copySelection();
@@ -202,27 +215,38 @@ describe("canvas reference lifecycle", () => {
 
     const imageId = useCanvasStore.getState().addNode("image", { x: 0, y: 0 });
     const videoId = useCanvasStore.getState().addConnectedNode(imageId, "right", "video");
-    const [uploadedId] = useCanvasStore.getState().addImportedNodes([{
-      kind: "image",
-      position: { x: 4_000, y: 0 },
-      data: {
-        media: {
-          id: "overview-upload",
-          name: "overview.png",
-          mimeType: "image/png",
-          size: 1,
-          source: "local",
-          serverId: null,
-          width: 1_920,
-          height: 1_080,
-          durationMs: null,
+    const [uploadedId] = useCanvasStore.getState().addImportedNodes([
+      {
+        kind: "image",
+        position: { x: 4_000, y: 0 },
+        data: {
+          media: {
+            id: "overview-upload",
+            name: "overview.png",
+            mimeType: "image/png",
+            size: 1,
+            source: "local",
+            serverId: null,
+            width: 1_920,
+            height: 1_080,
+            durationMs: null,
+          },
         },
       },
-    }]);
+    ]);
 
-    expect(useCanvasStore.getState().nodes.find((node) => node.id === imageId)).toMatchObject({ width: 340, height: 191 });
-    expect(useCanvasStore.getState().nodes.find((node) => node.id === videoId)).toMatchObject({ width: 340, height: 191 });
-    expect(useCanvasStore.getState().nodes.find((node) => node.id === uploadedId)).toMatchObject({ width: 360, height: 203 });
+    expect(useCanvasStore.getState().nodes.find((node) => node.id === imageId)).toMatchObject({
+      width: 340,
+      height: 191,
+    });
+    expect(useCanvasStore.getState().nodes.find((node) => node.id === videoId)).toMatchObject({
+      width: 340,
+      height: 191,
+    });
+    expect(useCanvasStore.getState().nodes.find((node) => node.id === uploadedId)).toMatchObject({
+      width: 360,
+      height: 203,
+    });
   });
 
   it("parses generation aspect ratios from common model parameter formats", () => {
@@ -231,9 +255,15 @@ describe("canvas reference lifecycle", () => {
     expect(parseMediaAspectRatio(4 / 3)).toBeCloseTo(4 / 3);
     expect(parseMediaAspectRatio({ width: 720, height: 1_280 })).toBeCloseTo(9 / 16);
     expect(generationParametersAspectRatio({ size: "720x1280" })).toBeCloseTo(9 / 16);
-    expect(generationParametersAspectRatio({ aspect_ratio: "auto", size: "720x1280" })).toBeCloseTo(9 / 16);
-    expect(generationParametersAspectRatio({ aspect_ratio: "original", size: "1024x1024" })).toBeNull();
-    expect(generationParametersAspectRatio({ aspect_ratio: "16:9", size: "720x1280" }, "size")).toBeCloseTo(9 / 16);
+    expect(generationParametersAspectRatio({ aspect_ratio: "auto", size: "720x1280" })).toBeCloseTo(
+      9 / 16,
+    );
+    expect(
+      generationParametersAspectRatio({ aspect_ratio: "original", size: "1024x1024" }),
+    ).toBeNull();
+    expect(
+      generationParametersAspectRatio({ aspect_ratio: "16:9", size: "720x1280" }, "size"),
+    ).toBeCloseTo(9 / 16);
     expect(generationParametersAspectRatio({ size: 1_024 })).toBeNull();
     expect(generationParametersAspectRatio({ size: "1024" })).toBeNull();
     expect(parseMediaAspectRatio("original")).toBeNull();
@@ -249,7 +279,9 @@ describe("canvas reference lifecycle", () => {
     useCanvasStore.setState({ nodes: [node] });
     const center = { x: node.position.x + node.width / 2, y: node.position.y + node.height / 2 };
 
-    useCanvasStore.getState().resizeMediaNodeForGenerationParameters(node.id, { ratio: "9/16" }, { force: true });
+    useCanvasStore
+      .getState()
+      .resizeMediaNodeForGenerationParameters(node.id, { ratio: "9/16" }, { force: true });
     const current = useCanvasStore.getState().nodes[0]!;
 
     expect(current.width! / current.height!).toBeCloseTo(9 / 16);
@@ -274,7 +306,9 @@ describe("canvas reference lifecycle", () => {
       ],
     });
 
-    useCanvasStore.getState().resizeMediaNodeForGenerationParameters(config.id, { aspect_ratio: "9:16" }, { force: true });
+    useCanvasStore
+      .getState()
+      .resizeMediaNodeForGenerationParameters(config.id, { aspect_ratio: "9:16" }, { force: true });
 
     expect(targetRatio(target.id)).toBeCloseTo(9 / 16);
     expect(targetRatio(image.id)).toBeCloseTo(16 / 9);
@@ -282,9 +316,13 @@ describe("canvas reference lifecycle", () => {
   });
 
   it("reshapes a target when it is connected to an already configured ratio", () => {
-    const config = createCanvasNode("config", { x: 0, y: 0 }, {
-      config: { modality: "image" },
-    });
+    const config = createCanvasNode(
+      "config",
+      { x: 0, y: 0 },
+      {
+        config: { modality: "image" },
+      },
+    );
     config.id = "ratio-config-connect";
     config.data.generation.parameters = { aspect_ratio: "9:16" };
     config.data.generation.aspectExplicit = true;
@@ -300,8 +338,10 @@ describe("canvas reference lifecycle", () => {
     });
 
     expect(targetRatio(target.id)).toBeCloseTo(9 / 16);
-    expect(useCanvasStore.getState().nodes.find((node) => node.id === target.id)?.data.generation.parameters)
-      .toEqual({ aspect_ratio: "9:16" });
+    expect(
+      useCanvasStore.getState().nodes.find((node) => node.id === target.id)?.data.generation
+        .parameters,
+    ).toEqual({ aspect_ratio: "9:16" });
   });
 
   it("reshapes a target when its authoritative configuration connection changes", () => {
@@ -317,16 +357,22 @@ describe("canvas reference lifecycle", () => {
     target.id = "ratio-image-authority";
     useCanvasStore.setState({ nodes: [first, latest, target], edges: [] });
 
-    useCanvasStore.getState().onConnect({ source: first.id, target: target.id, sourceHandle: null, targetHandle: null });
-    useCanvasStore.getState().onConnect({ source: latest.id, target: target.id, sourceHandle: null, targetHandle: null });
+    useCanvasStore
+      .getState()
+      .onConnect({ source: first.id, target: target.id, sourceHandle: null, targetHandle: null });
+    useCanvasStore
+      .getState()
+      .onConnect({ source: latest.id, target: target.id, sourceHandle: null, targetHandle: null });
     expect(targetRatio(target.id)).toBeCloseTo(9 / 16);
 
     const latestEdge = useCanvasStore.getState().edges.find((edge) => edge.source === latest.id)!;
     useCanvasStore.getState().onEdgesChange([{ id: latestEdge.id, type: "remove" }]);
 
     expect(targetRatio(target.id)).toBeCloseTo(4 / 3);
-    expect(useCanvasStore.getState().nodes.find((node) => node.id === target.id)?.data.generation.parameters)
-      .toEqual({ aspect_ratio: "4:3" });
+    expect(
+      useCanvasStore.getState().nodes.find((node) => node.id === target.id)?.data.generation
+        .parameters,
+    ).toEqual({ aspect_ratio: "4:3" });
   });
 
   it("preserves a generation-selected ratio when a media node is restored", () => {
@@ -375,67 +421,92 @@ describe("canvas reference lifecycle", () => {
 
     const imageId = useCanvasStore.getState().addNode("image", { x: 0, y: 0 });
     const connectedId = useCanvasStore.getState().addConnectedNode(imageId, "right", "video");
-    const [importedId] = useCanvasStore.getState().addImportedNodes([{
-      kind: "image",
-      position: { x: 900, y: 0 },
-      data: {
-        status: "success",
-        media: {
-          id: "imported-media",
-          name: "imported.png",
-          mimeType: "image/png",
-          size: 1,
-          source: "local",
-          serverId: null,
-          width: 1920,
-          height: 1080,
-          durationMs: null,
+    const [importedId] = useCanvasStore.getState().addImportedNodes([
+      {
+        kind: "image",
+        position: { x: 900, y: 0 },
+        data: {
+          status: "success",
+          media: {
+            id: "imported-media",
+            name: "imported.png",
+            mimeType: "image/png",
+            size: 1,
+            source: "local",
+            serverId: null,
+            width: 1920,
+            height: 1080,
+            durationMs: null,
+          },
         },
       },
-    }]);
+    ]);
 
-    expect(useCanvasStore.getState().nodes.find((node) => node.id === imageId)).toMatchObject({ width: 191, height: 340 });
-    expect(useCanvasStore.getState().nodes.find((node) => node.id === connectedId)).toMatchObject({ width: 191, height: 340 });
-    expect(useCanvasStore.getState().nodes.find((node) => node.id === importedId)).toMatchObject({ width: 360, height: 203 });
+    expect(useCanvasStore.getState().nodes.find((node) => node.id === imageId)).toMatchObject({
+      width: 191,
+      height: 340,
+    });
+    expect(useCanvasStore.getState().nodes.find((node) => node.id === connectedId)).toMatchObject({
+      width: 191,
+      height: 340,
+    });
+    expect(useCanvasStore.getState().nodes.find((node) => node.id === importedId)).toMatchObject({
+      width: 360,
+      height: 203,
+    });
   });
 
   it("keeps the creator default aspect on restore when only auto model defaults are persisted", () => {
     const nodeId = useCanvasStore.getState().addNode("image", { x: 0, y: 0 });
     // 模拟生成面板自动选模型后写入的模型默认参数（未显式配置画幅）。
     const node = useCanvasStore.getState().nodes.find((item) => item.id === nodeId)!;
-    useCanvasStore.getState().updateNodeData(nodeId, {
-      generation: {
-        ...node.data.generation,
-        modelId: "auto-model",
-        parameters: { size: "9:16" },
+    useCanvasStore.getState().updateNodeData(
+      nodeId,
+      {
+        generation: {
+          ...node.data.generation,
+          modelId: "auto-model",
+          parameters: { size: "9:16" },
+        },
       },
-    }, false);
+      false,
+    );
 
     const project = selectProject(useCanvasStore.getState());
     useCanvasStore.getState().replaceProject(project);
 
-    expect(useCanvasStore.getState().nodes.find((item) => item.id === nodeId)).toMatchObject({ width: 340, height: 191 });
+    expect(useCanvasStore.getState().nodes.find((item) => item.id === nodeId)).toMatchObject({
+      width: 340,
+      height: 191,
+    });
   });
 
   it("restores an explicitly chosen aspect for an empty node after reload", () => {
     const nodeId = useCanvasStore.getState().addNode("image", { x: 0, y: 0 });
     const node = useCanvasStore.getState().nodes.find((item) => item.id === nodeId)!;
     // 用户在面板里显式把画幅改为 9:16：标记 aspectExplicit 并改写几何。
-    useCanvasStore.getState().updateNodeData(nodeId, {
-      width: 191,
-      height: 340,
-      generation: {
-        ...node.data.generation,
-        modelId: "auto-model",
-        parameters: { size: "9:16" },
-        aspectExplicit: true,
+    useCanvasStore.getState().updateNodeData(
+      nodeId,
+      {
+        width: 191,
+        height: 340,
+        generation: {
+          ...node.data.generation,
+          modelId: "auto-model",
+          parameters: { size: "9:16" },
+          aspectExplicit: true,
+        },
       },
-    }, false);
+      false,
+    );
 
     const project = selectProject(useCanvasStore.getState());
     useCanvasStore.getState().replaceProject(project);
 
-    expect(useCanvasStore.getState().nodes.find((item) => item.id === nodeId)).toMatchObject({ width: 191.25, height: 340 });
+    expect(useCanvasStore.getState().nodes.find((item) => item.id === nodeId)).toMatchObject({
+      width: 191.25,
+      height: 340,
+    });
   });
 
   it("does not resize an empty node when automatic parameter sync carries a model default aspect", () => {
@@ -444,12 +515,20 @@ describe("canvas reference lifecycle", () => {
 
     useCanvasStore.getState().resizeMediaNodeForGenerationParameters(nodeId, { size: "9:16" });
 
-    expect(useCanvasStore.getState().nodes.find((item) => item.id === nodeId)).toMatchObject({ width: 340, height: 191 });
+    expect(useCanvasStore.getState().nodes.find((item) => item.id === nodeId)).toMatchObject({
+      width: 340,
+      height: 191,
+    });
 
     // 显式（force）路径仍然改写几何。
-    useCanvasStore.getState().resizeMediaNodeForGenerationParameters(nodeId, { size: "9:16" }, { force: true });
+    useCanvasStore
+      .getState()
+      .resizeMediaNodeForGenerationParameters(nodeId, { size: "9:16" }, { force: true });
 
-    expect(useCanvasStore.getState().nodes.find((item) => item.id === nodeId)).toMatchObject({ width: 191.25, height: 340 });
+    expect(useCanvasStore.getState().nodes.find((item) => item.id === nodeId)).toMatchObject({
+      width: 191.25,
+      height: 340,
+    });
   });
 
   it("scales every selected node uniformly around the selection center", () => {
@@ -505,19 +584,26 @@ describe("canvas reference lifecycle", () => {
     useUiPreferencesStore.getState().setDefaultNodeAspectRatio("9:16");
     const nodeId = useCanvasStore.getState().addNode("image", { x: 0, y: 0 });
 
-    useCanvasStore.getState().setNodeMedia(nodeId, {
-      id: "late-media",
-      name: "late.png",
-      mimeType: "image/png",
-      size: 1,
-      source: "server",
-      serverId: "late-media",
-      width: 1920,
-      height: 1080,
-      durationMs: null,
-    }, false);
+    useCanvasStore.getState().setNodeMedia(
+      nodeId,
+      {
+        id: "late-media",
+        name: "late.png",
+        mimeType: "image/png",
+        size: 1,
+        source: "server",
+        serverId: "late-media",
+        width: 1920,
+        height: 1080,
+        durationMs: null,
+      },
+      false,
+    );
 
-    expect(useCanvasStore.getState().nodes.find((node) => node.id === nodeId)).toMatchObject({ width: 360, height: 203 });
+    expect(useCanvasStore.getState().nodes.find((node) => node.id === nodeId)).toMatchObject({
+      width: 360,
+      height: 203,
+    });
   });
 
   it("does not overwrite an earlier media identity while projecting measured dimensions", () => {
@@ -545,22 +631,30 @@ describe("canvas reference lifecycle", () => {
       height: null,
       durationMs: null,
     });
-    useCanvasStore.getState().setNodeMedia(nodeId, {
-      id: "replacement-media",
-      name: "replacement.png",
-      mimeType: "image/png",
-      size: 1,
-      source: "local",
-      serverId: null,
-      width: 300,
-      height: 150,
-      durationMs: null,
-    }, false);
+    useCanvasStore.getState().setNodeMedia(
+      nodeId,
+      {
+        id: "replacement-media",
+        name: "replacement.png",
+        mimeType: "image/png",
+        size: 1,
+        source: "local",
+        serverId: null,
+        width: 300,
+        height: 150,
+        durationMs: null,
+      },
+      false,
+    );
 
     useCanvasStore.getState().undo();
-    expect(useCanvasStore.getState().nodes.find((node) => node.id === nodeId)?.data.media).toEqual(first);
+    expect(useCanvasStore.getState().nodes.find((node) => node.id === nodeId)?.data.media).toEqual(
+      first,
+    );
     useCanvasStore.getState().redo();
-    expect(useCanvasStore.getState().nodes.find((node) => node.id === nodeId)?.data.media).toMatchObject({
+    expect(
+      useCanvasStore.getState().nodes.find((node) => node.id === nodeId)?.data.media,
+    ).toMatchObject({
       id: "replacement-media",
       width: 300,
       height: 150,
@@ -590,15 +684,20 @@ describe("canvas reference lifecycle", () => {
       future: [{ nodes: [structuredClone(historyNode)], edges: [], groups: [] }],
     });
 
-    useCanvasStore.getState().setNodeMediaDimensions([{
-      id: measured.id,
-      mediaId: "measured-media",
-      width: 1080,
-      height: 1920,
-    }]);
+    useCanvasStore.getState().setNodeMediaDimensions([
+      {
+        id: measured.id,
+        mediaId: "measured-media",
+        width: 1080,
+        height: 1920,
+      },
+    ]);
 
     const state = useCanvasStore.getState();
-    expect(state.nodes.find((node) => node.id === measured.id)?.data.media).toMatchObject({ width: 1080, height: 1920 });
+    expect(state.nodes.find((node) => node.id === measured.id)?.data.media).toMatchObject({
+      width: 1080,
+      height: 1920,
+    });
     expect(state.past[0]?.nodes[0]?.data.media).toMatchObject({ width: 1080, height: 1920 });
     expect(state.future[0]?.nodes[0]?.data.media).toMatchObject({ width: 1080, height: 1920 });
     expect(state.nodes.find((node) => node.id === untouched.id)).toBe(untouched);
@@ -648,11 +747,13 @@ describe("canvas reference lifecycle", () => {
 
     try {
       useCanvasStore.setState({ nodes: [prior], edges: [], groups: [] });
-      useCanvasStore.getState().onNodesChange([{
-        id: prior.id,
-        type: "position",
-        position: { x: 640, y: 360 },
-      }]);
+      useCanvasStore.getState().onNodesChange([
+        {
+          id: prior.id,
+          type: "position",
+          position: { x: 640, y: 360 },
+        },
+      ]);
       expect(queuedFrame).not.toBeNull();
 
       useCanvasStore.getState().replaceProject({
@@ -687,11 +788,13 @@ describe("canvas reference lifecycle", () => {
     try {
       useCanvasStore.setState({ nodes: [anchor, follower], edges: [], groups: [] });
       let latest = { x: 70, y: 50 };
-      const producer = vi.fn(() => [{
-        id: follower.id,
-        type: "position" as const,
-        position: latest,
-      }]);
+      const producer = vi.fn(() => [
+        {
+          id: follower.id,
+          type: "position" as const,
+          position: latest,
+        },
+      ]);
 
       queueCanvasNodePositionChanges("group:anchor", producer);
       latest = { x: 110, y: 90 };
@@ -702,7 +805,9 @@ describe("canvas reference lifecycle", () => {
       const pendingFrame = queuedFrame as FrameRequestCallback | null;
       pendingFrame?.(0);
       expect(producer).toHaveBeenCalledTimes(1);
-      expect(useCanvasStore.getState().nodes.find((node) => node.id === follower.id)?.position).toEqual({ x: 110, y: 90 });
+      expect(
+        useCanvasStore.getState().nodes.find((node) => node.id === follower.id)?.position,
+      ).toEqual({ x: 110, y: 90 });
     } finally {
       useCanvasStore.getState().resetProject();
       vi.unstubAllGlobals();
@@ -739,7 +844,13 @@ describe("canvas reference lifecycle", () => {
     useCanvasStore.setState({ nodes: [seed] });
 
     const result = useCanvasStore.getState().applyAgentActions([
-      { type: "canvas_add_node", clientId: "next", kind: "text", body: "冲突升级", position: { x: 360, y: 0 } },
+      {
+        type: "canvas_add_node",
+        clientId: "next",
+        kind: "text",
+        body: "冲突升级",
+        position: { x: 360, y: 0 },
+      },
       { type: "canvas_connect_nodes", sourceNodeId: "seed-node", targetNodeId: "next" },
       { type: "canvas_group_nodes", nodeIds: ["seed-node", "next"], name: "第一场" },
       { type: "canvas_set_viewport", viewport: { x: 40, y: 60, zoom: 1.1 } },
@@ -747,9 +858,15 @@ describe("canvas reference lifecycle", () => {
 
     expect(result).toMatchObject({ applied: 4, skipped: 0 });
     expect(result.createdNodeIds.next).toBeTruthy();
-    expect(useCanvasStore.getState().nodes.map((node) => node.data.body)).toEqual(["开场", "冲突升级"]);
+    expect(useCanvasStore.getState().nodes.map((node) => node.data.body)).toEqual([
+      "开场",
+      "冲突升级",
+    ]);
     expect(useCanvasStore.getState().edges).toHaveLength(1);
-    expect(useCanvasStore.getState().groups[0]).toMatchObject({ name: "第一场", nodeIds: ["seed-node", result.createdNodeIds.next] });
+    expect(useCanvasStore.getState().groups[0]).toMatchObject({
+      name: "第一场",
+      nodeIds: ["seed-node", result.createdNodeIds.next],
+    });
     expect(useCanvasStore.getState().viewport).toEqual({ x: 40, y: 60, zoom: 1.1 });
     expect(useCanvasStore.getState().past).toHaveLength(1);
     useCanvasStore.getState().undo();
@@ -775,17 +892,21 @@ describe("canvas reference lifecycle", () => {
     const clone = vi.spyOn(globalThis, "structuredClone");
 
     useCanvasStore.getState().updateNodeData(node.id, { body: "draft" }, false);
-    useCanvasStore.getState().setNodeMedia(node.id, {
-      id: "draft-media",
-      name: "draft.png",
-      mimeType: "image/png",
-      size: 1,
-      source: "local",
-      serverId: null,
-      width: 1,
-      height: 1,
-      durationMs: null,
-    }, false);
+    useCanvasStore.getState().setNodeMedia(
+      node.id,
+      {
+        id: "draft-media",
+        name: "draft.png",
+        mimeType: "image/png",
+        size: 1,
+        source: "local",
+        serverId: null,
+        width: 1,
+        height: 1,
+        durationMs: null,
+      },
+      false,
+    );
 
     expect(clone).not.toHaveBeenCalled();
     expect(useCanvasStore.getState().nodes[0]?.data.body).toBe("draft");
@@ -828,12 +949,14 @@ describe("canvas reference lifecycle", () => {
     const stringify = vi.spyOn(JSON, "stringify");
 
     useCanvasStore.getState().beginTransaction();
-    useCanvasStore.getState().onNodesChange([{
-      id: node.id,
-      type: "position",
-      position: { x: 80, y: 48 },
-      dragging: true,
-    }]);
+    useCanvasStore.getState().onNodesChange([
+      {
+        id: node.id,
+        type: "position",
+        position: { x: 80, y: 48 },
+        dragging: true,
+      },
+    ]);
     expect(useCanvasStore.getState().nodes[0]?.position).toEqual({ x: 0, y: 0 });
     useCanvasStore.getState().commitTransaction();
 
@@ -930,7 +1053,10 @@ describe("canvas reference lifecycle", () => {
     expect(useCanvasStore.getState().groups).toHaveLength(1);
 
     useCanvasStore.setState((state) => ({
-      nodes: state.nodes.map((node) => ({ ...node, selected: node.id === first.id || node.id === third.id })),
+      nodes: state.nodes.map((node) => ({
+        ...node,
+        selected: node.id === first.id || node.id === third.id,
+      })),
     }));
     expect(useCanvasStore.getState().groupSelection()).toBeNull();
 
@@ -962,7 +1088,10 @@ describe("canvas reference lifecycle", () => {
     useCanvasStore.setState({ nodes: [origin], projectId: "project-test" });
 
     const newer = generationJob("job-new", "2026-07-15T10:00:02.000Z", [imageArtifact("new")]);
-    const older = generationJob("job-old", "2026-07-15T10:00:01.000Z", [imageArtifact("old-1"), imageArtifact("old-2")]);
+    const older = generationJob("job-old", "2026-07-15T10:00:01.000Z", [
+      imageArtifact("old-1"),
+      imageArtifact("old-2"),
+    ]);
 
     useCanvasStore.getState().applyGenerationJob(newer);
     useCanvasStore.getState().applyGenerationJob(older);
@@ -970,7 +1099,12 @@ describe("canvas reference lifecycle", () => {
 
     const state = useCanvasStore.getState();
     expect(state.nodes.find((node) => node.id === "origin")?.data.media?.id).toBe("new");
-    expect(state.nodes.map((node) => node.data.media?.id).filter(Boolean).sort()).toEqual(["new", "old-1", "old-2"]);
+    expect(
+      state.nodes
+        .map((node) => node.data.media?.id)
+        .filter(Boolean)
+        .sort(),
+    ).toEqual(["new", "old-1", "old-2"]);
     expect(state.edges).toHaveLength(2);
   });
 
@@ -1021,7 +1155,11 @@ describe("canvas reference lifecycle", () => {
     useCanvasStore.getState().beginTransaction();
     const transactionBase = useCanvasStore.getState().transactionBase;
     useCanvasStore.getState().updateNodeData(companion.id, { body: "拖动后的编辑" }, false);
-    useCanvasStore.getState().applyGenerationJob(generationJob("job-hidden", "2026-07-15T10:00:00.000Z", [imageArtifact("hidden")]));
+    useCanvasStore
+      .getState()
+      .applyGenerationJob(
+        generationJob("job-hidden", "2026-07-15T10:00:00.000Z", [imageArtifact("hidden")]),
+      );
     expect(useCanvasStore.getState().transactionBase).toBe(transactionBase);
     useCanvasStore.getState().commitTransaction();
 
@@ -1043,7 +1181,17 @@ describe("empty new-project invariant", () => {
       createdAt: 1,
       nodes: [seed],
       edges: [{ id: "old-edge", source: "seed", target: "seed" }],
-      groups: [{ id: "old-group", name: "旧组合", color: "#7dd3a8", nodeIds: ["seed"], frame: null, createdAt: 1, updatedAt: 1 }],
+      groups: [
+        {
+          id: "old-group",
+          name: "旧组合",
+          color: "#7dd3a8",
+          nodeIds: ["seed"],
+          frame: null,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
       past: [{ nodes: [seed], edges: [], groups: [] }],
       future: [{ nodes: [], edges: [], groups: [] }],
       transactionBase: { nodes: [seed], edges: [], groups: [] },
@@ -1060,7 +1208,7 @@ describe("empty new-project invariant", () => {
     expect(state.future).toEqual([]);
     expect(state.transactionBase).toBeNull();
     expect(state.projectId).not.toBe("old-project");
-    expect(state.projectName).toBe("卡藏画布 1");
+    expect(state.projectName).toBe("纬线画布 1");
     expect(state.createdAt).toBeGreaterThan(0);
     expect(state.viewport).toEqual({ x: 720, y: 450, zoom: 0.7 });
     expect(state.saveState).toBe("saving");
@@ -1068,7 +1216,7 @@ describe("empty new-project invariant", () => {
     const project = selectProject(state);
     expect(project).toMatchObject({
       id: state.projectId,
-      name: "卡藏画布 1",
+      name: "纬线画布 1",
       nodes: [],
       edges: [],
       groups: [],
@@ -1115,20 +1263,26 @@ describe("empty new-project invariant", () => {
   });
 
   it("preserves the saved viewport and intentionally resized dimensions of existing projects exactly", () => {
-    const legacy = createCanvasNode("image", { x: 0, y: 0 }, {
-      status: "success",
-      media: {
-        id: "legacy-media",
-        name: "legacy.png",
-        mimeType: "image/png",
-        size: 1,
-        source: "local",
-        serverId: null,
-        width: 1920,
-        height: 1080,
-        durationMs: null,
+    const legacy = createCanvasNode(
+      "image",
+      { x: 0, y: 0 },
+      {
+        status: "success",
+        media: {
+          id: "legacy-media",
+          name: "legacy.png",
+          mimeType: "image/png",
+          size: 1,
+          source: "local",
+          serverId: null,
+          width: 1920,
+          height: 1080,
+          durationMs: null,
+        },
       },
-    }, "16:9", 6);
+      "16:9",
+      6,
+    );
     legacy.id = "legacy-node";
     useCanvasStore.getState().replaceProject({
       schemaVersion: 1,
@@ -1149,28 +1303,33 @@ describe("empty new-project invariant", () => {
 
   it("captures director images at stable intrinsic dimensions at an overview viewport", () => {
     useCanvasStore.getState().setViewport({ x: 0, y: 0, zoom: 0.1 });
-    const [captureId] = useCanvasStore.getState().addCapturedImages([{
-      position: { x: 0, y: 0 },
-      body: "镜头一",
-      media: {
-        id: "capture-media",
-        name: "shot.png",
-        mimeType: "image/png",
-        size: 1,
-        source: "local",
-        serverId: null,
-        width: 1280,
-        height: 720,
-        durationMs: null,
+    const [captureId] = useCanvasStore.getState().addCapturedImages([
+      {
+        position: { x: 0, y: 0 },
+        body: "镜头一",
+        media: {
+          id: "capture-media",
+          name: "shot.png",
+          mimeType: "image/png",
+          size: 1,
+          source: "local",
+          serverId: null,
+          width: 1280,
+          height: 720,
+          durationMs: null,
+        },
+        directorCapture: {
+          shotId: "shot-1",
+          slot: 1,
+          prompt: "",
+        },
       },
-      directorCapture: {
-        shotId: "shot-1",
-        slot: 1,
-        prompt: "",
-      },
-    }]);
+    ]);
 
-    expect(useCanvasStore.getState().nodes.find((node) => node.id === captureId)).toMatchObject({ width: 360, height: 203 });
+    expect(useCanvasStore.getState().nodes.find((node) => node.id === captureId)).toMatchObject({
+      width: 360,
+      height: 203,
+    });
   });
 });
 
@@ -1179,20 +1338,24 @@ function targetRatio(id: string) {
   return node.width! / node.height!;
 }
 
-function referenceGraph(): KachangNode[] {
-  const reference = createCanvasNode("image", { x: 0, y: 0 }, {
-    media: {
-      id: "reference-media",
-      name: "reference.png",
-      mimeType: "image/png",
-      size: 1,
-      source: "server",
-      serverId: null,
-      width: 1,
-      height: 1,
-      durationMs: null,
+function referenceGraph(): WeftcanvasNode[] {
+  const reference = createCanvasNode(
+    "image",
+    { x: 0, y: 0 },
+    {
+      media: {
+        id: "reference-media",
+        name: "reference.png",
+        mimeType: "image/png",
+        size: 1,
+        source: "server",
+        serverId: null,
+        width: 1,
+        height: 1,
+        durationMs: null,
+      },
     },
-  });
+  );
   reference.id = "reference";
   const target = createCanvasNode("video", { x: 400, y: 0 });
   target.id = "target";
@@ -1212,7 +1375,9 @@ function expectSelectedCopyToReferenceSelectedImage() {
   expect(selected).toHaveLength(2);
   expect(selectedImage?.id).toBeTruthy();
   expect(selectedVideo?.data.generation.referenceNodeIds).toEqual([selectedImage?.id]);
-  expect(selectedVideo?.data.generation.referenceImagePurposes).toEqual({ "reference-media": "styleImages" });
+  expect(selectedVideo?.data.generation.referenceImagePurposes).toEqual({
+    "reference-media": "styleImages",
+  });
 }
 
 function assertReusableGraph({ expectTwoCopies }: { expectTwoCopies: boolean }) {
@@ -1243,14 +1408,20 @@ function assertReusableGraph({ expectTwoCopies }: { expectTwoCopies: boolean }) 
   });
   expect((sourceCopy.data.generation as Record<string, unknown>).artifactId).toBeUndefined();
   expect((sourceCopy.data.generation as Record<string, unknown>).submissionKey).toBeUndefined();
-  expect(state.edges.filter((edge) => edge.source === sourceCopy.id && edge.target === targetCopy.id)).toHaveLength(1);
+  expect(
+    state.edges.filter((edge) => edge.source === sourceCopy.id && edge.target === targetCopy.id),
+  ).toHaveLength(1);
   if (expectTwoCopies) {
     expect(state.nodes).toHaveLength(4);
     expect(state.edges).toHaveLength(2);
   }
 }
 
-function generationJob(id: string, createdAt: string, artifacts: PublicGenerationJob["artifacts"]): PublicGenerationJob {
+function generationJob(
+  id: string,
+  createdAt: string,
+  artifacts: PublicGenerationJob["artifacts"],
+): PublicGenerationJob {
   return {
     schemaVersion: 1,
     version: 2,

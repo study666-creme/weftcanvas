@@ -8,430 +8,432 @@
  * 与「墨黑」的区别：墨黑是 1px 描边撑层级的极简风，纯黑是多层阴影 + 高光撑
  * 层级；纯黑节点更厚、更立体，但仍保持纯黑底色，不会偏灰。
  *
- * 节点令牌：--kc-onyx-node-*    界面令牌：--kc-onyx-chrome-*
- * 与 onyx-scheme.css 的 --kc-onyx-* 解耦，避免互相覆盖。
+ * 节点令牌：--wc-onyx-node-*    界面令牌：--wc-onyx-chrome-*
+ * 与 onyx-scheme.css 的 --wc-onyx-* 解耦，避免互相覆盖。
  */
 
 /* ===== 节点：onyx ======================================================= */
 
-:root[data-node-style="onyx"] :is(.kc-node-surface, .kc-node-type-label) {
-  --kc-node-jade: #79b39c;
-  --kc-node-jade-soft: #142420;
-  --kc-node-blue: #86abc5;
-  --kc-node-blue-soft: #15202c;
-  --kc-node-coral: #c0877a;
-  --kc-node-coral-soft: #2a1a17;
-  --kc-node-amber: #c7a45f;
-  --kc-node-amber-soft: #2b2418;
+:root[data-node-style="onyx"] :is(.wc-node-surface, .wc-node-type-label) {
+  --wc-node-jade: #79b39c;
+  --wc-node-jade-soft: #142420;
+  --wc-node-blue: #86abc5;
+  --wc-node-blue-soft: #15202c;
+  --wc-node-coral: #c0877a;
+  --wc-node-coral-soft: #2a1a17;
+  --wc-node-amber: #c7a45f;
+  --wc-node-amber-soft: #2b2418;
   /* 节点几何：用 7px 圆角 + 半透底 + 顶部高光 + 深染阴影做"浮起的玻璃片" */
-  --kc-onyx-node-border: rgb(232 234 238 / 11%);
-  --kc-onyx-node-highlight: rgb(255 255 255 / 7%);
-  --kc-onyx-node-inner-rim: rgb(232 234 238 / 6%);
-  --kc-onyx-node-shade: rgb(0 0 0 / 52%);
-  --kc-onyx-node-shadow: rgb(0 0 0 / 72%);
+  --wc-onyx-node-border: rgb(232 234 238 / 11%);
+  --wc-onyx-node-highlight: rgb(255 255 255 / 7%);
+  --wc-onyx-node-inner-rim: rgb(232 234 238 / 6%);
+  --wc-onyx-node-shade: rgb(0 0 0 / 52%);
+  --wc-onyx-node-shadow: rgb(0 0 0 / 72%);
 }
 
-:root[data-theme="dark"][data-node-style="onyx"] :is(.kc-node-surface, .kc-node-type-label) {
-  --kc-canvas: #020203;
-  --kc-surface: #0d0d11;
-  --kc-surface-raised: #131318;
-  --kc-surface-muted: #08080b;
-  --kc-surface-strong: #1c1c22;
-  --kc-text: #e8eaee;
-  --kc-text-secondary: #a4a8b2;
-  --kc-text-tertiary: #6b6f7a;
-  --kc-border: #2a2c33;
-  --kc-border-strong: #4a4d56;
-  --kc-selection: #c9d4cf;
-  --kc-jade: #c9d4cf;
-  --kc-shadow-node:
-    inset 0 1px 0 rgb(255 255 255 / 5%),
-    0 1px 2px rgb(0 0 0 / 64%),
+:root[data-theme="dark"][data-node-style="onyx"] :is(.wc-node-surface, .wc-node-type-label) {
+  --wc-canvas: #020203;
+  --wc-surface: #0d0d11;
+  --wc-surface-raised: #131318;
+  --wc-surface-muted: #08080b;
+  --wc-surface-strong: #1c1c22;
+  --wc-text: #e8eaee;
+  --wc-text-secondary: #a4a8b2;
+  --wc-text-tertiary: #6b6f7a;
+  --wc-border: #2a2c33;
+  --wc-border-strong: #4a4d56;
+  --wc-selection: #c9d4cf;
+  --wc-jade: #c9d4cf;
+  --wc-shadow-node:
+    inset 0 1px 0 rgb(255 255 255 / 5%), 0 1px 2px rgb(0 0 0 / 64%),
     0 12px 28px -10px rgb(0 0 0 / 72%);
 }
 
 /* 基础节点壳：半透深色面板 + 细发丝白边 + 顶部高光 + 多层阴影 */
-:root[data-node-style="onyx"] .kc-node-surface {
+:root[data-node-style="onyx"] .wc-node-surface {
   border-radius: 10px;
-  border-color: var(--kc-onyx-node-border);
+  border-color: var(--wc-onyx-node-border);
   background:
     linear-gradient(
       180deg,
-      var(--kc-onyx-node-highlight) 0%,
+      var(--wc-onyx-node-highlight) 0%,
       transparent 22%,
       transparent 78%,
-      var(--kc-onyx-node-shade) 100%
+      var(--wc-onyx-node-shade) 100%
     ),
-    color-mix(in srgb, var(--kc-surface) 84%, transparent);
+    color-mix(in srgb, var(--wc-surface) 84%, transparent);
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--kc-canvas) 80%, transparent),
-    inset 0 1px 0 var(--kc-onyx-node-highlight),
-    0 2px 6px var(--kc-onyx-node-shadow),
-    0 18px 36px -20px var(--kc-onyx-node-shadow);
+    0 0 0 1px color-mix(in srgb, var(--wc-canvas) 80%, transparent),
+    inset 0 1px 0 var(--wc-onyx-node-highlight),
+    0 2px 6px var(--wc-onyx-node-shadow),
+    0 18px 36px -20px var(--wc-onyx-node-shadow);
 }
 
 /* ::after 兜底再加一层内嵌高光与底沿阴影，做"厚玻璃"感 */
-:root[data-node-style="onyx"] .kc-node-surface::after {
+:root[data-node-style="onyx"] .wc-node-surface::after {
   box-shadow:
-    inset 0 0 0 1px var(--kc-onyx-node-inner-rim),
-    inset 0 1px 0 var(--kc-onyx-node-highlight),
-    inset 0 -1px 0 var(--kc-onyx-node-shade);
+    inset 0 0 0 1px var(--wc-onyx-node-inner-rim),
+    inset 0 1px 0 var(--wc-onyx-node-highlight),
+    inset 0 -1px 0 var(--wc-onyx-node-shade);
 }
 
 /* 图像/视频节点：边框保留、内部 media 不被节点底色盖住 */
-:root[data-node-style="onyx"] .kc-node-wrap--image .kc-node-surface,
-:root[data-node-style="onyx"] .kc-node-wrap--video .kc-node-surface {
-  border-color: var(--kc-onyx-node-border);
+:root[data-node-style="onyx"] .wc-node-wrap--image .wc-node-surface,
+:root[data-node-style="onyx"] .wc-node-wrap--video .wc-node-surface {
+  border-color: var(--wc-onyx-node-border);
   background:
     linear-gradient(
       180deg,
-      var(--kc-onyx-node-highlight) 0%,
+      var(--wc-onyx-node-highlight) 0%,
       transparent 22%,
       transparent 78%,
-      var(--kc-onyx-node-shade) 100%
+      var(--wc-onyx-node-shade) 100%
     ),
-    color-mix(in srgb, var(--kc-surface) 84%, transparent);
+    color-mix(in srgb, var(--wc-surface) 84%, transparent);
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--kc-canvas) 80%, transparent),
-    inset 0 1px 0 var(--kc-onyx-node-highlight),
-    0 2px 6px var(--kc-onyx-node-shadow),
-    0 18px 36px -20px var(--kc-onyx-node-shadow);
+    0 0 0 1px color-mix(in srgb, var(--wc-canvas) 80%, transparent),
+    inset 0 1px 0 var(--wc-onyx-node-highlight),
+    0 2px 6px var(--wc-onyx-node-shadow),
+    0 18px 36px -20px var(--wc-onyx-node-shadow);
 }
 
-:root[data-node-style="onyx"] .kc-node-media-frame {
+:root[data-node-style="onyx"] .wc-node-media-frame {
   border-radius: 8px;
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 4%),
     0 0 0 1px rgb(0 0 0 / 64%);
 }
 
-:root[data-node-style="onyx"] .kc-node-media-frame::after {
+:root[data-node-style="onyx"] .wc-node-media-frame::after {
   border-color: transparent;
   box-shadow: none;
 }
 
-:root[data-node-style="onyx"] .kc-node-wrap--audio .kc-node-media-frame,
-:root[data-node-style="onyx"] .kc-media-empty {
-  background: color-mix(in srgb, var(--kc-surface-raised) 88%, transparent);
+:root[data-node-style="onyx"] .wc-node-wrap--audio .wc-node-media-frame,
+:root[data-node-style="onyx"] .wc-media-empty {
+  background: color-mix(in srgb, var(--wc-surface-raised) 88%, transparent);
   box-shadow:
-    inset 0 1px 0 var(--kc-onyx-node-highlight),
-    inset 0 -1px 0 var(--kc-onyx-node-shade);
+    inset 0 1px 0 var(--wc-onyx-node-highlight),
+    inset 0 -1px 0 var(--wc-onyx-node-shade);
 }
 
-:root[data-node-style="onyx"] .kc-media-empty:hover {
-  background: color-mix(in srgb, var(--kc-surface-strong) 60%, transparent);
+:root[data-node-style="onyx"] .wc-media-empty:hover {
+  background: color-mix(in srgb, var(--wc-surface-strong) 60%, transparent);
 }
 
-:root[data-node-style="onyx"] .kc-media-empty--passive:hover {
-  background: color-mix(in srgb, var(--kc-surface) 80%, transparent);
+:root[data-node-style="onyx"] .wc-media-empty--passive:hover {
+  background: color-mix(in srgb, var(--wc-surface) 80%, transparent);
   box-shadow:
-    inset 0 1px 0 var(--kc-onyx-node-highlight),
-    inset 0 -1px 0 var(--kc-onyx-node-shade);
+    inset 0 1px 0 var(--wc-onyx-node-highlight),
+    inset 0 -1px 0 var(--wc-onyx-node-shade);
 }
 
-:root[data-node-style="onyx"] .kc-node-type-label {
-  color: color-mix(in srgb, var(--kc-text-secondary) 90%, var(--kc-text));
+:root[data-node-style="onyx"] .wc-node-type-label {
+  color: color-mix(in srgb, var(--wc-text-secondary) 90%, var(--wc-text));
   font-weight: 600;
 }
 
-:root[data-node-style="onyx"] .kc-node-type-label svg {
+:root[data-node-style="onyx"] .wc-node-type-label svg {
   width: 12px;
   height: 12px;
   padding: 0;
   border: 0;
   border-radius: 0;
-  color: color-mix(in srgb, var(--node-accent) 72%, var(--kc-text-secondary));
+  color: color-mix(in srgb, var(--node-accent) 72%, var(--wc-text-secondary));
   background: transparent;
-  opacity: .94;
+  opacity: 0.94;
 }
 
 /* 交互态：浮起 + 描边变亮 */
-:root[data-node-style="onyx"] .react-flow__node-kachang:hover .kc-node-surface {
+:root[data-node-style="onyx"] .react-flow__node-weftcanvas:hover .wc-node-surface {
   border-color: rgb(232 234 238 / 22%);
-  background-color: color-mix(in srgb, var(--kc-surface-raised) 82%, transparent);
+  background-color: color-mix(in srgb, var(--wc-surface-raised) 82%, transparent);
   box-shadow:
-    inset 0 1px 0 var(--kc-onyx-node-highlight),
-    0 1px 2px var(--kc-onyx-node-shadow),
-    0 14px 28px -18px var(--kc-onyx-node-shadow);
+    inset 0 1px 0 var(--wc-onyx-node-highlight),
+    0 1px 2px var(--wc-onyx-node-shadow),
+    0 14px 28px -18px var(--wc-onyx-node-shadow);
   transform: translateY(-1px);
 }
 
-:root[data-node-style="onyx"] .react-flow__node-kachang:hover .kc-node-type-label {
-  color: var(--kc-text);
+:root[data-node-style="onyx"] .react-flow__node-weftcanvas:hover .wc-node-type-label {
+  color: var(--wc-text);
 }
 
-:root[data-node-style="onyx"] .react-flow__node-kachang.selected .kc-node-surface {
-  border-color: color-mix(in srgb, var(--kc-selection) 78%, rgb(232 234 238 / 22%));
-  background-color: color-mix(in srgb, var(--kc-surface-raised) 86%, transparent);
+:root[data-node-style="onyx"] .react-flow__node-weftcanvas.selected .wc-node-surface {
+  border-color: color-mix(in srgb, var(--wc-selection) 78%, rgb(232 234 238 / 22%));
+  background-color: color-mix(in srgb, var(--wc-surface-raised) 86%, transparent);
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--kc-selection) 28%, transparent),
-    inset 0 1px 0 var(--kc-onyx-node-highlight),
-    0 1px 2px var(--kc-onyx-node-shadow),
-    0 16px 32px -20px var(--kc-onyx-node-shadow);
+    0 0 0 1px color-mix(in srgb, var(--wc-selection) 28%, transparent),
+    inset 0 1px 0 var(--wc-onyx-node-highlight),
+    0 1px 2px var(--wc-onyx-node-shadow),
+    0 16px 32px -20px var(--wc-onyx-node-shadow);
   transform: translateY(-1px);
 }
 
-:root[data-node-style="onyx"] .react-flow__node-kachang.dragging .kc-node-surface {
-  border-color: color-mix(in srgb, var(--kc-selection) 58%, rgb(232 234 238 / 16%));
-  background-color: color-mix(in srgb, var(--kc-surface) 72%, transparent);
-  box-shadow: 0 4px 12px -6px var(--kc-onyx-node-shadow);
-  transform: translateY(1px) scale(.997);
+:root[data-node-style="onyx"] .react-flow__node-weftcanvas.dragging .wc-node-surface {
+  border-color: color-mix(in srgb, var(--wc-selection) 58%, rgb(232 234 238 / 16%));
+  background-color: color-mix(in srgb, var(--wc-surface) 72%, transparent);
+  box-shadow: 0 4px 12px -6px var(--wc-onyx-node-shadow);
+  transform: translateY(1px) scale(0.997);
 }
 
-:root[data-node-style="onyx"] .kc-workspace.is-overview-zoom .kc-node-surface {
+:root[data-node-style="onyx"] .wc-workspace.is-overview-zoom .wc-node-surface {
   border-color: rgb(232 234 238 / 18%);
-  background-color: color-mix(in srgb, var(--kc-surface-raised) 92%, transparent);
+  background-color: color-mix(in srgb, var(--wc-surface-raised) 92%, transparent);
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--kc-canvas) 78%, transparent),
-    0 3px 12px var(--kc-onyx-node-shadow);
+    0 0 0 1px color-mix(in srgb, var(--wc-canvas) 78%, transparent),
+    0 3px 12px var(--wc-onyx-node-shadow);
 }
 
-:root[data-node-style="onyx"] .kc-node-wrap[data-node-status="running"] .kc-node-surface {
+:root[data-node-style="onyx"] .wc-node-wrap[data-node-status="running"] .wc-node-surface {
   border-color: color-mix(in srgb, var(--node-accent) 56%, rgb(232 234 238 / 16%));
 }
 
-:root[data-node-style="onyx"] .kc-node-wrap[data-node-status="error"] .kc-node-surface {
-  border-color: color-mix(in srgb, var(--kc-danger) 72%, rgb(232 234 238 / 16%));
+:root[data-node-style="onyx"] .wc-node-wrap[data-node-status="error"] .wc-node-surface {
+  border-color: color-mix(in srgb, var(--wc-danger) 72%, rgb(232 234 238 / 16%));
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--kc-danger) 24%, transparent),
-    inset 0 1px 0 var(--kc-onyx-node-highlight);
+    0 0 0 1px color-mix(in srgb, var(--wc-danger) 24%, transparent),
+    inset 0 1px 0 var(--wc-onyx-node-highlight);
 }
 
 /* ===== 界面（侧边栏/浮动栏）：onyx ==================================== */
 
 :root[data-chrome-style="onyx"] {
-  --kc-onyx-chrome-surface: rgb(13 13 17 / 88%);
-  --kc-onyx-chrome-surface-soft: rgb(8 8 11 / 72%);
-  --kc-onyx-chrome-border: rgb(232 234 238 / 11%);
-  --kc-onyx-chrome-border-soft: rgb(232 234 238 / 6%);
-  --kc-onyx-chrome-highlight: rgb(255 255 255 / 7%);
-  --kc-onyx-chrome-shadow:
-    inset 0 1px 0 var(--kc-onyx-chrome-highlight),
-    inset 0 -1px 0 rgb(0 0 0 / 38%),
-    0 1px 2px rgb(0 0 0 / 56%),
-    0 14px 30px -12px rgb(0 0 0 / 70%),
+  --wc-onyx-chrome-surface: rgb(13 13 17 / 88%);
+  --wc-onyx-chrome-surface-soft: rgb(8 8 11 / 72%);
+  --wc-onyx-chrome-border: rgb(232 234 238 / 11%);
+  --wc-onyx-chrome-border-soft: rgb(232 234 238 / 6%);
+  --wc-onyx-chrome-highlight: rgb(255 255 255 / 7%);
+  --wc-onyx-chrome-shadow:
+    inset 0 1px 0 var(--wc-onyx-chrome-highlight), inset 0 -1px 0 rgb(0 0 0 / 38%),
+    0 1px 2px rgb(0 0 0 / 56%), 0 14px 30px -12px rgb(0 0 0 / 70%),
     0 36px 76px -36px rgb(0 0 0 / 82%);
-  --kc-onyx-chrome-shadow-raised:
-    inset 0 1px 0 rgb(255 255 255 / 9%),
-    0 2px 4px rgb(0 0 0 / 60%),
-    0 18px 38px -14px rgb(0 0 0 / 74%),
-    0 42px 90px -40px rgb(0 0 0 / 88%);
+  --wc-onyx-chrome-shadow-raised:
+    inset 0 1px 0 rgb(255 255 255 / 9%), 0 2px 4px rgb(0 0 0 / 60%),
+    0 18px 38px -14px rgb(0 0 0 / 74%), 0 42px 90px -40px rgb(0 0 0 / 88%);
 }
 
 :root[data-theme="light"][data-chrome-style="onyx"] {
-  --kc-onyx-chrome-surface: rgb(255 255 255 / 88%);
-  --kc-onyx-chrome-surface-soft: rgb(255 255 255 / 64%);
-  --kc-onyx-chrome-border: rgb(12 12 16 / 10%);
-  --kc-onyx-chrome-border-soft: rgb(12 12 16 / 5%);
-  --kc-onyx-chrome-highlight: rgb(255 255 255 / 98%);
-  --kc-onyx-chrome-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 96%),
-    inset 0 -1px 0 rgb(12 12 16 / 6%),
-    0 1px 2px rgb(12 12 16 / 12%),
-    0 14px 30px -12px rgb(12 12 16 / 22%),
+  --wc-onyx-chrome-surface: rgb(255 255 255 / 88%);
+  --wc-onyx-chrome-surface-soft: rgb(255 255 255 / 64%);
+  --wc-onyx-chrome-border: rgb(12 12 16 / 10%);
+  --wc-onyx-chrome-border-soft: rgb(12 12 16 / 5%);
+  --wc-onyx-chrome-highlight: rgb(255 255 255 / 98%);
+  --wc-onyx-chrome-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 96%), inset 0 -1px 0 rgb(12 12 16 / 6%),
+    0 1px 2px rgb(12 12 16 / 12%), 0 14px 30px -12px rgb(12 12 16 / 22%),
     0 36px 76px -36px rgb(12 12 16 / 28%);
-  --kc-onyx-chrome-shadow-raised:
-    inset 0 1px 0 rgb(255 255 255 / 99%),
-    0 2px 4px rgb(12 12 16 / 14%),
-    0 18px 38px -14px rgb(12 12 16 / 24%),
-    0 42px 90px -40px rgb(12 12 16 / 32%);
+  --wc-onyx-chrome-shadow-raised:
+    inset 0 1px 0 rgb(255 255 255 / 99%), 0 2px 4px rgb(12 12 16 / 14%),
+    0 18px 38px -14px rgb(12 12 16 / 24%), 0 42px 90px -40px rgb(12 12 16 / 32%);
 }
 
 /* 所有 chrome 表面统一套玻璃暗夜：圆角 + 细发丝白边 + 高光 + 深染阴影 */
-:root[data-chrome-style="onyx"] .kc-project-console,
-:root[data-chrome-style="onyx"] .kc-topbar-actions,
-:root[data-chrome-style="onyx"] .kc-create-rail,
-:root[data-chrome-style="onyx"] .kc-edit-dock,
-:root[data-chrome-style="onyx"] .kc-zoom-control,
-:root[data-chrome-style="onyx"] .kc-selection-toolbar,
-:root[data-chrome-style="onyx"] .kc-appearance-toolbar,
-:root[data-chrome-style="onyx"] .kc-mini-map.react-flow__minimap {
-  border: 1px solid var(--kc-onyx-chrome-border);
+:root[data-chrome-style="onyx"] .wc-project-console,
+:root[data-chrome-style="onyx"] .wc-topbar-actions,
+:root[data-chrome-style="onyx"] .wc-create-rail,
+:root[data-chrome-style="onyx"] .wc-edit-dock,
+:root[data-chrome-style="onyx"] .wc-zoom-control,
+:root[data-chrome-style="onyx"] .wc-selection-toolbar,
+:root[data-chrome-style="onyx"] .wc-appearance-toolbar,
+:root[data-chrome-style="onyx"] .wc-mini-map.react-flow__minimap {
+  border: 1px solid var(--wc-onyx-chrome-border);
   border-radius: 12px;
   background:
-    linear-gradient(145deg, var(--kc-onyx-chrome-highlight), transparent 36%),
-    var(--kc-onyx-chrome-surface);
-  box-shadow: var(--kc-onyx-chrome-shadow);
+    linear-gradient(145deg, var(--wc-onyx-chrome-highlight), transparent 36%),
+    var(--wc-onyx-chrome-surface);
+  box-shadow: var(--wc-onyx-chrome-shadow);
   backdrop-filter: blur(14px) saturate(1.1);
   -webkit-backdrop-filter: blur(14px) saturate(1.1);
 }
 
 /* 项目控制台 + 顶部操作组：略大圆角（沿用 studio 的 14px） */
-:root[data-chrome-style="onyx"] .kc-project-console,
-:root[data-chrome-style="onyx"] .kc-topbar-actions {
+:root[data-chrome-style="onyx"] .wc-project-console,
+:root[data-chrome-style="onyx"] .wc-topbar-actions {
   border-radius: 14px;
 }
 
-:root[data-chrome-style="onyx"] .kc-create-rail {
+:root[data-chrome-style="onyx"] .wc-create-rail {
   width: 52px;
   gap: 3px;
   padding: 7px 8px;
   border-radius: 16px;
 }
 
-:root[data-chrome-style="onyx"] .kc-edit-dock {
+:root[data-chrome-style="onyx"] .wc-edit-dock {
   border-radius: 16px;
   padding: 6px 8px;
   gap: 6px;
 }
 
-:root[data-chrome-style="onyx"] .kc-zoom-control {
+:root[data-chrome-style="onyx"] .wc-zoom-control {
   border-radius: 14px;
   padding: 4px;
 }
 
-:root[data-chrome-style="onyx"] .kc-appearance-toolbar {
+:root[data-chrome-style="onyx"] .wc-appearance-toolbar {
   border-radius: 16px;
   padding: 14px;
 }
 
 /* 项目控制台：徽标 + 名称带内嵌高光 */
-:root[data-chrome-style="onyx"] .kc-project-console {
+:root[data-chrome-style="onyx"] .wc-project-console {
   gap: 9px;
   padding-right: 9px;
 }
 
-:root[data-chrome-style="onyx"] .kc-project-console-mark {
+:root[data-chrome-style="onyx"] .wc-project-console-mark {
   width: 30px;
   height: 30px;
-  border-color: color-mix(in srgb, var(--kc-accent) 30%, var(--kc-onyx-chrome-border-soft));
+  border-color: color-mix(in srgb, var(--wc-accent) 30%, var(--wc-onyx-chrome-border-soft));
   border-radius: 9px;
-  color: color-mix(in srgb, var(--kc-accent) 76%, var(--kc-text-secondary));
-  background: color-mix(in srgb, var(--kc-accent-soft) 50%, var(--kc-onyx-chrome-surface-soft));
-  box-shadow: inset 0 1px 0 var(--kc-onyx-chrome-highlight);
+  color: color-mix(in srgb, var(--wc-accent) 76%, var(--wc-text-secondary));
+  background: color-mix(in srgb, var(--wc-accent-soft) 50%, var(--wc-onyx-chrome-surface-soft));
+  box-shadow: inset 0 1px 0 var(--wc-onyx-chrome-highlight);
 }
 
-:root[data-chrome-style="onyx"] .kc-project-name {
+:root[data-chrome-style="onyx"] .wc-project-name {
   border-radius: 7px;
 }
 
 /* 按钮：扁平 → 微浮起，hover 浮一档 */
-:root[data-chrome-style="onyx"] .kc-topbar-actions button,
-:root[data-chrome-style="onyx"] .kc-zoom-control button,
-:root[data-chrome-style="onyx"] .kc-create-rail button,
-:root[data-chrome-style="onyx"] .kc-edit-dock button {
+:root[data-chrome-style="onyx"] .wc-topbar-actions button,
+:root[data-chrome-style="onyx"] .wc-zoom-control button,
+:root[data-chrome-style="onyx"] .wc-create-rail button,
+:root[data-chrome-style="onyx"] .wc-edit-dock button {
   border-radius: 10px;
-  transition: transform 120ms ease, box-shadow 160ms ease, background-color 140ms ease, color 120ms ease;
+  transition:
+    transform 120ms ease,
+    box-shadow 160ms ease,
+    background-color 140ms ease,
+    color 120ms ease;
 }
 
-:root[data-chrome-style="onyx"] .kc-topbar-actions button:hover,
-:root[data-chrome-style="onyx"] .kc-zoom-control button:hover,
-:root[data-chrome-style="onyx"] .kc-create-rail button:hover:not(:disabled),
-:root[data-chrome-style="onyx"] .kc-edit-dock button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--kc-surface-strong) 56%, transparent);
-  box-shadow: inset 0 1px 0 var(--kc-onyx-chrome-highlight);
+:root[data-chrome-style="onyx"] .wc-topbar-actions button:hover,
+:root[data-chrome-style="onyx"] .wc-zoom-control button:hover,
+:root[data-chrome-style="onyx"] .wc-create-rail button:hover:not(:disabled),
+:root[data-chrome-style="onyx"] .wc-edit-dock button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--wc-surface-strong) 56%, transparent);
+  box-shadow: inset 0 1px 0 var(--wc-onyx-chrome-highlight);
   transform: translateY(-0.5px);
 }
 
-:root[data-chrome-style="onyx"] .kc-topbar-actions button:active,
-:root[data-chrome-style="onyx"] .kc-zoom-control button:active,
-:root[data-chrome-style="onyx"] .kc-create-rail button:active:not(:disabled),
-:root[data-chrome-style="onyx"] .kc-edit-dock button:active:not(:disabled) {
+:root[data-chrome-style="onyx"] .wc-topbar-actions button:active,
+:root[data-chrome-style="onyx"] .wc-zoom-control button:active,
+:root[data-chrome-style="onyx"] .wc-create-rail button:active:not(:disabled),
+:root[data-chrome-style="onyx"] .wc-edit-dock button:active:not(:disabled) {
   transform: translateY(0.5px);
-  box-shadow: inset 0 -1px 0 var(--kc-onyx-chrome-highlight);
+  box-shadow: inset 0 -1px 0 var(--wc-onyx-chrome-highlight);
 }
 
 /* 端口（仅 chrome=onyx 才动，避免影响其它 chrome 选择器） */
-:root[data-chrome-style="onyx"] .kc-node-port-zone--compact .kc-node-port-core {
+:root[data-chrome-style="onyx"] .wc-node-port-zone--compact .wc-node-port-core {
   width: 22px;
   height: 22px;
-  border: 1px solid var(--kc-onyx-chrome-border);
+  border: 1px solid var(--wc-onyx-chrome-border);
   border-radius: 50%;
-  color: var(--kc-text-secondary);
-  background: var(--kc-onyx-chrome-surface);
-  box-shadow: var(--kc-onyx-chrome-shadow);
-  opacity: .82;
+  color: var(--wc-text-secondary);
+  background: var(--wc-onyx-chrome-surface);
+  box-shadow: var(--wc-onyx-chrome-shadow);
+  opacity: 0.82;
 }
 
-:root[data-chrome-style="onyx"] .kc-node-port-zone--compact .kc-node-port-core svg {
+:root[data-chrome-style="onyx"] .wc-node-port-zone--compact .wc-node-port-core svg {
   width: 11px;
   height: 11px;
-  opacity: .82;
+  opacity: 0.82;
 }
 
-:root[data-chrome-style="onyx"] :where(.react-flow__node-kachang:hover, .react-flow__node-kachang.selected) .kc-node-port-zone--compact .kc-node-port-core {
+:root[data-chrome-style="onyx"]
+  :where(.react-flow__node-weftcanvas:hover, .react-flow__node-weftcanvas.selected)
+  .wc-node-port-zone--compact
+  .wc-node-port-core {
   width: 24px;
   height: 24px;
-  border-color: color-mix(in srgb, var(--kc-text-secondary) 40%, var(--kc-onyx-chrome-border));
-  color: var(--kc-text);
-  background: color-mix(in srgb, var(--kc-onyx-chrome-surface-raised, var(--kc-onyx-chrome-surface)) 1%, transparent);
-  box-shadow: var(--kc-onyx-chrome-shadow-raised);
-  opacity: .94;
+  border-color: color-mix(in srgb, var(--wc-text-secondary) 40%, var(--wc-onyx-chrome-border));
+  color: var(--wc-text);
+  background: color-mix(
+    in srgb,
+    var(--wc-onyx-chrome-surface-raised, var(--wc-onyx-chrome-surface)) 1%,
+    transparent
+  );
+  box-shadow: var(--wc-onyx-chrome-shadow-raised);
+  opacity: 0.94;
 }
 
-:root[data-chrome-style="onyx"] .kc-node-port-zone--compact:hover .kc-node-port-core,
-:root[data-chrome-style="onyx"] .kc-node-port-zone--compact:focus-within .kc-node-port-core {
+:root[data-chrome-style="onyx"] .wc-node-port-zone--compact:hover .wc-node-port-core,
+:root[data-chrome-style="onyx"] .wc-node-port-zone--compact:focus-within .wc-node-port-core {
   width: 28px;
   height: 28px;
-  border-color: color-mix(in srgb, var(--kc-text-secondary) 52%, var(--kc-onyx-chrome-border));
-  color: var(--kc-text);
-  background: color-mix(in srgb, var(--kc-surface-raised) 80%, transparent);
-  box-shadow: var(--kc-onyx-chrome-shadow-raised);
+  border-color: color-mix(in srgb, var(--wc-text-secondary) 52%, var(--wc-onyx-chrome-border));
+  color: var(--wc-text);
+  background: color-mix(in srgb, var(--wc-surface-raised) 80%, transparent);
+  box-shadow: var(--wc-onyx-chrome-shadow-raised);
   opacity: 1;
 }
 
-:root[data-chrome-style="onyx"] .kc-node-port-zone--compact:hover .kc-node-port-core svg,
-:root[data-chrome-style="onyx"] .kc-node-port-zone--compact:focus-within .kc-node-port-core svg {
+:root[data-chrome-style="onyx"] .wc-node-port-zone--compact:hover .wc-node-port-core svg,
+:root[data-chrome-style="onyx"] .wc-node-port-zone--compact:focus-within .wc-node-port-core svg {
   width: 14px;
   height: 14px;
   opacity: 1;
 }
 
-:root[data-chrome-style="onyx"] .kc-node-port-zone--compact.is-pressed .kc-node-port-core,
-:root[data-chrome-style="onyx"] .kc-node-port-zone--compact.is-pulling .kc-node-port-core {
+:root[data-chrome-style="onyx"] .wc-node-port-zone--compact.is-pressed .wc-node-port-core,
+:root[data-chrome-style="onyx"] .wc-node-port-zone--compact.is-pulling .wc-node-port-core {
   width: 26px;
   height: 26px;
-  border-color: color-mix(in srgb, var(--node-accent) 72%, var(--kc-onyx-chrome-border));
-  background: color-mix(in srgb, var(--kc-surface-raised) 88%, var(--node-accent-soft));
-  box-shadow: var(--kc-onyx-chrome-shadow);
+  border-color: color-mix(in srgb, var(--node-accent) 72%, var(--wc-onyx-chrome-border));
+  background: color-mix(in srgb, var(--wc-surface-raised) 88%, var(--node-accent-soft));
+  box-shadow: var(--wc-onyx-chrome-shadow);
 }
 
 /* 提示框 / 弹层：同款玻璃 */
-:root[data-chrome-style="onyx"] .kc-node-action-toolbar,
-:root[data-chrome-style="onyx"] .kc-node-prompt-composer,
-:root[data-chrome-style="onyx"] .kc-node-quick-add,
-:root[data-chrome-style="onyx"] .kc-context-menu,
-:root[data-chrome-style="onyx"] .kc-connection-create-menu {
-  border: 1px solid var(--kc-onyx-chrome-border);
+:root[data-chrome-style="onyx"] .wc-node-action-toolbar,
+:root[data-chrome-style="onyx"] .wc-node-prompt-composer,
+:root[data-chrome-style="onyx"] .wc-node-quick-add,
+:root[data-chrome-style="onyx"] .wc-context-menu,
+:root[data-chrome-style="onyx"] .wc-connection-create-menu {
+  border: 1px solid var(--wc-onyx-chrome-border);
   border-radius: 12px;
   background:
-    linear-gradient(145deg, var(--kc-onyx-chrome-highlight), transparent 36%),
-    var(--kc-onyx-chrome-surface);
-  box-shadow: var(--kc-onyx-chrome-shadow-raised);
+    linear-gradient(145deg, var(--wc-onyx-chrome-highlight), transparent 36%),
+    var(--wc-onyx-chrome-surface);
+  box-shadow: var(--wc-onyx-chrome-shadow-raised);
   backdrop-filter: blur(14px) saturate(1.1);
   -webkit-backdrop-filter: blur(14px) saturate(1.1);
 }
 
 /* 右键菜单：onyx 弹层统一 14px 大圆角 + 菜单项 9px 圆角 + 玻璃 hover */
-:root[data-chrome-style="onyx"] .kc-context-menu {
+:root[data-chrome-style="onyx"] .wc-context-menu {
   border-radius: 14px;
 }
 
-:root[data-chrome-style="onyx"] .kc-context-menu button {
+:root[data-chrome-style="onyx"] .wc-context-menu button {
   border-radius: 9px;
 }
 
-:root[data-chrome-style="onyx"] .kc-context-menu button:hover,
-:root[data-chrome-style="onyx"] .kc-context-menu button:focus-visible {
-  background: color-mix(in srgb, var(--kc-surface-strong) 56%, transparent);
+:root[data-chrome-style="onyx"] .wc-context-menu button:hover,
+:root[data-chrome-style="onyx"] .wc-context-menu button:focus-visible {
+  background: color-mix(in srgb, var(--wc-surface-strong) 56%, transparent);
 }
 
-:root[data-chrome-style="onyx"] .kc-node-prompt-composer {
+:root[data-chrome-style="onyx"] .wc-node-prompt-composer {
   padding: 12px;
 }
 
-:root[data-chrome-style="onyx"] .kc-node-prompt-row,
-:root[data-chrome-style="onyx"] .kc-node-prompt-actions {
+:root[data-chrome-style="onyx"] .wc-node-prompt-row,
+:root[data-chrome-style="onyx"] .wc-node-prompt-actions {
   border-radius: 8px;
 }
 
-:root[data-chrome-style="onyx"] .kc-node-prompt-actions {
-  background: color-mix(in srgb, var(--kc-onyx-chrome-surface-soft) 1%, transparent);
-  box-shadow: inset 0 1px 0 var(--kc-onyx-chrome-highlight);
+:root[data-chrome-style="onyx"] .wc-node-prompt-actions {
+  background: color-mix(in srgb, var(--wc-onyx-chrome-surface-soft) 1%, transparent);
+  box-shadow: inset 0 1px 0 var(--wc-onyx-chrome-highlight);
 }
 
-:root[data-chrome-style="onyx"] .kc-node-port-zone--classic .kc-node-port-core {
-  border: 1px solid var(--kc-onyx-chrome-border);
-  background: var(--kc-onyx-chrome-surface);
-  box-shadow: var(--kc-onyx-chrome-shadow);
+:root[data-chrome-style="onyx"] .wc-node-port-zone--classic .wc-node-port-core {
+  border: 1px solid var(--wc-onyx-chrome-border);
+  background: var(--wc-onyx-chrome-surface);
+  box-shadow: var(--wc-onyx-chrome-shadow);
 }

@@ -36,7 +36,7 @@ export type ProvisionContext = {
   assets: {
     /** apps/agent/mcp/canvas-mcp.mjs */
     mcpScript: string;
-    /** apps/agent/blender/kachang_bridge.py */
+    /** apps/agent/blender/weftcanvas_bridge.py */
     blenderAddon: string;
   };
 };
@@ -49,9 +49,9 @@ export type ProvisionResult = {
   action: string | null;
 };
 
-const CODEX_SERVER_NAME = "kachang-canvas";
+const CODEX_SERVER_NAME = "weftcanvas";
 const CODEX_SERVER_HEADER = `mcp_servers.${CODEX_SERVER_NAME}`;
-const BLENDER_ADDON_DIR_NAME = "kachang_bridge";
+const BLENDER_ADDON_DIR_NAME = "weftcanvas_bridge";
 
 /* ------------------------------------------------------------------ Codex */
 
@@ -69,7 +69,7 @@ export type CodexMcpEntry = {
 
 /**
  * 把画布 MCP 服务写进 Codex 的 config.toml。
- * 只替换 `mcp_servers.kachang-canvas` 这一段，其它内容原样保留。
+ * 只替换 `mcp_servers.weftcanvas` 这一段，其它内容原样保留。
  */
 export function mergeCodexCanvasServer(source: string, entry: CodexMcpEntry): string {
   const remainder = stripSection(source, CODEX_SERVER_HEADER).replace(/[\s\uFEFF]+$/, "");
@@ -120,18 +120,19 @@ function quote(value: string) {
 /**
  * 一键把画布接进 Codex：按需创建/合并 config.toml，原文件留一份备份。
  * Codex 只在启动时读配置，所以写完要求用户重启一次 Codex。
+ * （`command` 仅为连接器 API 形状保留：MCP 条目以 nodeBinary 启动脚本，不依赖命令名。）
  */
 export async function provisionCodex(
   context: ProvisionContext,
-  command: string,
+  _command: string,
 ): Promise<ProvisionResult> {
   const configPath = codexConfigPath(context);
   const entry: CodexMcpEntry = {
     command: context.nodeBinary,
     args: [context.assets.mcpScript],
     env: {
-      KACHANG_AGENT_URL: context.agentBaseUrl,
-      KACHANG_AGENT_TOKEN: context.agentToken,
+      WEFTCANVAS_AGENT_URL: context.agentBaseUrl,
+      WEFTCANVAS_AGENT_TOKEN: context.agentToken,
     },
   };
 
@@ -150,7 +151,7 @@ export async function provisionCodex(
   try {
     await context.fs.ensureDir(pathDir(context.platform, configPath));
     if (source !== null) {
-      await context.fs.writeText(`${configPath}.kachang-backup`, source);
+      await context.fs.writeText(`${configPath}.weftcanvas-backup`, source);
     }
     await context.fs.writeText(configPath, mergeCodexCanvasServer(current, entry));
   } catch {
@@ -159,9 +160,10 @@ export async function provisionCodex(
 
   return {
     ok: true,
-    detail: source === null
-      ? `已创建 Codex 配置：${configPath}`
-      : `已写入 Codex 配置：${configPath}（原文件备份为 config.toml.kachang-backup）`,
+    detail:
+      source === null
+        ? `已创建 Codex 配置：${configPath}`
+        : `已写入 Codex 配置：${configPath}（原文件备份为 config.toml.weftcanvas-backup）`,
     action: "重启 Codex 后生效",
   };
 }
@@ -179,11 +181,11 @@ export async function resolveBlenderAddonsDir(
   context: ProvisionContext,
   version: string | null,
 ): Promise<string> {
-  if (context.env.KACHANG_BLENDER_ADDONS_DIR?.trim()) {
-    return context.env.KACHANG_BLENDER_ADDONS_DIR.trim();
+  if (context.env.WEFTCANVAS_BLENDER_ADDONS_DIR?.trim()) {
+    return context.env.WEFTCANVAS_BLENDER_ADDONS_DIR.trim();
   }
   const base = blenderConfigBase(context);
-  const resolved = version ?? await highestVersionDir(context, base);
+  const resolved = version ?? (await highestVersionDir(context, base));
   const parts = [base];
   if (resolved) parts.push(resolved);
   parts.push("scripts", "addons");
@@ -192,13 +194,16 @@ export async function resolveBlenderAddonsDir(
 
 function blenderConfigBase(context: ProvisionContext) {
   if (context.platform === "win32") {
-    const appData = context.env.APPDATA?.trim() || joinPath(context.platform, context.homeDir, "AppData", "Roaming");
+    const appData =
+      context.env.APPDATA?.trim() ||
+      joinPath(context.platform, context.homeDir, "AppData", "Roaming");
     return joinPath(context.platform, appData, "Blender Foundation", "Blender");
   }
   if (context.platform === "darwin") {
     return joinPath(context.platform, context.homeDir, "Library", "Application Support", "Blender");
   }
-  const configHome = context.env.XDG_CONFIG_HOME?.trim() || joinPath(context.platform, context.homeDir, ".config");
+  const configHome =
+    context.env.XDG_CONFIG_HOME?.trim() || joinPath(context.platform, context.homeDir, ".config");
   return joinPath(context.platform, configHome, "blender");
 }
 
@@ -217,7 +222,7 @@ async function highestVersionDir(context: ProvisionContext, base: string): Promi
 }
 
 export async function findBlender(context: ProvisionContext): Promise<BlenderInstallation | null> {
-  const explicit = context.env.KACHANG_BLENDER_BIN?.trim();
+  const explicit = context.env.WEFTCANVAS_BLENDER_BIN?.trim();
   if (explicit) {
     return { executable: explicit, version: await readBlenderVersion(context, explicit) };
   }
@@ -253,9 +258,10 @@ async function blenderCandidates(context: ProvisionContext): Promise<BlenderInst
   ];
   const candidates: BlenderInstallation[] = [];
   for (const root of roots) {
-    const base = /Programs$/.test(root) || /Local$/.test(root)
-      ? joinPath("win32", root, "Programs", "Blender Foundation")
-      : joinPath("win32", root, "Blender Foundation");
+    const base =
+      /Programs$/.test(root) || /Local$/.test(root)
+        ? joinPath("win32", root, "Programs", "Blender Foundation")
+        : joinPath("win32", root, "Blender Foundation");
     let entries: string[] = [];
     try {
       entries = await context.fs.listDir(base);
@@ -273,7 +279,10 @@ async function blenderCandidates(context: ProvisionContext): Promise<BlenderInst
   return candidates;
 }
 
-async function readBlenderVersion(context: ProvisionContext, command: string): Promise<string | null> {
+async function readBlenderVersion(
+  context: ProvisionContext,
+  command: string,
+): Promise<string | null> {
   const result = await context.runner
     .exec(command, ["--version"], { timeoutMs: 8_000 })
     .catch(() => null);
@@ -296,7 +305,7 @@ export async function provisionBlender(
   if (!installation) {
     return {
       ok: false,
-      detail: "没有找到本机 Blender。装好 Blender 后重试，或设置 KACHANG_BLENDER_BIN 指向它。",
+      detail: "没有找到本机 Blender。装好 Blender 后重试，或设置 WEFTCANVAS_BLENDER_BIN 指向它。",
       action: null,
     };
   }
@@ -328,7 +337,9 @@ export async function provisionBlender(
   }
 
   // 已经装过同样内容就不再重复跑一次后台 Blender（每次要几秒）。
-  const enabled = alreadyInstalled ? true : await enableBlenderAddon(context, installation.executable);
+  const enabled = alreadyInstalled
+    ? true
+    : await enableBlenderAddon(context, installation.executable);
   const enabledNote = alreadyInstalled
     ? "插件已安装"
     : enabled
@@ -428,8 +439,12 @@ export function defaultRunner(): ProvisionRunner {
         let stdout = "";
         let stderr = "";
         const timer = setTimeout(() => child.kill(), options.timeoutMs ?? 30_000);
-        child.stdout?.on("data", (chunk: Buffer) => { stdout += chunk.toString("utf8"); });
-        child.stderr?.on("data", (chunk: Buffer) => { stderr += chunk.toString("utf8"); });
+        child.stdout?.on("data", (chunk: Buffer) => {
+          stdout += chunk.toString("utf8");
+        });
+        child.stderr?.on("data", (chunk: Buffer) => {
+          stderr += chunk.toString("utf8");
+        });
         child.on("error", () => {
           clearTimeout(timer);
           resolve({ code: null, stdout, stderr });
@@ -452,11 +467,13 @@ export function defaultRunner(): ProvisionRunner {
   };
 }
 
-export function defaultProvisionContext(overrides: Partial<ProvisionContext> & {
-  agentBaseUrl: string;
-  agentToken: string;
-  assets: ProvisionContext["assets"];
-}): ProvisionContext {
+export function defaultProvisionContext(
+  overrides: Partial<ProvisionContext> & {
+    agentBaseUrl: string;
+    agentToken: string;
+    assets: ProvisionContext["assets"];
+  },
+): ProvisionContext {
   return {
     fs: defaultFileSystem(),
     runner: defaultRunner(),

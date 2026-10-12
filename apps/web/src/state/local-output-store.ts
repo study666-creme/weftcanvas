@@ -1,15 +1,15 @@
-import type { CanvasMedia, PublicGenerationJob } from "@kachang/contracts";
+import type { CanvasMedia, PublicGenerationJob } from "@weftcanvas/contracts";
 import { create } from "zustand";
 
 import { cacheServerMedia, readMedia } from "../lib/media-store";
 
-const DATABASE_NAME = "kachang-canvas-local-output";
+const DATABASE_NAME = "weftcanvas-local-output";
 const DATABASE_VERSION = 1;
 const SETTINGS_STORE = "settings";
 const OUTPUT_STORE = "outputs";
 const WRITE_LEASE_MS = 2 * 60_000;
 const WRITE_LEASE_RENEW_MS = Math.floor(WRITE_LEASE_MS / 3);
-const LOCK_PREFIX = "kachang-canvas:local-output";
+const LOCK_PREFIX = "weftcanvas:local-output";
 
 export type LocalOutputKind = "image" | "video";
 type LocalOutputPermission = PermissionState | "unknown";
@@ -71,7 +71,11 @@ export type LocalOutputPersistence = {
   listPending: (targetId: string) => Promise<LocalOutputRecord[]>;
   claim: (key: string, ownerId: string, now: number) => Promise<LocalOutputRecord | null>;
   renew: (key: string, ownerId: string, now: number) => Promise<boolean>;
-  updateFileName: (key: string, ownerId: string, fileName: string) => Promise<LocalOutputRecord | null>;
+  updateFileName: (
+    key: string,
+    ownerId: string,
+    fileName: string,
+  ) => Promise<LocalOutputRecord | null>;
   markSaved: (key: string, ownerId: string, savedAt: number) => Promise<boolean>;
   release: (key: string, ownerId: string, error: string) => Promise<boolean>;
   countPending: (targetId: string) => Promise<number>;
@@ -147,30 +151,42 @@ export const useLocalOutputStore = create<LocalOutputState>((set, get) => ({
         return;
       }
       try {
-        const entries = await Promise.all((["image", "video"] as const).map(async (kind) => {
-          const settings = await persistence.readSettings(kind);
-          if (!settings) return [kind, { settings: null, state: emptyTargetState() }] as const;
-          const permission = await queryDirectoryPermission(settings.handle);
-          const pendingCount = await persistence.countPending(settings.targetId);
-          return [kind, {
-            settings,
-            state: {
-              ...emptyTargetState(),
-              enabled: settings.enabled,
-              directoryName: settings.directoryName,
-              permission,
-              pendingCount,
-            },
-          }] as const;
-        }));
-        const loaded = Object.fromEntries(entries) as Record<LocalOutputKind, {
-          settings: LocalOutputSettingsRecord | null;
-          state: LocalOutputTargetState;
-        }>;
-        set({ initialized: true, targets: { image: loaded.image.state, video: loaded.video.state } });
+        const entries = await Promise.all(
+          (["image", "video"] as const).map(async (kind) => {
+            const settings = await persistence.readSettings(kind);
+            if (!settings) return [kind, { settings: null, state: emptyTargetState() }] as const;
+            const permission = await queryDirectoryPermission(settings.handle);
+            const pendingCount = await persistence.countPending(settings.targetId);
+            return [
+              kind,
+              {
+                settings,
+                state: {
+                  ...emptyTargetState(),
+                  enabled: settings.enabled,
+                  directoryName: settings.directoryName,
+                  permission,
+                  pendingCount,
+                },
+              },
+            ] as const;
+          }),
+        );
+        const loaded = Object.fromEntries(entries) as Record<
+          LocalOutputKind,
+          {
+            settings: LocalOutputSettingsRecord | null;
+            state: LocalOutputTargetState;
+          }
+        >;
+        set({
+          initialized: true,
+          targets: { image: loaded.image.state, video: loaded.video.state },
+        });
         for (const kind of ["image", "video"] as const) {
           const entry = loaded[kind];
-          if (entry.settings?.enabled && entry.state.permission === "granted") await requestDrain(kind);
+          if (entry.settings?.enabled && entry.state.permission === "granted")
+            await requestDrain(kind);
         }
       } catch (cause) {
         const error = publicLocalOutputError(cause);
@@ -194,7 +210,7 @@ export const useLocalOutputStore = create<LocalOutputState>((set, get) => ({
     if (!picker) return false;
     try {
       const handle = await picker({
-        id: `kachang-generated-${kind}`,
+        id: `weftcanvas-generated-${kind}`,
         mode: "readwrite",
         startIn: kind === "video" ? "videos" : "pictures",
       });
@@ -255,7 +271,10 @@ export const useLocalOutputStore = create<LocalOutputState>((set, get) => ({
         const permission = settings.handle.requestPermission
           ? await settings.handle.requestPermission({ mode: "readwrite" })
           : await queryDirectoryPermission(settings.handle);
-        patchTarget(kind, { permission, error: permission === "granted" ? null : "需要文件夹写入权限才能自动保存" });
+        patchTarget(kind, {
+          permission,
+          error: permission === "granted" ? null : "需要文件夹写入权限才能自动保存",
+        });
         shouldDrain = permission === "granted" && settings.enabled;
         return permission === "granted";
       });
@@ -293,7 +312,10 @@ export const useLocalOutputStore = create<LocalOutputState>((set, get) => ({
         const settings = await persistence.readSettings(kind);
         await persistence.deleteSettings(kind);
         if (settings) await persistence.deleteTarget(settings.targetId);
-        set((state) => ({ initialized: true, targets: { ...state.targets, [kind]: emptyTargetState() } }));
+        set((state) => ({
+          initialized: true,
+          targets: { ...state.targets, [kind]: emptyTargetState() },
+        }));
       });
     } catch (cause) {
       patchTarget(kind, { activity: "error", error: publicLocalOutputError(cause) });
@@ -312,7 +334,9 @@ export const useLocalOutputStore = create<LocalOutputState>((set, get) => ({
     } catch (cause) {
       const error = publicLocalOutputError(cause);
       if (kind) patchTarget(kind, { activity: "error", error });
-      else for (const targetKind of ["image", "video"] as const) patchTarget(targetKind, { activity: "error", error });
+      else
+        for (const targetKind of ["image", "video"] as const)
+          patchTarget(targetKind, { activity: "error", error });
     }
   },
 
@@ -334,14 +358,18 @@ export const useLocalOutputStore = create<LocalOutputState>((set, get) => ({
       }
     } catch (cause) {
       const error = publicLocalOutputError(cause);
-      for (const kind of ["image", "video"] as const) patchTarget(kind, { activity: "error", error });
+      for (const kind of ["image", "video"] as const)
+        patchTarget(kind, { activity: "error", error });
     }
   },
 }));
 
 export function enqueueCompletedGenerationOutputs(job: PublicGenerationJob, recovered = false) {
   if (job.status !== "completed") return;
-  void useLocalOutputStore.getState().enqueueGenerationJob(job, recovered).catch(() => undefined);
+  void useLocalOutputStore
+    .getState()
+    .enqueueGenerationJob(job, recovered)
+    .catch(() => undefined);
 }
 
 export async function enqueueGeneratedMedia(input: {
@@ -376,8 +404,15 @@ export function buildGeneratedMediaOutputRecord(
   settings: LocalOutputSettingsRecord,
 ) {
   const kind = localOutputKind(input.media.mimeType);
-  const artifactCreatedAt = typeof input.createdAt === "number" ? input.createdAt : Date.parse(input.createdAt);
-  if (!settings.enabled || kind !== settings.kind || !Number.isFinite(artifactCreatedAt) || artifactCreatedAt < settings.enabledAt) return null;
+  const artifactCreatedAt =
+    typeof input.createdAt === "number" ? input.createdAt : Date.parse(input.createdAt);
+  if (
+    !settings.enabled ||
+    kind !== settings.kind ||
+    !Number.isFinite(artifactCreatedAt) ||
+    artifactCreatedAt < settings.enabledAt
+  )
+    return null;
   const outputKey = `browser:${input.outputKey}`;
   return {
     key: `${settings.targetId}:${outputKey}`,
@@ -406,24 +441,30 @@ export function buildGenerationOutputRecords(
   return job.artifacts.flatMap((artifact): LocalOutputRecord[] => {
     if (!isLocalOutputArtifact(artifact) || artifact.kind !== settings.kind) return [];
     const artifactCreatedAt = Date.parse(artifact.createdAt);
-    if (!Number.isFinite(artifactCreatedAt) || (recovered && artifactCreatedAt < settings.enabledAt)) return [];
+    if (
+      !Number.isFinite(artifactCreatedAt) ||
+      (recovered && artifactCreatedAt < settings.enabledAt)
+    )
+      return [];
     const outputKey = `hosted:${job.id}:${artifact.id}`;
-    return [{
-      key: `${settings.targetId}:${outputKey}`,
-      schemaVersion: 1,
-      targetId: settings.targetId,
-      kind: settings.kind,
-      outputKey,
-      state: "pending",
-      fileName: buildLocalOutputFileName(artifact.name, artifact.mimeType, outputKey),
-      media: mediaFromArtifact(artifact),
-      artifactCreatedAt,
-      leaseOwner: null,
-      leaseUntil: null,
-      savedAt: null,
-      attempts: 0,
-      lastError: null,
-    }];
+    return [
+      {
+        key: `${settings.targetId}:${outputKey}`,
+        schemaVersion: 1,
+        targetId: settings.targetId,
+        kind: settings.kind,
+        outputKey,
+        state: "pending",
+        fileName: buildLocalOutputFileName(artifact.name, artifact.mimeType, outputKey),
+        media: mediaFromArtifact(artifact),
+        artifactCreatedAt,
+        leaseOwner: null,
+        leaseUntil: null,
+        savedAt: null,
+        attempts: 0,
+        lastError: null,
+      },
+    ];
   });
 }
 
@@ -450,16 +491,26 @@ export function migrateLocalOutputSettings(
   const source = value as Record<string, unknown>;
   const handle = isDirectoryHandle(source.handle)
     ? source.handle
-    : isDirectoryHandle(source.directoryHandle) ? source.directoryHandle : null;
+    : isDirectoryHandle(source.directoryHandle)
+      ? source.directoryHandle
+      : null;
   if (!handle) return null;
   const storedKind = source.kind === "image" || source.kind === "video" ? source.kind : null;
   if (storedKind && storedKind !== kind) return null;
   const legacySingleTarget = source.key === "active";
-  const sourceTargetId = typeof source.targetId === "string" && source.targetId ? source.targetId : null;
-  const targetId = sourceTargetId ? (legacySingleTarget ? `${sourceTargetId}:${kind}` : sourceTargetId) : createTargetId();
-  const enabledAt = typeof source.enabledAt === "number" && Number.isFinite(source.enabledAt)
-    ? source.enabledAt
-    : typeof source.selectedAt === "number" && Number.isFinite(source.selectedAt) ? source.selectedAt : now;
+  const sourceTargetId =
+    typeof source.targetId === "string" && source.targetId ? source.targetId : null;
+  const targetId = sourceTargetId
+    ? legacySingleTarget
+      ? `${sourceTargetId}:${kind}`
+      : sourceTargetId
+    : createTargetId();
+  const enabledAt =
+    typeof source.enabledAt === "number" && Number.isFinite(source.enabledAt)
+      ? source.enabledAt
+      : typeof source.selectedAt === "number" && Number.isFinite(source.selectedAt)
+        ? source.selectedAt
+        : now;
   return {
     key: kind,
     schemaVersion: 1,
@@ -467,7 +518,10 @@ export function migrateLocalOutputSettings(
     enabled: source.enabled !== false,
     targetId,
     enabledAt,
-    directoryName: typeof source.directoryName === "string" && source.directoryName ? source.directoryName : handle.name,
+    directoryName:
+      typeof source.directoryName === "string" && source.directoryName
+        ? source.directoryName
+        : handle.name,
     handle,
   };
 }
@@ -479,7 +533,8 @@ export function claimLocalOutputRecord(
   leaseMs = WRITE_LEASE_MS,
 ) {
   if (record.state === "saved") return null;
-  if (record.state === "writing" && record.leaseUntil !== null && record.leaseUntil > now) return null;
+  if (record.state === "writing" && record.leaseUntil !== null && record.leaseUntil > now)
+    return null;
   return {
     ...record,
     state: "writing" as const,
@@ -500,12 +555,26 @@ export function renewLocalOutputRecord(
   return { ...record, leaseUntil: now + leaseMs };
 }
 
-export function completeLocalOutputRecord(record: LocalOutputRecord, ownerId: string, savedAt: number) {
+export function completeLocalOutputRecord(
+  record: LocalOutputRecord,
+  ownerId: string,
+  savedAt: number,
+) {
   if (record.state !== "writing" || record.leaseOwner !== ownerId) return null;
-  return { ...record, state: "saved" as const, leaseOwner: null, leaseUntil: null, savedAt, lastError: null };
+  return {
+    ...record,
+    state: "saved" as const,
+    leaseOwner: null,
+    leaseUntil: null,
+    savedAt,
+    lastError: null,
+  };
 }
 
-export function migratePendingLocalOutputRecord(record: LocalOutputRecord, target: LocalOutputSettingsRecord) {
+export function migratePendingLocalOutputRecord(
+  record: LocalOutputRecord,
+  target: LocalOutputSettingsRecord,
+) {
   if (record.state === "saved") return null;
   return {
     ...record,
@@ -521,28 +590,43 @@ export function migratePendingLocalOutputRecord(record: LocalOutputRecord, targe
 }
 
 export function buildLocalOutputFileName(name: string, mimeType: string, outputKey: string) {
-  const normalized = name.normalize("NFKC").replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").replace(/[. ]+$/g, "").trim();
+  const normalized = name
+    .normalize("NFKC")
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_")
+    .replace(/[. ]+$/g, "")
+    .trim();
   const dot = normalized.lastIndexOf(".");
   let stem = dot > 0 ? normalized.slice(0, dot) : normalized;
-  stem = stem.replace(/^[. ]+|[. ]+$/g, "").slice(0, 120) || (mimeType.startsWith("video/") ? "video" : "image");
+  stem =
+    stem.replace(/^[. ]+|[. ]+$/g, "").slice(0, 120) ||
+    (mimeType.startsWith("video/") ? "video" : "image");
   if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(stem)) stem = `_${stem}`;
   return `${stem}-${stableHash(outputKey)}-${randomFileToken()}.${extensionForMimeType(mimeType)}`;
 }
 
-export async function findAvailableLocalOutputFileName(handle: LocalDirectoryHandle, record: LocalOutputRecord) {
+export async function findAvailableLocalOutputFileName(
+  handle: LocalDirectoryHandle,
+  record: LocalOutputRecord,
+) {
   let candidate = record.fileName;
   for (let attempt = 0; attempt < 32; attempt += 1) {
     if (!(await localOutputFileExists(handle, candidate))) return candidate;
-    candidate = buildLocalOutputFileName(record.media.name, record.media.mimeType, record.outputKey);
+    candidate = buildLocalOutputFileName(
+      record.media.name,
+      record.media.mimeType,
+      record.outputKey,
+    );
   }
   throw new Error("无法为自动保存结果分配唯一文件名");
 }
 
 function supportsLocalOutputDirectory() {
-  return typeof window !== "undefined"
-    && window.isSecureContext
-    && typeof indexedDB !== "undefined"
-    && typeof (window as DirectoryPickerWindow).showDirectoryPicker === "function";
+  return (
+    typeof window !== "undefined" &&
+    window.isSecureContext &&
+    typeof indexedDB !== "undefined" &&
+    typeof (window as DirectoryPickerWindow).showDirectoryPicker === "function"
+  );
 }
 
 function patchTarget(kind: LocalOutputKind, change: Partial<LocalOutputTargetState>) {
@@ -555,7 +639,8 @@ function patchTarget(kind: LocalOutputKind, change: Partial<LocalOutputTargetSta
 }
 
 async function withTargetLock<T>(kind: LocalOutputKind, operation: () => Promise<T>): Promise<T> {
-  const lockManager = typeof navigator !== "undefined" ? (navigator as LockManagerNavigator).locks : undefined;
+  const lockManager =
+    typeof navigator !== "undefined" ? (navigator as LockManagerNavigator).locks : undefined;
   if (lockManager?.request) return lockManager.request(`${LOCK_PREFIX}:${kind}`, operation);
 
   const previous = localLockTails.get(kind) ?? Promise.resolve();
@@ -623,7 +708,8 @@ async function drainOnce(kind: LocalOutputKind) {
     const pendingCount = await persistence.countPending(settings.targetId);
     patchTarget(kind, {
       pendingCount,
-      activity: useLocalOutputStore.getState().targets[kind].activity === "error" ? "error" : "idle",
+      activity:
+        useLocalOutputStore.getState().targets[kind].activity === "error" ? "error" : "idle",
     });
   });
 }
@@ -634,7 +720,8 @@ async function writeClaimedLocalOutput(handle: LocalDirectoryHandle, claimed: Lo
   let renewalRequest: Promise<void> | null = null;
   let stopped = false;
   const loseLease = (cause: unknown) => {
-    if (!leaseError) leaseError = cause instanceof Error ? cause : new Error("自动保存写入租约已失效");
+    if (!leaseError)
+      leaseError = cause instanceof Error ? cause : new Error("自动保存写入租约已失效");
     void activeWriter?.abort?.().catch(() => undefined);
   };
   const renewLease = () => {
@@ -666,8 +753,12 @@ async function writeClaimedLocalOutput(handle: LocalDirectoryHandle, claimed: Lo
     await writeLocalOutput(
       handle,
       current,
-      (writer) => { activeWriter = writer; },
-      () => { if (leaseError) throw leaseError; },
+      (writer) => {
+        activeWriter = writer;
+      },
+      () => {
+        if (leaseError) throw leaseError;
+      },
     );
     stopped = true;
     globalThis.clearInterval(renewalTimer);
@@ -720,10 +811,23 @@ function createIndexedDbPersistence(): LocalOutputPersistence {
   return {
     readSettings: async (kind) => {
       const database = await openDatabase();
-      let raw = await requestResult<unknown>(database.transaction(SETTINGS_STORE, "readonly").objectStore(SETTINGS_STORE).get(kind));
-      if (!raw) raw = await requestResult<unknown>(database.transaction(SETTINGS_STORE, "readonly").objectStore(SETTINGS_STORE).get("active"));
+      let raw = await requestResult<unknown>(
+        database.transaction(SETTINGS_STORE, "readonly").objectStore(SETTINGS_STORE).get(kind),
+      );
+      if (!raw)
+        raw = await requestResult<unknown>(
+          database
+            .transaction(SETTINGS_STORE, "readonly")
+            .objectStore(SETTINGS_STORE)
+            .get("active"),
+        );
       const settings = migrateLocalOutputSettings(raw, kind);
-      if (settings && (!raw || (raw as { schemaVersion?: unknown }).schemaVersion !== 1 || (raw as { key?: unknown }).key !== kind)) {
+      if (
+        settings &&
+        (!raw ||
+          (raw as { schemaVersion?: unknown }).schemaVersion !== 1 ||
+          (raw as { key?: unknown }).key !== kind)
+      ) {
         await writeSettingsRecord(database, settings);
       }
       return settings;
@@ -753,28 +857,54 @@ function createIndexedDbPersistence(): LocalOutputPersistence {
     },
     listPending: async (targetId) => {
       const database = await openDatabase();
-      const records = await requestResult<LocalOutputRecord[]>(database.transaction(OUTPUT_STORE, "readonly").objectStore(OUTPUT_STORE).index("targetId").getAll(targetId));
-      return records.filter((record) => record.state !== "saved").sort((left, right) => left.artifactCreatedAt - right.artifactCreatedAt || left.key.localeCompare(right.key));
+      const records = await requestResult<LocalOutputRecord[]>(
+        database
+          .transaction(OUTPUT_STORE, "readonly")
+          .objectStore(OUTPUT_STORE)
+          .index("targetId")
+          .getAll(targetId),
+      );
+      return records
+        .filter((record) => record.state !== "saved")
+        .sort(
+          (left, right) =>
+            left.artifactCreatedAt - right.artifactCreatedAt || left.key.localeCompare(right.key),
+        );
     },
-    claim: async (key, ownerId, now) => mutateRecord(key, (record) => claimLocalOutputRecord(record, ownerId, now)),
-    renew: async (key, ownerId, now) => Boolean(await mutateRecord(
-      key,
-      (record) => renewLocalOutputRecord(record, ownerId, now),
-    )),
-    updateFileName: async (key, ownerId, fileName) => mutateRecord(key, (record) => {
-      if (record.state !== "writing" || record.leaseOwner !== ownerId) return null;
-      return { ...record, fileName };
-    }),
-    markSaved: async (key, ownerId, savedAt) => Boolean(await mutateRecord(
-      key,
-      (record) => completeLocalOutputRecord(record, ownerId, savedAt),
-    )),
-    release: async (key, ownerId, error) => Boolean(await mutateRecord(key, (record) => {
-      if (record.state !== "writing" || record.leaseOwner !== ownerId) return null;
-      return { ...record, state: "pending", leaseOwner: null, leaseUntil: null, lastError: error };
-    })),
+    claim: async (key, ownerId, now) =>
+      mutateRecord(key, (record) => claimLocalOutputRecord(record, ownerId, now)),
+    renew: async (key, ownerId, now) =>
+      Boolean(await mutateRecord(key, (record) => renewLocalOutputRecord(record, ownerId, now))),
+    updateFileName: async (key, ownerId, fileName) =>
+      mutateRecord(key, (record) => {
+        if (record.state !== "writing" || record.leaseOwner !== ownerId) return null;
+        return { ...record, fileName };
+      }),
+    markSaved: async (key, ownerId, savedAt) =>
+      Boolean(
+        await mutateRecord(key, (record) => completeLocalOutputRecord(record, ownerId, savedAt)),
+      ),
+    release: async (key, ownerId, error) =>
+      Boolean(
+        await mutateRecord(key, (record) => {
+          if (record.state !== "writing" || record.leaseOwner !== ownerId) return null;
+          return {
+            ...record,
+            state: "pending",
+            leaseOwner: null,
+            leaseUntil: null,
+            lastError: error,
+          };
+        }),
+      ),
     countPending: async (targetId) => {
-      const records = await requestResult<LocalOutputRecord[]>((await openDatabase()).transaction(OUTPUT_STORE, "readonly").objectStore(OUTPUT_STORE).index("targetId").getAll(targetId));
+      const records = await requestResult<LocalOutputRecord[]>(
+        (await openDatabase())
+          .transaction(OUTPUT_STORE, "readonly")
+          .objectStore(OUTPUT_STORE)
+          .index("targetId")
+          .getAll(targetId),
+      );
       return records.filter((record) => record.state !== "saved").length;
     },
     movePending: async (sourceTargetId, target) => {
@@ -810,7 +940,10 @@ function createIndexedDbPersistence(): LocalOutputPersistence {
     deleteTarget: async (targetId) => {
       const database = await openDatabase();
       const transaction = database.transaction(OUTPUT_STORE, "readwrite");
-      const cursor = transaction.objectStore(OUTPUT_STORE).index("targetId").openKeyCursor(targetId);
+      const cursor = transaction
+        .objectStore(OUTPUT_STORE)
+        .index("targetId")
+        .openKeyCursor(targetId);
       cursor.onsuccess = () => {
         const current = cursor.result;
         if (!current) return;
@@ -830,7 +963,8 @@ function openDatabase() {
     const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
     request.onupgradeneeded = () => {
       const database = request.result;
-      if (!database.objectStoreNames.contains(SETTINGS_STORE)) database.createObjectStore(SETTINGS_STORE, { keyPath: "key" });
+      if (!database.objectStoreNames.contains(SETTINGS_STORE))
+        database.createObjectStore(SETTINGS_STORE, { keyPath: "key" });
       if (!database.objectStoreNames.contains(OUTPUT_STORE)) {
         const outputs = database.createObjectStore(OUTPUT_STORE, { keyPath: "key" });
         outputs.createIndex("targetId", "targetId", { unique: false });
@@ -877,7 +1011,10 @@ async function mutateRecord(
   return updated;
 }
 
-function transactionDone(transaction: IDBTransaction, mutate: (transaction: IDBTransaction) => void) {
+function transactionDone(
+  transaction: IDBTransaction,
+  mutate: (transaction: IDBTransaction) => void,
+) {
   mutate(transaction);
   return transactionCompletion(transaction);
 }
@@ -897,7 +1034,9 @@ function requestResult<T>(request: IDBRequest<T>) {
   });
 }
 
-function isLocalOutputArtifact(artifact: PublicGenerationJob["artifacts"][number]): artifact is GenerationMediaArtifact {
+function isLocalOutputArtifact(
+  artifact: PublicGenerationJob["artifacts"][number],
+): artifact is GenerationMediaArtifact {
   return artifact.kind === "image" || artifact.kind === "video";
 }
 
@@ -918,7 +1057,11 @@ function mediaFromArtifact(artifact: GenerationMediaArtifact): CanvasMedia {
 function isDirectoryHandle(value: unknown): value is LocalDirectoryHandle {
   if (!value || typeof value !== "object") return false;
   const handle = value as Partial<LocalDirectoryHandle>;
-  return handle.kind === "directory" && typeof handle.name === "string" && typeof handle.getFileHandle === "function";
+  return (
+    handle.kind === "directory" &&
+    typeof handle.name === "string" &&
+    typeof handle.getFileHandle === "function"
+  );
 }
 
 async function handlesMatch(left: LocalDirectoryHandle, right: LocalDirectoryHandle) {
@@ -930,7 +1073,9 @@ async function handlesMatch(left: LocalDirectoryHandle, right: LocalDirectoryHan
   }
 }
 
-async function queryDirectoryPermission(handle: LocalDirectoryHandle): Promise<LocalOutputPermission> {
+async function queryDirectoryPermission(
+  handle: LocalDirectoryHandle,
+): Promise<LocalOutputPermission> {
   if (!handle.queryPermission) return "prompt";
   try {
     return await handle.queryPermission({ mode: "readwrite" });
@@ -988,7 +1133,10 @@ function stableHash(value: string) {
 }
 
 function createRuntimeId(prefix: string) {
-  const id = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const id =
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   return `${prefix}:${id}`;
 }
 
@@ -997,7 +1145,12 @@ function isAbortError(cause: unknown) {
 }
 
 function hasErrorName(cause: unknown, name: string) {
-  return Boolean(cause && typeof cause === "object" && "name" in cause && (cause as { name?: unknown }).name === name);
+  return Boolean(
+    cause &&
+    typeof cause === "object" &&
+    "name" in cause &&
+    (cause as { name?: unknown }).name === name,
+  );
 }
 
 function publicLocalOutputError(cause: unknown) {

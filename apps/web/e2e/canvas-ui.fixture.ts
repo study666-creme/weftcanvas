@@ -16,14 +16,16 @@ export const authenticatedSession = {
 } as const;
 
 export async function mockAuthenticatedSession(page: Page) {
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({
-    json: { ok: true, data: authenticatedSession },
-  }));
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      json: { ok: true, data: authenticatedSession },
+    }),
+  );
 }
 
 /**
  * The create rail keeps its node types in a popover that is only hit-testable
- * while the "+" trigger is hovered (`.kc-create-rail-plus-wrapper:hover`), so a
+ * while the "+" trigger is hovered (`.wc-create-rail-plus-wrapper:hover`), so a
  * direct click on a menu item is intercepted by the canvas pane. Opening the
  * popover first and then clicking the item through the mouse also avoids the
  * actionability retry loop: the item shifts 0.5px on its own hover transform,

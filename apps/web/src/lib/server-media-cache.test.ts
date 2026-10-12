@@ -48,8 +48,14 @@ describe("MediaCacheIdleQueue", () => {
   it("does not run writes while a gesture is active", async () => {
     const harness = makeHarness({ gesture: true });
     const runs: string[] = [];
-    const first = harness.queue.enqueue("a", async () => { runs.push("a"); return true; });
-    const second = harness.queue.enqueue("b", async () => { runs.push("b"); return true; });
+    const first = harness.queue.enqueue("a", async () => {
+      runs.push("a");
+      return true;
+    });
+    const second = harness.queue.enqueue("b", async () => {
+      runs.push("b");
+      return true;
+    });
     await harness.flushMicrotasks();
     expect(runs).toEqual([]);
     expect(harness.queue.size).toBe(2);
@@ -61,8 +67,14 @@ describe("MediaCacheIdleQueue", () => {
   it("runs deferred writes once the gesture ends", async () => {
     const harness = makeHarness({ gesture: true });
     const runs: string[] = [];
-    const first = harness.queue.enqueue("a", async () => { runs.push("a"); return true; });
-    const second = harness.queue.enqueue("b", async () => { runs.push("b"); return true; });
+    const first = harness.queue.enqueue("a", async () => {
+      runs.push("a");
+      return true;
+    });
+    const second = harness.queue.enqueue("b", async () => {
+      runs.push("b");
+      return true;
+    });
     harness.setGesture(false);
     expect(await harness.fireNextTimer()).toBe(true);
     expect(runs).toEqual(["a", "b"]);
@@ -74,7 +86,10 @@ describe("MediaCacheIdleQueue", () => {
   it("runs immediately when idle", async () => {
     const harness = makeHarness();
     const runs: string[] = [];
-    await harness.queue.enqueue("a", async () => { runs.push("a"); return true; });
+    await harness.queue.enqueue("a", async () => {
+      runs.push("a");
+      return true;
+    });
     await harness.flushMicrotasks();
     expect(runs).toEqual(["a"]);
   });
@@ -83,14 +98,19 @@ describe("MediaCacheIdleQueue", () => {
     const harness = makeHarness();
     const order: string[] = [];
     let releaseFirst!: () => void;
-    const firstGate = new Promise<void>((resolve) => { releaseFirst = resolve; });
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
     const first = harness.queue.enqueue("a", async () => {
       order.push("a-start");
       await firstGate;
       order.push("a-end");
       return true;
     });
-    const second = harness.queue.enqueue("b", async () => { order.push("b-start"); return true; });
+    const second = harness.queue.enqueue("b", async () => {
+      order.push("b-start");
+      return true;
+    });
     await harness.flushMicrotasks();
     expect(order).toEqual(["a-start"]);
     releaseFirst();
@@ -101,16 +121,27 @@ describe("MediaCacheIdleQueue", () => {
 
   it("resolves a write failure as false without fabricating success", async () => {
     const harness = makeHarness();
-    const result = harness.queue.enqueue("a", async () => { throw new Error("write failed"); });
+    const result = harness.queue.enqueue("a", async () => {
+      throw new Error("write failed");
+    });
     await expect(result).resolves.toBe(false);
   });
 
   it("bounds the queue and evicts the oldest without running it", async () => {
     const harness = makeHarness({ gesture: true, maxPending: 2 });
     const runs: string[] = [];
-    const first = harness.queue.enqueue("a", async () => { runs.push("a"); return true; });
-    const second = harness.queue.enqueue("b", async () => { runs.push("b"); return true; });
-    const third = harness.queue.enqueue("c", async () => { runs.push("c"); return true; });
+    const first = harness.queue.enqueue("a", async () => {
+      runs.push("a");
+      return true;
+    });
+    const second = harness.queue.enqueue("b", async () => {
+      runs.push("b");
+      return true;
+    });
+    const third = harness.queue.enqueue("c", async () => {
+      runs.push("c");
+      return true;
+    });
     await harness.flushMicrotasks();
     await expect(first).resolves.toBe(false);
     expect(runs).toEqual([]);
@@ -122,7 +153,10 @@ describe("MediaCacheIdleQueue", () => {
   it("resolves pending promises false on clear without running writes", async () => {
     const harness = makeHarness({ gesture: true });
     const runs: string[] = [];
-    const first = harness.queue.enqueue("a", async () => { runs.push("a"); return true; });
+    const first = harness.queue.enqueue("a", async () => {
+      runs.push("a");
+      return true;
+    });
     harness.queue.clear();
     await expect(first).resolves.toBe(false);
     expect(runs).toEqual([]);

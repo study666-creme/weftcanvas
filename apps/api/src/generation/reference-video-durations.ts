@@ -16,8 +16,12 @@ export const REFERENCE_VIDEO_DURATIONS_PARAMETER = "referenceVideoDurations";
 /** 目录里 referenceVideos.max_total_duration_seconds / max_total 的口径。 */
 export const MAX_REFERENCE_VIDEO_TOTAL_SECONDS = 15;
 
-export function declaresReferenceVideoDurations(model: { parameters?: readonly { name: string }[] }) {
-  return (model.parameters ?? []).some((parameter) => parameter.name === REFERENCE_VIDEO_DURATIONS_PARAMETER);
+export function declaresReferenceVideoDurations(model: {
+  parameters?: readonly { name: string }[];
+}) {
+  return (model.parameters ?? []).some(
+    (parameter) => parameter.name === REFERENCE_VIDEO_DURATIONS_PARAMETER,
+  );
 }
 
 /**
@@ -25,7 +29,8 @@ export function declaresReferenceVideoDurations(model: { parameters?: readonly {
  * 都没有意义，截断还能避免浮点尾差把 4.999999 报成超限。
  */
 export function durationSeconds(durationMs: number | null | undefined) {
-  if (typeof durationMs !== "number" || !Number.isFinite(durationMs) || durationMs <= 0) return null;
+  if (typeof durationMs !== "number" || !Number.isFinite(durationMs) || durationMs <= 0)
+    return null;
   return Math.round(durationMs / 10) / 100;
 }
 

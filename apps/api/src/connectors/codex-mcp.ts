@@ -1,4 +1,4 @@
-import type { AgentAction, AgentCanvasContext } from "@kachang/contracts";
+import type { AgentAction, AgentCanvasContext } from "@weftcanvas/contracts";
 
 import type { CanvasCommandBroker } from "./canvas-command-broker.js";
 
@@ -11,7 +11,7 @@ import type { CanvasCommandBroker } from "./canvas-command-broker.js";
  */
 
 const PROTOCOL_VERSION = "2024-11-05";
-const SERVER_INFO = { name: "kachang-canvas", version: "1.0.0" };
+const SERVER_INFO = { name: "weftcanvas", version: "1.0.0" };
 
 const projectIdProperty = {
   type: "string",
@@ -38,7 +38,8 @@ function position(args: Record<string, unknown>) {
 export const CODEX_MCP_TOOLS: readonly ToolDefinition[] = [
   {
     name: "canvas_read",
-    description: "读取浏览器当前打开画布的有界摘要（项目、节点 id、正文、连线）。改动画布前先调用它拿到真实节点 id。",
+    description:
+      "读取浏览器当前打开画布的有界摘要（项目、节点 id、正文、连线）。改动画布前先调用它拿到真实节点 id。",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
   {
@@ -56,55 +57,76 @@ export const CODEX_MCP_TOOLS: readonly ToolDefinition[] = [
       required: ["kind"],
       additionalProperties: false,
     },
-    build: (args, nextId) => [{
-      type: "canvas_add_node",
-      clientId: nextId(),
-      kind: args.kind as AgentAction extends { kind: infer K } ? K : never,
-      ...(typeof args.body === "string" ? { body: args.body } : {}),
-      ...(position(args) ? { position: position(args)! } : {}),
-    } as AgentAction],
+    build: (args, nextId) => [
+      {
+        type: "canvas_add_node",
+        clientId: nextId(),
+        kind: args.kind as AgentAction extends { kind: infer K } ? K : never,
+        ...(typeof args.body === "string" ? { body: args.body } : {}),
+        ...(position(args) ? { position: position(args)! } : {}),
+      } as AgentAction,
+    ],
   },
   {
     name: "canvas_update_node",
     description: "修改已有节点的正文或位置。nodeId 必须是 canvas_read 返回的真实 id。",
     inputSchema: {
       type: "object",
-      properties: { nodeId: { type: "string" }, body: { type: "string" }, x: { type: "number" }, y: { type: "number" }, projectId: projectIdProperty },
+      properties: {
+        nodeId: { type: "string" },
+        body: { type: "string" },
+        x: { type: "number" },
+        y: { type: "number" },
+        projectId: projectIdProperty,
+      },
       required: ["nodeId"],
       additionalProperties: false,
     },
-    build: (args) => [{
-      type: "canvas_update_node",
-      nodeId: String(args.nodeId),
-      ...(typeof args.body === "string" ? { body: args.body } : {}),
-      ...(position(args) ? { position: position(args)! } : {}),
-    } as AgentAction],
+    build: (args) => [
+      {
+        type: "canvas_update_node",
+        nodeId: String(args.nodeId),
+        ...(typeof args.body === "string" ? { body: args.body } : {}),
+        ...(position(args) ? { position: position(args)! } : {}),
+      } as AgentAction,
+    ],
   },
   {
     name: "canvas_connect_nodes",
     description: "从 sourceNodeId 连一条边到 targetNodeId。",
     inputSchema: {
       type: "object",
-      properties: { sourceNodeId: { type: "string" }, targetNodeId: { type: "string" }, projectId: projectIdProperty },
+      properties: {
+        sourceNodeId: { type: "string" },
+        targetNodeId: { type: "string" },
+        projectId: projectIdProperty,
+      },
       required: ["sourceNodeId", "targetNodeId"],
       additionalProperties: false,
     },
-    build: (args) => [{
-      type: "canvas_connect_nodes",
-      sourceNodeId: String(args.sourceNodeId),
-      targetNodeId: String(args.targetNodeId),
-    } as AgentAction],
+    build: (args) => [
+      {
+        type: "canvas_connect_nodes",
+        sourceNodeId: String(args.sourceNodeId),
+        targetNodeId: String(args.targetNodeId),
+      } as AgentAction,
+    ],
   },
   {
     name: "canvas_select_nodes",
     description: "选中一组节点（最多 120 个）。",
     inputSchema: {
       type: "object",
-      properties: { nodeIds: { type: "array", items: { type: "string" }, maxItems: 120 }, projectId: projectIdProperty },
+      properties: {
+        nodeIds: { type: "array", items: { type: "string" }, maxItems: 120 },
+        projectId: projectIdProperty,
+      },
       required: ["nodeIds"],
       additionalProperties: false,
     },
-    build: (args) => [{ type: "canvas_select_nodes", nodeIds: (args.nodeIds as string[]) ?? [] } as AgentAction],
+    build: (args) => [
+      { type: "canvas_select_nodes", nodeIds: (args.nodeIds as string[]) ?? [] } as AgentAction,
+    ],
   },
   {
     name: "canvas_group_nodes",
@@ -119,25 +141,34 @@ export const CODEX_MCP_TOOLS: readonly ToolDefinition[] = [
       required: ["nodeIds"],
       additionalProperties: false,
     },
-    build: (args) => [{
-      type: "canvas_group_nodes",
-      nodeIds: (args.nodeIds as string[]) ?? [],
-      ...(typeof args.name === "string" ? { name: args.name } : {}),
-    } as AgentAction],
+    build: (args) => [
+      {
+        type: "canvas_group_nodes",
+        nodeIds: (args.nodeIds as string[]) ?? [],
+        ...(typeof args.name === "string" ? { name: args.name } : {}),
+      } as AgentAction,
+    ],
   },
   {
     name: "canvas_set_viewport",
     description: "设置画布视口位置与缩放（zoom 0.05~8）。",
     inputSchema: {
       type: "object",
-      properties: { x: { type: "number" }, y: { type: "number" }, zoom: { type: "number" }, projectId: projectIdProperty },
+      properties: {
+        x: { type: "number" },
+        y: { type: "number" },
+        zoom: { type: "number" },
+        projectId: projectIdProperty,
+      },
       required: ["x", "y", "zoom"],
       additionalProperties: false,
     },
-    build: (args) => [{
-      type: "canvas_set_viewport",
-      viewport: { x: Number(args.x), y: Number(args.y), zoom: Number(args.zoom) },
-    } as AgentAction],
+    build: (args) => [
+      {
+        type: "canvas_set_viewport",
+        viewport: { x: Number(args.x), y: Number(args.y), zoom: Number(args.zoom) },
+      } as AgentAction,
+    ],
   },
 ];
 
@@ -167,7 +198,8 @@ export async function handleCodexMcpMessage(
       protocolVersion: PROTOCOL_VERSION,
       capabilities: { tools: { listChanged: false } },
       serverInfo: SERVER_INFO,
-      instructions: "先用 canvas_read 读当前画布；改动画布前确认节点 id。写入由用户浏览器执行，返回的回执才是真实结果。",
+      instructions:
+        "先用 canvas_read 读当前画布；改动画布前确认节点 id。写入由用户浏览器执行，返回的回执才是真实结果。",
     });
   }
   if (method === "notifications/initialized" || method === "initialized") return null;
@@ -197,10 +229,17 @@ export async function handleCodexMcpMessage(
   return { jsonrpc: "2.0", id, error: { code: -32601, message: `不支持的方法 ${method}` } };
 }
 
-async function callTool(tool: ToolDefinition, args: Record<string, unknown>, context: CodexMcpContext) {
+async function callTool(
+  tool: ToolDefinition,
+  args: Record<string, unknown>,
+  context: CodexMcpContext,
+) {
   if (tool.name === "canvas_read") {
     const snapshot = context.broker.readContext(context.ownerId);
-    if (!snapshot) return toolText("当前没有可读的画布：请先在浏览器里打开画布页面（画布摘要只在页面轮询时上报）。");
+    if (!snapshot)
+      return toolText(
+        "当前没有可读的画布：请先在浏览器里打开画布页面（画布摘要只在页面轮询时上报）。",
+      );
     if (!snapshot.context) return toolText("画布摘要已过期：请让用户把画布页面切到前台。");
     return toolText(formatCanvasContext(snapshot.projectId, snapshot.context));
   }
@@ -208,7 +247,8 @@ async function callTool(tool: ToolDefinition, args: Record<string, unknown>, con
 
   const actions = tool.build(args, nextClientId);
   if (!actions || !actions.length) return toolText("没有生成任何画布操作", true);
-  const projectId = typeof args.projectId === "string" && args.projectId.trim() ? args.projectId.trim() : undefined;
+  const projectId =
+    typeof args.projectId === "string" && args.projectId.trim() ? args.projectId.trim() : undefined;
 
   let outcome;
   try {
@@ -223,13 +263,18 @@ async function callTool(tool: ToolDefinition, args: Record<string, unknown>, con
   if (!outcome) {
     return toolText("画布没有接受这条指令（画布页面可能没有打开，或待办指令过多）", true);
   }
-  const label = outcome.status === "applied"
-    ? `已应用 ${outcome.appliedActions} 项`
-    : outcome.status === "partial"
-      ? `部分应用：成功 ${outcome.appliedActions} 项，跳过 ${outcome.skippedActions.length} 项`
-      : "画布没有接受这组操作";
-  const skipped = outcome.skippedActions.map((item) => `  - 第 ${item.index} 项：${item.reason}`).join("\n");
-  return toolText(`${label}${outcome.reason ? `（${outcome.reason}）` : ""}${skipped ? `\n${skipped}` : ""}`);
+  const label =
+    outcome.status === "applied"
+      ? `已应用 ${outcome.appliedActions} 项`
+      : outcome.status === "partial"
+        ? `部分应用：成功 ${outcome.appliedActions} 项，跳过 ${outcome.skippedActions.length} 项`
+        : "画布没有接受这组操作";
+  const skipped = outcome.skippedActions
+    .map((item) => `  - 第 ${item.index} 项：${item.reason}`)
+    .join("\n");
+  return toolText(
+    `${label}${outcome.reason ? `（${outcome.reason}）` : ""}${skipped ? `\n${skipped}` : ""}`,
+  );
 }
 
 function formatCanvasContext(projectId: string, context: AgentCanvasContext) {

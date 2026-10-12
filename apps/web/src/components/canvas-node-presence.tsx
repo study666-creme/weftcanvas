@@ -1,7 +1,7 @@
 import { useStoreApi } from "@xyflow/react";
 import { memo, useEffect, useSyncExternalStore } from "react";
 
-import type { KachangEdge, KachangNode } from "../types";
+import type { WeftcanvasEdge, WeftcanvasNode } from "../types";
 
 /**
  * 带余量与滞后的节点可见集（tldraw culling + RealFlow overscan 的合体思路）。
@@ -30,7 +30,7 @@ const MAX_TRACKED_NODES = 400;
 /** 非手势变化的兜底重算间隔：节点增删/尺寸变化后延迟合并重算。 */
 const RECALC_DEBOUNCE_MS = 120;
 
-type FlowStore = ReturnType<typeof useStoreApi<KachangNode, KachangEdge>>;
+type FlowStore = ReturnType<typeof useStoreApi<WeftcanvasNode, WeftcanvasEdge>>;
 type FlowState = ReturnType<FlowStore["getState"]>;
 
 type CullRect = {
@@ -68,10 +68,12 @@ export function expandRect(rect: CullRect, margin: number): CullRect {
 }
 
 export function rectContainsRect(outer: CullRect, inner: CullRect): boolean {
-  return outer.x <= inner.x
-    && outer.y <= inner.y
-    && outer.x + outer.width >= inner.x + inner.width
-    && outer.y + outer.height >= inner.y + inner.height;
+  return (
+    outer.x <= inner.x &&
+    outer.y <= inner.y &&
+    outer.x + outer.width >= inner.x + inner.width &&
+    outer.y + outer.height >= inner.y + inner.height
+  );
 }
 
 /** 节点与余量视口的重叠判定（部分可见即算可见）。 */
@@ -80,10 +82,12 @@ export function nodeIntersectsRect(
   rect: CullRect,
 ): boolean {
   const { positionAbsoluteX: x, positionAbsoluteY: y } = node;
-  return x < rect.x + rect.width
-    && x + node.width > rect.x
-    && y < rect.y + rect.height
-    && y + node.height > rect.y;
+  return (
+    x < rect.x + rect.width &&
+    x + node.width > rect.x &&
+    y < rect.y + rect.height &&
+    y + node.height > rect.y
+  );
 }
 
 type PresenceCandidate = {
@@ -209,7 +213,12 @@ function computeVisibility(store: FlowStore): ComputedPresence {
   for (const node of state.nodeLookup.values()) {
     if (node.hidden) continue;
     const visible = nodeStaysVisible(
-      { selected: node.selected, dragging: node.dragging, measured: node.measured, position: node.internals.positionAbsolute },
+      {
+        selected: node.selected,
+        dragging: node.dragging,
+        measured: node.measured,
+        position: node.internals.positionAbsolute,
+      },
       cullRect,
     );
     if (nodePresence.get(node.id) !== visible) {
@@ -235,7 +244,7 @@ function computeVisibility(store: FlowStore): ComputedPresence {
  * 不产生任何 DOM 输出。
  */
 export const CanvasNodePresence = memo(function CanvasNodePresence() {
-  const store = useStoreApi<KachangNode, KachangEdge>();
+  const store = useStoreApi<WeftcanvasNode, WeftcanvasEdge>();
 
   useEffect(() => {
     let lastCullRect: CullRect | null = null;
@@ -268,11 +277,13 @@ export const CanvasNodePresence = memo(function CanvasNodePresence() {
     };
 
     const unsubscribe = store.subscribe((next, previous) => {
-      const transformChanged = next.transform[0] !== previous.transform[0]
-        || next.transform[1] !== previous.transform[1]
-        || next.transform[2] !== previous.transform[2];
+      const transformChanged =
+        next.transform[0] !== previous.transform[0] ||
+        next.transform[1] !== previous.transform[1] ||
+        next.transform[2] !== previous.transform[2];
       if (transformChanged) {
-        const zoomUnchanged = next.transform[2] === previous.transform[2] && next.transform[2] === lastZoom;
+        const zoomUnchanged =
+          next.transform[2] === previous.transform[2] && next.transform[2] === lastZoom;
         // 纯平移且新视口仍被上次余量矩形完全包含：可见集必然不变，跳过重算。
         if (zoomUnchanged && lastCullRect) {
           const rect = viewportRectInFlowCoordinates(next);
@@ -281,9 +292,11 @@ export const CanvasNodePresence = memo(function CanvasNodePresence() {
         scheduleFrame();
         return;
       }
-      if (next.nodeLookup !== previous.nodeLookup
-        || next.width !== previous.width
-        || next.height !== previous.height) {
+      if (
+        next.nodeLookup !== previous.nodeLookup ||
+        next.width !== previous.width ||
+        next.height !== previous.height
+      ) {
         scheduleDebounced();
       }
     });

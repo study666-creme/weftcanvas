@@ -25,8 +25,8 @@ async function installNetworkGuard(page: Page, network: NetworkState) {
 }
 
 async function dragNodeConnection(page: Page, source: Locator, target: Locator) {
-  const sourceCore = source.locator(".kc-node-port-zone--right .kc-node-port-core");
-  const targetSurface = target.locator(".kc-node-surface");
+  const sourceCore = source.locator(".wc-node-port-zone--right .wc-node-port-core");
+  const targetSurface = target.locator(".wc-node-surface");
   await source.hover();
   await expect(sourceCore).toBeVisible();
   const sourceBox = await sourceCore.boundingBox();
@@ -48,7 +48,11 @@ async function dragNodeConnection(page: Page, source: Locator, target: Locator) 
   await page.mouse.up();
 }
 
-async function panNodeNearTop(page: Page, node: Locator, viewport: { width: number; height: number }) {
+async function panNodeNearTop(
+  page: Page,
+  node: Locator,
+  viewport: { width: number; height: number },
+) {
   await page.waitForTimeout(350);
   const targetY = 220;
   for (let attempt = 0; attempt < 4; attempt += 1) {
@@ -85,9 +89,11 @@ async function deselectCanvas(page: Page) {
     const obscured = (x: number, y: number) => {
       const element = document.elementFromPoint(x, y);
       if (!element) return true;
-      return Boolean(element.closest(
-        ".react-flow__node-kachang, .kc-node-prompt-shell, .kc-node-config-shell, .kc-edit-dock, .kc-create-rail, .kc-project-sidebar, .kc-zoom-control, .kc-resource-drawer, .kc-agent-drawer, .kc-connection-preview",
-      ));
+      return Boolean(
+        element.closest(
+          ".react-flow__node-weftcanvas, .wc-node-prompt-shell, .wc-node-config-shell, .wc-edit-dock, .wc-create-rail, .wc-project-sidebar, .wc-zoom-control, .wc-resource-drawer, .wc-agent-drawer, .wc-connection-preview",
+        ),
+      );
     };
     return candidates.find((point) => !obscured(point.x, point.y)) ?? { x: 700, y: 130 };
   });
@@ -102,7 +108,7 @@ const PIXEL = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
   "base64",
 );
-const VIDEO_BYTES = Buffer.from("kachang-e2e-video", "utf8");
+const VIDEO_BYTES = Buffer.from("weftcanvas-e2e-video", "utf8");
 
 const session = {
   user: {
@@ -133,8 +139,22 @@ function model(modality: "image" | "video") {
       input: { textRequired: true, images: { min: 0, max: 2, multiple: true } },
       output: { type: "image", minCount: 1, maxCount: 1 },
       parameters: [
-        { name: "prompt", label: "提示词", type: "string", required: true, mutuallyExclusiveWith: [] },
-        { name: "size", label: "画面比例", type: "string", required: false, default: "1:1", options: ["1:1", "16:9"], mutuallyExclusiveWith: [] },
+        {
+          name: "prompt",
+          label: "提示词",
+          type: "string",
+          required: true,
+          mutuallyExclusiveWith: [],
+        },
+        {
+          name: "size",
+          label: "画面比例",
+          type: "string",
+          required: false,
+          default: "1:1",
+          options: ["1:1", "16:9"],
+          mutuallyExclusiveWith: [],
+        },
       ],
       pricing: {
         mode: "fixed",
@@ -157,9 +177,31 @@ function model(modality: "image" | "video") {
     input: { textRequired: true, images: { min: 0, max: 1, multiple: false } },
     output: { type: "video", minCount: 1, maxCount: 1 },
     parameters: [
-      { name: "prompt", label: "提示词", type: "string", required: true, mutuallyExclusiveWith: [] },
-      { name: "seconds", label: "时长（秒）", type: "integer", required: false, default: 1, options: [1, 2], mutuallyExclusiveWith: [] },
-      { name: "aspect_ratio", label: "画面比例", type: "string", required: false, default: "16:9", options: ["16:9", "9:16"], mutuallyExclusiveWith: [] },
+      {
+        name: "prompt",
+        label: "提示词",
+        type: "string",
+        required: true,
+        mutuallyExclusiveWith: [],
+      },
+      {
+        name: "seconds",
+        label: "时长（秒）",
+        type: "integer",
+        required: false,
+        default: 1,
+        options: [1, 2],
+        mutuallyExclusiveWith: [],
+      },
+      {
+        name: "aspect_ratio",
+        label: "画面比例",
+        type: "string",
+        required: false,
+        default: "16:9",
+        options: ["16:9", "9:16"],
+        mutuallyExclusiveWith: [],
+      },
     ],
     pricing: {
       mode: "fixed",
@@ -247,10 +289,10 @@ function mediaArtifact(modality: "image" | "video", mediaId: string) {
 
 async function seedBrowser(page: Page) {
   await page.addInitScript(() => {
-    if (sessionStorage.getItem("kc-e2e-seeded") !== "1") {
+    if (sessionStorage.getItem("wc-e2e-seeded") !== "1") {
       localStorage.clear();
       sessionStorage.clear();
-      sessionStorage.setItem("kc-e2e-seeded", "1");
+      sessionStorage.setItem("wc-e2e-seeded", "1");
     }
     const popup = {
       closed: false,
@@ -284,9 +326,11 @@ test("登录后可连续生成图片、视频并完成积分充值", async ({ pa
     if (response.status() === 401) unauthorizedResponses.push(response.url());
   });
 
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({
-    json: { ok: true, data: activeSession, capabilities },
-  }));
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      json: { ok: true, data: activeSession, capabilities },
+    }),
+  );
   await page.route("**/api/v1/auth/login", async (route) => {
     activeSession = session;
     return route.fulfill({ json: { ok: true, data: session, capabilities } });
@@ -304,7 +348,10 @@ test("登录后可连续生成图片、视频并完成积分充值", async ({ pa
     return route.fulfill({ json: { ok: true, data: catalog(modality) } });
   });
   await page.route("**/api/v1/generation-quotes", async (route) => {
-    const body = route.request().postDataJSON() as { modality: "image" | "video"; parameters: Record<string, unknown> };
+    const body = route.request().postDataJSON() as {
+      modality: "image" | "video";
+      parameters: Record<string, unknown>;
+    };
     return route.fulfill({ json: { ok: true, data: quote(body.modality, body.parameters) } });
   });
   await page.route("**/api/v1/generation-jobs*", async (route) => {
@@ -313,7 +360,13 @@ test("登录后可连续生成图片、视频并完成积分充值", async ({ pa
     if (url.pathname.endsWith("/events")) return route.fulfill({ status: 204, body: "" });
     if (request.method() === "GET") return route.fulfill({ json: { ok: true, data: jobs } });
 
-    const body = request.postDataJSON() as { modality: "image" | "video"; modelId: string; nodeId: string; projectId: string; parameters: Record<string, unknown> };
+    const body = request.postDataJSON() as {
+      modality: "image" | "video";
+      modelId: string;
+      nodeId: string;
+      projectId: string;
+      parameters: Record<string, unknown>;
+    };
     const modality = body.modality;
     const id = `job-${modality}`;
     submittedModalities.push(modality);
@@ -349,37 +402,69 @@ test("登录后可连续生成图片、视频并完成积分充值", async ({ pa
     return route.fulfill({ body: VIDEO_BYTES, contentType: "video/mp4" });
   });
 
-  await page.route("**/api/v1/wallet", (route) => route.fulfill({ json: { ok: true, data: summary(credits) } }));
-  await page.route("**/api/v1/wallet/products", (route) => route.fulfill({
-    json: { ok: true, data: [{ kind: "credits", id: "credits-500", amount: 49, credits: 500 }] },
-  }));
-  await page.route("**/api/v1/wallet/ledger*", (route) => route.fulfill({
-    json: { ok: true, data: { items: [{ id: "ledger-payment", delta: 500, balanceAfter: credits, reason: "payment", reasonLabel: "支付到账", refId: "PAYFULL001", meta: null, createdAt: NOW }] } },
-  }));
+  await page.route("**/api/v1/wallet", (route) =>
+    route.fulfill({ json: { ok: true, data: summary(credits) } }),
+  );
+  await page.route("**/api/v1/wallet/products", (route) =>
+    route.fulfill({
+      json: { ok: true, data: [{ kind: "credits", id: "credits-500", amount: 49, credits: 500 }] },
+    }),
+  );
+  await page.route("**/api/v1/wallet/ledger*", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        data: {
+          items: [
+            {
+              id: "ledger-payment",
+              delta: 500,
+              balanceAfter: credits,
+              reason: "payment",
+              reasonLabel: "支付到账",
+              refId: "PAYFULL001",
+              meta: null,
+              createdAt: NOW,
+            },
+          ],
+        },
+      },
+    }),
+  );
   await page.route("**/api/v1/wallet/checkout", async (route) => {
     checkoutBody = route.request().postDataJSON();
-    return route.fulfill({ json: { ok: true, data: { orderNo: "PAYFULL001", checkoutUrl: "https://pay.example.test/PAYFULL001" } } });
+    return route.fulfill({
+      json: {
+        ok: true,
+        data: { orderNo: "PAYFULL001", checkoutUrl: "https://pay.example.test/PAYFULL001" },
+      },
+    });
   });
   await page.route("**/api/v1/wallet/orders/PAYFULL001", (route) => {
     orderReads += 1;
     credits = 595;
-    return route.fulfill({ json: { ok: true, data: {
-      orderNo: "PAYFULL001",
-      status: "paid",
-      productKind: "credits",
-      productId: "credits-500",
-      amount: 49,
-      paidAt: NOW,
-      createdAt: NOW,
-    } } });
+    return route.fulfill({
+      json: {
+        ok: true,
+        data: {
+          orderNo: "PAYFULL001",
+          status: "paid",
+          productKind: "credits",
+          productId: "credits-500",
+          amount: 49,
+          paidAt: NOW,
+          createdAt: NOW,
+        },
+      },
+    });
   });
 
   await page.goto("/canvas");
-  await expect(page.locator('[data-save-state]')).toBeVisible();
+  await expect(page.locator("[data-save-state]")).toBeVisible();
   await page.goto("/");
 
-  await page.locator(".kc-entry-account-action").click();
-  const account = page.getByRole("dialog", { name: "卡藏账号" });
+  await page.locator(".wc-entry-account-action").click();
+  const account = page.getByRole("dialog", { name: "纬线账号" });
   await account.getByLabel("邮箱").fill("creator@example.com");
   await account.getByLabel("密码").fill("correct-password");
   await account.getByRole("button", { name: "进入画布", exact: true }).click();
@@ -387,40 +472,63 @@ test("登录后可连续生成图片、视频并完成积分充值", async ({ pa
   await page.goto("/");
 
   const launcher = page.getByLabel("选择要进入的项目");
-  const projectEntry = launcher.locator(".kc-entry-project-item").first();
-  if (await projectEntry.count() > 0) {
+  const projectEntry = launcher.locator(".wc-entry-project-item").first();
+  if ((await projectEntry.count()) > 0) {
     await projectEntry.click();
   } else {
     await launcher.getByRole("button", { name: /创建第一张画布/ }).click();
   }
   await expect(page).toHaveURL(/\/canvas$/);
 
-  await page.getByRole("navigation", { name: "创建工具" }).getByRole("button", { name: "添加图片节点" }).click();
-  const imageNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="image"])').first();
-  await imageNode.locator(".kc-node-drag-strip").click();
-  const imageComposer = page.locator('[data-node-prompt-composer]').filter({ has: page.locator('[data-generation-model-select]') }).last();
-  await expect(imageComposer.locator("[data-generation-model-select]")).toHaveValue("e2e-image-model");
+  await page
+    .getByRole("navigation", { name: "创建工具" })
+    .getByRole("button", { name: "添加图片节点" })
+    .click();
+  const imageNode = page
+    .locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="image"])')
+    .first();
+  await imageNode.locator(".wc-node-drag-strip").click();
+  const imageComposer = page
+    .locator("[data-node-prompt-composer]")
+    .filter({ has: page.locator("[data-generation-model-select]") })
+    .last();
+  await expect(imageComposer.locator("[data-generation-model-select]")).toHaveValue(
+    "e2e-image-model",
+  );
   await imageComposer.locator("[data-prompt-editor]").fill("雨夜站台，电影感灯光");
   await imageComposer.getByRole("button", { name: "生成", exact: true }).click();
-  await expect(imageNode.locator(".kc-node-wrap")).toHaveAttribute("data-node-status", "success");
+  await expect(imageNode.locator(".wc-node-wrap")).toHaveAttribute("data-node-status", "success");
   await expect(imageNode.locator('img[data-media-id="image-result"]')).toBeVisible();
   await expect.poll(() => imageReads).toBeGreaterThan(0);
 
-  await page.getByRole("navigation", { name: "创建工具" }).locator(".kc-create-rail-plus-wrapper").hover();
-  await page.getByRole("navigation", { name: "创建工具" }).getByRole("menuitem", { name: "添加视频节点" }).click();
-  const videoNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="video"])').last();
-  const videoComposer = page.locator('[data-node-prompt-composer]').filter({ has: page.locator('[data-generation-model-select]') }).last();
-  await expect(videoComposer.locator("[data-generation-model-select]")).toHaveValue("e2e-video-model");
+  await page
+    .getByRole("navigation", { name: "创建工具" })
+    .locator(".wc-create-rail-plus-wrapper")
+    .hover();
+  await page
+    .getByRole("navigation", { name: "创建工具" })
+    .getByRole("menuitem", { name: "添加视频节点" })
+    .click();
+  const videoNode = page
+    .locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="video"])')
+    .last();
+  const videoComposer = page
+    .locator("[data-node-prompt-composer]")
+    .filter({ has: page.locator("[data-generation-model-select]") })
+    .last();
+  await expect(videoComposer.locator("[data-generation-model-select]")).toHaveValue(
+    "e2e-video-model",
+  );
   await videoComposer.locator("[data-prompt-editor]").fill("镜头从站台缓慢推进");
   await videoComposer.getByRole("button", { name: "生成", exact: true }).click();
-  await expect(videoNode.locator(".kc-node-wrap")).toHaveAttribute("data-node-status", "success");
+  await expect(videoNode.locator(".wc-node-wrap")).toHaveAttribute("data-node-status", "success");
   await expect(videoNode.locator('video[src*="video-result"]')).toBeVisible();
   await expect.poll(() => videoReads).toBeGreaterThan(0);
   expect(submittedModalities).toEqual(["image", "video"]);
-  await expect(page.locator(".kc-credit-trigger")).toContainText("93");
+  await expect(page.locator(".wc-credit-trigger")).toContainText("93");
 
-  await page.locator(".kc-account-trigger").click();
-  const wallet = page.getByRole("dialog", { name: "卡藏账号" });
+  await page.locator(".wc-account-trigger").click();
+  const wallet = page.getByRole("dialog", { name: "纬线账号" });
   await wallet.getByRole("tab", { name: "积分充值" }).click();
   await expect(wallet.getByRole("region", { name: "积分余额" })).toContainText("93");
   await wallet.getByRole("option", { name: /500 积分/ }).click();
@@ -434,7 +542,9 @@ test("登录后可连续生成图片、视频并完成积分充值", async ({ pa
   expect(network.external, `external network requests: ${network.external.join(", ")}`).toEqual([]);
 });
 
-test("正常创建闭环：新建项目、文本与图片参考连接视频、一次报价与提交、SSE 断开后轮询恢复、刷新保留结果", async ({ page }, testInfo) => {
+test("正常创建闭环：新建项目、文本与图片参考连接视频、一次报价与提交、SSE 断开后轮询恢复、刷新保留结果", async ({
+  page,
+}, testInfo) => {
   test.setTimeout(90_000);
   await seedBrowser(page);
   const network: NetworkState = { unmocked: [], external: [] };
@@ -451,7 +561,11 @@ test("正常创建闭环：新建项目、文本与图片参考连接视频、�
   let resultContentReads = 0;
   let credits = 100;
   const referenceId = "11111111-1111-4111-8111-111111111111";
-  const quotes: Array<{ modality: string; parameters: Record<string, unknown>; inputs: Record<string, unknown> }> = [];
+  const quotes: Array<{
+    modality: string;
+    parameters: Record<string, unknown>;
+    inputs: Record<string, unknown>;
+  }> = [];
   const submittedBodies: Array<Record<string, unknown>> = [];
   const idempotencyKeys: string[] = [];
   const externalRequests: string[] = [];
@@ -464,15 +578,21 @@ test("正常创建闭环：新建项目、文本与图片参考连接视频、�
 
   page.on("request", (request) => {
     const url = new URL(request.url());
-    if (url.hostname !== "127.0.0.1" && url.hostname !== "localhost") externalRequests.push(request.url());
-    if (url.pathname.startsWith("/api/") && ["POST", "PUT", "PATCH", "DELETE"].includes(request.method())) {
+    if (url.hostname !== "127.0.0.1" && url.hostname !== "localhost")
+      externalRequests.push(request.url());
+    if (
+      url.pathname.startsWith("/api/") &&
+      ["POST", "PUT", "PATCH", "DELETE"].includes(request.method())
+    ) {
       mutatingApiRequests.push({ method: request.method(), path: url.pathname });
     }
   });
 
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({
-    json: { ok: true, data: session, capabilities },
-  }));
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      json: { ok: true, data: session, capabilities },
+    }),
+  );
   await page.route("**/api/v1/model-catalog*", (route) => {
     const modality = new URL(route.request().url()).searchParams.get("modality");
     if (modality !== "image" && modality !== "video") {
@@ -486,11 +606,21 @@ test("正常创建闭环：新建项目、文本与图片参考连接视频、�
     return route.fulfill({ json: { ok: true, data: catalog(modality) } });
   });
   await page.route("**/api/v1/generation-quotes", (route) => {
-    const body = route.request().postDataJSON() as { modality: "image" | "video"; parameters: Record<string, unknown>; inputs: Record<string, unknown> };
+    const body = route.request().postDataJSON() as {
+      modality: "image" | "video";
+      parameters: Record<string, unknown>;
+      inputs: Record<string, unknown>;
+    };
     quotes.push({ modality: body.modality, parameters: body.parameters, inputs: body.inputs });
     return route.fulfill({ json: { ok: true, data: quote(body.modality, body.parameters) } });
   });
-  const makeJob = (version: number, status: string, progress: number, artifacts: unknown[], createdAt: string) => ({
+  const makeJob = (
+    version: number,
+    status: string,
+    progress: number,
+    artifacts: unknown[],
+    createdAt: string,
+  ) => ({
     schemaVersion: 1,
     version,
     id: "job-loop-video",
@@ -550,8 +680,14 @@ test("正常创建闭环：新建项目、文本与图片参考连接视频、�
       return route.fulfill({ json: { ok: true, data: recoveryJobs } });
     }
     pollReads += 1;
-    if (pollReads === 1) return route.fulfill({ json: { ok: true, data: makeJob(2, "running", 45, [], submittedAt) } });
-    if (pollReads === 2) return route.fulfill({ json: { ok: true, data: makeJob(3, "running", 70, [], submittedAt) } });
+    if (pollReads === 1)
+      return route.fulfill({
+        json: { ok: true, data: makeJob(2, "running", 45, [], submittedAt) },
+      });
+    if (pollReads === 2)
+      return route.fulfill({
+        json: { ok: true, data: makeJob(3, "running", 70, [], submittedAt) },
+      });
     if (!recoveryJobs.length) {
       const olderAt = new Date(Date.parse(submittedAt) - 60_000).toISOString();
       const completed = makeJob(4, "completed", 100, [videoArtifact(submittedAt)], submittedAt);
@@ -581,7 +717,13 @@ test("正常创建闭环：新建项目、文本与图片参考连接视频、�
             createdAt: NOW,
             updatedAt: NOW,
           },
-          upload: { method: "PUT", url: `/api/v1/media/${referenceId}/content`, headers: {}, expiresAt: EXPIRES_AT, completeUrl: null },
+          upload: {
+            method: "PUT",
+            url: `/api/v1/media/${referenceId}/content`,
+            headers: {},
+            expiresAt: EXPIRES_AT,
+            completeUrl: null,
+          },
         },
       },
     });
@@ -614,19 +756,23 @@ test("正常创建闭环：新建项目、文本与图片参考连接视频、�
   });
   await page.route(`**/api/v1/media/${referenceId}/provider-reference`, (route) => {
     providerReferenceReads += 1;
-    return route.fulfill({ json: { ok: true, data: { url: "https://media.provider.local/reference.png" } } });
+    return route.fulfill({
+      json: { ok: true, data: { url: "https://media.provider.local/reference.png" } },
+    });
   });
   await page.route(/\/api\/v1\/media\/video-result\/content(?:\?.*)?$/, (route) => {
     resultContentReads += 1;
     return route.fulfill({ body: VIDEO_BYTES, contentType: "video/mp4" });
   });
-  await page.route("**/api/v1/wallet", (route) => route.fulfill({ json: { ok: true, data: summary(credits) } }));
+  await page.route("**/api/v1/wallet", (route) =>
+    route.fulfill({ json: { ok: true, data: summary(credits) } }),
+  );
 
   await page.goto("/canvas");
   await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
 
   await page.getByLabel("项目菜单").click();
-  const sidebar = page.locator(".kc-project-sidebar");
+  const sidebar = page.locator(".wc-project-sidebar");
   await expect(sidebar).toBeVisible();
   await sidebar.getByLabel("新建项目").click();
   const projectName = page.getByLabel("项目名称");
@@ -635,24 +781,50 @@ test("正常创建闭环：新建项目、文本与图片参考连接视频、�
   await projectName.blur();
   await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
 
-  await page.getByRole("navigation", { name: "创建工具" }).locator(".kc-create-rail-plus-wrapper").hover();
-  await page.getByRole("navigation", { name: "创建工具" }).getByRole("menuitem", { name: "添加图片节点" }).click();
-  const imageRefNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="image"])').last();
-  await imageRefNode.locator('input[type="file"]').setInputFiles({ name: "reference.png", mimeType: "image/png", buffer: PIXEL });
+  await page
+    .getByRole("navigation", { name: "创建工具" })
+    .locator(".wc-create-rail-plus-wrapper")
+    .hover();
+  await page
+    .getByRole("navigation", { name: "创建工具" })
+    .getByRole("menuitem", { name: "添加图片节点" })
+    .click();
+  const imageRefNode = page
+    .locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="image"])')
+    .last();
+  await imageRefNode
+    .locator('input[type="file"]')
+    .setInputFiles({ name: "reference.png", mimeType: "image/png", buffer: PIXEL });
   await expect(imageRefNode.locator("img")).toBeVisible();
 
   const textBody = "雨夜站台，低机位跟拍，湿润石板反射零散霓虹";
-  await page.getByRole("navigation", { name: "创建工具" }).locator(".kc-create-rail-plus-wrapper").hover();
-  await page.getByRole("navigation", { name: "创建工具" }).getByRole("menuitem", { name: "添加文本节点" }).click();
-  const textNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="text"])').last();
-  await textNode.locator(".kc-node-drag-strip").click();
-  const textComposer = page.locator('[data-node-prompt-composer]').last();
+  await page
+    .getByRole("navigation", { name: "创建工具" })
+    .locator(".wc-create-rail-plus-wrapper")
+    .hover();
+  await page
+    .getByRole("navigation", { name: "创建工具" })
+    .getByRole("menuitem", { name: "添加文本节点" })
+    .click();
+  const textNode = page
+    .locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="text"])')
+    .last();
+  await textNode.locator(".wc-node-drag-strip").click();
+  const textComposer = page.locator("[data-node-prompt-composer]").last();
   await textComposer.locator("[data-prompt-editor]").fill(textBody);
   await expect(textComposer.locator("[data-prompt-editor]")).toHaveText(textBody);
 
-  await page.getByRole("navigation", { name: "创建工具" }).locator(".kc-create-rail-plus-wrapper").hover();
-  await page.getByRole("navigation", { name: "创建工具" }).getByRole("menuitem", { name: "添加视频节点" }).click();
-  const videoNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="video"])').last();
+  await page
+    .getByRole("navigation", { name: "创建工具" })
+    .locator(".wc-create-rail-plus-wrapper")
+    .hover();
+  await page
+    .getByRole("navigation", { name: "创建工具" })
+    .getByRole("menuitem", { name: "添加视频节点" })
+    .click();
+  const videoNode = page
+    .locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="video"])')
+    .last();
   const edges = page.locator(".react-flow__edge");
   await expect(edges).toHaveCount(0);
 
@@ -661,10 +833,12 @@ test("正常创建闭环：新建项目、文本与图片参考连接视频、�
   await expect(videoNode).toBeVisible();
 
   // 校验失败：没有提示词时不会发起报价也不会提交。
-  await videoNode.locator(".kc-node-drag-strip").click();
-  let videoGeneration = page.locator('[data-node-prompt-composer] [data-generation-modality="video"]');
+  await videoNode.locator(".wc-node-drag-strip").click();
+  let videoGeneration = page.locator(
+    '[data-node-prompt-composer] [data-generation-modality="video"]',
+  );
   await expect(videoGeneration).toBeVisible();
-  const submitButton = videoGeneration.locator(".kc-generation-submit");
+  const submitButton = videoGeneration.locator(".wc-generation-submit");
   await expect(submitButton).toBeDisabled();
   await submitButton.click({ force: true });
   expect(submittedCount).toBe(0);
@@ -679,34 +853,44 @@ test("正常创建闭环：新建项目、文本与图片参考连接视频、�
   await expect.poll(() => edges.count()).toBe(edgesBeforeConnection + 2);
   expect(await edges.count()).toBe(2);
 
-  await videoNode.locator(".kc-node-drag-strip").click();
+  await videoNode.locator(".wc-node-drag-strip").click();
   videoGeneration = page.locator('[data-node-prompt-composer] [data-generation-modality="video"]');
-  await expect(videoGeneration.locator("[data-generation-model-select]")).toHaveValue("e2e-video-model");
-  await expect(videoGeneration.locator(".kc-generation-compact-status.is-linked")).toContainText("已连接 1 条文本，生成时自动使用");
-  const rail = page.locator('[data-node-prompt-composer] .kc-node-reference-chips');
+  await expect(videoGeneration.locator("[data-generation-model-select]")).toHaveValue(
+    "e2e-video-model",
+  );
+  await expect(videoGeneration.locator(".wc-generation-compact-status.is-linked")).toContainText(
+    "已连接 1 条文本，生成时自动使用",
+  );
+  const rail = page.locator("[data-node-prompt-composer] .wc-node-reference-chips");
   await expect(rail).toBeVisible();
-  await expect(rail.locator(".kc-node-reference-chip")).toHaveCount(1);
+  await expect(rail.locator(".wc-node-reference-chip")).toHaveCount(1);
   await expect(videoGeneration.getByLabel("时长（秒）")).toBeVisible();
   await expect(videoGeneration.getByLabel("画面比例")).toBeVisible();
   await expect.poll(() => quotes.some((entry) => entry.inputs.images === 1)).toBe(true);
-  await expect(videoGeneration.locator(".kc-generation-compact-credit")).toContainText("需 5 积分");
+  await expect(videoGeneration.locator(".wc-generation-compact-credit")).toContainText("需 5 积分");
 
   await videoGeneration.getByLabel("时长（秒）").click();
-  await page.getByRole("listbox", { name: "时长（秒）" }).getByRole("option", { name: "2 秒" }).click();
+  await page
+    .getByRole("listbox", { name: "时长（秒）" })
+    .getByRole("option", { name: "2 秒" })
+    .click();
   await expect.poll(() => quotes.some((entry) => entry.parameters.seconds === 2)).toBe(true);
   await expect(submitButton).toBeEnabled();
 
-  const composer = page.locator('[data-node-prompt-composer]');
-  const compactBar = videoGeneration.locator(".kc-generation-compact-bar");
-  const quickControls = videoGeneration.locator(".kc-generation-quick-controls");
-  const credit = videoGeneration.locator(".kc-generation-compact-credit");
+  const composer = page.locator("[data-node-prompt-composer]");
+  const compactBar = videoGeneration.locator(".wc-generation-compact-bar");
+  const quickControls = videoGeneration.locator(".wc-generation-quick-controls");
+  const credit = videoGeneration.locator(".wc-generation-compact-credit");
   const layouts: string[] = [];
-  for (const viewport of [{ width: 1440, height: 900 }, { width: 1024, height: 768 }]) {
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 1024, height: 768 },
+  ]) {
     await page.setViewportSize(viewport);
     await deselectCanvas(page);
     await page.getByLabel("定位全部内容").click();
     await panNodeNearTop(page, videoNode, viewport);
-    await videoNode.locator(".kc-node-drag-strip").click();
+    await videoNode.locator(".wc-node-drag-strip").click();
     await expect(composer).toBeVisible();
     const composerBox = await composer.boundingBox();
     expect(composerBox).not.toBeNull();
@@ -715,7 +899,9 @@ test("正常创建闭环：新建项目、文本与图片参考连接视频、�
     expect(composerBox!.x + composerBox!.width).toBeLessThanOrEqual(viewport.width + 1);
     expect(composerBox!.y + composerBox!.height).toBeLessThanOrEqual(viewport.height + 1);
     await expect(rail).toBeVisible();
-    expect(await compactBar.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    expect(
+      await compactBar.evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
+    ).toBe(true);
     const quickLayout = await quickControls.evaluate((element) => {
       const bounds = element.getBoundingClientRect();
       const controls = [...element.children].map((child) => {
@@ -742,7 +928,9 @@ test("正常创建闭环：新建项目、文本与图片参考连接视频、�
     expect(submitBox).not.toBeNull();
     expect(creditBox).not.toBeNull();
     expect(afterComposerBox).not.toBeNull();
-    expect(submitBox!.x + submitBox!.width).toBeLessThanOrEqual(afterComposerBox!.x + afterComposerBox!.width + 1);
+    expect(submitBox!.x + submitBox!.width).toBeLessThanOrEqual(
+      afterComposerBox!.x + afterComposerBox!.width + 1,
+    );
     expect(creditBox!.x + creditBox!.width).toBeLessThanOrEqual(submitBox!.x + 1);
     const dimensions = await page.evaluate(() => ({
       width: document.documentElement.clientWidth,
@@ -753,7 +941,9 @@ test("正常创建闭环：新建项目、文本与图片参考连接视频、�
     expect(dimensions.scrollWidth).toBe(dimensions.width);
     expect(dimensions.scrollHeight).toBe(dimensions.height);
     layouts.push(`composer-${viewport.width}x${viewport.height}`);
-    await page.screenshot({ path: testInfo.outputPath(`loop-composer-${viewport.width}x${viewport.height}.png`) });
+    await page.screenshot({
+      path: testInfo.outputPath(`loop-composer-${viewport.width}x${viewport.height}.png`),
+    });
   }
   await page.setViewportSize({ width: 1440, height: 900 });
 
@@ -765,8 +955,16 @@ test("正常创建闭环：新建项目、文本与图片参考连接视频、�
   expect(submitted.parameters).toMatchObject({ seconds: 2, aspect_ratio: "16:9" });
   expect(String(submitted.parameters.prompt)).toContain(textBody);
   expect(String(submitted.parameters.prompt)).toContain("参考素材按上传顺序：图片1");
-  expect(String(submitted.parameters.prompt)).not.toMatch(/(?:blob:|data:|https?:\/\/|11111111-1111-4111-8111-111111111111)/);
-  expect(submitted.inputs).toEqual({ images: [referenceId], styleImages: [], elementImages: [], videos: [], audios: [] });
+  expect(String(submitted.parameters.prompt)).not.toMatch(
+    /(?:blob:|data:|https?:\/\/|11111111-1111-4111-8111-111111111111)/,
+  );
+  expect(submitted.inputs).toEqual({
+    images: [referenceId],
+    styleImages: [],
+    elementImages: [],
+    videos: [],
+    audios: [],
+  });
   expect(submitted.expectedQuote).toMatchObject({ id: "quote-video", modelId: "e2e-video-model" });
   expect(uploadIntents).toBe(1);
   expect(contentPuts).toBe(1);
@@ -774,40 +972,76 @@ test("正常创建闭环：新建项目、文本与图片参考连接视频、�
   // 该路由已本地拦截，作为防御性断言确保没有任何 provider 调用逃逸到生产环境。
   expect(providerReferenceReads).toBe(0);
 
-  await expect(videoNode.locator(".kc-node-loading")).toHaveAttribute("data-generation-stage", "running", { timeout: 15_000 });
-  await expect(videoNode.locator(".kc-node-wrap")).toHaveAttribute("data-node-status", "success", { timeout: 20_000 });
+  await expect(videoNode.locator(".wc-node-loading")).toHaveAttribute(
+    "data-generation-stage",
+    "running",
+    { timeout: 15_000 },
+  );
+  await expect(videoNode.locator(".wc-node-wrap")).toHaveAttribute("data-node-status", "success", {
+    timeout: 20_000,
+  });
   await expect(videoNode.locator('video[src*="video-result"]')).toBeVisible();
   expect(await page.locator('video[src*="video-result"]').count()).toBe(1);
-  expect(await page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="video"]:has(video[src*="video-result"]))').count()).toBe(1);
+  expect(
+    await page
+      .locator(
+        '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="video"]:has(video[src*="video-result"]))',
+      )
+      .count(),
+  ).toBe(1);
   expect(pollReads).toBeGreaterThanOrEqual(3);
   expect(sseReads).toBeGreaterThan(0);
   expect(resultContentReads).toBeGreaterThan(0);
-  await expect(page.locator(".kc-credit-trigger")).toContainText("95");
+  await expect(page.locator(".wc-credit-trigger")).toContainText("95");
 
-  for (const viewport of [{ width: 1440, height: 900 }, { width: 1024, height: 768 }]) {
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 1024, height: 768 },
+  ]) {
     await page.setViewportSize(viewport);
     await expect(videoNode.locator('video[src*="video-result"]')).toBeVisible();
     await deselectCanvas(page);
     await page.getByLabel("定位全部内容").click();
     await panNodeNearTop(page, videoNode, viewport);
-    await videoNode.locator(".kc-node-drag-strip").click();
+    await videoNode.locator(".wc-node-drag-strip").click();
     await expect(composer).toBeVisible();
     const resultComposerBox = await composer.boundingBox();
     expect(resultComposerBox).not.toBeNull();
     expect(resultComposerBox!.x + resultComposerBox!.width).toBeLessThanOrEqual(viewport.width + 1);
-    expect(resultComposerBox!.y + resultComposerBox!.height).toBeLessThanOrEqual(viewport.height + 1);
-    await page.screenshot({ path: testInfo.outputPath(`loop-result-${viewport.width}x${viewport.height}.png`) });
+    expect(resultComposerBox!.y + resultComposerBox!.height).toBeLessThanOrEqual(
+      viewport.height + 1,
+    );
+    await page.screenshot({
+      path: testInfo.outputPath(`loop-result-${viewport.width}x${viewport.height}.png`),
+    });
   }
   await page.setViewportSize({ width: 1440, height: 900 });
 
   await page.reload();
   await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
   await expect(page.getByLabel("项目名称")).toHaveValue("闭环项目");
-  const reloadedVideo = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="video"])').last();
-  await expect(reloadedVideo.locator(".kc-node-wrap")).toHaveAttribute("data-node-status", "success", { timeout: 15_000 });
+  const reloadedVideo = page
+    .locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="video"])')
+    .last();
+  await expect(reloadedVideo.locator(".wc-node-wrap")).toHaveAttribute(
+    "data-node-status",
+    "success",
+    { timeout: 15_000 },
+  );
   await expect(reloadedVideo.locator("video")).toBeVisible({ timeout: 15_000 });
-  await expect.poll(() => page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="video"] video)').count()).toBe(1);
-  await expect(page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="text"])').last().locator(".kc-node-text-preview")).toContainText(textBody);
+  await expect
+    .poll(() =>
+      page
+        .locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="video"] video)')
+        .count(),
+    )
+    .toBe(1);
+  await expect(
+    page
+      .locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="text"])')
+      .last()
+      .locator(".wc-node-text-preview"),
+  ).toContainText(textBody);
 
   expect(submittedCount).toBe(1);
   expect(idempotencyKeys.length).toBe(1);
@@ -825,10 +1059,30 @@ test("正常创建闭环：新建项目、文本与图片参考连接视频、�
     "/api/v1/membership/tasks/canvas-create-node",
   ]);
   for (const entry of mutatingApiRequests) {
-    expect(allowedMutations.has(entry.path), `unexpected mutation ${entry.method} ${entry.path}`).toBe(true);
+    expect(
+      allowedMutations.has(entry.path),
+      `unexpected mutation ${entry.method} ${entry.path}`,
+    ).toBe(true);
   }
   await testInfo.attach("creation-loop-scenario.json", {
-    body: JSON.stringify({ layouts, submittedCount, idempotencyKeys, pollReads, listReads, sseReads, quoteReads: quotes.length, uploadIntents, contentPuts, providerReferenceReads, resultContentReads, externalRequests }, null, 2),
+    body: JSON.stringify(
+      {
+        layouts,
+        submittedCount,
+        idempotencyKeys,
+        pollReads,
+        listReads,
+        sseReads,
+        quoteReads: quotes.length,
+        uploadIntents,
+        contentPuts,
+        providerReferenceReads,
+        resultContentReads,
+        externalRequests,
+      },
+      null,
+      2,
+    ),
     contentType: "application/json",
   });
 });
@@ -884,12 +1138,16 @@ test("submission_unknown 状态保持可见并锁定，不自动重放提交", a
     completedAt: null,
   };
 
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({
-    json: { ok: true, data: session, capabilities },
-  }));
-  await page.route("**/api/v1/model-catalog*", (route) => route.fulfill({
-    json: { ok: true, data: catalog("video") },
-  }));
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      json: { ok: true, data: session, capabilities },
+    }),
+  );
+  await page.route("**/api/v1/model-catalog*", (route) =>
+    route.fulfill({
+      json: { ok: true, data: catalog("video") },
+    }),
+  );
   await page.route("**/api/v1/generation-quotes", (route) => {
     const body = route.request().postDataJSON();
     return route.fulfill({ json: { ok: true, data: quote("video", body.parameters) } });
@@ -910,65 +1168,75 @@ test("submission_unknown 状态保持可见并锁定，不自动重放提交", a
     pollReads += 1;
     return route.fulfill({ json: { ok: true, data: unknownJob } });
   });
-  await page.route("**/api/v1/wallet", (route) => route.fulfill({ json: { ok: true, data: summary(100) } }));
-  await page.addInitScript(({ createdAt }) => {
-    localStorage.clear();
-    const time = Date.parse(createdAt);
-    localStorage.setItem("kachang-canvas:project:v1", JSON.stringify({
-      schemaVersion: 1,
-      id: "project-loop-unknown",
-      name: "待确认提交项目",
-      nodes: [{
-        id: "node-loop-unknown",
-        type: "kachang",
-        position: { x: 420, y: 180 },
-        width: 340,
-        height: 192,
-        data: {
-          kind: "video",
-          body: "待确认的提交",
-          accent: "coral",
-          status: "running",
-          progress: null,
-          media: null,
-          directorCapture: null,
-          config: null,
-          generation: {
-            modelId: "e2e-video-model",
-            parameters: { prompt: "待确认的提交", seconds: 1, aspect_ratio: "16:9" },
-            maxOutputTokens: null,
-            referenceMode: "auto",
-            referenceNodeIds: [],
-            jobId: "job-loop-unknown-1",
-            jobVersion: 1,
-            jobCreatedAt: createdAt,
-            jobStatus: "submission_unknown",
-            error: null,
-          },
+  await page.route("**/api/v1/wallet", (route) =>
+    route.fulfill({ json: { ok: true, data: summary(100) } }),
+  );
+  await page.addInitScript(
+    ({ createdAt }) => {
+      localStorage.clear();
+      const time = Date.parse(createdAt);
+      localStorage.setItem(
+        "weftcanvas:project:v1",
+        JSON.stringify({
+          schemaVersion: 1,
+          id: "project-loop-unknown",
+          name: "待确认提交项目",
+          nodes: [
+            {
+              id: "node-loop-unknown",
+              type: "weftcanvas",
+              position: { x: 420, y: 180 },
+              width: 340,
+              height: 192,
+              data: {
+                kind: "video",
+                body: "待确认的提交",
+                accent: "coral",
+                status: "running",
+                progress: null,
+                media: null,
+                directorCapture: null,
+                config: null,
+                generation: {
+                  modelId: "e2e-video-model",
+                  parameters: { prompt: "待确认的提交", seconds: 1, aspect_ratio: "16:9" },
+                  maxOutputTokens: null,
+                  referenceMode: "auto",
+                  referenceNodeIds: [],
+                  jobId: "job-loop-unknown-1",
+                  jobVersion: 1,
+                  jobCreatedAt: createdAt,
+                  jobStatus: "submission_unknown",
+                  error: null,
+                },
+                createdAt: time,
+                updatedAt: time,
+              },
+            },
+          ],
+          edges: [],
+          groups: [],
+          viewport: { x: 160, y: 120, zoom: 1 },
           createdAt: time,
           updatedAt: time,
-        },
-      }],
-      edges: [],
-      groups: [],
-      viewport: { x: 160, y: 120, zoom: 1 },
-      createdAt: time,
-      updatedAt: time,
-    }));
-  }, { createdAt });
+        }),
+      );
+    },
+    { createdAt },
+  );
 
   await page.goto("/canvas");
-  const node = page.locator('.react-flow__node-kachang[data-id="node-loop-unknown"]');
-  await expect(node.locator(".kc-node-wrap")).toHaveAttribute("data-node-status", "error");
-  await expect(node.locator(".kc-node-loading")).toHaveCount(0);
-  await expect(node.locator(".kc-node-generation-failure")).toContainText("任务提交结果待确认");
+  const node = page.locator('.react-flow__node-weftcanvas[data-id="node-loop-unknown"]');
+  await expect(node.locator(".wc-node-wrap")).toHaveAttribute("data-node-status", "error");
+  await expect(node.locator(".wc-node-loading")).toHaveCount(0);
+  await expect(node.locator(".wc-node-generation-failure")).toContainText("任务提交结果待确认");
 
-  await node.locator(".kc-node-drag-strip").click();
+  await node.locator(".wc-node-drag-strip").click();
   const generation = page.getByLabel("视频节点创作设置");
-  const submitButton = generation.locator(".kc-generation-submit");
+  const submitButton = generation.locator(".wc-generation-submit");
   await expect(submitButton).toBeDisabled();
   await expect.poll(() => pollReads, { timeout: 12_000 }).toBeGreaterThan(0);
-  await expect(node.locator(".kc-node-loading")).toHaveCount(0);
+  await expect(node.locator(".wc-node-loading")).toHaveCount(0);
   await expect(submitButton).toBeDisabled();
   expect(submissions).toBe(0);
   expect(network.unmocked, `unmocked /api requests: ${network.unmocked.join(", ")}`).toEqual([]);

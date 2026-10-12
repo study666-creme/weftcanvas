@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { createCanvasNode } from "./node-factory";
-import { findConnectedNodeColumnPositions, findConnectedNodePosition, findOpenNodePosition } from "./node-placement";
+import {
+  findConnectedNodeColumnPositions,
+  findConnectedNodePosition,
+  findOpenNodePosition,
+} from "./node-placement";
 
 describe("connected node placement", () => {
   it("keeps the first branch centered when the side is empty", () => {
@@ -49,10 +53,16 @@ describe("connected node placement", () => {
     const drafts = [0, 1, 2, 3].map(() => createCanvasNode("image", { x: 0, y: 0 }));
     const first = findConnectedNodeColumnPositions(anchor, drafts, [anchor, ...drafts]);
     const blocker = createCanvasNode("image", first[0]!);
-    const positions = findConnectedNodeColumnPositions(anchor, drafts, [anchor, blocker, ...drafts]);
+    const positions = findConnectedNodeColumnPositions(anchor, drafts, [
+      anchor,
+      blocker,
+      ...drafts,
+    ]);
 
     expect(new Set(positions.map((position) => position.x)).size).toBe(1);
     expect(positions[0]!.y).not.toBe(first[0]!.y);
-    expect(positions.every((position, index) => position.y >= first[0]!.y || index === 0)).toBe(true);
+    expect(positions.every((position, index) => position.y >= first[0]!.y || index === 0)).toBe(
+      true,
+    );
   });
 });

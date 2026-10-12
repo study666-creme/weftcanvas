@@ -1,0 +1,345 @@
+.wc-direct-page-nav > nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.wc-direct-page-nav > nav a > svg {
+  width: 14px;
+  height: 14px;
+  color: var(--entry-jade);
+  stroke-width: 1.7;
+}
+
+.wc-direct-page-nav > nav a.is-active {
+  color: var(--entry-text);
+}
+
+.wc-direct-page-nav > nav a.is-active::after {
+  opacity: 0.82;
+  transform: scaleX(1);
+}
+
+.wc-activity-header {
+  display: flex;
+  padding: 12px 12px 12px 16px;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--entry-w7);
+}
+
+.wc-activity-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wc-activity-title svg {
+  width: 15px;
+  height: 15px;
+  color: var(--entry-muted);
+}
+
+.wc-activity-title strong {
+  font-size: 13px;
+  font-weight: 640;
+}
+
+.wc-activity-tabs {
+  display: inline-flex;
+  margin-left: auto;
+  padding: 2px;
+  gap: 2px;
+  border-radius: 8px;
+  background: var(--entry-w4);
+}
+
+.wc-activity-tabs > button {
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--entry-muted);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 560;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease;
+}
+
+.wc-activity-tabs > button.is-active {
+  color: var(--entry-text);
+  background: var(--entry-w9);
+}
+
+.wc-activity-close:hover {
+  color: var(--entry-text);
+  background: var(--entry-w7);
+}
+
+.wc-activity-close svg {
+  width: 14px;
+  height: 14px;
+}
+
+.wc-activity-body {
+  min-height: 0;
+  padding: 12px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--entry-w18) transparent;
+}
+
+.wc-activity-toolbar {
+  display: flex;
+  margin-bottom: 10px;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--entry-faint);
+  font-size: 11px;
+}
+
+.wc-activity-toolbar > button {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  color: var(--entry-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.wc-activity-toolbar > button:hover {
+  color: var(--entry-text);
+  background: var(--entry-w7);
+}
+
+.wc-activity-toolbar svg {
+  width: 13px;
+  height: 13px;
+}
+
+.wc-activity-loading svg,
+.wc-activity-error svg {
+  width: 14px;
+  height: 14px;
+}
+
+.wc-activity-empty {
+  display: grid;
+  padding: 40px 16px;
+  place-items: center;
+  color: var(--entry-faint);
+  font-size: 12px;
+  text-align: center;
+}
+
+.wc-activity-balance {
+  display: flex;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--entry-w7);
+  border-radius: 12px;
+  background: var(--entry-w3);
+}
+
+.wc-activity-balance svg {
+  width: 16px;
+  height: 16px;
+  color: var(--entry-muted);
+}
+
+.wc-activity-balance span {
+  color: var(--entry-muted);
+  font-size: 12px;
+}
+
+.wc-activity-balance strong {
+  margin-left: auto;
+  font-size: 18px;
+  font-weight: 680;
+}
+
+.wc-activity-job-main {
+  display: flex;
+  width: 100%;
+  padding: 11px 12px;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wc-activity-job-caret {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  place-items: center;
+  color: var(--entry-faint);
+}
+
+.wc-activity-job-caret svg {
+  width: 13px;
+  height: 13px;
+}
+
+.wc-activity-job-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.wc-activity-job-copy strong {
+  overflow: hidden;
+  font-size: 12.5px;
+  font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wc-activity-job-copy small {
+  overflow: hidden;
+  color: var(--entry-faint);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wc-activity-job-status {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 640;
+}
+
+.wc-activity-job-error svg {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+  margin-top: 1px;
+}
+
+.wc-activity-job-detail {
+  padding: 0 12px 12px;
+}
+
+.wc-activity-request {
+  overflow: hidden;
+  border: 1px solid var(--entry-w8);
+  border-radius: 10px;
+  background: rgb(10 11 13 / 7%);
+}
+
+.wc-activity-request-head {
+  display: flex;
+  padding: 8px 10px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--entry-w7);
+  color: var(--entry-muted);
+  font-size: 11px;
+}
+
+.wc-activity-request-head > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wc-activity-request-head svg {
+  width: 12px;
+  height: 12px;
+}
+
+.wc-activity-request pre {
+  max-height: 240px;
+  margin: 0;
+  padding: 10px;
+  overflow: auto;
+  color: #c8cdd2;
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.wc-activity-copy:hover {
+  color: var(--entry-text);
+  background: var(--entry-w7);
+}
+
+.wc-activity-copy svg {
+  width: 11px;
+  height: 11px;
+}
+
+.wc-activity-ledger-delta {
+  flex: 0 0 auto;
+  min-width: 56px;
+  font-size: 14px;
+  font-weight: 680;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.wc-activity-ledger-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.wc-activity-ledger-copy strong {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wc-activity-ledger-copy small {
+  overflow: hidden;
+  color: var(--entry-faint);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 生成类扣费的模型/时长/分辨率明细，与任务日志对应 */
+.wc-activity-ledger-copy .wc-activity-ledger-spec {
+  color: var(--entry-dim, #b8c2d0);
+  font-size: 10px;
+}
+
+.wc-activity-ledger-link:hover {
+  color: var(--entry-text, #e8edf5);
+  border-color: var(--entry-w10, rgba(255, 255, 255, 0.18));
+}
+
+.wc-activity-ledger-balance {
+  flex: 0 0 auto;
+  color: var(--entry-faint);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wc-direct-page > main {
+  position: relative;
+  z-index: 4;
+  min-height: calc(100% - 64px);
+}

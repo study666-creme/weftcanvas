@@ -63,10 +63,24 @@ describe("canvas node presence culling", () => {
     expect(nodeStaysVisible({ measured: null, position: far }, cull)).toBe(true);
     expect(nodeStaysVisible({ measured: { width: 0, height: 0 }, position: far }, cull)).toBe(true);
     // 量过一次之后就按余量视口正常裁剪。
-    expect(nodeStaysVisible({ measured: { width: 340, height: 214 }, position: far }, cull)).toBe(false);
-    expect(nodeStaysVisible({ measured: { width: 340, height: 214 }, position: { x: 40, y: 40 } }, cull)).toBe(true);
+    expect(nodeStaysVisible({ measured: { width: 340, height: 214 }, position: far }, cull)).toBe(
+      false,
+    );
+    expect(
+      nodeStaysVisible({ measured: { width: 340, height: 214 }, position: { x: 40, y: 40 } }, cull),
+    ).toBe(true);
     // 选中/拖拽中的节点永远可见。
-    expect(nodeStaysVisible({ selected: true, measured: { width: 340, height: 214 }, position: far }, cull)).toBe(true);
-    expect(nodeStaysVisible({ dragging: true, measured: { width: 340, height: 214 }, position: far }, cull)).toBe(true);
+    expect(
+      nodeStaysVisible(
+        { selected: true, measured: { width: 340, height: 214 }, position: far },
+        cull,
+      ),
+    ).toBe(true);
+    expect(
+      nodeStaysVisible(
+        { dragging: true, measured: { width: 340, height: 214 }, position: far },
+        cull,
+      ),
+    ).toBe(true);
   });
 });

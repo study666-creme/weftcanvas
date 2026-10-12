@@ -20,24 +20,30 @@ const membershipDailyTaskSchema = z.object({
   ready: z.boolean(),
 });
 
-export const membershipTaskHubSchema = z.object({
-  phoneVerified: z.boolean(),
-  signStreak: z.number().int().min(0),
-  checkedInToday: z.boolean(),
-  daysToStreakBonus: z.number().int().min(0).max(7),
-  dailyBonus: membershipDailyTaskSchema,
-  memberDaily: membershipDailyTaskSchema.extend({
-    amount: z.number().finite().min(0),
-  }).nullable(),
-}).passthrough();
+export const membershipTaskHubSchema = z
+  .object({
+    phoneVerified: z.boolean(),
+    signStreak: z.number().int().min(0),
+    checkedInToday: z.boolean(),
+    daysToStreakBonus: z.number().int().min(0).max(7),
+    dailyBonus: membershipDailyTaskSchema,
+    memberDaily: membershipDailyTaskSchema
+      .extend({
+        amount: z.number().finite().min(0),
+      })
+      .nullable(),
+  })
+  .passthrough();
 
-export const membershipTaskCenterSchema = z.object({
-  items: z.array(membershipTaskItemSchema).max(128),
-  lifetimeCreditsSpent: z.number().finite().min(0),
-  nextSpendMilestone: z.number().finite().min(0).nullable(),
-  hub: membershipTaskHubSchema,
-  phoneVerified: z.boolean().optional(),
-}).passthrough();
+export const membershipTaskCenterSchema = z
+  .object({
+    items: z.array(membershipTaskItemSchema).max(128),
+    lifetimeCreditsSpent: z.number().finite().min(0),
+    nextSpendMilestone: z.number().finite().min(0).nullable(),
+    hub: membershipTaskHubSchema,
+    phoneVerified: z.boolean().optional(),
+  })
+  .passthrough();
 export type MembershipTaskCenter = z.infer<typeof membershipTaskCenterSchema>;
 
 export const membershipTaskCenterResponseSchema = z.object({
@@ -47,12 +53,18 @@ export const membershipTaskCenterResponseSchema = z.object({
 
 export const membershipTaskActionResponseSchema = z.object({
   ok: z.literal(true),
-  data: z.object({
-    message: z.string().trim().min(1).max(500),
-    granted: z.boolean().optional(),
-  }).passthrough(),
+  data: z
+    .object({
+      message: z.string().trim().min(1).max(500),
+      granted: z.boolean().optional(),
+    })
+    .passthrough(),
 });
 export type MembershipTaskAction = z.infer<typeof membershipTaskActionResponseSchema>["data"];
 
-export const membershipTaskKeySchema = z.string().trim().min(1).max(64)
+export const membershipTaskKeySchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
   .regex(/^[a-z0-9_]+(?:_[0-9-]+)?$/i);

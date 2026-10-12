@@ -37,16 +37,26 @@ const shortcutGroups = [
 ] as const;
 
 function isEditable(target: EventTarget | null) {
-  return target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
+  );
 }
 
-export const CanvasShortcutsPanel = memo(function CanvasShortcutsPanel({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export const CanvasShortcutsPanel = memo(function CanvasShortcutsPanel({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const closeButton = useRef<HTMLButtonElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const opensHelp = event.key === "?" || event.key === "F1" || (event.code === "Slash" && event.shiftKey);
+      const opensHelp =
+        event.key === "?" || event.key === "F1" || (event.code === "Slash" && event.shiftKey);
       if (opensHelp && !isEditable(event.target)) {
         event.preventDefault();
         event.stopPropagation();
@@ -65,39 +75,57 @@ export const CanvasShortcutsPanel = memo(function CanvasShortcutsPanel({ open, o
 
   useEffect(() => {
     if (!open) return;
-    previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    previousFocus.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     closeButton.current?.focus();
     return () => previousFocus.current?.focus();
   }, [open]);
 
   if (!open) return null;
   return createPortal(
-    <div className="kc-shortcuts-backdrop" role="presentation" onPointerDown={() => onOpenChange(false)}>
+    <div
+      className="wc-shortcuts-backdrop"
+      role="presentation"
+      onPointerDown={() => onOpenChange(false)}
+    >
       <section
-        className="kc-shortcuts-panel"
+        className="wc-shortcuts-panel"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="kc-shortcuts-title"
+        aria-labelledby="wc-shortcuts-title"
         onPointerDown={(event) => event.stopPropagation()}
       >
-        <header className="kc-shortcuts-header">
-          <span className="kc-shortcuts-mark" aria-hidden="true"><Keyboard /></span>
+        <header className="wc-shortcuts-header">
+          <span className="wc-shortcuts-mark" aria-hidden="true">
+            <Keyboard />
+          </span>
           <div>
-            <h2 id="kc-shortcuts-title">画布快捷键</h2>
+            <h2 id="wc-shortcuts-title">画布快捷键</h2>
             <p>常用操作集中在这里，输入文字时不会触发画布快捷键。</p>
           </div>
-          <button ref={closeButton} type="button" className="kc-icon-button" aria-label="关闭快捷键说明" title="关闭" onClick={() => onOpenChange(false)}>
+          <button
+            ref={closeButton}
+            type="button"
+            className="wc-icon-button"
+            aria-label="关闭快捷键说明"
+            title="关闭"
+            onClick={() => onOpenChange(false)}
+          >
             <X aria-hidden="true" />
           </button>
         </header>
-        <div className="kc-shortcuts-grid">
+        <div className="wc-shortcuts-grid">
           {shortcutGroups.map((group) => (
-            <section key={group.title} className="kc-shortcuts-group">
+            <section key={group.title} className="wc-shortcuts-group">
               <h3>{group.title}</h3>
               <dl>
                 {group.items.map((item) => (
                   <div key={`${group.title}:${item.keys.join("+")}:${item.label}`}>
-                    <dt>{item.keys.map((key) => <kbd key={key}>{key}</kbd>)}</dt>
+                    <dt>
+                      {item.keys.map((key) => (
+                        <kbd key={key}>{key}</kbd>
+                      ))}
+                    </dt>
                     <dd>{item.label}</dd>
                   </div>
                 ))}

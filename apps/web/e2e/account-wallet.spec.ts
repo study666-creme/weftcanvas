@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 const NOW = "2026-07-20T08:00:00.000Z";
 const EXPIRES_AT = "2099-07-21T08:00:00.000Z";
 const USER_ID = "11111111-1111-4111-8111-111111111111";
-const ORDER_STORAGE_KEY = "kachang-canvas:wallet-order:v1";
+const ORDER_STORAGE_KEY = "weftcanvas:wallet-order:v1";
 
 const capabilities = {
   available: true,
@@ -55,18 +55,20 @@ function walletSummary(credits: number) {
 
 function membershipTaskCenter(dailyClaimed = false) {
   return {
-    items: [{
-      key: "canvas_create_node",
-      title: "首次创建画布节点",
-      description: "在画布中创建任意节点",
-      rewardDays: 1,
-      rewardCredits: 0,
-      rewardTier: "basic" as const,
-      claimed: false,
-      ready: true,
-      progress: "已完成",
-      kind: "claim" as const,
-    }],
+    items: [
+      {
+        key: "canvas_create_node",
+        title: "首次创建画布节点",
+        description: "在画布中创建任意节点",
+        rewardDays: 1,
+        rewardCredits: 0,
+        rewardTier: "basic" as const,
+        claimed: false,
+        ready: true,
+        progress: "已完成",
+        kind: "claim" as const,
+      },
+    ],
     lifetimeCreditsSpent: 42,
     nextSpendMilestone: 1_000,
     hub: {
@@ -85,14 +87,16 @@ function membershipTaskCenter(dailyClaimed = false) {
   };
 }
 
-function ledgerItem(overrides: Partial<{
-  id: string;
-  delta: number;
-  balanceAfter: number;
-  reason: string;
-  reasonLabel: string;
-  refId: string | null;
-}> = {}) {
+function ledgerItem(
+  overrides: Partial<{
+    id: string;
+    delta: number;
+    balanceAfter: number;
+    reason: string;
+    reasonLabel: string;
+    refId: string | null;
+  }> = {},
+) {
   return {
     id: "ledger-initial",
     delta: -2,
@@ -107,75 +111,88 @@ function ledgerItem(overrides: Partial<{
 }
 
 async function preparePage(page: Page, persistedOrder: Record<string, unknown> | null = null) {
-  await page.addInitScript(({ order, storageKey }) => {
-    if (!sessionStorage.getItem("kachang-account-wallet-e2e-seeded")) {
-      localStorage.clear();
-      if (order) localStorage.setItem(storageKey, JSON.stringify(order));
-      sessionStorage.setItem("kachang-account-wallet-e2e-seeded", "1");
-    }
+  await page.addInitScript(
+    ({ order, storageKey }) => {
+      if (!sessionStorage.getItem("weftcanvas-account-wallet-e2e-seeded")) {
+        localStorage.clear();
+        if (order) localStorage.setItem(storageKey, JSON.stringify(order));
+        sessionStorage.setItem("weftcanvas-account-wallet-e2e-seeded", "1");
+      }
 
-    const popup = {
-      closed: false,
-      opener: null,
-      location: { replace: () => undefined },
-      close: () => undefined,
-    };
-    Object.defineProperty(window, "open", {
-      configurable: true,
-      value: () => popup as unknown as Window,
-    });
-  }, { order: persistedOrder, storageKey: ORDER_STORAGE_KEY });
-
-  await page.route("**/api/v1/model-catalog*", (route) => route.fulfill({
-    json: {
-      ok: true,
-      data: {
-        version: "wallet-e2e-catalog",
-        capabilityVersion: "wallet-e2e-capability",
-        pricingVersion: "wallet-e2e-pricing",
-        fetchedAt: NOW,
-        expiresAt: EXPIRES_AT,
-        quoteAvailable: false,
-        models: [],
-      },
+      const popup = {
+        closed: false,
+        opener: null,
+        location: { replace: () => undefined },
+        close: () => undefined,
+      };
+      Object.defineProperty(window, "open", {
+        configurable: true,
+        value: () => popup as unknown as Window,
+      });
     },
-  }));
-  await page.route("**/api/v1/generation-jobs?*", (route) => route.fulfill({
-    json: { ok: true, data: [] },
-  }));
-  await page.route("**/api/v1/membership/tasks", (route) => route.fulfill({
-    json: { ok: true, data: membershipTaskCenter() },
-  }));
-  await page.route("**/api/v1/cloud-projects**", (route) => route.fulfill({
-    json: {
-      ok: true,
-      data: {
-        projects: [],
-        sharedProjects: [],
-        usage: {
-          projectCount: 0,
-          projectStorageBytes: 0,
-          mediaStorageBytes: 0,
-          entitlements: {
-            tier: "pro",
-            cloudProjectLimit: 500,
-            projectStorageBytes: 1024 * 1024 * 1024,
-            mediaStorageBytes: 30 * 1024 * 1024 * 1024,
-            revisionRetentionCount: 50,
-            multiDeviceSync: true,
+    { order: persistedOrder, storageKey: ORDER_STORAGE_KEY },
+  );
+
+  await page.route("**/api/v1/model-catalog*", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        data: {
+          version: "wallet-e2e-catalog",
+          capabilityVersion: "wallet-e2e-capability",
+          pricingVersion: "wallet-e2e-pricing",
+          fetchedAt: NOW,
+          expiresAt: EXPIRES_AT,
+          quoteAvailable: false,
+          models: [],
+        },
+      },
+    }),
+  );
+  await page.route("**/api/v1/generation-jobs?*", (route) =>
+    route.fulfill({
+      json: { ok: true, data: [] },
+    }),
+  );
+  await page.route("**/api/v1/membership/tasks", (route) =>
+    route.fulfill({
+      json: { ok: true, data: membershipTaskCenter() },
+    }),
+  );
+  await page.route("**/api/v1/cloud-projects**", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        data: {
+          projects: [],
+          sharedProjects: [],
+          usage: {
+            projectCount: 0,
+            projectStorageBytes: 0,
+            mediaStorageBytes: 0,
+            entitlements: {
+              tier: "pro",
+              cloudProjectLimit: 500,
+              projectStorageBytes: 1024 * 1024 * 1024,
+              mediaStorageBytes: 30 * 1024 * 1024 * 1024,
+              revisionRetentionCount: 50,
+              multiDeviceSync: true,
+            },
           },
         },
       },
-    },
-  }));
-  await page.route("**/api/v1/cloud-project-invitations", (route) => route.fulfill({
-    json: { ok: true, data: { invitations: [] } },
-  }));
+    }),
+  );
+  await page.route("**/api/v1/cloud-project-invitations", (route) =>
+    route.fulfill({
+      json: { ok: true, data: { invitations: [] } },
+    }),
+  );
 }
 
 async function openAccount(page: Page, name: string | RegExp = "登录画布账号") {
   await page.getByRole("button", { name }).click();
-  const dialog = page.getByRole("dialog", { name: "卡藏账号" });
+  const dialog = page.getByRole("dialog", { name: "纬线账号" });
   await expect(dialog).toBeVisible();
   return dialog;
 }
@@ -199,9 +216,11 @@ async function mockAuthenticatedWallet(
   } = {},
 ) {
   const calls = options.walletCalls ?? { summary: 0, products: 0, ledger: 0 };
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({
-    json: { ok: true, data: session, capabilities },
-  }));
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      json: { ok: true, data: session, capabilities },
+    }),
+  );
   await page.route("**/api/v1/wallet", (route) => {
     calls.summary += 1;
     return route.fulfill({ json: { ok: true, data: options.summary?.() ?? walletSummary(128.5) } });
@@ -218,36 +237,44 @@ async function mockAuthenticatedWallet(
   });
   await page.route("**/api/v1/wallet/ledger?*", (route) => {
     calls.ledger += 1;
-    return route.fulfill({ json: { ok: true, data: { items: options.ledger?.() ?? [ledgerItem()] } } });
+    return route.fulfill({
+      json: { ok: true, data: { items: options.ledger?.() ?? [ledgerItem()] } },
+    });
   });
-  await page.route("**/api/v1/membership/tasks", (route) => route.fulfill({
-    json: { ok: true, data: options.tasks?.() ?? membershipTaskCenter() },
-  }));
-  await page.route("**/api/v1/cloud-projects**", (route) => route.fulfill({
-    json: {
-      ok: true,
-      data: {
-        projects: [],
-        sharedProjects: [],
-        usage: {
-          projectCount: 0,
-          projectStorageBytes: 0,
-          mediaStorageBytes: 0,
-          entitlements: {
-            tier: "pro",
-            cloudProjectLimit: 500,
-            projectStorageBytes: 1024 * 1024 * 1024,
-            mediaStorageBytes: 30 * 1024 * 1024 * 1024,
-            revisionRetentionCount: 50,
-            multiDeviceSync: true,
+  await page.route("**/api/v1/membership/tasks", (route) =>
+    route.fulfill({
+      json: { ok: true, data: options.tasks?.() ?? membershipTaskCenter() },
+    }),
+  );
+  await page.route("**/api/v1/cloud-projects**", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        data: {
+          projects: [],
+          sharedProjects: [],
+          usage: {
+            projectCount: 0,
+            projectStorageBytes: 0,
+            mediaStorageBytes: 0,
+            entitlements: {
+              tier: "pro",
+              cloudProjectLimit: 500,
+              projectStorageBytes: 1024 * 1024 * 1024,
+              mediaStorageBytes: 30 * 1024 * 1024 * 1024,
+              revisionRetentionCount: 50,
+              multiDeviceSync: true,
+            },
           },
         },
       },
-    },
-  }));
-  await page.route("**/api/v1/cloud-project-invitations", (route) => route.fulfill({
-    json: { ok: true, data: { invitations: [] } },
-  }));
+    }),
+  );
+  await page.route("**/api/v1/cloud-project-invitations", (route) =>
+    route.fulfill({
+      json: { ok: true, data: { invitations: [] } },
+    }),
+  );
   return calls;
 }
 
@@ -257,7 +284,10 @@ test("账号默认展示共享会员权益及当前限免能力", async ({ page 
 
   await page.goto("/canvas");
   const dialog = await openAccount(page, "账号：创作者");
-  await expect(dialog.getByRole("tab", { name: "会员权益" })).toHaveAttribute("aria-selected", "true");
+  await expect(dialog.getByRole("tab", { name: "会员权益" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
   await expect(dialog.getByText("会员状态与卡片库实时共享")).toBeVisible();
 
   const preview = dialog.getByRole("region", { name: "当前开放权益" });
@@ -266,10 +296,10 @@ test("账号默认展示共享会员权益及当前限免能力", async ({ page 
   await expect(preview).toContainText("多人协作（最多 5 人）");
   await expect(preview).toContainText("专业会员权益 · 当前限免");
 
-  const standardPlan = dialog.locator(".kc-membership-plan").filter({ hasText: "标准会员" });
+  const standardPlan = dialog.locator(".wc-membership-plan").filter({ hasText: "标准会员" });
   await expect(standardPlan).toContainText("自定义 API");
   await expect(standardPlan).toContainText("当前限免");
-  const proPlan = dialog.locator(".kc-membership-plan").filter({ hasText: "专业会员" });
+  const proPlan = dialog.locator(".wc-membership-plan").filter({ hasText: "专业会员" });
   await expect(proPlan).toContainText("多人协作（最多 5 人）");
   await expect(proPlan).toContainText("当前限免");
 });
@@ -301,18 +331,23 @@ test("任务快捷入口显示可领取数并在领取每日五积分后刷新�
   await page.goto("/canvas");
   const taskTrigger = page.getByRole("button", { name: "任务中心，有 2 项奖励可领取" });
   await expect(taskTrigger).toBeVisible();
-  await expect(taskTrigger.locator(".kc-membership-task-count")).toHaveText("2");
+  await expect(taskTrigger.locator(".wc-membership-task-count")).toHaveText("2");
   await taskTrigger.click();
 
-  const dialog = page.getByRole("dialog", { name: "卡藏账号" });
+  const dialog = page.getByRole("dialog", { name: "纬线账号" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole("tab", { name: "任务中心" })).toHaveAttribute("aria-selected", "true");
-  const dailyCard = dialog.locator(".kc-membership-daily article").filter({ hasText: "每日免费积分" });
+  await expect(dialog.getByRole("tab", { name: "任务中心" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  const dailyCard = dialog
+    .locator(".wc-membership-daily article")
+    .filter({ hasText: "每日免费积分" });
   await expect(dailyCard).toContainText("今日领取 5 积分");
   await dailyCard.getByRole("button", { name: "领取", exact: true }).click();
 
   await expect(dailyCard.getByRole("button", { name: "今日已领" })).toBeDisabled();
-  await expect(page.locator(".kc-toast--success")).toContainText("已领取 5 积分");
+  await expect(page.locator(".wc-toast--success")).toContainText("已领取 5 积分");
   await expect(page.getByRole("button", { name: "任务中心，有 1 项奖励可领取" })).toBeVisible();
   await expect(page.getByRole("button", { name: "当前积分 133.5，点击刷新" })).toBeVisible();
   expect(claimBody).toEqual({});
@@ -330,9 +365,11 @@ test("画布内注册支持确认密码和待验证邮箱状态", async ({ page 
     passwordResetUrl: "https://accounts.example.com/forgot-password",
   };
   let submitted: unknown = null;
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({
-    json: { ok: true, data: null, capabilities: inAppCapabilities },
-  }));
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      json: { ok: true, data: null, capabilities: inAppCapabilities },
+    }),
+  );
   await page.route("**/api/v1/auth/register", async (route) => {
     submitted = route.request().postDataJSON();
     return route.fulfill({
@@ -366,9 +403,11 @@ test("外部账号登录失败会保留表单，成功后加载动态余额、�
   let loginCalls = 0;
   const loginBodies: unknown[] = [];
 
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({
-    json: { ok: true, data: activeSession, capabilities },
-  }));
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      json: { ok: true, data: activeSession, capabilities },
+    }),
+  );
   await page.route("**/api/v1/auth/login", async (route) => {
     loginCalls += 1;
     const body = route.request().postDataJSON();
@@ -382,21 +421,33 @@ test("外部账号登录失败会保留表单，成功后加载动态余额、�
     activeSession = session;
     return route.fulfill({ json: { ok: true, data: session, capabilities } });
   });
-  await page.route("**/api/v1/wallet", (route) => route.fulfill({
-    json: { ok: true, data: walletSummary(128.5) },
-  }));
-  await page.route("**/api/v1/wallet/products", (route) => route.fulfill({
-    json: { ok: true, data: products },
-  }));
-  await page.route("**/api/v1/wallet/ledger?*", (route) => route.fulfill({
-    json: { ok: true, data: { items: [ledgerItem()] } },
-  }));
+  await page.route("**/api/v1/wallet", (route) =>
+    route.fulfill({
+      json: { ok: true, data: walletSummary(128.5) },
+    }),
+  );
+  await page.route("**/api/v1/wallet/products", (route) =>
+    route.fulfill({
+      json: { ok: true, data: products },
+    }),
+  );
+  await page.route("**/api/v1/wallet/ledger?*", (route) =>
+    route.fulfill({
+      json: { ok: true, data: { items: [ledgerItem()] } },
+    }),
+  );
 
   await page.goto("/canvas");
   const dialog = await openAccount(page);
   await expect(dialog.getByRole("tab")).toHaveCount(0);
-  await expect(dialog.getByRole("link", { name: /注册账号/ })).toHaveAttribute("href", capabilities.registrationUrl);
-  await expect(dialog.getByRole("link", { name: /找回密码/ })).toHaveAttribute("href", capabilities.passwordResetUrl);
+  await expect(dialog.getByRole("link", { name: /注册账号/ })).toHaveAttribute(
+    "href",
+    capabilities.registrationUrl,
+  );
+  await expect(dialog.getByRole("link", { name: /找回密码/ })).toHaveAttribute(
+    "href",
+    capabilities.passwordResetUrl,
+  );
 
   await dialog.getByLabel("邮箱").fill("creator@example.com");
   await dialog.getByLabel("密码").fill("wrong-password");
@@ -433,22 +484,27 @@ test("快速重复结账只创建一个订单，pending 转 paid 后刷新余额
   let orderReads = 0;
   let checkoutBody: unknown = null;
   let releaseCheckout!: () => void;
-  const checkoutGate = new Promise<void>((resolve) => { releaseCheckout = resolve; });
+  const checkoutGate = new Promise<void>((resolve) => {
+    releaseCheckout = resolve;
+  });
   const walletCalls = { summary: 0, products: 0, ledger: 0 };
 
   await mockAuthenticatedWallet(page, {
     walletCalls,
     summary: () => walletSummary(paid ? 628.5 : 128.5),
-    ledger: () => paid
-      ? [ledgerItem({
-          id: "ledger-payment",
-          delta: 500,
-          balanceAfter: 628.5,
-          reason: "payment",
-          reasonLabel: "支付到账",
-          refId: "PAYE2E1001",
-        })]
-      : [ledgerItem()],
+    ledger: () =>
+      paid
+        ? [
+            ledgerItem({
+              id: "ledger-payment",
+              delta: 500,
+              balanceAfter: 628.5,
+              reason: "payment",
+              reasonLabel: "支付到账",
+              refId: "PAYE2E1001",
+            }),
+          ]
+        : [ledgerItem()],
   });
   await page.route("**/api/v1/wallet/checkout", async (route) => {
     checkoutCalls += 1;
@@ -505,14 +561,18 @@ test("快速重复结账只创建一个订单，pending 转 paid 后刷新余额
   await expect(dialog).toContainText("PAYE2E1001");
   await expect(dialog).toContainText("等待支付");
   expect(checkoutBody).toEqual({ productId: "credits-500", paymentMethod: "wxpay" });
-  await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), ORDER_STORAGE_KEY)).not.toBeNull();
+  await expect
+    .poll(() => page.evaluate((key) => localStorage.getItem(key), ORDER_STORAGE_KEY))
+    .not.toBeNull();
 
   await dialog.getByRole("button", { name: "刷新状态" }).click();
   await expect(dialog).toContainText("支付成功");
   await expect(dialog.getByRole("region", { name: "积分余额" })).toContainText("628.5");
   await expect(dialog.getByRole("listitem")).toContainText("支付到账");
   await expect(page.getByText("支付成功，积分与权益已更新")).toBeVisible();
-  await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), ORDER_STORAGE_KEY)).toBeNull();
+  await expect
+    .poll(() => page.evaluate((key) => localStorage.getItem(key), ORDER_STORAGE_KEY))
+    .toBeNull();
   expect(walletCalls.summary).toBeGreaterThanOrEqual(2);
   expect(walletCalls.ledger).toBeGreaterThanOrEqual(2);
 });
@@ -571,7 +631,9 @@ test("协作席位商品选择与支付到账使用独立权益提示", async ({
   await expect(dialog).toContainText("支付成功");
   await expect(dialog).toContainText("席位权益已到账");
   await expect(page.getByText("支付成功，协作席位已写入账号权益")).toBeVisible();
-  await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), ORDER_STORAGE_KEY)).toBeNull();
+  await expect
+    .poll(() => page.evaluate((key) => localStorage.getItem(key), ORDER_STORAGE_KEY))
+    .toBeNull();
   expect(walletCalls.summary).toBeGreaterThanOrEqual(2);
   expect(walletCalls.ledger).toBeGreaterThanOrEqual(2);
 });
@@ -588,27 +650,31 @@ test("已退款席位订单不会被显示为支付成功或阻止重新购买",
   };
   await preparePage(page, persistedOrder);
   await mockAuthenticatedWallet(page);
-  await page.route("**/api/v1/wallet/orders/PAYSEATREFUND1", (route) => route.fulfill({
-    json: {
-      ok: true,
-      data: {
-        orderNo: "PAYSEATREFUND1",
-        status: "refunded",
-        productKind: "collaboration_seat",
-        productId: "canvas-collaboration-seat-1",
-        amount: 15,
-        paidAt: NOW,
-        createdAt: NOW,
+  await page.route("**/api/v1/wallet/orders/PAYSEATREFUND1", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        data: {
+          orderNo: "PAYSEATREFUND1",
+          status: "refunded",
+          productKind: "collaboration_seat",
+          productId: "canvas-collaboration-seat-1",
+          amount: 15,
+          paidAt: NOW,
+          createdAt: NOW,
+        },
       },
-    },
-  }));
+    }),
+  );
 
   await page.goto("/canvas");
   const dialog = await openWallet(page, "账号：创作者");
   await expect(dialog).toContainText("已退款");
   await expect(dialog).toContainText("席位权益已撤销，可以重新购买");
   await expect(dialog).not.toContainText("席位权益已到账");
-  await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), ORDER_STORAGE_KEY)).toBeNull();
+  await expect
+    .poll(() => page.evaluate((key) => localStorage.getItem(key), ORDER_STORAGE_KEY))
+    .toBeNull();
   await expect(dialog.getByRole("button", { name: "立即支付 ¥9.9" })).toBeEnabled();
 });
 
@@ -679,10 +745,14 @@ test("自定义充值校验服务端金额规则，失败重试保留原金额",
     { productId: "points-custom", paymentMethod: "wxpay", customAmount: 5.25 },
   ]);
 
-  await expect.poll(async () => page.evaluate((key) => {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw).orderNo : null;
-  }, ORDER_STORAGE_KEY)).toBe("PAYCUSTOM2");
+  await expect
+    .poll(async () =>
+      page.evaluate((key) => {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw).orderNo : null;
+      }, ORDER_STORAGE_KEY),
+    )
+    .toBe("PAYCUSTOM2");
   const retriedStored = await page.evaluate((key) => localStorage.getItem(key), ORDER_STORAGE_KEY);
   expect(JSON.parse(retriedStored ?? "null")).toMatchObject({
     orderNo: "PAYCUSTOM2",
@@ -747,7 +817,9 @@ test("刷新页面会恢复本人待处理订单，退出后清空钱包和订�
   await expect(page.getByRole("button", { name: "登录画布账号" })).toBeVisible();
   await expect(page.getByRole("button", { name: /当前积分/ })).toHaveCount(0);
   expect(logoutCalls).toBe(1);
-  await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), ORDER_STORAGE_KEY)).toBeNull();
+  await expect
+    .poll(() => page.evaluate((key) => localStorage.getItem(key), ORDER_STORAGE_KEY))
+    .toBeNull();
 
   const loginDialog = await openAccount(page);
   await expect(loginDialog).not.toContainText("PAYRESTORE1");
@@ -773,13 +845,15 @@ test("待处理订单停止自动轮询后可以明确停止跟踪并重新下�
   await expect(dialog.getByRole("button", { name: "请先处理待支付订单" })).toBeDisabled();
 
   await dialog.getByRole("button", { name: "停止跟踪" }).click();
-  const confirmation = page.locator(".kc-confirm-backdrop");
+  const confirmation = page.locator(".wc-confirm-backdrop");
   await expect(confirmation).toBeVisible();
   await confirmation.locator("button.is-confirm").click();
 
   await expect(dialog).not.toContainText("PAYSTALE1");
   await expect(dialog.getByRole("button", { name: "立即支付 ¥9.9" })).toBeEnabled();
-  await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), ORDER_STORAGE_KEY)).toBeNull();
+  await expect
+    .poll(() => page.evaluate((key) => localStorage.getItem(key), ORDER_STORAGE_KEY))
+    .toBeNull();
 });
 
 test("激活码失败会展示服务错误，成功后立即更新余额与流水", async ({ page }) => {
@@ -788,16 +862,19 @@ test("激活码失败会展示服务错误，成功后立即更新余额与流�
   const redeemBodies: unknown[] = [];
   await mockAuthenticatedWallet(page, {
     summary: () => walletSummary(redeemed ? 225 : 25),
-    ledger: () => redeemed
-      ? [ledgerItem({
-          id: "ledger-redeem",
-          delta: 200,
-          balanceAfter: 225,
-          reason: "activation_code",
-          reasonLabel: "激活码到账",
-          refId: "GIFT2026",
-        })]
-      : [],
+    ledger: () =>
+      redeemed
+        ? [
+            ledgerItem({
+              id: "ledger-redeem",
+              delta: 200,
+              balanceAfter: 225,
+              reason: "activation_code",
+              reasonLabel: "激活码到账",
+              refId: "GIFT2026",
+            }),
+          ]
+        : [],
   });
   await page.route("**/api/v1/wallet/redeem", async (route) => {
     const body = route.request().postDataJSON();
@@ -805,7 +882,10 @@ test("激活码失败会展示服务错误，成功后立即更新余额与流�
     if (body.code === "INVALID-CODE") {
       return route.fulfill({
         status: 400,
-        json: { ok: false, error: { code: "INVALID_ACTIVATION_CODE", message: "激活码无效或已被使用" } },
+        json: {
+          ok: false,
+          error: { code: "INVALID_ACTIVATION_CODE", message: "激活码无效或已被使用" },
+        },
       });
     }
     redeemed = true;
@@ -841,9 +921,11 @@ test("激活码失败会展示服务错误，成功后立即更新余额与流�
 test("钱包会话失效时重新打开登录，而不是继续显示旧积分", async ({ page }) => {
   await preparePage(page);
   let walletReads = 0;
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({
-    json: { ok: true, data: session, capabilities },
-  }));
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      json: { ok: true, data: session, capabilities },
+    }),
+  );
   await page.route("**/api/v1/wallet", (route) => {
     walletReads += 1;
     if (walletReads === 1) return route.fulfill({ json: { ok: true, data: walletSummary(128.5) } });
@@ -852,15 +934,19 @@ test("钱包会话失效时重新打开登录，而不是继续显示旧积分",
       json: { ok: false, error: { code: "UNAUTHENTICATED", message: "登录已过期，请重新登录" } },
     });
   });
-  await page.route("**/api/v1/wallet/products", (route) => route.fulfill({ json: { ok: true, data: products } }));
-  await page.route("**/api/v1/wallet/ledger?*", (route) => route.fulfill({ json: { ok: true, data: { items: [] } } }));
+  await page.route("**/api/v1/wallet/products", (route) =>
+    route.fulfill({ json: { ok: true, data: products } }),
+  );
+  await page.route("**/api/v1/wallet/ledger?*", (route) =>
+    route.fulfill({ json: { ok: true, data: { items: [] } } }),
+  );
 
   await page.goto("/canvas");
   const balanceButton = page.getByRole("button", { name: /当前积分 128\.5/ });
   await expect(balanceButton).toBeVisible();
   await balanceButton.click();
 
-  const dialog = page.getByRole("dialog", { name: "卡藏账号" });
+  const dialog = page.getByRole("dialog", { name: "纬线账号" });
   await expect(dialog.getByLabel("邮箱")).toBeVisible();
   await expect(dialog.getByRole("alert")).toContainText("登录已过期");
   await expect(page.getByRole("button", { name: /当前积分/ })).toHaveCount(0);

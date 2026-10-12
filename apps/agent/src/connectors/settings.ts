@@ -1,4 +1,4 @@
-import type { AgentConnectorId } from "@kachang/contracts";
+import type { AgentConnectorId } from "@weftcanvas/contracts";
 
 /** 本机连接配置。两个连接都在 Agent 运行时所在机器上生效。 */
 export type AgentConnectorSettings = {

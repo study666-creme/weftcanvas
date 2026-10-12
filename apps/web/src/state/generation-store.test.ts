@@ -1,4 +1,4 @@
-import type { PublicGenerationJob, PublicModel, PublicModelCatalog } from "@kachang/contracts";
+import type { PublicGenerationJob, PublicModel, PublicModelCatalog } from "@weftcanvas/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CanvasApiError } from "../lib/api-client";
@@ -29,7 +29,7 @@ vi.mock("../lib/generated-artifact-persistence", () => ({
   persistCompletedGenerationArtifacts: artifactPersistence.persist,
 }));
 
-const STORAGE_KEY = "kachang-canvas:model-catalogs:v1";
+const STORAGE_KEY = "weftcanvas:model-catalogs:v1";
 const previouslyFilteredImageModelIds = [
   "image2",
   "image2-economy",
@@ -58,7 +58,9 @@ describe("generation state", () => {
     installMemoryStorage();
     installWindow();
     api.listGenerationJobs.mockResolvedValue([]);
-    api.fetchGenerationJob.mockRejectedValue(new CanvasApiError(404, "GENERATION_JOB_NOT_FOUND", "没有找到这个生成任务"));
+    api.fetchGenerationJob.mockRejectedValue(
+      new CanvasApiError(404, "GENERATION_JOB_NOT_FOUND", "没有找到这个生成任务"),
+    );
     api.reconcileGenerationJob.mockResolvedValue(null);
     api.subscribeGenerationJob.mockReturnValue(vi.fn());
     artifactPersistence.persist.mockResolvedValue(undefined);
@@ -82,8 +84,12 @@ describe("generation state", () => {
 
     expect(api.fetchModelCatalog).toHaveBeenCalledTimes(1);
     expect(api.fetchModelCatalog).toHaveBeenCalledWith();
-    expect(useGenerationStore.getState().catalogs.image.data?.models.map((model) => model.id)).toEqual(["image-model"]);
-    expect(useGenerationStore.getState().catalogs.video.data?.models.map((model) => model.id)).toEqual(["video-model"]);
+    expect(
+      useGenerationStore.getState().catalogs.image.data?.models.map((model) => model.id),
+    ).toEqual(["image-model"]);
+    expect(
+      useGenerationStore.getState().catalogs.video.data?.models.map((model) => model.id),
+    ).toEqual(["video-model"]);
     expect(useGenerationStore.getState().catalogs.image.status).toBe("ready");
   });
 
@@ -101,60 +107,65 @@ describe("generation state", () => {
 
     await useGenerationStore.getState().loadCatalog("video");
 
-    expect(useGenerationStore.getState().catalogs.video.data?.models.map((item) => item.id)).toEqual([
-      "video-model",
-      ...previouslyFilteredVideoModelIds,
-    ]);
-    expect(useGenerationStore.getState().catalogs.image.data?.models.map((item) => item.id)).toEqual([
-      "image-model",
-      ...previouslyFilteredImageModelIds,
-    ]);
+    expect(
+      useGenerationStore.getState().catalogs.video.data?.models.map((item) => item.id),
+    ).toEqual(["video-model", ...previouslyFilteredVideoModelIds]);
+    expect(
+      useGenerationStore.getState().catalogs.image.data?.models.map((item) => item.id),
+    ).toEqual(["image-model", ...previouslyFilteredImageModelIds]);
   });
 
   it("keeps the server-published video models in an existing browser catalog cache", async () => {
     const savedAt = Date.now() - 2 * 60_000;
     const source = catalog();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      image: {
-        savedAt,
-        data: {
-          ...source,
-          models: [
-            model("image-model", "image"),
-            ...previouslyFilteredImageModelIds.map((id) => model(id, "image")),
-          ],
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        image: {
+          savedAt,
+          data: {
+            ...source,
+            models: [
+              model("image-model", "image"),
+              ...previouslyFilteredImageModelIds.map((id) => model(id, "image")),
+            ],
+          },
         },
-      },
-      video: {
-        savedAt,
-        data: {
-          ...source,
-          models: [
-            model("video-model", "video"),
-            ...previouslyFilteredVideoModelIds.map((id) => model(id, "video")),
-          ],
+        video: {
+          savedAt,
+          data: {
+            ...source,
+            models: [
+              model("video-model", "video"),
+              ...previouslyFilteredVideoModelIds.map((id) => model(id, "video")),
+            ],
+          },
         },
-      },
-    }));
+      }),
+    );
 
     const { useGenerationStore } = await import("./generation-store");
 
-    expect(useGenerationStore.getState().catalogs.video.data?.models.map((item) => item.id)).toEqual([
-      "video-model",
-      ...previouslyFilteredVideoModelIds,
-    ]);
-    expect(useGenerationStore.getState().catalogs.image.data?.models.map((item) => item.id)).toEqual([
-      "image-model",
-      ...previouslyFilteredImageModelIds,
-    ]);
+    expect(
+      useGenerationStore.getState().catalogs.video.data?.models.map((item) => item.id),
+    ).toEqual(["video-model", ...previouslyFilteredVideoModelIds]);
+    expect(
+      useGenerationStore.getState().catalogs.image.data?.models.map((item) => item.id),
+    ).toEqual(["image-model", ...previouslyFilteredImageModelIds]);
   });
 
   it("keeps a saved catalog ready while its background refresh fails", async () => {
     const savedAt = Date.now() - 2 * 60_000;
     const saved = catalog();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      image: { savedAt, data: { ...saved, models: saved.models.filter((model) => model.modality === "image") } },
-    }));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        image: {
+          savedAt,
+          data: { ...saved, models: saved.models.filter((model) => model.modality === "image") },
+        },
+      }),
+    );
     api.fetchModelCatalog.mockRejectedValue(new Error("offline"));
     const { useGenerationStore } = await import("./generation-store");
 
@@ -175,13 +186,12 @@ describe("generation state", () => {
   it("shows one error toast when a watched job first transitions to failed", async () => {
     let deliver: ((job: PublicGenerationJob) => void) | null = null;
     const stop = vi.fn();
-    api.subscribeGenerationJob.mockImplementation((
-      _jobId: string,
-      handlers: { onJob: (job: PublicGenerationJob) => void },
-    ) => {
-      deliver = handlers.onJob;
-      return stop;
-    });
+    api.subscribeGenerationJob.mockImplementation(
+      (_jobId: string, handlers: { onJob: (job: PublicGenerationJob) => void }) => {
+        deliver = handlers.onJob;
+        return stop;
+      },
+    );
     const { useGenerationStore } = await import("./generation-store");
     const { useCanvasStore } = await import("./canvas-store");
     const { useToastStore } = await import("./toast-store");
@@ -201,21 +211,28 @@ describe("generation state", () => {
     deliver!(failed);
 
     expect(stop).toHaveBeenCalledTimes(1);
-    expect(useToastStore.getState().items.map(({ message, tone }) => ({ message, tone }))).toEqual([{
-      message: "视频生成失败，请稍后重试",
-      tone: "error",
-    }]);
+    expect(useToastStore.getState().items.map(({ message, tone }) => ({ message, tone }))).toEqual([
+      {
+        message: "视频生成失败，请稍后重试",
+        tone: "error",
+      },
+    ]);
   });
 
   it("marks a watched job observation as exhausted when the stream budget is spent", async () => {
     let exhaust: (() => void) | null = null;
-    api.subscribeGenerationJob.mockImplementation((
-      _jobId: string,
-      handlers: { onJob?: (job: PublicGenerationJob) => void; onObservationExhausted?: () => void },
-    ) => {
-      exhaust = handlers.onObservationExhausted ?? null;
-      return vi.fn();
-    });
+    api.subscribeGenerationJob.mockImplementation(
+      (
+        _jobId: string,
+        handlers: {
+          onJob?: (job: PublicGenerationJob) => void;
+          onObservationExhausted?: () => void;
+        },
+      ) => {
+        exhaust = handlers.onObservationExhausted ?? null;
+        return vi.fn();
+      },
+    );
     const { useGenerationStore } = await import("./generation-store");
     const { useCanvasStore } = await import("./canvas-store");
     const projectId = useCanvasStore.getState().projectId;
@@ -263,7 +280,7 @@ describe("generation state", () => {
     const otherJob = generationJob("other-project", { id: "job-other-1" });
     api.listGenerationJobs.mockResolvedValue([activeJob]);
 
-    useGenerationStore.setState((state) => ({
+    useGenerationStore.setState(() => ({
       jobsById: { [activeJob.id]: activeJob, [otherJob.id]: otherJob },
       exhaustedObservations: { [activeJob.id]: true, [otherJob.id]: true },
     }));
@@ -378,9 +395,15 @@ describe("generation state", () => {
     const staleBrowserId = useCanvasStore.getState().addNode("image", { x: 760, y: 60 });
     const missingHostedId = useCanvasStore.getState().addNode("image", { x: 1120, y: 60 });
     const submitting = useCanvasStore.getState().nodes.find((item) => item.id === submittingId)!;
-    const activeBrowser = useCanvasStore.getState().nodes.find((item) => item.id === activeBrowserId)!;
-    const staleBrowser = useCanvasStore.getState().nodes.find((item) => item.id === staleBrowserId)!;
-    const missingHosted = useCanvasStore.getState().nodes.find((item) => item.id === missingHostedId)!;
+    const activeBrowser = useCanvasStore
+      .getState()
+      .nodes.find((item) => item.id === activeBrowserId)!;
+    const staleBrowser = useCanvasStore
+      .getState()
+      .nodes.find((item) => item.id === staleBrowserId)!;
+    const missingHosted = useCanvasStore
+      .getState()
+      .nodes.find((item) => item.id === missingHostedId)!;
     useCanvasStore.getState().applyGenerationUpdate(submittingId, {
       status: "running",
       generation: {
@@ -424,19 +447,27 @@ describe("generation state", () => {
       endBrowserSubmission(submittingId);
     }
 
-    expect(useCanvasStore.getState().nodes.find((item) => item.id === submittingId)?.data).toMatchObject({
+    expect(
+      useCanvasStore.getState().nodes.find((item) => item.id === submittingId)?.data,
+    ).toMatchObject({
       status: "running",
       generation: { jobId: null, jobStatus: "submitting" },
     });
-    expect(useCanvasStore.getState().nodes.find((item) => item.id === activeBrowserId)?.data).toMatchObject({
+    expect(
+      useCanvasStore.getState().nodes.find((item) => item.id === activeBrowserId)?.data,
+    ).toMatchObject({
       status: "running",
       generation: { jobId: "browser:active-job", jobStatus: "running" },
     });
-    expect(useCanvasStore.getState().nodes.find((item) => item.id === staleBrowserId)?.data).toMatchObject({
+    expect(
+      useCanvasStore.getState().nodes.find((item) => item.id === staleBrowserId)?.data,
+    ).toMatchObject({
       status: "running",
       generation: { jobId: "browser:stale-job", jobStatus: "running" },
     });
-    expect(useCanvasStore.getState().nodes.find((item) => item.id === missingHostedId)?.data).toMatchObject({
+    expect(
+      useCanvasStore.getState().nodes.find((item) => item.id === missingHostedId)?.data,
+    ).toMatchObject({
       status: "error",
       generation: { jobId: "missing-hosted-job", jobStatus: "failed" },
     });
@@ -501,7 +532,9 @@ describe("generation state", () => {
     const reloadedRuntime = await import("../lib/browser-generation-runtime");
     reloadedIdentity.useIdentityStore.setState(authenticatedIdentity());
     expect(reloadedCanvas.useCanvasStore.getState().projectId).toBe(projectId);
-    expect(reloadedCanvas.useCanvasStore.getState().nodes.find((item) => item.id === nodeId)?.data).toMatchObject({
+    expect(
+      reloadedCanvas.useCanvasStore.getState().nodes.find((item) => item.id === nodeId)?.data,
+    ).toMatchObject({
       status: "running",
       generation: { jobId: null, jobStatus: "submitting" },
     });
@@ -515,7 +548,9 @@ describe("generation state", () => {
 
     expect(api.reconcileGenerationJob).toHaveBeenCalledWith("job:stable-key-001");
     expect(api.submitGenerationJob).not.toHaveBeenCalled();
-    expect(reloadedCanvas.useCanvasStore.getState().nodes.find((item) => item.id === nodeId)?.data).toMatchObject({
+    expect(
+      reloadedCanvas.useCanvasStore.getState().nodes.find((item) => item.id === nodeId)?.data,
+    ).toMatchObject({
       status: "running",
       progress: null,
       generation: {
@@ -525,12 +560,19 @@ describe("generation state", () => {
         error: null,
       },
     });
-    expect(reloadedRuntime.browserSubmissionIdentity(projectId, nodeId)?.key).toBe("job:stable-key-001");
+    expect(reloadedRuntime.browserSubmissionIdentity(projectId, nodeId)?.key).toBe(
+      "job:stable-key-001",
+    );
 
     // An immediate repeated user action cannot mint a fresh identity: it would
     // reuse the exact same logical request key instead.
     const createKey = vi.fn(() => "job:fresh-identity");
-    const identity = reloadedRuntime.resolvePendingSubmissionIdentity(projectId, nodeId, "submitting", createKey);
+    const identity = reloadedRuntime.resolvePendingSubmissionIdentity(
+      projectId,
+      nodeId,
+      "submitting",
+      createKey,
+    );
     expect(identity).toEqual({ key: "job:stable-key-001", reused: true });
     expect(createKey).not.toHaveBeenCalled();
   });
@@ -588,11 +630,17 @@ describe("generation state", () => {
   it("keeps the durable pending identity when a live job is observed without authoritative correlation", async () => {
     const { useGenerationStore } = await import("./generation-store");
     const { useCanvasStore } = await import("./canvas-store");
-    const { browserSubmissionIdentity, persistBrowserSubmissionIdentity } = await import("../lib/browser-generation-runtime");
+    const { browserSubmissionIdentity, persistBrowserSubmissionIdentity } =
+      await import("../lib/browser-generation-runtime");
     const projectId = useCanvasStore.getState().projectId;
     const nodeId = useCanvasStore.getState().addNode("image", { x: 40, y: 60 });
     persistBrowserSubmissionIdentity(projectId, nodeId, "job:stable-key-002");
-    const live = generationJob(projectId, { id: "job-live-1", nodeId, version: 1, status: "queued" });
+    const live = generationJob(projectId, {
+      id: "job-live-1",
+      nodeId,
+      version: 1,
+      status: "queued",
+    });
 
     useGenerationStore.getState().recordJob(live);
 
@@ -606,7 +654,8 @@ describe("generation state", () => {
   it("keeps a newer durable pending identity when only an unrelated older live job is observed", async () => {
     const { useGenerationStore } = await import("./generation-store");
     const { useCanvasStore } = await import("./canvas-store");
-    const { browserSubmissionIdentity, persistBrowserSubmissionIdentity } = await import("../lib/browser-generation-runtime");
+    const { browserSubmissionIdentity, persistBrowserSubmissionIdentity } =
+      await import("../lib/browser-generation-runtime");
     const projectId = useCanvasStore.getState().projectId;
     const nodeId = useCanvasStore.getState().addNode("image", { x: 40, y: 60 });
     // The newer interrupted submission minted its durable identity while an
@@ -631,7 +680,8 @@ describe("generation state", () => {
   it("keeps a newer durable pending identity when a newer unrelated live job is observed", async () => {
     const { useGenerationStore } = await import("./generation-store");
     const { useCanvasStore } = await import("./canvas-store");
-    const { browserSubmissionIdentity, persistBrowserSubmissionIdentity } = await import("../lib/browser-generation-runtime");
+    const { browserSubmissionIdentity, persistBrowserSubmissionIdentity } =
+      await import("../lib/browser-generation-runtime");
     const projectId = useCanvasStore.getState().projectId;
     const nodeId = useCanvasStore.getState().addNode("image", { x: 40, y: 60 });
     // Even a job created after the durable identity cannot be authoritatively
@@ -656,7 +706,8 @@ describe("generation state", () => {
   it("mints a fresh identity for a genuinely new hosted submission on a settled node", async () => {
     const { useGenerationStore } = await import("./generation-store");
     const { useCanvasStore } = await import("./canvas-store");
-    const { browserSubmissionIdentity, persistBrowserSubmissionIdentity } = await import("../lib/browser-generation-runtime");
+    const { browserSubmissionIdentity, persistBrowserSubmissionIdentity } =
+      await import("../lib/browser-generation-runtime");
     const projectId = useCanvasStore.getState().projectId;
     const nodeId = useCanvasStore.getState().addNode("image", { x: 40, y: 60 });
     const node = useCanvasStore.getState().nodes.find((item) => item.id === nodeId)!;
@@ -684,7 +735,8 @@ describe("generation state", () => {
   it("reuses the durable identity while the node is already inside the ambiguous window", async () => {
     const { useGenerationStore } = await import("./generation-store");
     const { useCanvasStore } = await import("./canvas-store");
-    const { browserSubmissionIdentity, persistBrowserSubmissionIdentity } = await import("../lib/browser-generation-runtime");
+    const { browserSubmissionIdentity, persistBrowserSubmissionIdentity } =
+      await import("../lib/browser-generation-runtime");
     const projectId = useCanvasStore.getState().projectId;
     const nodeId = useCanvasStore.getState().addNode("image", { x: 40, y: 60 });
     const node = useCanvasStore.getState().nodes.find((item) => item.id === nodeId)!;
@@ -724,7 +776,11 @@ describe("generation state", () => {
   it("explicit abandonment releases the durable identity and makes the node actionable again", async () => {
     const { useGenerationStore } = await import("./generation-store");
     const { useCanvasStore } = await import("./canvas-store");
-    const { browserSubmissionIdentity, persistBrowserSubmissionIdentity, releaseBrowserSubmissionIdentity } = await import("../lib/browser-generation-runtime");
+    const {
+      browserSubmissionIdentity,
+      persistBrowserSubmissionIdentity,
+      releaseBrowserSubmissionIdentity,
+    } = await import("../lib/browser-generation-runtime");
     const projectId = useCanvasStore.getState().projectId;
     const nodeId = useCanvasStore.getState().addNode("image", { x: 40, y: 60 });
     persistBrowserSubmissionIdentity(projectId, nodeId, "job:to-abandon");
@@ -735,18 +791,22 @@ describe("generation state", () => {
     // reusing the abandoned request.
     releaseBrowserSubmissionIdentity(projectId, nodeId);
     const node = useCanvasStore.getState().nodes.find((item) => item.id === nodeId)!;
-    useCanvasStore.getState().updateNodeData(nodeId, {
-      status: node.data.media ? "success" : "idle",
-      progress: null,
-      generation: {
-        ...node.data.generation,
-        jobId: null,
-        jobVersion: null,
-        jobCreatedAt: null,
-        jobStatus: null,
-        error: "已放弃未确认的提交，请重新提交",
+    useCanvasStore.getState().updateNodeData(
+      nodeId,
+      {
+        status: node.data.media ? "success" : "idle",
+        progress: null,
+        generation: {
+          ...node.data.generation,
+          jobId: null,
+          jobVersion: null,
+          jobCreatedAt: null,
+          jobStatus: null,
+          error: "已放弃未确认的提交，请重新提交",
+        },
       },
-    }, false);
+      false,
+    );
 
     expect(browserSubmissionIdentity(projectId, nodeId)).toBeNull();
     const createKey = vi.fn(() => "job:after-abandon");
@@ -759,7 +819,8 @@ describe("generation state", () => {
     const { useGenerationStore } = await import("./generation-store");
     const { useCanvasStore } = await import("./canvas-store");
     const { useIdentityStore } = await import("./identity-store");
-    const { browserSubmissionIdentity, persistBrowserSubmissionIdentity } = await import("../lib/browser-generation-runtime");
+    const { browserSubmissionIdentity, persistBrowserSubmissionIdentity } =
+      await import("../lib/browser-generation-runtime");
     const projectId = useCanvasStore.getState().projectId;
     const nodeId = useCanvasStore.getState().addNode("image", { x: 40, y: 60 });
     const node = useCanvasStore.getState().nodes.find((item) => item.id === nodeId)!;
@@ -801,7 +862,8 @@ describe("generation state", () => {
     const { useGenerationStore } = await import("./generation-store");
     const { useCanvasStore } = await import("./canvas-store");
     const { useIdentityStore } = await import("./identity-store");
-    const { beginBrowserSubmission, endBrowserSubmission } = await import("../lib/browser-generation-runtime");
+    const { beginBrowserSubmission, endBrowserSubmission } =
+      await import("../lib/browser-generation-runtime");
     const projectId = useCanvasStore.getState().projectId;
     const nodeId = useCanvasStore.getState().addNode("image", { x: 40, y: 60 });
     const node = useCanvasStore.getState().nodes.find((item) => item.id === nodeId)!;
@@ -832,7 +894,8 @@ describe("generation state", () => {
     const { useGenerationStore } = await import("./generation-store");
     const { useCanvasStore } = await import("./canvas-store");
     const { useIdentityStore } = await import("./identity-store");
-    const { browserSubmissionIdentity, persistBrowserSubmissionIdentity } = await import("../lib/browser-generation-runtime");
+    const { browserSubmissionIdentity, persistBrowserSubmissionIdentity } =
+      await import("../lib/browser-generation-runtime");
     const projectId = useCanvasStore.getState().projectId;
     const nodeId = useCanvasStore.getState().addNode("image", { x: 40, y: 60 });
     const node = useCanvasStore.getState().nodes.find((item) => item.id === nodeId)!;
@@ -884,7 +947,8 @@ describe("generation state", () => {
     const { useGenerationStore } = await import("./generation-store");
     const { useCanvasStore } = await import("./canvas-store");
     const { useIdentityStore } = await import("./identity-store");
-    const { browserSubmissionIdentity, persistBrowserSubmissionIdentity } = await import("../lib/browser-generation-runtime");
+    const { browserSubmissionIdentity, persistBrowserSubmissionIdentity } =
+      await import("../lib/browser-generation-runtime");
     const projectId = useCanvasStore.getState().projectId;
     const nodeId = useCanvasStore.getState().addNode("image", { x: 40, y: 60 });
     const node = useCanvasStore.getState().nodes.find((item) => item.id === nodeId)!;
@@ -910,7 +974,10 @@ describe("generation state", () => {
     await useGenerationStore.getState().recoverProject(projectId);
 
     expect(browserSubmissionIdentity(projectId, nodeId)).toBeNull();
-    expect(api.subscribeGenerationJob).toHaveBeenCalledWith("job-reconciled-live", expect.anything());
+    expect(api.subscribeGenerationJob).toHaveBeenCalledWith(
+      "job-reconciled-live",
+      expect.anything(),
+    );
     expect(useCanvasStore.getState().nodes.find((item) => item.id === nodeId)?.data).toMatchObject({
       status: "running",
       progress: 12,
@@ -922,7 +989,8 @@ describe("generation state", () => {
     const { useGenerationStore } = await import("./generation-store");
     const { useCanvasStore } = await import("./canvas-store");
     const { useIdentityStore } = await import("./identity-store");
-    const { browserSubmissionIdentity, persistBrowserSubmissionIdentity } = await import("../lib/browser-generation-runtime");
+    const { browserSubmissionIdentity, persistBrowserSubmissionIdentity } =
+      await import("../lib/browser-generation-runtime");
     const projectId = useCanvasStore.getState().projectId;
     const nodeId = useCanvasStore.getState().addNode("image", { x: 40, y: 60 });
     const node = useCanvasStore.getState().nodes.find((item) => item.id === nodeId)!;
@@ -966,7 +1034,8 @@ describe("generation state", () => {
     const { useGenerationStore } = await import("./generation-store");
     const { useCanvasStore } = await import("./canvas-store");
     const { useIdentityStore } = await import("./identity-store");
-    const { browserSubmissionIdentity, persistBrowserSubmissionIdentity } = await import("../lib/browser-generation-runtime");
+    const { browserSubmissionIdentity, persistBrowserSubmissionIdentity } =
+      await import("../lib/browser-generation-runtime");
     const projectId = useCanvasStore.getState().projectId;
     const nodeId = useCanvasStore.getState().addNode("image", { x: 40, y: 60 });
     const node = useCanvasStore.getState().nodes.find((item) => item.id === nodeId)!;
@@ -1023,7 +1092,8 @@ describe("generation state", () => {
     const { useGenerationStore } = await import("./generation-store");
     const { useCanvasStore } = await import("./canvas-store");
     const { useIdentityStore } = await import("./identity-store");
-    const { browserSubmissionIdentity, persistBrowserSubmissionIdentity } = await import("../lib/browser-generation-runtime");
+    const { browserSubmissionIdentity, persistBrowserSubmissionIdentity } =
+      await import("../lib/browser-generation-runtime");
     const projectId = useCanvasStore.getState().projectId;
     const nodeId = useCanvasStore.getState().addNode("image", { x: 40, y: 60 });
     const node = useCanvasStore.getState().nodes.find((item) => item.id === nodeId)!;
@@ -1039,13 +1109,15 @@ describe("generation state", () => {
     useIdentityStore.setState(authenticatedIdentity());
 
     vi.setSystemTime(T0 + WINDOW + 60_000);
-    api.reconcileGenerationJob.mockResolvedValue(generationJob(projectId, {
-      id: "job-old-but-accepted",
-      nodeId,
-      version: 3,
-      status: "running",
-      progress: 72,
-    }));
+    api.reconcileGenerationJob.mockResolvedValue(
+      generationJob(projectId, {
+        id: "job-old-but-accepted",
+        nodeId,
+        version: 3,
+        status: "running",
+        progress: 72,
+      }),
+    );
     await useGenerationStore.getState().recoverProject(projectId);
 
     // Authoritative resolution wins over expiry: the node converges to the live
@@ -1075,13 +1147,15 @@ describe("generation state", () => {
         jobStatus: "running",
       },
     });
-    api.fetchGenerationJob.mockResolvedValue(generationJob(projectId, {
-      id: "job-capped-out",
-      nodeId,
-      version: 2,
-      status: "running",
-      progress: 44,
-    }));
+    api.fetchGenerationJob.mockResolvedValue(
+      generationJob(projectId, {
+        id: "job-capped-out",
+        nodeId,
+        version: 2,
+        status: "running",
+        progress: 44,
+      }),
+    );
     useIdentityStore.setState(authenticatedIdentity());
 
     await useGenerationStore.getState().recoverProject(projectId);
@@ -1099,7 +1173,8 @@ describe("generation state", () => {
     const { useGenerationStore } = await import("./generation-store");
     const { useCanvasStore } = await import("./canvas-store");
     const { useIdentityStore } = await import("./identity-store");
-    const { browserSubmissionIdentity, persistBrowserSubmissionIdentity } = await import("../lib/browser-generation-runtime");
+    const { browserSubmissionIdentity, persistBrowserSubmissionIdentity } =
+      await import("../lib/browser-generation-runtime");
     const projectId = useCanvasStore.getState().projectId;
     const nodeId = useCanvasStore.getState().addNode("image", { x: 40, y: 60 });
     const node = useCanvasStore.getState().nodes.find((item) => item.id === nodeId)!;
@@ -1112,7 +1187,9 @@ describe("generation state", () => {
       },
     });
     persistBrowserSubmissionIdentity(projectId, nodeId, "job:recent-key");
-    api.reconcileGenerationJob.mockRejectedValue(new CanvasApiError(0, "NETWORK_UNAVAILABLE", "无法连接画布服务"));
+    api.reconcileGenerationJob.mockRejectedValue(
+      new CanvasApiError(0, "NETWORK_UNAVAILABLE", "无法连接画布服务"),
+    );
     useIdentityStore.setState(authenticatedIdentity());
 
     await useGenerationStore.getState().recoverProject(projectId);
@@ -1154,7 +1231,10 @@ describe("generation state", () => {
 
     await useGenerationStore.getState().recoverProject(projectId);
 
-    expect(api.subscribeGenerationJob).toHaveBeenCalledWith("job-accepted-submitting", expect.anything());
+    expect(api.subscribeGenerationJob).toHaveBeenCalledWith(
+      "job-accepted-submitting",
+      expect.anything(),
+    );
     expect(useCanvasStore.getState().nodes.find((item) => item.id === nodeId)?.data).toMatchObject({
       status: "running",
       generation: { jobId: "job-accepted-submitting", jobStatus: "submitting" },
@@ -1176,16 +1256,18 @@ describe("generation state", () => {
         jobStatus: "submitting",
       },
     });
-    api.listGenerationJobs.mockResolvedValue([generationJob(projectId, {
-      id: "job-already-completed",
-      nodeId,
-      version: 4,
-      status: "completed",
-      progress: 100,
-      createdAt: "2026-07-23T08:00:00.000Z",
-      updatedAt: "2026-07-23T08:01:00.000Z",
-      completedAt: "2026-07-23T08:01:00.000Z",
-    })]);
+    api.listGenerationJobs.mockResolvedValue([
+      generationJob(projectId, {
+        id: "job-already-completed",
+        nodeId,
+        version: 4,
+        status: "completed",
+        progress: 100,
+        createdAt: "2026-07-23T08:00:00.000Z",
+        updatedAt: "2026-07-23T08:01:00.000Z",
+        completedAt: "2026-07-23T08:01:00.000Z",
+      }),
+    ]);
     useIdentityStore.setState(authenticatedIdentity());
 
     await useGenerationStore.getState().recoverProject(projectId);
@@ -1218,16 +1300,22 @@ describe("generation state", () => {
         error: null,
       },
     });
-    api.listGenerationJobs.mockResolvedValue([generationJob(projectId, {
-      id: "job-unknown",
-      nodeId,
-      version: 1,
-      status: "submission_unknown",
-      progress: 0,
-      error: { code: "GENERATION_SUBMISSION_UNCONFIRMED", message: "任务提交结果待确认", retryable: false },
-      createdAt: "2026-07-23T08:00:05.000Z",
-      updatedAt: "2026-07-23T08:00:05.000Z",
-    })]);
+    api.listGenerationJobs.mockResolvedValue([
+      generationJob(projectId, {
+        id: "job-unknown",
+        nodeId,
+        version: 1,
+        status: "submission_unknown",
+        progress: 0,
+        error: {
+          code: "GENERATION_SUBMISSION_UNCONFIRMED",
+          message: "任务提交结果待确认",
+          retryable: false,
+        },
+        createdAt: "2026-07-23T08:00:05.000Z",
+        updatedAt: "2026-07-23T08:00:05.000Z",
+      }),
+    ]);
     useIdentityStore.setState(authenticatedIdentity());
 
     await useGenerationStore.getState().recoverProject(projectId);
@@ -1491,8 +1579,28 @@ describe("generation state", () => {
       },
     });
     const artifacts = [
-      { id: "artifact-primary", kind: "image" as const, mediaId: "media-primary", name: "primary.png", mimeType: "image/png", size: 1, width: 1, height: 1, createdAt: "2026-07-23T08:02:00.000Z" },
-      { id: "artifact-extra", kind: "image" as const, mediaId: "media-extra", name: "extra.png", mimeType: "image/png", size: 1, width: 1, height: 1, createdAt: "2026-07-23T08:02:00.000Z" },
+      {
+        id: "artifact-primary",
+        kind: "image" as const,
+        mediaId: "media-primary",
+        name: "primary.png",
+        mimeType: "image/png",
+        size: 1,
+        width: 1,
+        height: 1,
+        createdAt: "2026-07-23T08:02:00.000Z",
+      },
+      {
+        id: "artifact-extra",
+        kind: "image" as const,
+        mediaId: "media-extra",
+        name: "extra.png",
+        mimeType: "image/png",
+        size: 1,
+        width: 1,
+        height: 1,
+        createdAt: "2026-07-23T08:02:00.000Z",
+      },
     ];
     const completed = generationJob(projectId, {
       id: "job-exact-once",
@@ -1526,7 +1634,9 @@ describe("generation state", () => {
       media: { id: "media-extra" },
       generation: { jobId: "job-exact-once", jobStatus: "completed" },
     });
-    expect(useCanvasStore.getState().edges.filter((edge) => edge.source === nodeId)).toHaveLength(1);
+    expect(useCanvasStore.getState().edges.filter((edge) => edge.source === nodeId)).toHaveLength(
+      1,
+    );
   });
 
   it("recovers a pre-existing running node to a completed result exactly once and stops the generation effect", async () => {
@@ -1553,27 +1663,30 @@ describe("generation state", () => {
       version: 2,
       status: "completed",
       progress: 100,
-      artifacts: [{
-        id: "artifact-history-primary",
-        kind: "image" as const,
-        mediaId: "media-history-primary",
-        name: "result.png",
-        mimeType: "image/png",
-        size: 1,
-        width: 1,
-        height: 1,
-        createdAt: "2026-07-23T08:02:00.000Z",
-      }, {
-        id: "artifact-history-extra",
-        kind: "image" as const,
-        mediaId: "media-history-extra",
-        name: "extra.png",
-        mimeType: "image/png",
-        size: 1,
-        width: 1,
-        height: 1,
-        createdAt: "2026-07-23T08:02:00.000Z",
-      }],
+      artifacts: [
+        {
+          id: "artifact-history-primary",
+          kind: "image" as const,
+          mediaId: "media-history-primary",
+          name: "result.png",
+          mimeType: "image/png",
+          size: 1,
+          width: 1,
+          height: 1,
+          createdAt: "2026-07-23T08:02:00.000Z",
+        },
+        {
+          id: "artifact-history-extra",
+          kind: "image" as const,
+          mediaId: "media-history-extra",
+          name: "extra.png",
+          mimeType: "image/png",
+          size: 1,
+          width: 1,
+          height: 1,
+          createdAt: "2026-07-23T08:02:00.000Z",
+        },
+      ],
       completedAt: "2026-07-23T08:02:00.000Z",
       updatedAt: "2026-07-23T08:02:00.000Z",
     });
@@ -1606,11 +1719,16 @@ describe("generation state", () => {
     const additional = useCanvasStore.getState().nodes.filter((item) => item.id !== nodeId);
     expect(additional).toHaveLength(1);
     expect(additional[0]?.data).toMatchObject({ media: { id: "media-history-extra" } });
-    expect(useCanvasStore.getState().edges.filter((edge) => edge.source === nodeId)).toHaveLength(1);
+    expect(useCanvasStore.getState().edges.filter((edge) => edge.source === nodeId)).toHaveLength(
+      1,
+    );
   });
 });
 
-function generationJob(projectId: string, overrides: Partial<PublicGenerationJob> = {}): PublicGenerationJob {
+function generationJob(
+  projectId: string,
+  overrides: Partial<PublicGenerationJob> = {},
+): PublicGenerationJob {
   return {
     schemaVersion: 1,
     version: 1,
@@ -1703,12 +1821,18 @@ function authenticatedIdentity() {
 function installMemoryStorage() {
   const entries = new Map<string, string>();
   const storage: Storage = {
-    get length() { return entries.size; },
+    get length() {
+      return entries.size;
+    },
     clear: () => entries.clear(),
     getItem: (key) => entries.get(key) ?? null,
     key: (index) => [...entries.keys()][index] ?? null,
-    removeItem: (key) => { entries.delete(key); },
-    setItem: (key, value) => { entries.set(key, value); },
+    removeItem: (key) => {
+      entries.delete(key);
+    },
+    setItem: (key, value) => {
+      entries.set(key, value);
+    },
   };
   Object.defineProperty(globalThis, "localStorage", { configurable: true, value: storage });
 }

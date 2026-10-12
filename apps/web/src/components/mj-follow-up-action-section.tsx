@@ -1,12 +1,12 @@
-import type { ModelParameter, PublicModel } from "@kachang/contracts";
+import type { ModelParameter, PublicModel } from "@weftcanvas/contracts";
 import { MousePointerClick } from "lucide-react";
 import { useEffect, useRef } from "react";
 
+import { MJ_ACTION_OPTIONS, type MjActionMeta } from "../lib/generation-parameter-hints";
 import {
-  MJ_ACTION_OPTIONS,
-  type MjActionMeta,
-} from "../lib/generation-parameter-hints";
-import { GenerationParameterField, generationParameterOptionLabel } from "./generation-parameter-field";
+  GenerationParameterField,
+  generationParameterOptionLabel,
+} from "./generation-parameter-field";
 import { CanvasSelect } from "./canvas-select";
 
 const UNSET = "__unset__";
@@ -42,8 +42,11 @@ export function FollowUpActionSection({
   onChange: (name: string, value: unknown) => void;
   onValidityChange: (name: string, valid: boolean) => void;
 }) {
-  const selectedAction = typeof values[actionParameter.name] === "string" ? values[actionParameter.name] as string : undefined;
-  const meta = selectedAction ? MJ_ACTION_OPTIONS[selectedAction] ?? null : null;
+  const selectedAction =
+    typeof values[actionParameter.name] === "string"
+      ? (values[actionParameter.name] as string)
+      : undefined;
+  const meta = selectedAction ? (MJ_ACTION_OPTIONS[selectedAction] ?? null) : null;
   const missingTaskId = Boolean(meta?.needsTaskId) && !String(values.task_id ?? "").trim();
   const missingImages = Boolean(meta && referenceImageCount < meta.needsImages);
   const valid = !meta || (!missingTaskId && !missingImages);
@@ -58,7 +61,7 @@ export function FollowUpActionSection({
   // 切换/取消动作时清掉不再需要的配套参数，避免「生成 + 残留 task_id」这类
   // 拼凑组合被一起提交。
   const changeAction = (next: string | undefined) => {
-    const nextMeta = next ? MJ_ACTION_OPTIONS[next] ?? null : null;
+    const nextMeta = next ? (MJ_ACTION_OPTIONS[next] ?? null) : null;
     for (const parameter of dependentParameters) {
       const keep = nextMeta ? nextMeta.fields.includes(parameter.name) : false;
       if (!keep && values[parameter.name] !== undefined) onChange(parameter.name, undefined);
@@ -72,15 +75,15 @@ export function FollowUpActionSection({
   const customIdFilled = String(values.custom_id ?? "").trim().length > 0;
 
   return (
-    <section className="kc-generation-action-group" aria-label="后续操作">
-      <header className="kc-generation-action-header">
+    <section className="wc-generation-action-group" aria-label="后续操作">
+      <header className="wc-generation-action-header">
         <MousePointerClick aria-hidden="true" />
         <div>
           <strong>后续操作（对已完成的任务）</strong>
           <small>放大、变体、扩图、融图等是单独计费的二次操作；直接生成新图时保持「不使用」</small>
         </div>
       </header>
-      <div className="kc-generation-field">
+      <div className="wc-generation-field">
         <span title="选择要对上一次任务执行的操作">{actionParameter.label}</span>
         <CanvasSelect
           value={selectedAction === undefined ? UNSET : JSON.stringify(selectedAction)}
@@ -97,21 +100,24 @@ export function FollowUpActionSection({
         />
       </div>
       {meta ? (
-        <p className="kc-generation-action-hint">
+        <p className="wc-generation-action-hint">
           {meta.hint}
           {customIdFilled ? "（已填按钮 ID：以其为准）" : ""}
         </p>
       ) : null}
       {missingTaskId ? (
-        <p className="kc-generation-action-error" role="alert">还差「父任务 ID」：在最近任务里复制上一次生成任务的 ID。</p>
+        <p className="wc-generation-action-error" role="alert">
+          还差「父任务 ID」：在最近任务里复制上一次生成任务的 ID。
+        </p>
       ) : null}
       {missingImages ? (
-        <p className="kc-generation-action-error" role="alert">
-          还差参考图片：需要先连接 {meta!.needsImages - referenceImageCount} 张图片素材（当前 {referenceImageCount} 张）。
+        <p className="wc-generation-action-error" role="alert">
+          还差参考图片：需要先连接 {meta!.needsImages - referenceImageCount} 张图片素材（当前{" "}
+          {referenceImageCount} 张）。
         </p>
       ) : null}
       {visibleDependents.length ? (
-        <div className="kc-generation-action-fields">
+        <div className="wc-generation-action-fields">
           {visibleDependents.map((parameter) => (
             <GenerationParameterField
               key={`${model.id}:${parameter.name}`}

@@ -1,7 +1,7 @@
-import { createId } from "@kachang/canvas-core";
-import type { CanvasMedia } from "@kachang/contracts";
+import { createId } from "@weftcanvas/canvas-core";
+import type { CanvasMedia } from "@weftcanvas/contracts";
 
-const DATABASE_NAME = "kachang-canvas-asset-library";
+const DATABASE_NAME = "weftcanvas-asset-library";
 const DATABASE_VERSION = 3;
 const ASSET_STORE_NAME = "assets";
 const CATEGORY_STORE_NAME = "categories";
@@ -132,7 +132,11 @@ export async function removeAssetLibraryItem(itemId: string) {
 }
 
 /** 新建一条纯提示词资产（没有媒体文件）。 */
-export async function savePromptAssetItem(input: { name?: string; prompt: string; categoryId?: string | null }) {
+export async function savePromptAssetItem(input: {
+  name?: string;
+  prompt: string;
+  categoryId?: string | null;
+}) {
   const prompt = input.prompt.trim();
   if (!prompt) throw new Error("提示词不能为空");
   const now = Date.now();
@@ -154,7 +158,10 @@ export async function savePromptAssetItem(input: { name?: string; prompt: string
 }
 
 /** 修改资产的名称或提示词；图片/视频资产也能挂上提示词。 */
-export async function updateAssetLibraryItem(itemId: string, patch: { name?: string; prompt?: string }) {
+export async function updateAssetLibraryItem(
+  itemId: string,
+  patch: { name?: string; prompt?: string },
+) {
   const item = await getRecord<AssetLibraryItem>(ASSET_STORE_NAME, itemId);
   if (!item) throw new Error("资产不存在");
   const next: AssetLibraryItem = {
@@ -170,7 +177,11 @@ export async function updateAssetLibraryItem(itemId: string, patch: { name?: str
 export async function createAssetLibraryCategory(name: string) {
   const normalized = normalizeCategoryName(name);
   const categories = await listAssetLibraryCategories();
-  if (categories.some((category) => category.name.toLocaleLowerCase() === normalized.toLocaleLowerCase())) {
+  if (
+    categories.some(
+      (category) => category.name.toLocaleLowerCase() === normalized.toLocaleLowerCase(),
+    )
+  ) {
     throw new Error("分类名称已存在");
   }
   const now = Date.now();
@@ -187,7 +198,13 @@ export async function createAssetLibraryCategory(name: string) {
 export async function renameAssetLibraryCategory(categoryId: string, name: string) {
   const normalized = normalizeCategoryName(name);
   const categories = await listAssetLibraryCategories();
-  if (categories.some((category) => category.id !== categoryId && category.name.toLocaleLowerCase() === normalized.toLocaleLowerCase())) {
+  if (
+    categories.some(
+      (category) =>
+        category.id !== categoryId &&
+        category.name.toLocaleLowerCase() === normalized.toLocaleLowerCase(),
+    )
+  ) {
     throw new Error("分类名称已存在");
   }
   const category = categories.find((item) => item.id === categoryId);
@@ -213,7 +230,8 @@ export async function removeAssetLibraryCategory(categoryId: string) {
     };
     itemsRequest.onerror = () => transaction.abort();
     transaction.oncomplete = () => resolve();
-    transaction.onabort = () => reject(transaction.error ?? itemsRequest.error ?? new Error("分类删除失败"));
+    transaction.onabort = () =>
+      reject(transaction.error ?? itemsRequest.error ?? new Error("分类删除失败"));
     transaction.onerror = () => reject(transaction.error ?? new Error("分类删除失败"));
   });
 }
@@ -221,10 +239,12 @@ export async function removeAssetLibraryCategory(categoryId: string) {
 export async function collectAssetLibraryMediaIds() {
   if (typeof indexedDB === "undefined") return new Set<string>();
   const items = await listAssetLibraryItems();
-  return new Set(items.flatMap((item) => [
-    ...(item.media ? [item.media.id] : []),
-    ...item.gallery.map((media) => media.id),
-  ]));
+  return new Set(
+    items.flatMap((item) => [
+      ...(item.media ? [item.media.id] : []),
+      ...item.gallery.map((media) => media.id),
+    ]),
+  );
 }
 
 function normalizeCategoryName(name: string) {
@@ -291,17 +311,29 @@ export const PROJECT_ASSET_INBOX_BY_KIND = {
 } as const;
 
 export function isProjectAssetInboxCategory(categoryId: string) {
-  return categoryId === PROJECT_ASSET_IMAGE_INBOX_CATEGORY_ID
-    || categoryId === PROJECT_ASSET_VIDEO_INBOX_CATEGORY_ID
-    || categoryId === PROJECT_ASSET_AUDIO_INBOX_CATEGORY_ID;
+  return (
+    categoryId === PROJECT_ASSET_IMAGE_INBOX_CATEGORY_ID ||
+    categoryId === PROJECT_ASSET_VIDEO_INBOX_CATEGORY_ID ||
+    categoryId === PROJECT_ASSET_AUDIO_INBOX_CATEGORY_ID
+  );
 }
 
 /** 曾经默认预置、现已不再预置的文件夹：为空时清掉，有内容则原样保留。 */
-const RETIRED_PROJECT_ASSET_CATEGORY_IDS = new Set(["pcat:character", "pcat:scene", "pcat:sound", "pcat:prompt"]);
+const RETIRED_PROJECT_ASSET_CATEGORY_IDS = new Set([
+  "pcat:character",
+  "pcat:scene",
+  "pcat:sound",
+  "pcat:prompt",
+]);
 
 type ScopedAssetRecord = ProjectAssetItem & { storageId: string; scopeId: string };
 type ScopedCategoryRecord = ProjectAssetCategory & { storageId: string; scopeId: string };
-type ScopedTombstoneRecord = { storageId: string; scopeId: string; sourceId: string; deletedAt: number };
+type ScopedTombstoneRecord = {
+  storageId: string;
+  scopeId: string;
+  sourceId: string;
+  deletedAt: number;
+};
 
 const scopedKey = (scopeId: string, id: string) => `${scopeId}:${id}`;
 
@@ -321,7 +353,9 @@ async function readScoped<T extends { scopeId: string }>(storeName: string, scop
 export async function listProjectAssetCategories(scopeId: string) {
   if (!scopeId) return [];
   const categories = await readScoped<ScopedCategoryRecord>(SCOPED_CATEGORY_STORE_NAME, scopeId);
-  const systemOrder = new Map<string, number>(PROJECT_ASSET_SYSTEM_CATEGORIES.map((category, index) => [category.id, index]));
+  const systemOrder = new Map<string, number>(
+    PROJECT_ASSET_SYSTEM_CATEGORIES.map((category, index) => [category.id, index]),
+  );
   return categories
     .map(({ storageId: _storageId, scopeId: _scopeId, ...category }) => category)
     .sort((left, right) => {
@@ -375,10 +409,14 @@ export async function ensureProjectAssetCategories(scopeId: string) {
 /** 删除历史默认文件夹中已经没有任何资产的空目录；有内容的保留，避免丢用户归类。 */
 async function removeRetiredEmptyCategories(scopeId: string) {
   const categories = await readScoped<ScopedCategoryRecord>(SCOPED_CATEGORY_STORE_NAME, scopeId);
-  const retired = categories.filter((category) => RETIRED_PROJECT_ASSET_CATEGORY_IDS.has(category.id));
+  const retired = categories.filter((category) =>
+    RETIRED_PROJECT_ASSET_CATEGORY_IDS.has(category.id),
+  );
   if (!retired.length) return;
   const items = await readScoped<ScopedAssetRecord>(SCOPED_ASSET_STORE_NAME, scopeId);
-  const used = new Set(items.map((item) => item.categoryId).filter((id): id is string => Boolean(id)));
+  const used = new Set(
+    items.map((item) => item.categoryId).filter((id): id is string => Boolean(id)),
+  );
   const removable = retired.filter((category) => !used.has(category.id));
   if (!removable.length) return;
   const database = await openDatabase();
@@ -395,7 +433,11 @@ async function removeRetiredEmptyCategories(scopeId: string) {
 export async function createProjectAssetCategory(scopeId: string, name: string) {
   const normalized = normalizeCategoryName(name);
   const categories = await listProjectAssetCategories(scopeId);
-  if (categories.some((category) => category.name.toLocaleLowerCase() === normalized.toLocaleLowerCase())) {
+  if (
+    categories.some(
+      (category) => category.name.toLocaleLowerCase() === normalized.toLocaleLowerCase(),
+    )
+  ) {
     throw new Error("分类名称已存在");
   }
   const now = Date.now();
@@ -406,20 +448,38 @@ export async function createProjectAssetCategory(scopeId: string, name: string) 
     createdAt: now,
     updatedAt: now,
   };
-  await putRecord(SCOPED_CATEGORY_STORE_NAME, { ...category, storageId: scopedKey(scopeId, category.id), scopeId });
+  await putRecord(SCOPED_CATEGORY_STORE_NAME, {
+    ...category,
+    storageId: scopedKey(scopeId, category.id),
+    scopeId,
+  });
   return category;
 }
 
-export async function renameProjectAssetCategory(scopeId: string, categoryId: string, name: string) {
+export async function renameProjectAssetCategory(
+  scopeId: string,
+  categoryId: string,
+  name: string,
+) {
   const normalized = normalizeCategoryName(name);
   const categories = await listProjectAssetCategories(scopeId);
-  if (categories.some((category) => category.id !== categoryId && category.name.toLocaleLowerCase() === normalized.toLocaleLowerCase())) {
+  if (
+    categories.some(
+      (category) =>
+        category.id !== categoryId &&
+        category.name.toLocaleLowerCase() === normalized.toLocaleLowerCase(),
+    )
+  ) {
     throw new Error("分类名称已存在");
   }
   const category = categories.find((item) => item.id === categoryId);
   if (!category) throw new Error("分类不存在");
   const next: ProjectAssetCategory = { ...category, name: normalized, updatedAt: Date.now() };
-  await putRecord(SCOPED_CATEGORY_STORE_NAME, { ...next, storageId: scopedKey(scopeId, categoryId), scopeId });
+  await putRecord(SCOPED_CATEGORY_STORE_NAME, {
+    ...next,
+    storageId: scopedKey(scopeId, categoryId),
+    scopeId,
+  });
   return next;
 }
 
@@ -430,7 +490,10 @@ export async function removeProjectAssetCategory(scopeId: string, categoryId: st
   }
   const database = await openDatabase();
   await new Promise<void>((resolve, reject) => {
-    const transaction = database.transaction([SCOPED_ASSET_STORE_NAME, SCOPED_CATEGORY_STORE_NAME], "readwrite");
+    const transaction = database.transaction(
+      [SCOPED_ASSET_STORE_NAME, SCOPED_CATEGORY_STORE_NAME],
+      "readwrite",
+    );
     const assetStore = transaction.objectStore(SCOPED_ASSET_STORE_NAME);
     const scopeIndex = assetStore.index(SCOPE_INDEX_NAME);
     const itemsRequest = scopeIndex.getAll(scopeId);
@@ -443,7 +506,8 @@ export async function removeProjectAssetCategory(scopeId: string, categoryId: st
     };
     itemsRequest.onerror = () => transaction.abort();
     transaction.oncomplete = () => resolve();
-    transaction.onabort = () => reject(transaction.error ?? itemsRequest.error ?? new Error("分类删除失败"));
+    transaction.onabort = () =>
+      reject(transaction.error ?? itemsRequest.error ?? new Error("分类删除失败"));
     transaction.onerror = () => reject(transaction.error ?? new Error("分类删除失败"));
   });
 }
@@ -470,13 +534,17 @@ export async function saveProjectAssetFromMedia(
     name: input.name.trim().slice(0, 64) || input.media.name.slice(0, 64) || "未命名资产",
     prompt: input.prompt.trim().slice(0, 4000),
     media: input.media,
-    categoryId: input.categoryId === undefined ? existing?.categoryId ?? null : input.categoryId,
+    categoryId: input.categoryId === undefined ? (existing?.categoryId ?? null) : input.categoryId,
     source: input.source ?? "canvas",
     sourceId: input.media.id,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };
-  await putRecord(SCOPED_ASSET_STORE_NAME, { ...item, storageId: scopedKey(scopeId, item.id), scopeId });
+  await putRecord(SCOPED_ASSET_STORE_NAME, {
+    ...item,
+    storageId: scopedKey(scopeId, item.id),
+    scopeId,
+  });
   return item;
 }
 
@@ -500,15 +568,32 @@ export async function saveProjectPromptAsset(
     createdAt: now,
     updatedAt: now,
   };
-  await putRecord(SCOPED_ASSET_STORE_NAME, { ...item, storageId: scopedKey(scopeId, item.id), scopeId });
+  await putRecord(SCOPED_ASSET_STORE_NAME, {
+    ...item,
+    storageId: scopedKey(scopeId, item.id),
+    scopeId,
+  });
   return item;
 }
 
-export async function setProjectAssetItemCategory(scopeId: string, itemId: string, categoryId: string | null) {
-  if (categoryId && !(await getRecord<ScopedCategoryRecord>(SCOPED_CATEGORY_STORE_NAME, scopedKey(scopeId, categoryId)))) {
+export async function setProjectAssetItemCategory(
+  scopeId: string,
+  itemId: string,
+  categoryId: string | null,
+) {
+  if (
+    categoryId &&
+    !(await getRecord<ScopedCategoryRecord>(
+      SCOPED_CATEGORY_STORE_NAME,
+      scopedKey(scopeId, categoryId),
+    ))
+  ) {
     throw new Error("分类不存在");
   }
-  const record = await getRecord<ScopedAssetRecord>(SCOPED_ASSET_STORE_NAME, scopedKey(scopeId, itemId));
+  const record = await getRecord<ScopedAssetRecord>(
+    SCOPED_ASSET_STORE_NAME,
+    scopedKey(scopeId, itemId),
+  );
   if (!record) throw new Error("资产不存在");
   const next: ScopedAssetRecord = { ...record, categoryId, updatedAt: Date.now() };
   await putRecord(SCOPED_ASSET_STORE_NAME, next);
@@ -519,7 +604,10 @@ export async function setProjectAssetItemCategory(scopeId: string, itemId: strin
 export async function renameProjectAssetItem(scopeId: string, itemId: string, name: string) {
   const normalized = name.trim().replace(/\s+/g, " ").slice(0, 64);
   if (!normalized) throw new Error("请输入资产名称");
-  const record = await getRecord<ScopedAssetRecord>(SCOPED_ASSET_STORE_NAME, scopedKey(scopeId, itemId));
+  const record = await getRecord<ScopedAssetRecord>(
+    SCOPED_ASSET_STORE_NAME,
+    scopedKey(scopeId, itemId),
+  );
   if (!record) throw new Error("资产不存在");
   const next: ScopedAssetRecord = { ...record, name: normalized, updatedAt: Date.now() };
   await putRecord(SCOPED_ASSET_STORE_NAME, next);
@@ -529,7 +617,10 @@ export async function renameProjectAssetItem(scopeId: string, itemId: string, na
 
 /** 删除资产并记墓碑：自动收集不会把已删除的资产再捞回来。 */
 export async function removeProjectAssetItem(scopeId: string, itemId: string) {
-  const record = await getRecord<ScopedAssetRecord>(SCOPED_ASSET_STORE_NAME, scopedKey(scopeId, itemId));
+  const record = await getRecord<ScopedAssetRecord>(
+    SCOPED_ASSET_STORE_NAME,
+    scopedKey(scopeId, itemId),
+  );
   await deleteRecord(SCOPED_ASSET_STORE_NAME, scopedKey(scopeId, itemId));
   if (record?.sourceId) {
     await putRecord(SCOPED_TOMBSTONE_STORE_NAME, {

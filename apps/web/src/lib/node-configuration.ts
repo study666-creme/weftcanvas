@@ -1,10 +1,10 @@
-import type { ModelModality } from "@kachang/contracts";
+import type { ModelModality } from "@weftcanvas/contracts";
 
-import type { KachangEdge, KachangNode } from "../types";
+import type { WeftcanvasEdge, WeftcanvasNode } from "../types";
 import { nodeDefaultDimensions } from "./node-factory";
 import { generationParametersAspectRatio } from "./node-size";
 
-export function isGenerationModality(kind: KachangNode["data"]["kind"]): kind is ModelModality {
+export function isGenerationModality(kind: WeftcanvasNode["data"]["kind"]): kind is ModelModality {
   return kind !== "config";
 }
 
@@ -16,15 +16,15 @@ export function isGenerationModality(kind: KachangNode["data"]["kind"]): kind is
  * 画布在节点变多后掉帧的主因。索引一次构建 O(N+E)，之后每次查询只走哈希与入边列表。
  */
 export type ConfigurationIndex = {
-  nodeById: Map<string, KachangNode>;
+  nodeById: Map<string, WeftcanvasNode>;
   inboundSources: Map<string, string[]>;
 };
 
 export function createConfigurationIndex(
-  nodes: KachangNode[],
-  edges: KachangEdge[],
+  nodes: WeftcanvasNode[],
+  edges: WeftcanvasEdge[],
 ): ConfigurationIndex {
-  const nodeById = new Map<string, KachangNode>();
+  const nodeById = new Map<string, WeftcanvasNode>();
   for (const node of nodes) {
     // 与 Array.prototype.find 保持一致：重复 id 时保留第一个出现的节点。
     if (!nodeById.has(node.id)) nodeById.set(node.id, node);
@@ -42,7 +42,7 @@ export function createConfigurationIndex(
 export function findConfigurationSourceWithIndex(
   index: ConfigurationIndex,
   nodeId: string,
-): KachangNode | null {
+): WeftcanvasNode | null {
   const target = index.nodeById.get(nodeId);
   if (!target) return null;
   if (target.data.kind === "config") return target;
@@ -64,14 +64,14 @@ export function findConfigurationSourceWithIndex(
 
 export function findConfigurationSource(
   nodeId: string,
-  nodes: KachangNode[],
-  edges: KachangEdge[],
-): KachangNode | null {
+  nodes: WeftcanvasNode[],
+  edges: WeftcanvasEdge[],
+): WeftcanvasNode | null {
   return findConfigurationSourceWithIndex(createConfigurationIndex(nodes, edges), nodeId);
 }
 
-let sharedIndexNodes: KachangNode[] | null = null;
-let sharedIndexEdges: KachangEdge[] | null = null;
+let sharedIndexNodes: WeftcanvasNode[] | null = null;
+let sharedIndexEdges: WeftcanvasEdge[] | null = null;
 let sharedIndex: ConfigurationIndex | null = null;
 
 /**
@@ -79,8 +79,8 @@ let sharedIndex: ConfigurationIndex | null = null;
  * 缓存只保留最新一份引用，不会累积历史快照；数组引用变化（任何图变更）即失效。
  */
 export function getSharedConfigurationIndex(
-  nodes: KachangNode[],
-  edges: KachangEdge[],
+  nodes: WeftcanvasNode[],
+  edges: WeftcanvasEdge[],
 ): ConfigurationIndex {
   if (sharedIndex && sharedIndexNodes === nodes && sharedIndexEdges === edges) return sharedIndex;
   sharedIndexNodes = nodes;
@@ -90,17 +90,19 @@ export function getSharedConfigurationIndex(
 }
 
 export function syncConfigurationTargets(
-  nodes: KachangNode[],
-  edges: KachangEdge[],
+  nodes: WeftcanvasNode[],
+  edges: WeftcanvasEdge[],
   sourceId: string,
-): KachangNode[] {
+): WeftcanvasNode[] {
   const index = createConfigurationIndex(nodes, edges);
   const source = index.nodeById.get(sourceId);
   if (source?.data.kind !== "config") return nodes;
   const modality = source.data.config?.modality ?? "image";
   if (!isConfigModality(modality)) return nodes;
 
-  const targetIds = new Set(edges.filter((edge) => edge.source === sourceId).map((edge) => edge.target));
+  const targetIds = new Set(
+    edges.filter((edge) => edge.source === sourceId).map((edge) => edge.target),
+  );
   if (!targetIds.size) return nodes;
 
   return nodes.map((node) => {
@@ -129,7 +131,7 @@ export function syncConfigurationTargets(
 }
 
 export function resizeMediaNodeToGenerationParameters(
-  node: KachangNode,
+  node: WeftcanvasNode,
   parameters: Record<string, unknown>,
   preferredParameter?: string,
 ) {
@@ -137,11 +139,16 @@ export function resizeMediaNodeToGenerationParameters(
   return aspectRatio === null ? node : resizeMediaNodeToAspectRatio(node, aspectRatio);
 }
 
-export function resizeMediaNodeToAspectRatio(node: KachangNode, aspectRatio: number): KachangNode {
+export function resizeMediaNodeToAspectRatio(
+  node: WeftcanvasNode,
+  aspectRatio: number,
+): WeftcanvasNode {
   if (node.data.kind !== "image" && node.data.kind !== "video") return node;
   const fallback = nodeDefaultDimensions(node.data.kind);
-  const width = finitePositive(node.width) ?? finitePositive(node.measured?.width) ?? fallback.width;
-  const height = finitePositive(node.height) ?? finitePositive(node.measured?.height) ?? fallback.height;
+  const width =
+    finitePositive(node.width) ?? finitePositive(node.measured?.width) ?? fallback.width;
+  const height =
+    finitePositive(node.height) ?? finitePositive(node.measured?.height) ?? fallback.height;
   const longEdge = Math.max(width, height);
   const nextWidth = aspectRatio >= 1 ? longEdge : Math.max(1, longEdge * aspectRatio);
   const nextHeight = aspectRatio >= 1 ? Math.max(1, longEdge / aspectRatio) : longEdge;
@@ -166,7 +173,7 @@ function isConfigModality(value: unknown): value is Exclude<ModelModality, "text
   return value === "image" || value === "video" || value === "audio";
 }
 
-export function syncAllConfigurationTargets(nodes: KachangNode[], edges: KachangEdge[]) {
+export function syncAllConfigurationTargets(nodes: WeftcanvasNode[], edges: WeftcanvasEdge[]) {
   return nodes
     .filter((node) => node.data.kind === "config")
     .reduce((current, node) => syncConfigurationTargets(current, edges, node.id), nodes);

@@ -1,10 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import type { PublicModel } from "@kachang/contracts";
+import type { PublicModel } from "@weftcanvas/contracts";
 
-import { buildCategories, buildZonedCategories, partitionModelsByZone } from "./categorized-model-select";
+import {
+  buildCategories,
+  buildZonedCategories,
+  partitionModelsByZone,
+} from "./categorized-model-select";
 
-function model(id: string, label: string, modality: PublicModel["modality"] = "video"): PublicModel {
+function model(
+  id: string,
+  label: string,
+  modality: PublicModel["modality"] = "video",
+): PublicModel {
   return {
     id,
     label,
@@ -53,7 +61,9 @@ describe("video model category buckets", () => {
     expect(byId["2.0"]!(catalog.find((item) => item.id === "S-2.5特惠15s-线路六")!)).toBe(false);
     expect(byId["2.0"]!(catalog.find((item) => item.id === "S-满血2.0-稳定-线路一")!)).toBe(true);
     expect(byId["2.0"]!(catalog.find((item) => item.id === "卡人脸2.0-933-线路三")!)).toBe(true);
-    expect(byId["2.0mini"]!(catalog.find((item) => item.id === "S-2.0mini-1080p-线路六")!)).toBe(true);
+    expect(byId["2.0mini"]!(catalog.find((item) => item.id === "S-2.0mini-1080p-线路六")!)).toBe(
+      true,
+    );
     expect(byId["veo"]!(catalog.find((item) => item.id === "veo-3.1-fast")!)).toBe(true);
     expect(byId["veo"]!(catalog.find((item) => item.id === "gemini-omni")!)).toBe(true);
   });
@@ -81,12 +91,7 @@ describe("image model category buckets", () => {
     ]);
     const byId = Object.fromEntries(categories.map((category) => [category.id, category.match]));
     const ids = (id: string) => catalog.filter((item) => byId[id]!(item)).map((item) => item.id);
-    expect(ids("universal2")).toEqual([
-      "gpt-image-2-1k",
-      "image2-A",
-      "image2-A-1.5k",
-      "image2-W",
-    ]);
+    expect(ids("universal2")).toEqual(["gpt-image-2-1k", "image2-A", "image2-A-1.5k", "image2-W"]);
     expect(ids("universal25")).toEqual([
       "gpt-image-2.5",
       "gpt-image-2.5-1.5k",
@@ -124,7 +129,10 @@ describe("zone-aware category buckets", () => {
 
   it("orders each category stable-first with promo models at the bottom", () => {
     const stable = model("S-2.0满血-线路六", "S-2.0满血-线路六");
-    const promo = { ...model("S-2.0满血-特惠-线路六", "S-2.0满血-特惠-线路六"), zone: "promo" as const };
+    const promo = {
+      ...model("S-2.0满血-特惠-线路六", "S-2.0满血-特惠-线路六"),
+      zone: "promo" as const,
+    };
     const veo = model("veo-3.1-fast", "Veo 3.1 Fast · 线路五");
 
     // 稳定区保持输入序，特惠区整体贴底。

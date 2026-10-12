@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import type { AgentModel } from "@kachang/contracts";
+import type { AgentModel } from "@weftcanvas/contracts";
 
 import { agentModelVendorGroups } from "./agent-model-select";
 
-function model(id: string, label: string, group?: string, billing?: AgentModel["billing"]): AgentModel {
+function model(
+  id: string,
+  label: string,
+  group?: string,
+  billing?: AgentModel["billing"],
+): AgentModel {
   return {
     id,
     label,
@@ -29,9 +34,18 @@ describe("agent model vendor groups", () => {
 
   it("keeps one tab per vendor, with GLM and DeepSeek each whole", () => {
     const groups = agentModelVendorGroups(catalog);
-    expect(groups.map((group) => group.label)).toEqual(["GLM", "DeepSeek", "Gemini", "Claude", "其他"]);
+    expect(groups.map((group) => group.label)).toEqual([
+      "GLM",
+      "DeepSeek",
+      "Gemini",
+      "Claude",
+      "其他",
+    ]);
     expect(groups[0]!.models.map((item) => item.id)).toEqual(["glm-5.1", "glm-5.3"]);
-    expect(groups[1]!.models.map((item) => item.id)).toEqual(["deepseek-v4.1-flash", "deepseek-v4-pro-0813"]);
+    expect(groups[1]!.models.map((item) => item.id)).toEqual([
+      "deepseek-v4.1-flash",
+      "deepseek-v4-pro-0813",
+    ]);
   });
 
   it("sorts per-request models above token-priced ones inside a vendor tab", () => {

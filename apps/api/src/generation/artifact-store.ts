@@ -1,8 +1,4 @@
-import type {
-  GenerationArtifact,
-  ModelPricing,
-  PublicMedia,
-} from "@kachang/contracts";
+import type { GenerationArtifact, ModelPricing, PublicMedia } from "@weftcanvas/contracts";
 
 import { MediaService, MediaServiceError } from "../media/service.js";
 import type { CloudProjectEntitlementResolver } from "../project/types.js";
@@ -31,16 +27,19 @@ export class ValidatedGenerationArtifactStore implements GenerationArtifactStore
   async persist(job: GenerationJobRecord, resultRef: string): Promise<PersistedGenerationResult> {
     const staged = await this.staging.read(resultRef);
     if (staged.jobId !== job.id) throw invalid("RESULT_JOB_MISMATCH", "生成结果不属于当前任务");
-    if (staged.result.kind !== job.modality) throw invalid("RESULT_TYPE_MISMATCH", "生成结果类型与当前任务不一致");
+    if (staged.result.kind !== job.modality)
+      throw invalid("RESULT_TYPE_MISMATCH", "生成结果类型与当前任务不一致");
 
     if (staged.result.kind === "text") {
       return {
-        artifacts: [{
-          id: `artifact:${job.id}:0`,
-          kind: "text",
-          text: staged.result.text,
-          createdAt: staged.createdAt,
-        }],
+        artifacts: [
+          {
+            id: `artifact:${job.id}:0`,
+            kind: "text",
+            text: staged.result.text,
+            createdAt: staged.createdAt,
+          },
+        ],
         captureCreditMicros: captureAmount(job, staged.result),
       };
     }
@@ -64,13 +63,15 @@ export class ValidatedGenerationArtifactStore implements GenerationArtifactStore
     if (staged.result.kind === "video") {
       const maxStorageBytes = await this.resolveMediaStorageBytes(job.ownerId);
       return {
-        artifacts: [await this.persistMedia(
-          job,
-          0,
-          { source: "url", url: staged.result.url },
-          "video",
-          maxStorageBytes,
-        )],
+        artifacts: [
+          await this.persistMedia(
+            job,
+            0,
+            { source: "url", url: staged.result.url },
+            "video",
+            maxStorageBytes,
+          ),
+        ],
         captureCreditMicros: job.quote.creditMicros,
       };
     }
@@ -85,7 +86,9 @@ export class ValidatedGenerationArtifactStore implements GenerationArtifactStore
   private async persistMedia(
     job: GenerationJobRecord,
     index: number,
-    source: Extract<StagedGenerationResult, { kind: "image" }>["items"][number] | { source: "url"; url: string },
+    source:
+      | Extract<StagedGenerationResult, { kind: "image" }>["items"][number]
+      | { source: "url"; url: string },
     kind: "image" | "video",
     maxStorageBytes: number,
   ) {
@@ -101,18 +104,26 @@ export class ValidatedGenerationArtifactStore implements GenerationArtifactStore
     try {
       let persisted: PublicMedia;
       try {
-        persisted = await this.media.persistGenerated(job.ownerId, {
-          jobId: job.id,
-          index,
-          kind,
-          name: resultName(kind, index, materialized.inspected.mimeType),
-          mimeType: materialized.inspected.mimeType,
-          size: materialized.size,
-          sha256: materialized.sha256,
-          source: materialized.open(),
-        }, maxStorageBytes);
+        persisted = await this.media.persistGenerated(
+          job.ownerId,
+          {
+            jobId: job.id,
+            index,
+            kind,
+            name: resultName(kind, index, materialized.inspected.mimeType),
+            mimeType: materialized.inspected.mimeType,
+            size: materialized.size,
+            sha256: materialized.sha256,
+            source: materialized.open(),
+          },
+          maxStorageBytes,
+        );
       } catch (error) {
-        if (error instanceof MediaServiceError && error.status < 500 && error.code !== "GENERATED_MEDIA_IN_PROGRESS") {
+        if (
+          error instanceof MediaServiceError &&
+          error.status < 500 &&
+          error.code !== "GENERATED_MEDIA_IN_PROGRESS"
+        ) {
           throw invalid(error.code, error.message);
         }
         throw error;
@@ -128,7 +139,8 @@ export class ValidatedGenerationArtifactStore implements GenerationArtifactStore
 
   private async resolveMediaStorageBytes(ownerId: string) {
     if (!this.entitlements) return Number.MAX_SAFE_INTEGER;
-    return (await this.entitlements.resolve(ownerId, undefined, { allowStale: false })).data.mediaStorageBytes;
+    return (await this.entitlements.resolve(ownerId, undefined, { allowStale: false })).data
+      .mediaStorageBytes;
   }
 }
 
@@ -154,9 +166,18 @@ export function calculateActualTokenCreditMicros(
   if (usage?.inputTokens === undefined || usage.outputTokens === undefined) {
     throw invalid("TOKEN_USAGE_MISSING", "文本生成缺少实际用量，暂时无法结算");
   }
-  const inputRate = tokenCreditRate(pricing.inputCreditMicrosPerMillion, pricing.inputYuanMicrosPerMillion, pricing.creditsPerYuan);
-  const outputRate = tokenCreditRate(pricing.outputCreditMicrosPerMillion, pricing.outputYuanMicrosPerMillion, pricing.creditsPerYuan);
-  if (inputRate === null || outputRate === null) throw invalid("TOKEN_PRICE_MISSING", "文本生成缺少结算价格");
+  const inputRate = tokenCreditRate(
+    pricing.inputCreditMicrosPerMillion,
+    pricing.inputYuanMicrosPerMillion,
+    pricing.creditsPerYuan,
+  );
+  const outputRate = tokenCreditRate(
+    pricing.outputCreditMicrosPerMillion,
+    pricing.outputYuanMicrosPerMillion,
+    pricing.creditsPerYuan,
+  );
+  if (inputRate === null || outputRate === null)
+    throw invalid("TOKEN_PRICE_MISSING", "文本生成缺少结算价格");
   const numerator = inputRate * BigInt(usage.inputTokens) + outputRate * BigInt(usage.outputTokens);
   const perRequest = (numerator + 999_999n) / 1_000_000n;
   const actual = perRequest * BigInt(quantity);
@@ -164,11 +185,23 @@ export function calculateActualTokenCreditMicros(
   return Number(actual > reserved ? reserved : actual);
 }
 
-function captureAmount(job: GenerationJobRecord, result: Extract<StagedGenerationResult, { kind: "text" }>) {
-  return calculateActualTokenCreditMicros(job.pricing, result.usage, job.quantity, job.quote.creditMicros);
+function captureAmount(
+  job: GenerationJobRecord,
+  result: Extract<StagedGenerationResult, { kind: "text" }>,
+) {
+  return calculateActualTokenCreditMicros(
+    job.pricing,
+    result.usage,
+    job.quantity,
+    job.quote.creditMicros,
+  );
 }
 
-function tokenCreditRate(creditMicros: number | undefined, yuanMicros: number | undefined, creditsPerYuan: number) {
+function tokenCreditRate(
+  creditMicros: number | undefined,
+  yuanMicros: number | undefined,
+  creditsPerYuan: number,
+) {
   if (creditMicros !== undefined) return BigInt(creditMicros);
   if (yuanMicros !== undefined) return BigInt(yuanMicros) * BigInt(creditsPerYuan);
   return null;

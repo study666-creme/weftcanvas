@@ -1,8 +1,17 @@
-import { lazy, memo, Suspense, useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  lazy,
+  memo,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 
 import { useAgentStore } from "../state/agent-store";
 import { useCanvasStore } from "../state/canvas-store";
-import { useUiPreferencesStore, type CompanionDock, type CompanionStyle } from "../state/ui-preferences-store";
+import { useUiPreferencesStore, type CompanionStyle } from "../state/ui-preferences-store";
 import {
   DOCK_Z_STEP,
   clampPlacement,
@@ -25,7 +34,9 @@ import {
 
 // three.js 约 526KB（gzip 后 ~130KB），只有选择机器人伙伴样式才会渲染 3D 头像；
 // 懒加载后默认形象（鲸鱼娘 / 小熊）用户不再为画布首屏付出这笔下载与解析成本。
-const AgentCompanion3D = lazy(async () => ({ default: (await import("./agent-companion-3d")).AgentCompanion3D }));
+const AgentCompanion3D = lazy(async () => ({
+  default: (await import("./agent-companion-3d")).AgentCompanion3D,
+}));
 
 type CompanionReaction = "idle" | "curious" | "celebrate" | "concerned" | "thinking" | "listening";
 
@@ -44,7 +55,13 @@ const DRAG_THRESHOLD = 5;
 /** 全身档 sprite 的显示高度，和 whale-girl-companion.css 的 --whale-w * 1.3333 是一对。 */
 const WHALE_BODY_PX = 68 * 1.3333;
 
-export const AgentCompanion = memo(function AgentCompanion({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+export const AgentCompanion = memo(function AgentCompanion({
+  open,
+  onToggle,
+}: {
+  open: boolean;
+  onToggle: () => void;
+}) {
   const nodeCount = useCanvasStore((state) => state.nodes.length);
   // 选择器在每次 store 更新时都会执行（拖拽期间每帧一次）。计数而不 filter，
   // 避免每帧为整份 nodes 再分配一个临时数组。
@@ -78,24 +95,20 @@ export const AgentCompanion = memo(function AgentCompanion({ open, onToggle }: {
 
   const running = latestRun?.status === "queued" || latestRun?.status === "running";
   const failed = agentStatus === "error" || latestRun?.status === "failed";
-  const reaction: CompanionReaction = momentaryReaction !== "idle"
-    ? momentaryReaction
-    : running || agentStatus === "sending"
-      ? "thinking"
-      : failed
-        ? "concerned"
-        : open
-          ? "listening"
-          : selectedCount > 0
-            ? "curious"
-            : "idle";
-  const activity = running || agentStatus === "sending"
-    ? "working"
-    : failed
-      ? "error"
-      : open
-        ? "open"
-        : "idle";
+  const reaction: CompanionReaction =
+    momentaryReaction !== "idle"
+      ? momentaryReaction
+      : running || agentStatus === "sending"
+        ? "thinking"
+        : failed
+          ? "concerned"
+          : open
+            ? "listening"
+            : selectedCount > 0
+              ? "curious"
+              : "idle";
+  const activity =
+    running || agentStatus === "sending" ? "working" : failed ? "error" : open ? "open" : "idle";
 
   const storedStyle = useUiPreferencesStore((state) => state.companionStyle);
   const setCompanionStyle = useUiPreferencesStore((state) => state.setCompanionStyle);
@@ -103,7 +116,9 @@ export const AgentCompanion = memo(function AgentCompanion({ open, onToggle }: {
     try {
       const forced = new URLSearchParams(window.location.search).get("companion");
       if (forced === "whale" || forced === "robot" || forced === "bear") return forced;
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     return storedStyle;
   })();
 
@@ -125,15 +140,16 @@ export const AgentCompanion = memo(function AgentCompanion({ open, onToggle }: {
   // 被拎起来的惊慌表情在松手后保留一小会儿，不然表情收得比台词还快。
   const [startled, setStartled] = useState(false);
 
-  /** 她的定位父级（.kc-app）的范围，拖拽与夹取都以此为界。 */
+  /** 她的定位父级（.wc-app）的范围，拖拽与夹取都以此为界。 */
   const measure = useCallback(() => {
     const element = companionRef.current;
     if (!element) return null;
     const rect = element.getBoundingClientRect();
     const parent = element.offsetParent;
-    const bounds = parent && typeof parent.getBoundingClientRect === "function"
-      ? parent.getBoundingClientRect()
-      : new DOMRect(0, 0, window.innerWidth, window.innerHeight);
+    const bounds =
+      parent && typeof parent.getBoundingClientRect === "function"
+        ? parent.getBoundingClientRect()
+        : new DOMRect(0, 0, window.innerWidth, window.innerHeight);
     return { bounds, width: rect.width, height: rect.height };
   }, []);
 
@@ -175,7 +191,11 @@ export const AgentCompanion = memo(function AgentCompanion({ open, onToggle }: {
     setPlacement(
       dragging && dragPlacement
         ? dragPlacement
-        : resolveCompanionPlacement(anchor, { width: measured.width, height: measured.height }, measured.bounds),
+        : resolveCompanionPlacement(
+            anchor,
+            { width: measured.width, height: measured.height },
+            measured.bounds,
+          ),
     );
   }, [anchor, dockTick, dragging, dragPlacement, measure]);
 
@@ -229,12 +249,14 @@ export const AgentCompanion = memo(function AgentCompanion({ open, onToggle }: {
       setStartled(true);
       sayWhaleLine({ text: whaleDraggedLine(), id: Date.now(), tone: "worry" });
     }
-    setDragPlacement(clampPlacement(
-      drag.originX + dx,
-      drag.originY + dy,
-      { width: measured.width, height: measured.height },
-      measured.bounds,
-    ));
+    setDragPlacement(
+      clampPlacement(
+        drag.originX + dx,
+        drag.originY + dy,
+        { width: measured.width, height: measured.height },
+        measured.bounds,
+      ),
+    );
   };
 
   const handlePointerUp = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -257,7 +279,11 @@ export const AgentCompanion = memo(function AgentCompanion({ open, onToggle }: {
     // 1) 拖回出生点附近 = 复位到顶部居中。
     if (shouldResetToDefault(drop.x, drop.y, { width: measured.width }, measured.bounds)) {
       setCompanionAnchor(null);
-      sayWhaleLine({ text: "回、回到原位了？哼，我自己也会走回去的。", id: Date.now(), tone: "worry" });
+      sayWhaleLine({
+        text: "回、回到原位了？哼，我自己也会走回去的。",
+        id: Date.now(),
+        tone: "worry",
+      });
       return;
     }
 
@@ -269,9 +295,14 @@ export const AgentCompanion = memo(function AgentCompanion({ open, onToggle }: {
       const rect = hit.element.getBoundingClientRect();
       // 抽屉是纵向侧栏：把她挂多高记成纵向比例，默认对着输入框那一带。
       // 其余是横向面板：记横向比例，面板变宽变窄她也贴着。
-      const fraction = hit.key === "agent-drawer"
-        ? (rect.height > 0 ? Math.min(0.94, Math.max(0.06, (centerY - rect.top) / rect.height)) : 0.72)
-        : (rect.width > 0 ? Math.min(0.94, Math.max(0.06, (centerX - rect.left) / rect.width)) : 0.5);
+      const fraction =
+        hit.key === "agent-drawer"
+          ? rect.height > 0
+            ? Math.min(0.94, Math.max(0.06, (centerY - rect.top) / rect.height))
+            : 0.72
+          : rect.width > 0
+            ? Math.min(0.94, Math.max(0.06, (centerX - rect.left) / rect.width))
+            : 0.5;
       setCompanionAnchor({ kind: "dock", dock: hit.key, x: fraction });
       sayWhaleLine({
         text: hit.key === "agent-drawer" ? whalePeekLine() : whaleDockedLine(),
@@ -330,7 +361,8 @@ export const AgentCompanion = memo(function AgentCompanion({ open, onToggle }: {
   const cycleCompanionStyle = () => {
     const next = nextCompanionStyle(companionStyle);
     setCompanionStyle(next);
-    if (next === "whale") setForcedLine({ text: whaleStyleSwitchLine(), id: Date.now(), tone: "worry" });
+    if (next === "whale")
+      setForcedLine({ text: whaleStyleSwitchLine(), id: Date.now(), tone: "worry" });
   };
 
   /**
@@ -341,93 +373,111 @@ export const AgentCompanion = memo(function AgentCompanion({ open, onToggle }: {
    * 胸口有她自己的白袖口、裙腰有白围裙边，白手贴上去都会糊成一片；
    * 只有这一段是深色裙料，白色小手贴着墙缘才读得出「这是手」。
    */
-  const wallHand = companionStyle === "whale" && peeking && placement?.wall && placement.z !== undefined
-    ? {
-        left: `${placement.wall.x - 4}px`,
-        top: `${placement.y + WHALE_BODY_PX * 0.78}px`,
-        zIndex: placement.z + DOCK_Z_STEP + 1,
-      }
-    : null;
+  const wallHand =
+    companionStyle === "whale" && peeking && placement?.wall && placement.z !== undefined
+      ? {
+          left: `${placement.wall.x - 4}px`,
+          top: `${placement.y + WHALE_BODY_PX * 0.78}px`,
+          zIndex: placement.z + DOCK_Z_STEP + 1,
+        }
+      : null;
 
   return (
     <>
       <button
-      ref={companionRef}
-      type="button"
-      className={[
-        "kc-agent-companion",
-        open ? "is-open" : "",
-        dragging ? "is-dragging" : "",
-        docked && !peeking ? "is-docked" : "",
-        peeking ? "is-peeking" : "",
-      ].filter(Boolean).join(" ")}
-      data-reaction={reaction}
-      data-activity={activity}
-      data-companion-style={companionStyle}
-      data-whale-mode={companionStyle === "whale" ? whaleMode : undefined}
-      data-whale-pose={companionStyle === "whale" ? whalePose : undefined}
-      data-docked={companionStyle === "whale" && docked ? "true" : undefined}
-      style={placement
-        ? {
-            left: `${placement.x}px`,
-            top: `${placement.y}px`,
-            ...(placement.z !== undefined ? { zIndex: placement.z } : null),
-          }
-        : undefined}
-      aria-label={open ? "收起画布 Agent" : "打开画布 Agent"}
-      aria-pressed={open}
-      title={open ? "收起画布助理" : "打开画布助理"}
-      onClick={() => {
-        if (suppressClickRef.current) {
-          suppressClickRef.current = false;
-          return;
+        ref={companionRef}
+        type="button"
+        className={[
+          "wc-agent-companion",
+          open ? "is-open" : "",
+          dragging ? "is-dragging" : "",
+          docked && !peeking ? "is-docked" : "",
+          peeking ? "is-peeking" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        data-reaction={reaction}
+        data-activity={activity}
+        data-companion-style={companionStyle}
+        data-whale-mode={companionStyle === "whale" ? whaleMode : undefined}
+        data-whale-pose={companionStyle === "whale" ? whalePose : undefined}
+        data-docked={companionStyle === "whale" && docked ? "true" : undefined}
+        style={
+          placement
+            ? {
+                left: `${placement.x}px`,
+                top: `${placement.y}px`,
+                ...(placement.z !== undefined ? { zIndex: placement.z } : null),
+              }
+            : undefined
         }
-        if (companionStyle === "whale") setForcedLine({ text: whaleGreetingLine(), id: Date.now() });
-        onToggle();
-      }}
-      onDoubleClick={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        cycleCompanionStyle();
-      }}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerUp}
-    >
-      {companionStyle === "whale" ? (
-        <WhaleGirlCompanion
-          reaction={reaction}
-          activity={activity}
-          mode={whaleMode}
-          pose={whalePose}
-          quiet={recentlyTouched}
-          forcedLine={forcedLine}
-          onFeed={() => setFeedPulse((value) => value + 1)}
-        />
-      ) : companionStyle === "robot" ? (
-        <Suspense fallback={null}>
-          <AgentCompanion3D reaction={reaction} activity={activity} />
-        </Suspense>
-      ) : (
-        <>
-          <span className="kc-agent-companion-signal" aria-hidden="true"><i /><i /><i /></span>
-          <span className="kc-agent-companion-horn kc-agent-companion-horn--left" aria-hidden="true" />
-          <span className="kc-agent-companion-horn kc-agent-companion-horn--right" aria-hidden="true" />
-          <span className="kc-agent-companion-head" aria-hidden="true">
-            <span className="kc-agent-companion-brow kc-agent-companion-brow--left" />
-            <span className="kc-agent-companion-brow kc-agent-companion-brow--right" />
-            <span className="kc-agent-companion-eyes">
+        aria-label={open ? "收起画布 Agent" : "打开画布 Agent"}
+        aria-pressed={open}
+        title={open ? "收起画布助理" : "打开画布助理"}
+        onClick={() => {
+          if (suppressClickRef.current) {
+            suppressClickRef.current = false;
+            return;
+          }
+          if (companionStyle === "whale")
+            setForcedLine({ text: whaleGreetingLine(), id: Date.now() });
+          onToggle();
+        }}
+        onDoubleClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          cycleCompanionStyle();
+        }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+      >
+        {companionStyle === "whale" ? (
+          <WhaleGirlCompanion
+            reaction={reaction}
+            activity={activity}
+            mode={whaleMode}
+            pose={whalePose}
+            quiet={recentlyTouched}
+            forcedLine={forcedLine}
+            onFeed={() => setFeedPulse((value) => value + 1)}
+          />
+        ) : companionStyle === "robot" ? (
+          <Suspense fallback={null}>
+            <AgentCompanion3D reaction={reaction} activity={activity} />
+          </Suspense>
+        ) : (
+          <>
+            <span className="wc-agent-companion-signal" aria-hidden="true">
+              <i />
               <i />
               <i />
             </span>
-            <span className="kc-agent-companion-snout" />
-          </span>
-        </>
-      )}
-      <span className="kc-agent-companion-state" aria-hidden="true" />
-    </button>
-      {wallHand ? <span className="kc-whale-wall-hand" aria-hidden="true" style={wallHand} /> : null}
+            <span
+              className="wc-agent-companion-horn wc-agent-companion-horn--left"
+              aria-hidden="true"
+            />
+            <span
+              className="wc-agent-companion-horn wc-agent-companion-horn--right"
+              aria-hidden="true"
+            />
+            <span className="wc-agent-companion-head" aria-hidden="true">
+              <span className="wc-agent-companion-brow wc-agent-companion-brow--left" />
+              <span className="wc-agent-companion-brow wc-agent-companion-brow--right" />
+              <span className="wc-agent-companion-eyes">
+                <i />
+                <i />
+              </span>
+              <span className="wc-agent-companion-snout" />
+            </span>
+          </>
+        )}
+        <span className="wc-agent-companion-state" aria-hidden="true" />
+      </button>
+      {wallHand ? (
+        <span className="wc-whale-wall-hand" aria-hidden="true" style={wallHand} />
+      ) : null}
     </>
   );
 });

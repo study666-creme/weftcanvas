@@ -1,0 +1,39 @@
+name: Feature request
+description: Propose new functionality or an improvement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What are you trying to do that you cannot do today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How should it work? Interaction details welcome for canvas features.
+    validations:
+      required: true
+  - type: dropdown
+    id: placement
+    attributes:
+      label: Where should this live?
+      description: Many extension ideas are a better fit for the plugin surface (see packages/plugin-sdk)
+      options:
+        - Core canvas
+        - Plugin (SDK already supports it)
+        - Plugin (needs new SDK surface)
+        - Unsure
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: textarea
+    id: mockups
+    attributes:
+      label: Mockups or references
+      description: Drag and drop images, or link prior art

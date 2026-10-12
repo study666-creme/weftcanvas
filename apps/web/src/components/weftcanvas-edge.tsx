@@ -11,7 +11,7 @@ import { useCanvasStore } from "../state/canvas-store";
 import { useUiPreferencesStore } from "../state/ui-preferences-store";
 import { getAppearanceOption } from "../lib/appearance-registry";
 import "../lib/builtin-appearance";
-import type { KachangEdge } from "../types";
+import type { WeftcanvasEdge } from "../types";
 import { CanvasEdgeRuntimeContext } from "./canvas-node-runtime-context";
 
 type EdgePathInput = {
@@ -29,7 +29,7 @@ type EdgePathGeometry = {
   focusY: number;
 };
 
-export const KachangEdgeComponent = memo(function KachangEdgeComponent({
+export const WeftcanvasEdgeComponent = memo(function WeftcanvasEdgeComponent({
   id,
   sourceX,
   sourceY,
@@ -39,7 +39,7 @@ export const KachangEdgeComponent = memo(function KachangEdgeComponent({
   targetPosition,
   selected,
   interactionWidth,
-}: EdgeProps<KachangEdge>) {
+}: EdgeProps<WeftcanvasEdge>) {
   const edgePathStyle = useUiPreferencesStore((state) => state.edgePathStyle);
   const edgeFlowStyle = useUiPreferencesStore((state) => state.edgeFlowStyle);
   const { ambientEnergyEdgeIds, endpointEnergyEdgeIds } = useContext(CanvasEdgeRuntimeContext);
@@ -55,14 +55,15 @@ export const KachangEdgeComponent = memo(function KachangEdgeComponent({
     sourcePosition,
     targetPosition,
   };
-  const { path, focusX, focusY } = getKachangEdgePath(pathInput, edgePathStyle);
-  const reversePath = energyVisible && edgeFlowStyle === "stardust"
-    ? getKachangEdgePath(reversePathInput(pathInput), edgePathStyle).path
-    : path;
+  const { path, focusX, focusY } = getWeftcanvasEdgePath(pathInput, edgePathStyle);
+  const reversePath =
+    energyVisible && edgeFlowStyle === "stardust"
+      ? getWeftcanvasEdgePath(reversePathInput(pathInput), edgePathStyle).path
+      : path;
 
   return (
     <g
-      className={`kc-edge-renderer ${edgeGeometryFor(edgePathStyle) === "gravity" ? "is-soft-curve" : "is-taut"}`}
+      className={`wc-edge-renderer ${edgeGeometryFor(edgePathStyle) === "gravity" ? "is-soft-curve" : "is-taut"}`}
       data-edge-path-style={edgePathStyle}
       data-edge-flow-style={edgeFlowStyle}
       data-edge-energy-active={energyActive ? "true" : "false"}
@@ -75,19 +76,27 @@ export const KachangEdgeComponent = memo(function KachangEdgeComponent({
     >
       <BaseEdge id={id} path={path} interactionWidth={interactionWidth ?? 28} />
       {energyVisible && edgeFlowStyle === "stream" ? (
-        <g className={`kc-edge-effect kc-edge-effect--stream ${energyActive ? "is-active" : "is-ambient"}`}>
-          <path className="kc-edge-aura" d={path} />
-          <path className="kc-edge-energy" d={path} pathLength={156} />
+        <g
+          className={`wc-edge-effect wc-edge-effect--stream ${energyActive ? "is-active" : "is-ambient"}`}
+        >
+          <path className="wc-edge-aura" d={path} />
+          <path className="wc-edge-energy" d={path} pathLength={156} />
         </g>
       ) : null}
       {energyVisible && edgeFlowStyle === "stardust" ? (
-        <StardustConvergence path={path} reversePath={reversePath} focusX={focusX} focusY={focusY} active={energyActive} />
+        <StardustConvergence
+          path={path}
+          reversePath={reversePath}
+          focusX={focusX}
+          focusY={focusY}
+          active={energyActive}
+        />
       ) : null}
     </g>
   );
 });
 
-export const KachangConnectionLine = memo(function KachangConnectionLine({
+export const WeftcanvasConnectionLine = memo(function WeftcanvasConnectionLine({
   fromX,
   fromY,
   toX,
@@ -106,21 +115,32 @@ export const KachangConnectionLine = memo(function KachangConnectionLine({
     sourcePosition: fromPosition,
     targetPosition: toPosition,
   };
-  const { path, focusX, focusY } = getKachangEdgePath(pathInput, edgePathStyle);
+  const { path, focusX, focusY } = getWeftcanvasEdgePath(pathInput, edgePathStyle);
   const statusClass = connectionStatus ? `is-${connectionStatus}` : "";
-  const reversePath = edgeFlowStyle === "stardust"
-    ? getKachangEdgePath(reversePathInput(pathInput), edgePathStyle).path
-    : path;
+  const reversePath =
+    edgeFlowStyle === "stardust"
+      ? getWeftcanvasEdgePath(reversePathInput(pathInput), edgePathStyle).path
+      : path;
   return (
-    <g className={`kc-connection-preview ${edgeGeometryFor(edgePathStyle) === "gravity" ? "is-soft-curve" : "is-taut"} ${statusClass}`} data-edge-path-style={edgePathStyle} data-edge-flow-style={edgeFlowStyle}>
-      <path className="kc-connection-preview-base" d={path} />
+    <g
+      className={`wc-connection-preview ${edgeGeometryFor(edgePathStyle) === "gravity" ? "is-soft-curve" : "is-taut"} ${statusClass}`}
+      data-edge-path-style={edgePathStyle}
+      data-edge-flow-style={edgeFlowStyle}
+    >
+      <path className="wc-connection-preview-base" d={path} />
       {edgeFlowStyle === "stream" ? (
-        <g className="kc-edge-effect kc-edge-effect--stream">
-          <path className="kc-edge-aura kc-edge-aura--preview" d={path} />
-          <path className="kc-edge-energy kc-edge-energy--preview" d={path} pathLength={156} />
+        <g className="wc-edge-effect wc-edge-effect--stream">
+          <path className="wc-edge-aura wc-edge-aura--preview" d={path} />
+          <path className="wc-edge-energy wc-edge-energy--preview" d={path} pathLength={156} />
         </g>
       ) : (
-        <StardustConvergence path={path} reversePath={reversePath} focusX={focusX} focusY={focusY} preview />
+        <StardustConvergence
+          path={path}
+          reversePath={reversePath}
+          focusX={focusX}
+          focusY={focusY}
+          preview
+        />
       )}
     </g>
   );
@@ -142,12 +162,22 @@ function StardustConvergence({
   active?: boolean;
 }) {
   return (
-    <g className={`kc-edge-effect kc-edge-effect--stardust ${preview ? "is-preview" : ""} ${active ? "is-active" : "is-ambient"}`}>
-      <path className="kc-edge-star-field" d={path} pathLength={100} />
-      <path className="kc-edge-star-inbound kc-edge-star-inbound--source" d={path} pathLength={100} />
-      <path className="kc-edge-star-inbound kc-edge-star-inbound--target" d={reversePath} pathLength={100} />
-      <circle className="kc-edge-star-focus-ring" cx={focusX} cy={focusY} r={6.2} />
-      <circle className="kc-edge-star-focus-core" cx={focusX} cy={focusY} r={1.65} />
+    <g
+      className={`wc-edge-effect wc-edge-effect--stardust ${preview ? "is-preview" : ""} ${active ? "is-active" : "is-ambient"}`}
+    >
+      <path className="wc-edge-star-field" d={path} pathLength={100} />
+      <path
+        className="wc-edge-star-inbound wc-edge-star-inbound--source"
+        d={path}
+        pathLength={100}
+      />
+      <path
+        className="wc-edge-star-inbound wc-edge-star-inbound--target"
+        d={reversePath}
+        pathLength={100}
+      />
+      <circle className="wc-edge-star-focus-ring" cx={focusX} cy={focusY} r={6.2} />
+      <circle className="wc-edge-star-focus-core" cx={focusX} cy={focusY} r={1.65} />
     </g>
   );
 }
@@ -160,7 +190,7 @@ function edgeGeometryFor(style: string): "taut" | "gravity" {
   return getAppearanceOption("edgePathStyle", style)?.geometry ?? "taut";
 }
 
-export function getKachangEdgePath(input: EdgePathInput, style: string): EdgePathGeometry {
+export function getWeftcanvasEdgePath(input: EdgePathInput, style: string): EdgePathGeometry {
   const curvature = getAppearanceOption("edgePathStyle", style)?.pathCurvature ?? 0.42;
   const [path, focusX, focusY] = getBezierPath({ ...input, curvature });
   return { path, focusX, focusY };

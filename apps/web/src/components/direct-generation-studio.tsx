@@ -8,7 +8,7 @@ import type {
   PublicGenerationJob,
   PublicModel,
   ReferenceImagePurpose,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 import {
   AlertCircle,
   ArrowDownToLine,
@@ -52,7 +52,6 @@ import {
   DIRECT_GENERATION_NODE_IDS,
   DIRECT_GENERATION_PROJECT_ID,
   directGenerationArtifactKey,
-  emptyDirectGenerationHistory,
   mergeDirectGenerationJobs,
   readDirectGenerationHiddenArtifacts,
   readDirectGenerationHistory,
@@ -60,7 +59,8 @@ import {
   writeDirectGenerationHistory,
 } from "../lib/direct-generation-history";
 import {
-  composeModelParameters,  defaultModelParameters,
+  composeModelParameters,
+  defaultModelParameters,
   generationRequestQuantity,
   isModelBoundTextParameter,
   isModelCompatibilityParameterHidden,
@@ -157,9 +157,24 @@ type DirectDraft = {
   referenceError: string | null;
 };
 
-const MODALITIES: { value: DirectModality; label: string; description: string; icon: typeof ImageIcon }[] = [
-  { value: "image", label: "图片生成", description: "用一句话得到可直接使用的画面", icon: ImageIcon },
-  { value: "video", label: "视频生成", description: "把想法变成一段有镜头感的动态片段", icon: Video },
+const MODALITIES: {
+  value: DirectModality;
+  label: string;
+  description: string;
+  icon: typeof ImageIcon;
+}[] = [
+  {
+    value: "image",
+    label: "图片生成",
+    description: "用一句话得到可直接使用的画面",
+    icon: ImageIcon,
+  },
+  {
+    value: "video",
+    label: "视频生成",
+    description: "把想法变成一段有镜头感的动态片段",
+    icon: Video,
+  },
 ];
 
 export function DirectGenerationStudio({
@@ -196,7 +211,11 @@ export function DirectGenerationStudio({
   const [materialDropActive, setMaterialDropActive] = useState(false);
   const [materialInputFeedback, setMaterialInputFeedback] = useState<string | null>(null);
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
-  const [mentionRange, setMentionRange] = useState<{ start: number; end: number; query: string } | null>(null);
+  const [mentionRange, setMentionRange] = useState<{
+    start: number;
+    end: number;
+    query: string;
+  } | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
   // 放大查看的结果序号；null 表示关闭。存序号而非 id，便于左右切换。
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -216,11 +235,24 @@ export function DirectGenerationStudio({
   // 草稿写穿：提示词/模型/参数/数量一变化就写入标签页会话，刷新与提交后保留。
   // 每次 setDrafts 都产生新对象，这里只在可持久化字段变化时重算，避免把
   // 任务轮询/报价等高频状态变更刷进 sessionStorage。
-  const persistedDrafts = useMemo(() => ({
-    image: persistDirectDraft(drafts.image),
-    video: persistDirectDraft(drafts.video),
-  }), [drafts.image.prompt, drafts.image.modelId, drafts.image.parameters, drafts.image.quantity, drafts.image.maxOutputTokens,
-    drafts.video.prompt, drafts.video.modelId, drafts.video.parameters, drafts.video.quantity, drafts.video.maxOutputTokens]);
+  const persistedDrafts = useMemo(
+    () => ({
+      image: persistDirectDraft(drafts.image),
+      video: persistDirectDraft(drafts.video),
+    }),
+    [
+      drafts.image.prompt,
+      drafts.image.modelId,
+      drafts.image.parameters,
+      drafts.image.quantity,
+      drafts.image.maxOutputTokens,
+      drafts.video.prompt,
+      drafts.video.modelId,
+      drafts.video.parameters,
+      drafts.video.quantity,
+      drafts.video.maxOutputTokens,
+    ],
+  );
   const persistedDraftsKey = JSON.stringify(persistedDrafts);
   useEffect(() => {
     writeDirectDraftSession(persistedDrafts);
@@ -244,7 +276,11 @@ export function DirectGenerationStudio({
         }
       }
       if (changed) {
-        window.history.replaceState(null, "", url.pathname + (url.search ? `?${url.searchParams.toString()}` : ""));
+        window.history.replaceState(
+          null,
+          "",
+          url.pathname + (url.search ? `?${url.searchParams.toString()}` : ""),
+        );
       }
     } catch {
       // 地址栏不可写时忽略：仅影响刷新恢复来源，不破坏本次页面状态。
@@ -255,10 +291,13 @@ export function DirectGenerationStudio({
     referencesRef.current = draft.references;
   }, [draft.references]);
 
-  useEffect(() => () => {
-    for (const url of previewUrls.current) URL.revokeObjectURL(url);
-    previewUrls.current.clear();
-  }, []);
+  useEffect(
+    () => () => {
+      for (const url of previewUrls.current) URL.revokeObjectURL(url);
+      previewUrls.current.clear();
+    },
+    [],
+  );
 
   useEffect(() => {
     void Promise.all([loadCatalog("image"), loadCatalog("video")]);
@@ -268,119 +307,186 @@ export function DirectGenerationStudio({
     return (catalogState.data?.models ?? []).filter((model) => model.modality === modality);
   }, [catalogState.data?.models, modality]);
   const model = models.find((item) => item.id === draft.modelId) ?? null;
-  const imagePurposes = useMemo(() => model ? getReferenceImagePurposes(model) : [], [model]);
+  const imagePurposes = useMemo(() => (model ? getReferenceImagePurposes(model) : []), [model]);
 
   useEffect(() => {
     setMaterialDropActive(false);
     setMaterialInputFeedback(null);
   }, [modality, model?.id]);
 
-  const referenceInputs = useMemo(() => directReferenceInputs(draft.references, model), [draft.references, model]);
+  const referenceInputs = useMemo(
+    () => directReferenceInputs(draft.references, model),
+    [draft.references, model],
+  );
   // H3 系列要求参考视频与时长成对提交（目录里的 required_with）。顺序与
   // directReferenceInputs 的就绪视频一致；量不出时长的素材不阻塞提交，由服务端
   // 从素材元数据兜底推导，但报价会因此不含参考视频秒数，所以下面会补查。
   const videoDurations = useMemo(() => {
     if (!model || !referenceVideoDurationsParameter(model)) return null;
     const readyVideos = draft.references.filter(
-      (reference) => reference.kind === "video" && reference.status === "ready" && reference.serverId,
+      (reference) =>
+        reference.kind === "video" && reference.status === "ready" && reference.serverId,
     );
     return referenceVideoDurationsFromMedia(readyVideos.map((reference) => reference.durationMs));
   }, [draft.references, model]);
-  const mentionCandidates = useMemo(() => directMentionCandidates(draft.references), [draft.references]);
+  const mentionCandidates = useMemo(
+    () => directMentionCandidates(draft.references),
+    [draft.references],
+  );
   const visibleMentionCandidates = useMemo(() => {
     if (!mentionRange) return [];
     const query = mentionRange.query.toLocaleLowerCase("zh-CN");
-    return mentionCandidates.filter((candidate) => `${candidate.label} ${candidate.name}`.toLocaleLowerCase("zh-CN").includes(query));
+    return mentionCandidates.filter((candidate) =>
+      `${candidate.label} ${candidate.name}`.toLocaleLowerCase("zh-CN").includes(query),
+    );
   }, [mentionCandidates, mentionRange]);
-  const referenceCounts = useMemo(() => ({
-    images: referenceInputs.images.length,
-    styleImages: referenceInputs.styleImages.length,
-    elementImages: referenceInputs.elementImages.length,
-    videos: referenceInputs.videos.length,
-    audios: referenceInputs.audios.length,
-  }), [referenceInputs]);
+  const referenceCounts = useMemo(
+    () => ({
+      images: referenceInputs.images.length,
+      styleImages: referenceInputs.styleImages.length,
+      elementImages: referenceInputs.elementImages.length,
+      videos: referenceInputs.videos.length,
+      audios: referenceInputs.audios.length,
+    }),
+    [referenceInputs],
+  );
   const referenceIssue = model ? directReferenceIssue(model, draft.references) : null;
-  const materialControls = useMemo(() => directMaterialControls(model, draft.references), [model, draft.references]);
-  const imagePurposeOptions = model ? [
-    { value: "__unassigned__", label: "选择用途" },
-    ...imagePurposes.map((purpose) => ({
-      value: purpose,
-      label: referenceImagePurposeLabel(model, purpose),
-      meta: `${referenceInputs[purpose].length}/${directReferenceMaximum(referenceImageCapability(model, purpose), "image")}`,
-    })),
-  ] : [];
+  const materialControls = useMemo(
+    () => directMaterialControls(model, draft.references),
+    [model, draft.references],
+  );
+  const imagePurposeOptions = model
+    ? [
+        { value: "__unassigned__", label: "选择用途" },
+        ...imagePurposes.map((purpose) => ({
+          value: purpose,
+          label: referenceImagePurposeLabel(model, purpose),
+          meta: `${referenceInputs[purpose].length}/${directReferenceMaximum(referenceImageCapability(model, purpose), "image")}`,
+        })),
+      ]
+    : [];
   const acceptedMaterialLabels = materialControls
     .filter((control) => control.max > 0)
     .map((control) => control.label)
     .join("、");
   const promptRequired = Boolean(
-    model && (model.input.textRequired || model.parameters.some((parameter) => isModelBoundTextParameter(model, parameter) && parameter.required)),
+    model &&
+    (model.input.textRequired ||
+      model.parameters.some(
+        (parameter) => isModelBoundTextParameter(model, parameter) && parameter.required,
+      )),
   );
   const editableParameters = useMemo(
-    () => model?.parameters.filter((parameter) => !isModelBoundTextParameter(model, parameter)
-      && !isModelInternalParameter(parameter)
-      && !isModelMediaReferenceParameter(model, parameter)
-      && !isModelCompatibilityParameterHidden(model, parameter)
-      // 工作台面向需要精确控制出图规格的用户，分辨率与尺寸参数要可选；
-      // 节点画布的简化入口仍然隐藏它们。
-      && isUserFacingParameter(parameter, { exposeDimensions: true })
-      && !(modality === "image" && isOutputParameter(parameter))) ?? [],
+    () =>
+      model?.parameters.filter(
+        (parameter) =>
+          !isModelBoundTextParameter(model, parameter) &&
+          !isModelInternalParameter(parameter) &&
+          !isModelMediaReferenceParameter(model, parameter) &&
+          !isModelCompatibilityParameterHidden(model, parameter) &&
+          // 工作台面向需要精确控制出图规格的用户，分辨率与尺寸参数要可选；
+          // 节点画布的简化入口仍然隐藏它们。
+          isUserFacingParameter(parameter, { exposeDimensions: true }) &&
+          !(modality === "image" && isOutputParameter(parameter)),
+      ) ?? [],
     [model, modality],
   );
   // 视频 token 模型（Seedance）的 token 用量由上游按帧数/分辨率决定，
   // 「最大输出」输入框对视频没有意义，只在文本模态给出。
   const hasStandaloneTokenMaximum = Boolean(
-    model?.pricing.mode === "token"
-      && modality !== "video"
-      && !model.parameters.some((parameter) => parameter.name === "max_output_tokens" || parameter.name === "max_tokens"),
+    model?.pricing.mode === "token" &&
+    modality !== "video" &&
+    !model.parameters.some(
+      (parameter) => parameter.name === "max_output_tokens" || parameter.name === "max_tokens",
+    ),
   );
-  const requiredParameterMissing = Boolean(model && editableParameters.some((parameter) => parameter.required && !hasParameterValue(
-    draft.parameters[parameter.name] ?? parameter.default,
-  )));
+  const requiredParameterMissing = Boolean(
+    model &&
+    editableParameters.some(
+      (parameter) =>
+        parameter.required &&
+        !hasParameterValue(draft.parameters[parameter.name] ?? parameter.default),
+    ),
+  );
   const promptMissing = promptRequired && !draft.prompt.trim();
-  const inputInvalid = draft.invalidParameters.size > 0 || requiredParameterMissing || promptMissing || Boolean(referenceIssue);
+  const inputInvalid =
+    draft.invalidParameters.size > 0 ||
+    requiredParameterMissing ||
+    promptMissing ||
+    Boolean(referenceIssue);
   const outputParameter = modality === "image" ? findOutputParameter(model) : null;
-  const outputRange = outputParameter && model
-    ? outputCountRange(model, outputParameter)
-    : modelOutputCountRange(modality === "image" ? model : null);
-  const selectedQuantity = modality === "image"
-    ? outputParameter
-      ? clampInteger(Number(draft.parameters[outputParameter.name] ?? outputParameter.default ?? outputRange.min), outputRange.min, outputRange.max)
-      : clampInteger(draft.quantity, outputRange.min, outputRange.max)
-    : 1;
+  const outputRange =
+    outputParameter && model
+      ? outputCountRange(model, outputParameter)
+      : modelOutputCountRange(modality === "image" ? model : null);
+  const selectedQuantity =
+    modality === "image"
+      ? outputParameter
+        ? clampInteger(
+            Number(
+              draft.parameters[outputParameter.name] ?? outputParameter.default ?? outputRange.min,
+            ),
+            outputRange.min,
+            outputRange.max,
+          )
+        : clampInteger(draft.quantity, outputRange.min, outputRange.max)
+      : 1;
   const requestFixedOutputCount = requestPricedFixedOutputCount(model);
-  const requestQuantity = modality === "image"
-    ? generationRequestQuantity(model, Boolean(outputParameter), selectedQuantity)
-    : 1;
+  const requestQuantity =
+    modality === "image"
+      ? generationRequestQuantity(model, Boolean(outputParameter), selectedQuantity)
+      : 1;
   const activeJobs = draft.jobs.filter((job) => !isTerminalJob(job));
   const latestJob = draft.jobs[0] ?? null;
-  const latestCompletedJob = useMemo(() => draft.jobs.find((job) => job.status === "completed") ?? null, [draft.jobs]);
-  const completedArtifacts = useMemo(() => draft.jobs
-    .filter((job) => job.status === "completed")
-    .flatMap((job) => job.artifacts
-      .filter((artifact) => artifact.kind === modality && "mediaId" in artifact)
-      .filter((artifact) => !hiddenArtifactKeys.has(directGenerationArtifactKey(job.id, artifact.id)))
-      .map((artifact) => ({ job, artifact }))), [draft.jobs, hiddenArtifactKeys, modality]);
+  const latestCompletedJob = useMemo(
+    () => draft.jobs.find((job) => job.status === "completed") ?? null,
+    [draft.jobs],
+  );
+  const completedArtifacts = useMemo(
+    () =>
+      draft.jobs
+        .filter((job) => job.status === "completed")
+        .flatMap((job) =>
+          job.artifacts
+            .filter((artifact) => artifact.kind === modality && "mediaId" in artifact)
+            .filter(
+              (artifact) =>
+                !hiddenArtifactKeys.has(directGenerationArtifactKey(job.id, artifact.id)),
+            )
+            .map((artifact) => ({ job, artifact })),
+        ),
+    [draft.jobs, hiddenArtifactKeys, modality],
+  );
   const locked = Boolean(draft.submitting);
 
   useEffect(() => {
     if (!models.length) {
-      if (draft.modelId) updateDraft(modality, { modelId: "", parameters: {}, quote: null, quoteState: "idle" });
+      if (draft.modelId)
+        updateDraft(modality, { modelId: "", parameters: {}, quote: null, quoteState: "idle" });
       return;
     }
     setDrafts((current) => {
       const target = current[modality];
-      const selected = models.find((item) => item.id === target.modelId) ?? pickDefaultModel(models)!;
-      const nextParameters = selected.id === target.modelId
-        ? reconcileModelParameters(selected, target.parameters)
-        : defaultModelParameters(selected);
-      const nextMaximum = selected.pricing.mode === "token" && modality !== "video" && !selected.parameters.some((parameter) => parameter.name === "max_output_tokens" || parameter.name === "max_tokens")
-        ? (selected.id === target.modelId ? target.maxOutputTokens ?? 1_024 : 1_024)
-        : null;
-      if (
+      const selected =
+        models.find((item) => item.id === target.modelId) ?? pickDefaultModel(models)!;
+      const nextParameters =
         selected.id === target.modelId
-        && JSON.stringify(nextParameters) === JSON.stringify(target.parameters)
-        && nextMaximum === target.maxOutputTokens
+          ? reconcileModelParameters(selected, target.parameters)
+          : defaultModelParameters(selected);
+      const nextMaximum =
+        selected.pricing.mode === "token" &&
+        modality !== "video" &&
+        !selected.parameters.some(
+          (parameter) => parameter.name === "max_output_tokens" || parameter.name === "max_tokens",
+        )
+          ? selected.id === target.modelId
+            ? (target.maxOutputTokens ?? 1_024)
+            : 1_024
+          : null;
+      if (
+        selected.id === target.modelId &&
+        JSON.stringify(nextParameters) === JSON.stringify(target.parameters) &&
+        nextMaximum === target.maxOutputTokens
       ) {
         return current;
       }
@@ -410,14 +516,18 @@ export function DirectGenerationStudio({
     }
     if (draft.submitting) return;
     if (!catalogState.data.quoteAvailable) {
-      updateDraft(modality, { quote: null, quoteState: "error", quoteError: "当前模型价格暂不可用，请稍后重试" });
+      updateDraft(modality, {
+        quote: null,
+        quoteState: "error",
+        quoteError: "当前模型价格暂不可用，请稍后重试",
+      });
       return;
     }
     if (inputInvalid) {
       updateDraft(modality, {
         quote: null,
         quoteState: promptMissing ? "idle" : "error",
-        quoteError: promptMissing ? null : referenceIssue ?? "有参数尚未填写完整",
+        quoteError: promptMissing ? null : (referenceIssue ?? "有参数尚未填写完整"),
       });
       return;
     }
@@ -427,7 +537,12 @@ export function DirectGenerationStudio({
       // 参考视频时长跟着报价一起发：服务端按同一份参数重建报价，少发这一项会
       // 让参考素材的秒数掉出预扣，实扣随之超过预扣。
       if (videoDurations?.length) parameters[REFERENCE_VIDEO_DURATIONS_PARAMETER] = videoDurations;
-      const tokenFields = quoteTokenFields(model, draft.prompt, draft.parameters, draft.maxOutputTokens);
+      const tokenFields = quoteTokenFields(
+        model,
+        draft.prompt,
+        draft.parameters,
+        draft.maxOutputTokens,
+      );
       void createGenerationQuote({
         modelId: model.id,
         modality,
@@ -435,26 +550,52 @@ export function DirectGenerationStudio({
         inputs: referenceCounts,
         quantity: requestQuantity,
         ...tokenFields,
-      }).then((quote) => {
-        if (quoteSequence.current !== sequence) return;
-        updateDraft(modality, { quote, quoteState: "ready", quoteError: null });
-      }).catch((cause) => {
-        if (quoteSequence.current !== sequence) return;
-        updateDraft(modality, {
-          quote: null,
-          quoteState: "error",
-          quoteError: cause instanceof CanvasApiError ? cause.message : "暂时无法确认本次价格",
+      })
+        .then((quote) => {
+          if (quoteSequence.current !== sequence) return;
+          updateDraft(modality, { quote, quoteState: "ready", quoteError: null });
+        })
+        .catch((cause) => {
+          if (quoteSequence.current !== sequence) return;
+          updateDraft(modality, {
+            quote: null,
+            quoteState: "error",
+            quoteError: cause instanceof CanvasApiError ? cause.message : "暂时无法确认本次价格",
+          });
         });
-      });
     }, 240);
     return () => window.clearTimeout(timer);
-  }, [catalogState.data, draft.maxOutputTokens, draft.parameters, draft.prompt, draft.quantity, draft.quoteRevision, inputInvalid, modality, model, outputParameter, promptMissing, referenceCounts.audios, referenceCounts.elementImages, referenceCounts.images, referenceCounts.styleImages, referenceCounts.videos, referenceIssue, requestQuantity, selectedQuantity, videoDurations]);
+  }, [
+    catalogState.data,
+    draft.maxOutputTokens,
+    draft.parameters,
+    draft.prompt,
+    draft.quantity,
+    draft.quoteRevision,
+    inputInvalid,
+    modality,
+    model,
+    outputParameter,
+    promptMissing,
+    referenceCounts.audios,
+    referenceCounts.elementImages,
+    referenceCounts.images,
+    referenceCounts.styleImages,
+    referenceCounts.videos,
+    referenceIssue,
+    requestQuantity,
+    selectedQuantity,
+    videoDurations,
+  ]);
 
   const watcherRef = useRef<Map<string, () => void>>(new Map());
-  useEffect(() => () => {
-    for (const stop of watcherRef.current.values()) stop();
-    watcherRef.current.clear();
-  }, [identityUserId]);
+  useEffect(
+    () => () => {
+      for (const stop of watcherRef.current.values()) stop();
+      watcherRef.current.clear();
+    },
+    [identityUserId],
+  );
 
   // Auto-submit once when arriving from the home gate with a composed prompt.
   // Waits for the quote to be ready, then triggers the same submit path the
@@ -465,7 +606,9 @@ export function DirectGenerationStudio({
     let wants = false;
     try {
       wants = new URLSearchParams(window.location.search).get("autosubmit") === "1";
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     if (!wants) return;
     if (!model || !draft.quote || draft.quoteState !== "ready" || inputInvalid || locked) return;
     if (!draft.prompt.trim()) return;
@@ -474,46 +617,58 @@ export function DirectGenerationStudio({
     try {
       const url = new URL(window.location.href);
       url.searchParams.delete("autosubmit");
-      window.history.replaceState(null, "", url.pathname + (url.search ? `?${url.searchParams.toString()}` : ""));
-    } catch { /* ignore */ }
+      window.history.replaceState(
+        null,
+        "",
+        url.pathname + (url.search ? `?${url.searchParams.toString()}` : ""),
+      );
+    } catch {
+      /* ignore */
+    }
     void submit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model, draft.quote, draft.quoteState, draft.prompt, inputInvalid, locked]);
 
-  const updateJob = useCallback((target: DirectModality, job: PublicGenerationJob) => {
-    persistGeneratedJobArtifacts(job);
-    setDrafts((current) => {
-      const draftState = current[target];
-      const existing = draftState.jobs.find((item) => item.id === job.id);
-      if (existing && existing.version >= job.version) return current;
-      const jobs = [job, ...draftState.jobs.filter((item) => item.id !== job.id)].slice(0, 40);
-      return {
-        ...current,
-        [target]: {
-          ...draftState,
-          jobs,
-          submissionUnknown: draftState.submissionUnknown || job.status === "submission_unknown",
-          submissionError: null,
-          submitting: false,
-          submitLabel: "生成",
-        },
-      };
-    });
-    if (isTerminalJob(job)) {
-      watcherRef.current.get(job.id)?.();
-      watcherRef.current.delete(job.id);
-      void loadWalletSummary(true);
-    }
-  }, [loadWalletSummary]);
+  const updateJob = useCallback(
+    (target: DirectModality, job: PublicGenerationJob) => {
+      persistGeneratedJobArtifacts(job);
+      setDrafts((current) => {
+        const draftState = current[target];
+        const existing = draftState.jobs.find((item) => item.id === job.id);
+        if (existing && existing.version >= job.version) return current;
+        const jobs = [job, ...draftState.jobs.filter((item) => item.id !== job.id)].slice(0, 40);
+        return {
+          ...current,
+          [target]: {
+            ...draftState,
+            jobs,
+            submissionUnknown: draftState.submissionUnknown || job.status === "submission_unknown",
+            submissionError: null,
+            submitting: false,
+            submitLabel: "生成",
+          },
+        };
+      });
+      if (isTerminalJob(job)) {
+        watcherRef.current.get(job.id)?.();
+        watcherRef.current.delete(job.id);
+        void loadWalletSummary(true);
+      }
+    },
+    [loadWalletSummary],
+  );
 
-  const watch = useCallback((target: DirectModality, job: PublicGenerationJob) => {
-    if (isTerminalJob(job) || watcherRef.current.has(job.id)) return;
-    const stop = subscribeGenerationJob(job.id, {
-      onJob: (next) => updateJob(target, next),
-      onSessionExpired: () => expireIdentity(),
-    });
-    watcherRef.current.set(job.id, stop);
-  }, [expireIdentity, updateJob]);
+  const watch = useCallback(
+    (target: DirectModality, job: PublicGenerationJob) => {
+      if (isTerminalJob(job) || watcherRef.current.has(job.id)) return;
+      const stop = subscribeGenerationJob(job.id, {
+        onJob: (next) => updateJob(target, next),
+        onSessionExpired: () => expireIdentity(),
+      });
+      watcherRef.current.set(job.id, stop);
+    },
+    [expireIdentity, updateJob],
+  );
 
   useEffect(() => {
     if (identityStatus !== "authenticated" || !identityUserId) {
@@ -539,25 +694,30 @@ export function DirectGenerationStudio({
     }));
     setHistoryUserId(identityUserId);
 
-    void listGenerationJobs(DIRECT_GENERATION_PROJECT_ID, 100).then((jobs) => {
-      if (!active || useIdentityStore.getState().session?.user.id !== identityUserId) return;
-      for (const job of jobs) {
-        persistGeneratedJobArtifacts(job);
-        if (job.modality === "image" || job.modality === "video") watch(job.modality, job);
-      }
-      setDrafts((current) => {
-        const merged = mergeDirectGenerationJobs({
-          image: current.image.jobs,
-          video: current.video.jobs,
-        }, jobs);
-        return {
-          image: { ...current.image, jobs: merged.image },
-          video: { ...current.video, jobs: merged.video },
-        };
+    void listGenerationJobs(DIRECT_GENERATION_PROJECT_ID, 100)
+      .then((jobs) => {
+        if (!active || useIdentityStore.getState().session?.user.id !== identityUserId) return;
+        for (const job of jobs) {
+          persistGeneratedJobArtifacts(job);
+          if (job.modality === "image" || job.modality === "video") watch(job.modality, job);
+        }
+        setDrafts((current) => {
+          const merged = mergeDirectGenerationJobs(
+            {
+              image: current.image.jobs,
+              video: current.video.jobs,
+            },
+            jobs,
+          );
+          return {
+            image: { ...current.image, jobs: merged.image },
+            video: { ...current.video, jobs: merged.video },
+          };
+        });
+      })
+      .catch((cause) => {
+        if (active && cause instanceof CanvasApiError && cause.status === 401) expireIdentity();
       });
-    }).catch((cause) => {
-      if (active && cause instanceof CanvasApiError && cause.status === 401) expireIdentity();
-    });
 
     return () => {
       active = false;
@@ -594,7 +754,14 @@ export function DirectGenerationStudio({
     updateDraft(modality, {
       modelId: nextId,
       parameters: defaultModelParameters(nextModel),
-      maxOutputTokens: nextModel.pricing.mode === "token" && modality !== "video" && !nextModel.parameters.some((parameter) => parameter.name === "max_output_tokens" || parameter.name === "max_tokens") ? 1_024 : null,
+      maxOutputTokens:
+        nextModel.pricing.mode === "token" &&
+        modality !== "video" &&
+        !nextModel.parameters.some(
+          (parameter) => parameter.name === "max_output_tokens" || parameter.name === "max_tokens",
+        )
+          ? 1_024
+          : null,
       invalidParameters: new Set(),
       quote: null,
       quoteState: "idle",
@@ -609,14 +776,25 @@ export function DirectGenerationStudio({
 
   const updateParameter = (name: string, value: unknown) => {
     if (!model || locked) return;
-    const parameters = value === undefined
-      ? removeModelParameter(model, draft.parameters, name)
-      : setExclusiveParameter(model, draft.parameters, name, value);
-    updateDraft(modality, { parameters, quote: null, quoteState: "idle", quoteRevision: draft.quoteRevision + 1 });
+    const parameters =
+      value === undefined
+        ? removeModelParameter(model, draft.parameters, name)
+        : setExclusiveParameter(model, draft.parameters, name, value);
+    updateDraft(modality, {
+      parameters,
+      quote: null,
+      quoteState: "idle",
+      quoteRevision: draft.quoteRevision + 1,
+    });
   };
 
   const updatePrompt = (value: string, cursor: number) => {
-    updateDraft(modality, { prompt: value, quote: null, quoteState: "idle", quoteRevision: draft.quoteRevision + 1 });
+    updateDraft(modality, {
+      prompt: value,
+      quote: null,
+      quoteState: "idle",
+      quoteRevision: draft.quoteRevision + 1,
+    });
     const nextRange = mentionQueryAtCursor(value, cursor);
     setMentionRange(nextRange);
     setMentionIndex(0);
@@ -656,7 +834,7 @@ export function DirectGenerationStudio({
       for (const serverId of mediaIds ?? []) {
         if (!serverId || existing.has(serverId)) continue;
         existing.add(serverId);
-        const purpose = supported.includes(bucket) ? bucket : supported[0] ?? null;
+        const purpose = supported.includes(bucket) ? bucket : (supported[0] ?? null);
         additions.push({
           id: crypto.randomUUID(),
           kind: "image",
@@ -690,17 +868,23 @@ export function DirectGenerationStudio({
   };
 
   // 放大查看列表与画廊同序，索引可以直接映射回 job/artifact，无需解析 key。
-  const lightboxItems = useMemo<ResultLightboxItem[]>(() => completedArtifacts.flatMap(({ job, artifact }) => {
-    if (artifact.kind !== "image" && artifact.kind !== "video") return [];
-    return [{
-      key: `${job.id}:${artifact.id}`,
-      kind: artifact.kind,
-      media: mediaFromArtifact(artifact),
-      name: artifact.name,
-      prompt: typeof job.parameters?.prompt === "string" ? job.parameters.prompt : "",
-      modelLabel: job.modelLabel,
-    }];
-  }), [completedArtifacts]);
+  const lightboxItems = useMemo<ResultLightboxItem[]>(
+    () =>
+      completedArtifacts.flatMap(({ job, artifact }) => {
+        if (artifact.kind !== "image" && artifact.kind !== "video") return [];
+        return [
+          {
+            key: `${job.id}:${artifact.id}`,
+            kind: artifact.kind,
+            media: mediaFromArtifact(artifact),
+            name: artifact.name,
+            prompt: typeof job.parameters?.prompt === "string" ? job.parameters.prompt : "",
+            modelLabel: job.modelLabel,
+          },
+        ];
+      }),
+    [completedArtifacts],
+  );
 
   const openLightbox = (key: string) => {
     const index = lightboxItems.findIndex((item) => item.key === key);
@@ -713,7 +897,9 @@ export function DirectGenerationStudio({
     if (!target) return;
     removeGeneratedArtifact(target.job.id, target.artifact.id);
     // 删掉当前项后列表变短，序号回退一格；删完后由渲染处的长度判断负责关闭。
-    setLightboxIndex((current) => (current === null ? null : Math.max(0, current - (index < current ? 1 : 0))));
+    setLightboxIndex((current) =>
+      current === null ? null : Math.max(0, current - (index < current ? 1 : 0)),
+    );
   };
 
   const reuseLightboxPrompt = (item: ResultLightboxItem) => {
@@ -758,7 +944,12 @@ export function DirectGenerationStudio({
       return;
     }
     if (outputParameter) return;
-    updateDraft(modality, { quantity: next, quote: null, quoteState: "idle", quoteRevision: draft.quoteRevision + 1 });
+    updateDraft(modality, {
+      quantity: next,
+      quote: null,
+      quoteState: "idle",
+      quoteRevision: draft.quoteRevision + 1,
+    });
   };
 
   const updateReference = (target: DirectModality, id: string, patch: Partial<DirectReference>) => {
@@ -769,7 +960,9 @@ export function DirectGenerationStudio({
         ...current,
         [target]: {
           ...targetDraft,
-          references: targetDraft.references.map((reference) => reference.id === id ? { ...reference, ...patch } : reference),
+          references: targetDraft.references.map((reference) =>
+            reference.id === id ? { ...reference, ...patch } : reference,
+          ),
           quote: null,
           quoteState: "idle",
           quoteError: null,
@@ -785,11 +978,14 @@ export function DirectGenerationStudio({
   const durationBackfillRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!model || !referenceVideoDurationsParameter(model)) return;
-    const missing = draft.references.filter((reference) => reference.kind === "video"
-      && reference.status === "ready"
-      && reference.serverId
-      && reference.durationMs === null
-      && !durationBackfillRef.current.has(reference.id));
+    const missing = draft.references.filter(
+      (reference) =>
+        reference.kind === "video" &&
+        reference.status === "ready" &&
+        reference.serverId &&
+        reference.durationMs === null &&
+        !durationBackfillRef.current.has(reference.id),
+    );
     for (const reference of missing) {
       durationBackfillRef.current.add(reference.id);
       const mediaId = reference.serverId!;
@@ -816,7 +1012,7 @@ export function DirectGenerationStudio({
 
   const addMaterials = async (kind: MediaKind, files: File[]) => {
     if (!model || locked || !files.length) return;
-    if (!await requireAuthenticatedIdentity()) return;
+    if (!(await requireAuthenticatedIdentity())) return;
 
     // 容量检查用「最新引用」ref：每次提交后由 effect 同步，本函数提交时
     // 同步追加，保证同一次事件里并发调用也能看到彼此占用的名额。
@@ -849,7 +1045,8 @@ export function DirectGenerationStudio({
         [modality]: {
           ...targetDraft,
           references: [...targetDraft.references, ...pending],
-          referenceError: plan.overflow > 0 ? `当前模型最多支持 ${max} 个${materialKindLabel(kind)}素材` : null,
+          referenceError:
+            plan.overflow > 0 ? `当前模型最多支持 ${max} 个${materialKindLabel(kind)}素材` : null,
           quote: null,
           quoteState: "idle",
           quoteError: null,
@@ -861,45 +1058,55 @@ export function DirectGenerationStudio({
 
     // 每个文件独立并行上传：验证、拿上传意图、上传、回填结果互不阻塞，
     // 单个失败只标记自己，不影响同批其他素材。
-    void Promise.all(pending.map(async (reference, index) => {
-      try {
-        const validated = kind === "image"
-          ? await validateImageBlob(acceptedFiles[index]!)
-          : await validateMediaBlob(acceptedFiles[index]!, kind);
-        if (validated.mimeType === "image/svg+xml") throw new Error("暂不支持 SVG 图片，请上传 PNG、JPEG 或 WebP");
-        const previewUrl = URL.createObjectURL(validated.blob);
-        previewUrls.current.add(previewUrl);
-        updateReference(modality, reference.id, { previewUrl });
-        const intent = await createMediaUpload({
-          kind,
-          name: (acceptedFiles[index]!.name || `${materialKindLabel(kind)}素材`).slice(0, 255),
-          mimeType: validated.mimeType,
-          size: validated.blob.size,
-          idempotencyKey: reference.uploadKey,
-        });
-        const ready = intent.upload ? await uploadMediaBlob(intent.media, intent.upload, validated.blob) : intent.media;
-        if (ready.status !== "ready") throw new Error(ready.error?.message ?? `${materialKindLabel(kind)}素材处理失败`);
-        updateReference(modality, reference.id, {
-          serverId: ready.id,
-          status: "ready",
-          error: null,
-          // 上传回包里就带探测出的时长（视频/音频才有）：H3 的参考视频必须成对
-          // 声明时长，拿到就不必再查一次素材元数据。
-          durationMs: kind === "image" ? null : ready.durationMs ?? null,
-        });
-      } catch (cause) {
-        if (cause instanceof CanvasApiError && cause.status === 401) expireIdentity();
-        updateReference(modality, reference.id, {
-          status: "error",
-          error: cause instanceof Error ? cause.message : `${materialKindLabel(kind)}素材上传失败`,
-        });
-      }
-    }));
+    void Promise.all(
+      pending.map(async (reference, index) => {
+        try {
+          const validated =
+            kind === "image"
+              ? await validateImageBlob(acceptedFiles[index]!)
+              : await validateMediaBlob(acceptedFiles[index]!, kind);
+          if (validated.mimeType === "image/svg+xml")
+            throw new Error("暂不支持 SVG 图片，请上传 PNG、JPEG 或 WebP");
+          const previewUrl = URL.createObjectURL(validated.blob);
+          previewUrls.current.add(previewUrl);
+          updateReference(modality, reference.id, { previewUrl });
+          const intent = await createMediaUpload({
+            kind,
+            name: (acceptedFiles[index]!.name || `${materialKindLabel(kind)}素材`).slice(0, 255),
+            mimeType: validated.mimeType,
+            size: validated.blob.size,
+            idempotencyKey: reference.uploadKey,
+          });
+          const ready = intent.upload
+            ? await uploadMediaBlob(intent.media, intent.upload, validated.blob)
+            : intent.media;
+          if (ready.status !== "ready")
+            throw new Error(ready.error?.message ?? `${materialKindLabel(kind)}素材处理失败`);
+          updateReference(modality, reference.id, {
+            serverId: ready.id,
+            status: "ready",
+            error: null,
+            // 上传回包里就带探测出的时长（视频/音频才有）：H3 的参考视频必须成对
+            // 声明时长，拿到就不必再查一次素材元数据。
+            durationMs: kind === "image" ? null : (ready.durationMs ?? null),
+          });
+        } catch (cause) {
+          if (cause instanceof CanvasApiError && cause.status === 401) expireIdentity();
+          updateReference(modality, reference.id, {
+            status: "error",
+            error:
+              cause instanceof Error ? cause.message : `${materialKindLabel(kind)}素材上传失败`,
+          });
+        }
+      }),
+    );
   };
 
   const addInferredMaterials = async (files: File[]) => {
     if (!model || locked || !files.length) return;
-    const allowedKinds = new Set(materialControls.filter((control) => control.max > 0).map((control) => control.kind));
+    const allowedKinds = new Set(
+      materialControls.filter((control) => control.max > 0).map((control) => control.kind),
+    );
     const grouped = new Map<MediaKind, File[]>();
     const rejected: string[] = [];
 
@@ -919,12 +1126,16 @@ export function DirectGenerationStudio({
     }
 
     if (!grouped.size) {
-      setMaterialInputFeedback(rejected.length ? `当前模型不支持或无法识别：${rejected.join("、")}` : "没有可上传的素材");
+      setMaterialInputFeedback(
+        rejected.length ? `当前模型不支持或无法识别：${rejected.join("、")}` : "没有可上传的素材",
+      );
       return;
     }
 
     setMaterialInputFeedback(rejected.length ? `已忽略不支持的素材：${rejected.join("、")}` : null);
-    await Promise.all([...grouped.entries()].map(([kind, groupedFiles]) => addMaterials(kind, groupedFiles)));
+    await Promise.all(
+      [...grouped.entries()].map(([kind, groupedFiles]) => addMaterials(kind, groupedFiles)),
+    );
   };
 
   const removeMaterial = (reference: DirectReference) => {
@@ -941,7 +1152,11 @@ export function DirectGenerationStudio({
         [modality]: {
           ...targetDraft,
           references: nextReferences,
-          prompt: reconcileDirectMentions(targetDraft.prompt, targetDraft.references, nextReferences),
+          prompt: reconcileDirectMentions(
+            targetDraft.prompt,
+            targetDraft.references,
+            nextReferences,
+          ),
           referenceError: null,
           quote: null,
           quoteState: "idle",
@@ -988,21 +1203,48 @@ export function DirectGenerationStudio({
 
   const submit = async () => {
     if (!model || !draft.quote || inputInvalid || locked) return;
-    if (!await requireAuthenticatedIdentity()) return;
+    if (!(await requireAuthenticatedIdentity())) return;
     if (Date.parse(draft.quote.expiresAt) <= Date.now()) {
-      updateDraft(modality, { quote: null, quoteState: "loading", quoteError: "价格已更新，正在重新确认", quoteRevision: draft.quoteRevision + 1 });
+      updateDraft(modality, {
+        quote: null,
+        quoteState: "loading",
+        quoteError: "价格已更新，正在重新确认",
+        quoteRevision: draft.quoteRevision + 1,
+      });
       return;
     }
-    updateDraft(modality, { submitting: true, submitLabel: "正在提交", submissionError: null, quoteError: null });
+    updateDraft(modality, {
+      submitting: true,
+      submitLabel: "正在提交",
+      submissionError: null,
+      quoteError: null,
+    });
     try {
       const parameters = composeModelParameters(model, draft.prompt, draft.parameters);
       // 与报价请求保持同一份参数：参考视频时长缺失会让服务端重建的报价对不上，
       // 触发 QUOTE_CHANGED 反而打断提交。
       if (videoDurations?.length) parameters[REFERENCE_VIDEO_DURATIONS_PARAMETER] = videoDurations;
-      const tokenFields = quoteTokenFields(model, draft.prompt, draft.parameters, draft.maxOutputTokens);
+      const tokenFields = quoteTokenFields(
+        model,
+        draft.prompt,
+        draft.parameters,
+        draft.maxOutputTokens,
+      );
       if (typeof window !== "undefined") {
         // eslint-disable-next-line no-console
-        console.warn("[direct-submit] references:", JSON.stringify(draft.references.map((r) => ({ kind: r.kind, status: r.status, serverId: r.serverId, imagePurpose: r.imagePurpose }))), "inputs:", JSON.stringify(referenceInputs));
+        console.warn(
+          "[direct-submit] references:",
+          JSON.stringify(
+            draft.references.map((r) => ({
+              kind: r.kind,
+              status: r.status,
+              serverId: r.serverId,
+              imagePurpose: r.imagePurpose,
+            })),
+          ),
+          "inputs:",
+          JSON.stringify(referenceInputs),
+        );
       }
       const job = await submitGenerationJob({
         projectId: DIRECT_GENERATION_PROJECT_ID,
@@ -1026,18 +1268,33 @@ export function DirectGenerationStudio({
       watch(modality, job);
     } catch (cause) {
       if (cause instanceof CanvasApiError && cause.status === 401) expireIdentity();
-      if (cause instanceof CanvasApiError && cause.code === "INSUFFICIENT_CREDITS") openAccount("login");
+      if (cause instanceof CanvasApiError && cause.code === "INSUFFICIENT_CREDITS")
+        openAccount("login");
       if (cause instanceof CanvasApiError && cause.code === "QUOTE_CHANGED") {
         await loadCatalog(modality, true);
-        updateDraft(modality, { quote: null, quoteState: "loading", quoteRevision: draft.quoteRevision + 1 });
+        updateDraft(modality, {
+          quote: null,
+          quoteState: "loading",
+          quoteRevision: draft.quoteRevision + 1,
+        });
       }
-      const unknown = cause instanceof CanvasApiError && (cause.status === 0 || cause.code === "NETWORK_UNAVAILABLE");
+      const unknown =
+        cause instanceof CanvasApiError &&
+        (cause.status === 0 || cause.code === "NETWORK_UNAVAILABLE");
       updateDraft(modality, {
         submitting: false,
         submitLabel: "生成",
         submissionUnknown: draft.submissionUnknown || unknown,
-        submissionError: unknown ? "提交结果待确认；再次点击会创建新的请求并正常扣费" : (cause instanceof Error ? cause.message : "生成任务没有提交成功"),
-        quoteError: unknown ? "提交结果待确认；再次点击会创建新的请求并正常扣费" : (cause instanceof Error ? cause.message : "生成任务没有提交成功"),
+        submissionError: unknown
+          ? "提交结果待确认；再次点击会创建新的请求并正常扣费"
+          : cause instanceof Error
+            ? cause.message
+            : "生成任务没有提交成功",
+        quoteError: unknown
+          ? "提交结果待确认；再次点击会创建新的请求并正常扣费"
+          : cause instanceof Error
+            ? cause.message
+            : "生成任务没有提交成功",
       });
     }
   };
@@ -1057,21 +1314,35 @@ export function DirectGenerationStudio({
     });
   };
 
-  const status = directStatus({ draft, catalogStateStatus: catalogState.status, model, promptMissing, inputInvalid, activeJobs, latestJob });
+  const status = directStatus({
+    draft,
+    catalogStateStatus: catalogState.status,
+    model,
+    promptMissing,
+    inputInvalid,
+    activeJobs,
+    latestJob,
+  });
   const activeOption = MODALITIES.find((option) => option.value === modality)!;
 
   return (
-    <section id="kc-entry-generate" className="kc-entry-section kc-entry-section--generate" aria-label="快速生成">
-      <div className="kc-entry-section-heading kc-entry-section-heading--generate">
+    <section
+      id="wc-entry-generate"
+      className="wc-entry-section wc-entry-section--generate"
+      aria-label="快速生成"
+    >
+      <div className="wc-entry-section-heading wc-entry-section-heading--generate">
         <div>
-          <span className="kc-entry-kicker">不打开画布也能开始</span>
+          <span className="wc-entry-kicker">不打开画布也能开始</span>
           <h2>把一个想法，直接变成画面。</h2>
         </div>
-        <p>选择图片或视频模型，写下提示词，确认价格后立即生成。完成结果会留在这里，也可以下载后继续进入画布。</p>
+        <p>
+          选择图片或视频模型，写下提示词，确认价格后立即生成。完成结果会留在这里，也可以下载后继续进入画布。
+        </p>
       </div>
 
-      <div className="kc-direct-studio" data-direct-generation data-direct-modality={modality}>
-        <div className="kc-direct-studio-tabs" role="tablist" aria-label="生成类型">
+      <div className="wc-direct-studio" data-direct-generation data-direct-modality={modality}>
+        <div className="wc-direct-studio-tabs" role="tablist" aria-label="生成类型">
           {MODALITIES.map(({ value, label, description, icon: Icon }) => (
             <button
               key={value}
@@ -1082,16 +1353,22 @@ export function DirectGenerationStudio({
               onClick={() => onModalityChange(value)}
             >
               <Icon aria-hidden="true" />
-              <span><strong>{label}</strong><small>{description}</small></span>
+              <span>
+                <strong>{label}</strong>
+                <small>{description}</small>
+              </span>
               {modality === value ? <Check aria-hidden="true" /> : null}
             </button>
           ))}
         </div>
 
-        <div className="kc-direct-studio-body">
+        <div className="wc-direct-studio-body">
           <form
-            className="kc-direct-composer"
-            onSubmit={(event) => { event.preventDefault(); void submit(); }}
+            className="wc-direct-composer"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submit();
+            }}
             onPaste={(event) => {
               const files = filesFromDataTransfer(event.clipboardData);
               if (!files.length) return;
@@ -1099,25 +1376,39 @@ export function DirectGenerationStudio({
               void addInferredMaterials(files);
             }}
           >
-            <header className="kc-direct-composer-header">
+            <header className="wc-direct-composer-header">
               <div>
-                <span className="kc-direct-index">01 / {modality === "image" ? "STILL" : "MOTION"}</span>
+                <span className="wc-direct-index">
+                  01 / {modality === "image" ? "STILL" : "MOTION"}
+                </span>
                 <h3>{activeOption.label}</h3>
               </div>
-              <span className="kc-direct-live-dot"><i aria-hidden="true" />直连模型</span>
+              <span className="wc-direct-live-dot">
+                <i aria-hidden="true" />
+                直连模型
+              </span>
             </header>
 
-            <label className="kc-direct-prompt-field">
+            <label className="wc-direct-prompt-field">
               <span>提示词{promptRequired ? " · 必填" : ""}</span>
               <textarea
                 data-direct-prompt
                 ref={promptRef}
                 value={draft.prompt}
                 disabled={locked}
-                placeholder={modality === "image" ? "描述主体、环境、光线和画面气质……" : "描述镜头、动作、节奏和时长感……"}
+                placeholder={
+                  modality === "image"
+                    ? "描述主体、环境、光线和画面气质……"
+                    : "描述镜头、动作、节奏和时长感……"
+                }
                 rows={6}
                 maxLength={4_000}
-                onChange={(event) => updatePrompt(event.target.value, event.target.selectionStart ?? event.target.value.length)}
+                onChange={(event) =>
+                  updatePrompt(
+                    event.target.value,
+                    event.target.selectionStart ?? event.target.value.length,
+                  )
+                }
                 onKeyDown={(event) => {
                   if (!mentionRange || !visibleMentionCandidates.length) return;
                   if (event.key === "ArrowDown") {
@@ -1125,10 +1416,16 @@ export function DirectGenerationStudio({
                     setMentionIndex((current) => (current + 1) % visibleMentionCandidates.length);
                   } else if (event.key === "ArrowUp") {
                     event.preventDefault();
-                    setMentionIndex((current) => (current - 1 + visibleMentionCandidates.length) % visibleMentionCandidates.length);
+                    setMentionIndex(
+                      (current) =>
+                        (current - 1 + visibleMentionCandidates.length) %
+                        visibleMentionCandidates.length,
+                    );
                   } else if (event.key === "Enter" || event.key === "Tab") {
                     event.preventDefault();
-                    chooseMention(visibleMentionCandidates[mentionIndex] ?? visibleMentionCandidates[0]!);
+                    chooseMention(
+                      visibleMentionCandidates[mentionIndex] ?? visibleMentionCandidates[0]!,
+                    );
                   } else if (event.key === "Escape") {
                     event.preventDefault();
                     setMentionRange(null);
@@ -1136,7 +1433,7 @@ export function DirectGenerationStudio({
                 }}
               />
               {mentionRange && visibleMentionCandidates.length ? (
-                <div className="kc-direct-mention-menu" role="listbox" aria-label="引用素材">
+                <div className="wc-direct-mention-menu" role="listbox" aria-label="引用素材">
                   {visibleMentionCandidates.map((candidate, index) => (
                     <button
                       key={candidate.id}
@@ -1144,9 +1441,12 @@ export function DirectGenerationStudio({
                       role="option"
                       aria-selected={index === mentionIndex}
                       className={index === mentionIndex ? "is-active" : undefined}
-                      onMouseDown={(event) => { event.preventDefault(); chooseMention(candidate); }}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        chooseMention(candidate);
+                      }}
                     >
-                      <span className="kc-direct-mention-label">@{candidate.label}</span>
+                      <span className="wc-direct-mention-label">@{candidate.label}</span>
                       <span>{candidate.name}</span>
                     </button>
                   ))}
@@ -1155,8 +1455,11 @@ export function DirectGenerationStudio({
               <small>{draft.prompt.length.toLocaleString("zh-CN")} / 4,000</small>
             </label>
 
-            <div className="kc-direct-field-group">
-              <label className="kc-direct-field-label"><span>模型</span><small>{models.length ? `${models.length} 个可用模型` : "正在读取目录"}</small></label>
+            <div className="wc-direct-field-group">
+              <label className="wc-direct-field-label">
+                <span>模型</span>
+                <small>{models.length ? `${models.length} 个可用模型` : "正在读取目录"}</small>
+              </label>
               <CategorizedModelSelect
                 value={draft.modelId}
                 models={models}
@@ -1164,12 +1467,14 @@ export function DirectGenerationStudio({
                 onChange={chooseModel}
                 ariaLabel="模型"
               />
-              {model?.description ? <p className="kc-direct-model-description">{model.description}</p> : null}
+              {model?.description ? (
+                <p className="wc-direct-model-description">{model.description}</p>
+              ) : null}
             </div>
 
             {materialControls.length ? (
               <div
-                className={`kc-direct-materials${materialDropActive ? " is-drag-active" : ""}`}
+                className={`wc-direct-materials${materialDropActive ? " is-drag-active" : ""}`}
                 role="group"
                 aria-label="上传素材"
                 data-direct-material-dropzone
@@ -1196,14 +1501,17 @@ export function DirectGenerationStudio({
                   void addInferredMaterials(files);
                 }}
               >
-                <div className="kc-direct-field-label">
+                <div className="wc-direct-field-label">
                   <span>上传素材</span>
-                  <div className="kc-direct-field-label-actions">
-                    <small>{draft.references.filter((reference) => reference.status === "ready").length} 个已就绪</small>
+                  <div className="wc-direct-field-label-actions">
+                    <small>
+                      {draft.references.filter((reference) => reference.status === "ready").length}{" "}
+                      个已就绪
+                    </small>
                     {draft.references.length ? (
                       <button
                         type="button"
-                        className="kc-direct-clear-materials"
+                        className="wc-direct-clear-materials"
                         disabled={locked}
                         onClick={() => void clearAllMaterials()}
                       >
@@ -1213,9 +1521,11 @@ export function DirectGenerationStudio({
                     ) : null}
                   </div>
                 </div>
-                <div className="kc-direct-material-actions">
+                <div className="wc-direct-material-actions">
                   {materialControls.map((control) => {
-                    const selected = draft.references.filter((reference) => reference.kind === control.kind).length;
+                    const selected = draft.references.filter(
+                      (reference) => reference.kind === control.kind,
+                    ).length;
                     const disabled = locked || control.max <= selected;
                     return (
                       <label key={control.kind} className={disabled ? "is-disabled" : undefined}>
@@ -1239,48 +1549,61 @@ export function DirectGenerationStudio({
                     );
                   })}
                 </div>
-                <p className="kc-direct-material-drop-hint" aria-live="polite">
+                <p className="wc-direct-material-drop-hint" aria-live="polite">
                   {materialDropActive
                     ? "松开即可上传当前模型支持的素材"
                     : `可拖入${acceptedMaterialLabels || "素材"}，也可复制文件后粘贴`}
                 </p>
                 {draft.references.length ? (
-                  <div className="kc-direct-material-list">
+                  <div className="wc-direct-material-list">
                     {draft.references.map((reference) => (
                       <div
                         key={reference.id}
-                        className={`kc-direct-material-item is-${reference.status}${reference.kind === "image" && imagePurposes.length > 1 ? " has-purpose-select" : ""}`}
+                        className={`wc-direct-material-item is-${reference.status}${reference.kind === "image" && imagePurposes.length > 1 ? " has-purpose-select" : ""}`}
                       >
-                        <span className="kc-direct-material-preview">
-                          {reference.kind === "image" && reference.previewUrl
-                            ? <img src={reference.previewUrl} alt="" />
-                            : <MaterialKindIcon kind={reference.kind} />}
+                        <span className="wc-direct-material-preview">
+                          {reference.kind === "image" && reference.previewUrl ? (
+                            <img src={reference.previewUrl} alt="" />
+                          ) : (
+                            <MaterialKindIcon kind={reference.kind} />
+                          )}
                         </span>
-                        <span className="kc-direct-material-copy">
+                        <span className="wc-direct-material-copy">
                           <strong title={reference.name}>{reference.name}</strong>
-                          <small>{reference.status === "uploading" ? "正在上传" : reference.status === "ready" ? "已上传" : reference.error ?? "上传失败"}</small>
+                          <small>
+                            {reference.status === "uploading"
+                              ? "正在上传"
+                              : reference.status === "ready"
+                                ? "已上传"
+                                : (reference.error ?? "上传失败")}
+                          </small>
                         </span>
                         {reference.kind === "image" && imagePurposes.length > 1 ? (
                           <CanvasSelect
-                            value={reference.imagePurpose && imagePurposes.includes(reference.imagePurpose)
-                              ? reference.imagePurpose
-                              : "__unassigned__"}
+                            value={
+                              reference.imagePurpose &&
+                              imagePurposes.includes(reference.imagePurpose)
+                                ? reference.imagePurpose
+                                : "__unassigned__"
+                            }
                             options={imagePurposeOptions}
                             ariaLabel={`${reference.name}的参考用途`}
                             disabled={locked}
                             variant="compact"
                             menuMinWidth={150}
-                            onChange={(value) => updateReference(modality, reference.id, {
-                              imagePurpose: imagePurposes.includes(value as ReferenceImagePurpose)
-                                ? value as ReferenceImagePurpose
-                                : null,
-                            })}
+                            onChange={(value) =>
+                              updateReference(modality, reference.id, {
+                                imagePurpose: imagePurposes.includes(value as ReferenceImagePurpose)
+                                  ? (value as ReferenceImagePurpose)
+                                  : null,
+                              })
+                            }
                           />
                         ) : null}
                         {reference.status === "ready" ? (
                           <button
                             type="button"
-                            className="kc-direct-material-mention"
+                            className="wc-direct-material-mention"
                             aria-label={`引用${reference.name}到提示词`}
                             title="引用到提示词"
                             onClick={() => mentionReference(reference)}
@@ -1288,8 +1611,15 @@ export function DirectGenerationStudio({
                             <AtSign aria-hidden="true" />
                           </button>
                         ) : null}
-                        {reference.status === "uploading" ? <LoaderCircle className="is-spinning" aria-hidden="true" /> : (
-                          <button type="button" aria-label={`移除${reference.name}`} title="移除素材" onClick={() => removeMaterial(reference)}>
+                        {reference.status === "uploading" ? (
+                          <LoaderCircle className="is-spinning" aria-hidden="true" />
+                        ) : (
+                          <button
+                            type="button"
+                            aria-label={`移除${reference.name}`}
+                            title="移除素材"
+                            onClick={() => removeMaterial(reference)}
+                          >
                             <X aria-hidden="true" />
                           </button>
                         )}
@@ -1297,30 +1627,53 @@ export function DirectGenerationStudio({
                     ))}
                   </div>
                 ) : null}
-                {materialInputFeedback ? <p className="kc-direct-material-error" role="alert"><AlertCircle aria-hidden="true" />{materialInputFeedback}</p> : null}
-                {draft.referenceError ? <p className="kc-direct-material-error" role="status"><AlertCircle aria-hidden="true" />{draft.referenceError}</p> : null}
+                {materialInputFeedback ? (
+                  <p className="wc-direct-material-error" role="alert">
+                    <AlertCircle aria-hidden="true" />
+                    {materialInputFeedback}
+                  </p>
+                ) : null}
+                {draft.referenceError ? (
+                  <p className="wc-direct-material-error" role="status">
+                    <AlertCircle aria-hidden="true" />
+                    {draft.referenceError}
+                  </p>
+                ) : null}
               </div>
             ) : null}
 
-            {editableParameters.length || hasStandaloneTokenMaximum || (modality === "image" && (requestFixedOutputCount !== null || outputParameter?.fixed !== undefined || outputRange.max > outputRange.min)) ? (
-              <div className="kc-direct-parameters" aria-label="生成参数">
+            {editableParameters.length ||
+            hasStandaloneTokenMaximum ||
+            (modality === "image" &&
+              (requestFixedOutputCount !== null ||
+                outputParameter?.fixed !== undefined ||
+                outputRange.max > outputRange.min)) ? (
+              <div className="wc-direct-parameters" aria-label="生成参数">
                 {modality === "image" && requestFixedOutputCount !== null ? (
-                  <div className="kc-generation-field kc-direct-count-field">
+                  <div className="wc-generation-field wc-direct-count-field">
                     <span>本次产出</span>
                     <output>每次调用生成 {requestFixedOutputCount} 张图片</output>
                     <small>按次计费，单次调用返回全部图片</small>
                   </div>
-                ) : modality === "image" && (outputParameter?.fixed !== undefined || outputRange.max > outputRange.min) ? (
-                  <div className="kc-param-chips" role="group" aria-label="生成张数">
-                    <span className="kc-param-chips-label">生成张数</span>
-                    <div className="kc-param-chips-row">
-                      {Array.from({ length: outputRange.max - outputRange.min + 1 }, (_, index) => outputRange.min + index).map((count) => (
+                ) : modality === "image" &&
+                  (outputParameter?.fixed !== undefined || outputRange.max > outputRange.min) ? (
+                  <div className="wc-param-chips" role="group" aria-label="生成张数">
+                    <span className="wc-param-chips-label">生成张数</span>
+                    <div className="wc-param-chips-row">
+                      {Array.from(
+                        { length: outputRange.max - outputRange.min + 1 },
+                        (_, index) => outputRange.min + index,
+                      ).map((count) => (
                         <button
                           key={count}
                           type="button"
                           role="radio"
                           aria-checked={selectedQuantity === count}
-                          disabled={locked || outputParameter?.fixed !== undefined || outputRange.max === outputRange.min}
+                          disabled={
+                            locked ||
+                            outputParameter?.fixed !== undefined ||
+                            outputRange.max === outputRange.min
+                          }
                           className={selectedQuantity === count ? "is-active" : undefined}
                           onClick={() => updateQuantity(count)}
                         >
@@ -1365,17 +1718,25 @@ export function DirectGenerationStudio({
                       disabled={locked}
                       boundedDuration={modality === "video"}
                       onChange={(value) => updateParameter(parameter.name, value)}
-                      onValidityChange={(valid) => updateDraft(modality, {
-                        invalidParameters: new Set(valid ? [...draft.invalidParameters].filter((name) => name !== parameter.name) : [...draft.invalidParameters, parameter.name]),
-                        quote: null,
-                        quoteState: "idle",
-                        quoteRevision: draft.quoteRevision + 1,
-                      })}
+                      onValidityChange={(valid) =>
+                        updateDraft(modality, {
+                          invalidParameters: new Set(
+                            valid
+                              ? [...draft.invalidParameters].filter(
+                                  (name) => name !== parameter.name,
+                                )
+                              : [...draft.invalidParameters, parameter.name],
+                          ),
+                          quote: null,
+                          quoteState: "idle",
+                          quoteRevision: draft.quoteRevision + 1,
+                        })
+                      }
                     />
                   );
                 })}
                 {hasStandaloneTokenMaximum ? (
-                  <label className="kc-generation-field">
+                  <label className="wc-generation-field">
                     <span>最大输出</span>
                     <input
                       type="number"
@@ -1384,34 +1745,73 @@ export function DirectGenerationStudio({
                       step={128}
                       value={draft.maxOutputTokens ?? 1_024}
                       disabled={locked}
-                      onChange={(event) => updateDraft(modality, { maxOutputTokens: Math.max(1, Number(event.target.value) || 1), quote: null, quoteState: "idle", quoteRevision: draft.quoteRevision + 1 })}
+                      onChange={(event) =>
+                        updateDraft(modality, {
+                          maxOutputTokens: Math.max(1, Number(event.target.value) || 1),
+                          quote: null,
+                          quoteState: "idle",
+                          quoteRevision: draft.quoteRevision + 1,
+                        })
+                      }
                     />
                   </label>
                 ) : null}
               </div>
             ) : null}
 
-            <div className="kc-direct-submit-row">
-              <div className="kc-direct-price" aria-live="polite">
+            <div className="wc-direct-submit-row">
+              <div className="wc-direct-price" aria-live="polite">
                 <span>本次预计</span>
-                <strong>{draft.quote ? `${draft.quote.estimated ? "约 " : ""}${draft.quote.credits} 积分` : "--"}</strong>
-                {draft.quote ? <small>{draft.quote.yuan} 元 · {pricingUnitText(draft.quote.pricingUnit)}</small> : null}
+                <strong>
+                  {draft.quote
+                    ? `${draft.quote.estimated ? "约 " : ""}${draft.quote.credits} 积分`
+                    : "--"}
+                </strong>
+                {draft.quote ? (
+                  <small>
+                    {draft.quote.yuan} 元 · {pricingUnitText(draft.quote.pricingUnit)}
+                  </small>
+                ) : null}
               </div>
-              <button className="kc-direct-submit" type="submit" disabled={!model || inputInvalid || !draft.quote || draft.quoteState !== "ready" || locked}>
-                {draft.submitting ? <LoaderCircle className="is-spinning" aria-hidden="true" /> : <Sparkles aria-hidden="true" />}
+              <button
+                className="wc-direct-submit"
+                type="submit"
+                disabled={
+                  !model || inputInvalid || !draft.quote || draft.quoteState !== "ready" || locked
+                }
+              >
+                {draft.submitting ? (
+                  <LoaderCircle className="is-spinning" aria-hidden="true" />
+                ) : (
+                  <Sparkles aria-hidden="true" />
+                )}
                 <span>{draft.submitting ? draft.submitLabel : "生成"}</span>
                 {!draft.submitting ? <ArrowRight aria-hidden="true" /> : null}
               </button>
             </div>
           </form>
 
-          <aside className="kc-direct-result" aria-label={`${activeOption.label}结果`}>
-            <div className="kc-direct-result-topline"><span>02 / RESULT</span><span>{status.tone === "ready" ? <Check aria-hidden="true" /> : null}{status.text}</span></div>
-            <div className={`kc-direct-result-stage ${completedArtifacts.length ? "has-media" : ""}`}>
+          <aside className="wc-direct-result" aria-label={`${activeOption.label}结果`}>
+            <div className="wc-direct-result-topline">
+              <span>02 / RESULT</span>
+              <span>
+                {status.tone === "ready" ? <Check aria-hidden="true" /> : null}
+                {status.text}
+              </span>
+            </div>
+            <div
+              className={`wc-direct-result-stage ${completedArtifacts.length ? "has-media" : ""}`}
+            >
               {completedArtifacts.length ? (
-                <div className="kc-direct-result-gallery">
+                <div className="wc-direct-result-gallery">
                   {activeJobs.map((job) => (
-                    <GeneratingTile key={job.id} job={job} compact onReusePrompt={() => reusePromptFromJob(job)} onReuseReferences={() => reuseReferencesFromJob(job)} />
+                    <GeneratingTile
+                      key={job.id}
+                      job={job}
+                      compact
+                      onReusePrompt={() => reusePromptFromJob(job)}
+                      onReuseReferences={() => reuseReferencesFromJob(job)}
+                    />
                   ))}
                   {completedArtifacts.map(({ job, artifact }, index) => (
                     <DirectResultMedia
@@ -1428,27 +1828,132 @@ export function DirectGenerationStudio({
                   ))}
                 </div>
               ) : activeJobs.length ? (
-                <div className="kc-direct-progress-list" role="status">
+                <div className="wc-direct-progress-list" role="status">
                   {activeJobs.map((job) => (
                     <GeneratingTile key={job.id} job={job} />
                   ))}
                 </div>
               ) : (
-                <div className="kc-direct-empty-result">
-                  <span className="kc-direct-empty-icon">{modality === "image" ? <ImageIcon aria-hidden="true" /> : <Video aria-hidden="true" />}</span>
-                  <strong>{latestJob?.status === "failed" ? "这次生成没有完成" : "结果会显示在这里"}</strong>
-                  <small>{latestJob?.error?.message ?? "先写下提示词，提交后可以继续生成更多结果。"}</small>
+                <div className="wc-direct-result-gallery" aria-label="示例结果">
+                  <p className="wc-direct-sample-note">
+                    示例预览 · 生成完成后这里换成你的真实成品，每张可放大 / 复用 / 下载 / 加入画布
+                  </p>
+                  {(modality === "image"
+                    ? [
+                        {
+                          img: "docking",
+                          model: "GPT Image 2.5 · 1:1",
+                          prompt: "赛博朋克城市夜景，霓虹与雨雾",
+                        },
+                        {
+                          img: "ocean",
+                          model: "Gemini 3 Pro Image · 16:9",
+                          prompt: "清晨海面薄雾，金色晨光",
+                        },
+                        {
+                          img: "blackhole",
+                          model: "Seedream 4.0 · 1:1",
+                          prompt: "黑洞吸积盘，电影级科幻",
+                        },
+                        {
+                          img: "wormhole",
+                          model: "Midjourney V7 · 21:9",
+                          prompt: "穿越虫洞的星舰长镜头",
+                        },
+                        {
+                          img: "docking",
+                          model: "FLUX.2 [pro] · 3:4",
+                          prompt: "空间站对接舱特写，金属质感",
+                        },
+                        {
+                          img: "ocean",
+                          model: "GPT Image 2.5 · 16:9",
+                          prompt: "极简产品海报，大量留白",
+                        },
+                      ]
+                    : [
+                        {
+                          img: "docking",
+                          model: "Veo 3.1 · 8 秒",
+                          prompt: "星舰缓缓接近空间站，环绕运镜",
+                        },
+                        {
+                          img: "ocean",
+                          model: "可灵 Kling 2.5 · 5 秒",
+                          prompt: "海浪拍打礁石，慢镜头",
+                        },
+                        {
+                          img: "blackhole",
+                          model: "Seedance 1.1 · 10 秒",
+                          prompt: "黑洞潮汐撕裂，多镜头叙事",
+                        },
+                        { img: "wormhole", model: "Wan 2.5 · 5 秒", prompt: "虫洞坍缩，粒子飞散" },
+                        {
+                          img: "docking",
+                          model: "Sora 2 · 12 秒",
+                          prompt: "对接舱机械臂对接，一镜到底",
+                        },
+                        {
+                          img: "ocean",
+                          model: "Veo 3.1 · 6 秒",
+                          prompt: "日出海面光斑，无人机拉升",
+                        },
+                      ]
+                  ).map((tile, index) => (
+                    <figure className="wc-direct-result-tile" key={index}>
+                      <header className="wc-direct-result-head">
+                        <span className="wc-direct-result-model" title={tile.model}>
+                          {tile.model}
+                        </span>
+                      </header>
+                      <div className="wc-direct-result-media">
+                        <img
+                          src={`/film/auth-film-poster-${tile.img}.webp`}
+                          alt="示例结果"
+                          draggable={false}
+                          loading="lazy"
+                        />
+                        <span className="wc-direct-sample-badge">示例</span>
+                      </div>
+                      <div className="wc-direct-result-body">
+                        <span className="wc-direct-result-caption" title={tile.prompt}>
+                          {tile.prompt}
+                        </span>
+                        <div className="wc-direct-result-controls" aria-hidden="true">
+                          <button type="button" tabIndex={-1} title="复用提示词">
+                            <RotateCcw aria-hidden="true" />
+                          </button>
+                          <button type="button" tabIndex={-1} title="加入画布">
+                            <ImagePlus aria-hidden="true" />
+                          </button>
+                          <button type="button" tabIndex={-1} title="下载">
+                            <ArrowDownToLine aria-hidden="true" />
+                          </button>
+                        </div>
+                      </div>
+                    </figure>
+                  ))}
                 </div>
               )}
             </div>
             {completedArtifacts.length ? (
-              <div className="kc-direct-result-actions">
-                <span><Check aria-hidden="true" />已完成 {completedArtifacts.length} 个结果</span>
+              <div className="wc-direct-result-actions">
+                <span>
+                  <Check aria-hidden="true" />
+                  已完成 {completedArtifacts.length} 个结果
+                </span>
                 {latestCompletedJob ? <small>{latestCompletedJob.modelLabel}</small> : null}
               </div>
             ) : null}
             {status.tone === "error" ? (
-              <div className="kc-direct-status-error" role="alert"><AlertCircle aria-hidden="true" /><span>{status.text}</span><button type="button" onClick={retry} disabled={draft.submitting}><RefreshCw aria-hidden="true" />重新报价</button></div>
+              <div className="wc-direct-status-error" role="alert">
+                <AlertCircle aria-hidden="true" />
+                <span>{status.text}</span>
+                <button type="button" onClick={retry} disabled={draft.submitting}>
+                  <RefreshCw aria-hidden="true" />
+                  重新报价
+                </button>
+              </div>
             ) : null}
           </aside>
         </div>
@@ -1485,13 +1990,16 @@ function DurationChips({
 }) {
   const options = boundedDurationOptions(parameter);
   if (!options?.length) return null;
-  const selected = normalizeBoundedDurationValue(parameter, generationParameterDisplayValue(parameter, value));
+  const selected = normalizeBoundedDurationValue(
+    parameter,
+    generationParameterDisplayValue(parameter, value),
+  );
   const locked = disabled || isGenerationParameterLocked(parameter);
 
   return (
-    <div className="kc-param-chips" role="group" aria-label={parameter.label}>
-      <span className="kc-param-chips-label">{parameter.label}</span>
-      <div className="kc-param-chips-row">
+    <div className="wc-param-chips" role="group" aria-label={parameter.label}>
+      <span className="wc-param-chips-label">{parameter.label}</span>
+      <div className="wc-param-chips-row">
         {options.map((option) => {
           const active = selected !== undefined && Object.is(selected, option);
           return (
@@ -1518,7 +2026,12 @@ function DurationChips({
  * （模型名 + 进度视觉 + 提示词 + 操作），进度再久也能看到并复用提示词/参考图；
  * 完整模式用于空结果时的进度列表。
  */
-function GeneratingTile({ job, compact = false, onReusePrompt, onReuseReferences }: {
+function GeneratingTile({
+  job,
+  compact = false,
+  onReusePrompt,
+  onReuseReferences,
+}: {
   job: PublicGenerationJob;
   compact?: boolean;
   onReusePrompt?: () => void;
@@ -1527,47 +2040,87 @@ function GeneratingTile({ job, compact = false, onReusePrompt, onReuseReferences
   const prompt = typeof job.parameters?.prompt === "string" ? job.parameters.prompt : "";
   if (!compact) {
     return (
-      <div className="kc-direct-generating" role="status" aria-label={`生成中 ${job.progress}%`}>
-        <span className="kc-direct-generating-aura" aria-hidden="true" />
-        <span className="kc-direct-generating-shine" aria-hidden="true" />
-        <span className="kc-direct-generating-particles" aria-hidden="true"><i /><i /><i /><i /><i /></span>
-        <div className="kc-direct-generating-copy">
-          <Sparkles aria-hidden="true" className="kc-direct-generating-spark" />
+      <div className="wc-direct-generating" role="status" aria-label={`生成中 ${job.progress}%`}>
+        <span className="wc-direct-generating-aura" aria-hidden="true" />
+        <span className="wc-direct-generating-shine" aria-hidden="true" />
+        <span className="wc-direct-generating-particles" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+          <i />
+          <i />
+        </span>
+        <div className="wc-direct-generating-copy">
+          <Sparkles aria-hidden="true" className="wc-direct-generating-spark" />
           <strong>{job.progress}%</strong>
           <small>{jobStatusLabel(job.status)}</small>
-          <i className="kc-direct-generating-bar"><span style={{ width: `${job.progress}%` }} /></i>
+          <i className="wc-direct-generating-bar">
+            <span style={{ width: `${job.progress}%` }} />
+          </i>
         </div>
       </div>
     );
   }
   return (
-    <figure className="kc-direct-result-tile is-generating" role="status" aria-label={`生成中 ${job.progress}%`}>
-      <header className="kc-direct-result-head">
-        <span className="kc-direct-result-model" title={job.modelLabel}>{job.modelLabel}</span>
+    <figure
+      className="wc-direct-result-tile is-generating"
+      role="status"
+      aria-label={`生成中 ${job.progress}%`}
+    >
+      <header className="wc-direct-result-head">
+        <span className="wc-direct-result-model" title={job.modelLabel}>
+          {job.modelLabel}
+        </span>
       </header>
-      <div className="kc-direct-result-media kc-direct-result-media--generating">
-        <div className="kc-direct-generating is-embedded" aria-hidden="true">
-          <span className="kc-direct-generating-aura" />
-          <span className="kc-direct-generating-shine" />
-          <span className="kc-direct-generating-particles"><i /><i /><i /><i /><i /></span>
-          <div className="kc-direct-generating-copy">
-            <Sparkles aria-hidden="true" className="kc-direct-generating-spark" />
+      <div className="wc-direct-result-media wc-direct-result-media--generating">
+        <div className="wc-direct-generating is-embedded" aria-hidden="true">
+          <span className="wc-direct-generating-aura" />
+          <span className="wc-direct-generating-shine" />
+          <span className="wc-direct-generating-particles">
+            <i />
+            <i />
+            <i />
+            <i />
+            <i />
+          </span>
+          <div className="wc-direct-generating-copy">
+            <Sparkles aria-hidden="true" className="wc-direct-generating-spark" />
             <strong>{job.progress}%</strong>
             <small>{jobStatusLabel(job.status)}</small>
-            <i className="kc-direct-generating-bar"><span style={{ width: `${job.progress}%` }} /></i>
+            <i className="wc-direct-generating-bar">
+              <span style={{ width: `${job.progress}%` }} />
+            </i>
           </div>
         </div>
       </div>
-      <div className="kc-direct-result-body">
-        <span className="kc-direct-result-caption" title={prompt || job.modelLabel} aria-label={`生成提示词：${prompt || job.modelLabel}`}>
+      <div className="wc-direct-result-body">
+        <span
+          className="wc-direct-result-caption"
+          title={prompt || job.modelLabel}
+          aria-label={`生成提示词：${prompt || job.modelLabel}`}
+        >
           {prompt || job.modelLabel}
         </span>
-        <div className="kc-direct-result-controls">
+        <div className="wc-direct-result-controls">
           {onReusePrompt ? (
-            <button type="button" aria-label="复用提示词" title="复用提示词" onClick={onReusePrompt}><RotateCcw aria-hidden="true" /></button>
+            <button
+              type="button"
+              aria-label="复用提示词"
+              title="复用提示词"
+              onClick={onReusePrompt}
+            >
+              <RotateCcw aria-hidden="true" />
+            </button>
           ) : null}
           {onReuseReferences && jobReferenceImageCount(job) > 0 ? (
-            <button type="button" aria-label="复用参考图" title={`复用本次使用的 ${jobReferenceImageCount(job)} 张参考图`} onClick={onReuseReferences}><ImagePlus aria-hidden="true" /></button>
+            <button
+              type="button"
+              aria-label="复用参考图"
+              title={`复用本次使用的 ${jobReferenceImageCount(job)} 张参考图`}
+              onClick={onReuseReferences}
+            >
+              <ImagePlus aria-hidden="true" />
+            </button>
           ) : null}
         </div>
       </div>
@@ -1594,7 +2147,10 @@ const DirectResultMedia = memo(function DirectResultMedia({
   onReuseReferences: () => void;
   onOpen: () => void;
 }) {
-  const media = useMemo(() => artifact.kind === "text" ? null : mediaFromArtifact(artifact), [artifact]);
+  const media = useMemo(
+    () => (artifact.kind === "text" ? null : mediaFromArtifact(artifact)),
+    [artifact],
+  );
   // 画廊瓦片只有 ~200px 见方：图片请求 512px 缩略变体（与画布节点同一语义），
   // 一进页面的整页原图下载/解码是工作台加载卡顿的主因。放大查看走独立的
   // useMediaUrl 原图，画质不受影响。本地 IndexedDB 命中时 thumb 与原图同字节。
@@ -1603,9 +2159,29 @@ const DirectResultMedia = memo(function DirectResultMedia({
   if (!media) return null;
 
   return modality === "image" ? (
-    <DirectImageResult key={media.id} job={job} media={media} url={url} displayUrl={thumbUrl ?? url} decodePriority={decodePriority} onRemove={onRemove} onReusePrompt={onReusePrompt} onReuseReferences={onReuseReferences} onOpen={onOpen} />
+    <DirectImageResult
+      key={media.id}
+      job={job}
+      media={media}
+      url={url}
+      displayUrl={thumbUrl ?? url}
+      decodePriority={decodePriority}
+      onRemove={onRemove}
+      onReusePrompt={onReusePrompt}
+      onReuseReferences={onReuseReferences}
+      onOpen={onOpen}
+    />
   ) : (
-    <DirectVideoResult key={media.id} job={job} media={media} url={url} onRemove={onRemove} onReusePrompt={onReusePrompt} onReuseReferences={onReuseReferences} onOpen={onOpen} />
+    <DirectVideoResult
+      key={media.id}
+      job={job}
+      media={media}
+      url={url}
+      onRemove={onRemove}
+      onReusePrompt={onReusePrompt}
+      onReuseReferences={onReuseReferences}
+      onOpen={onOpen}
+    />
   );
 });
 
@@ -1736,7 +2312,7 @@ function DirectImageResultContent({
   // 注意：不再把缩略 blob 落盘——本地缓存必须保持原图语义，画布侧的
   // 原图缓存管道由节点自己负责；工作台画廊只负责显示。
 
-  const readyUrl = remote ? decoded?.url ?? null : imageSourceUrl;
+  const readyUrl = remote ? (decoded?.url ?? null) : imageSourceUrl;
   const loading = !readyUrl && !error;
   const failed = Boolean(error) && !decoded;
 
@@ -1753,19 +2329,30 @@ function DirectImageResultContent({
   const prompt = typeof job.parameters?.prompt === "string" ? job.parameters.prompt : "";
 
   return (
-    <figure className={`kc-direct-result-tile ${failed ? "is-error" : ""}`} aria-busy={loading ? "true" : undefined}>
-      <header className="kc-direct-result-head">
-        <span className="kc-direct-result-model" title={job.modelLabel}>{job.modelLabel}</span>
+    <figure
+      className={`wc-direct-result-tile ${failed ? "is-error" : ""}`}
+      aria-busy={loading ? "true" : undefined}
+    >
+      <header className="wc-direct-result-head">
+        <span className="wc-direct-result-model" title={job.modelLabel}>
+          {job.modelLabel}
+        </span>
       </header>
-      <div className="kc-direct-result-media" onDoubleClick={onOpen}>
+      <div className="wc-direct-result-media" onDoubleClick={onOpen}>
         {readyUrl ? (
-          <img src={readyUrl} alt="生成的图片结果" draggable={false} decoding="async" loading="lazy" />
+          <img
+            src={readyUrl}
+            alt="生成的图片结果"
+            draggable={false}
+            decoding="async"
+            loading="lazy"
+          />
         ) : null}
         {readyUrl ? (
           <>
             <button
               type="button"
-              className="kc-direct-result-corner kc-direct-result-corner--zoom"
+              className="wc-direct-result-corner wc-direct-result-corner--zoom"
               aria-label="放大查看"
               title="放大查看"
               onClick={onOpen}
@@ -1774,7 +2361,7 @@ function DirectImageResultContent({
             </button>
             <button
               type="button"
-              className="kc-direct-result-corner kc-direct-result-corner--remove"
+              className="wc-direct-result-corner wc-direct-result-corner--remove"
               aria-label="删除图片结果"
               title="从工作台移除"
               onClick={onRemove}
@@ -1788,35 +2375,47 @@ function DirectImageResultContent({
             loading 的高度会与卡片高度互相引用，把媒体区挤压塌缩成 0，
             整行卡片退化为只剩文字。 */}
         {loading ? (
-          <div className="kc-direct-result-loading" role="status">
+          <div className="wc-direct-result-loading" role="status">
             <LoaderCircle className="is-spinning" aria-hidden="true" />
             <span>正在读取结果</span>
           </div>
         ) : null}
         {failed ? (
-          <div className="kc-direct-result-loading is-error" role="alert">
+          <div className="wc-direct-result-loading is-error" role="alert">
             <AlertCircle aria-hidden="true" />
             <span>结果加载失败</span>
             <button type="button" onClick={onRetry}>
-              <RefreshCw aria-hidden="true" />重新加载
+              <RefreshCw aria-hidden="true" />
+              重新加载
             </button>
           </div>
         ) : null}
       </div>
-      <div className="kc-direct-result-body">
+      <div className="wc-direct-result-body">
         <span
-          className="kc-direct-result-caption"
+          className="wc-direct-result-caption"
           title={prompt || job.modelLabel}
           aria-label={`生成提示词：${prompt || job.modelLabel}`}
         >
           {prompt || job.modelLabel}
         </span>
-        <div className="kc-direct-result-controls">
-          <button type="button" aria-label="复用提示词" title="复用提示词" onClick={onReusePrompt}><RotateCcw aria-hidden="true" /></button>
+        <div className="wc-direct-result-controls">
+          <button type="button" aria-label="复用提示词" title="复用提示词" onClick={onReusePrompt}>
+            <RotateCcw aria-hidden="true" />
+          </button>
           {jobReferenceImageCount(job) > 0 ? (
-            <button type="button" aria-label="复用参考图" title={`复用本次使用的 ${jobReferenceImageCount(job)} 张参考图`} onClick={onReuseReferences}><ImagePlus aria-hidden="true" /></button>
+            <button
+              type="button"
+              aria-label="复用参考图"
+              title={`复用本次使用的 ${jobReferenceImageCount(job)} 张参考图`}
+              onClick={onReuseReferences}
+            >
+              <ImagePlus aria-hidden="true" />
+            </button>
           ) : null}
-          <a href={readyUrl ?? undefined} download={media.name} aria-label="下载图片" title="下载"><ArrowDownToLine aria-hidden="true" /></a>
+          <a href={readyUrl ?? undefined} download={media.name} aria-label="下载图片" title="下载">
+            <ArrowDownToLine aria-hidden="true" />
+          </a>
         </div>
       </div>
     </figure>
@@ -1890,11 +2489,17 @@ function DirectVideoResult({
   const prompt = typeof job.parameters?.prompt === "string" ? job.parameters.prompt : "";
 
   return (
-    <figure className="kc-direct-result-tile is-video">
-      <header className="kc-direct-result-head">
-        <span className="kc-direct-result-model" title={job.modelLabel}>{job.modelLabel}</span>
+    <figure className="wc-direct-result-tile is-video">
+      <header className="wc-direct-result-head">
+        <span className="wc-direct-result-model" title={job.modelLabel}>
+          {job.modelLabel}
+        </span>
       </header>
-      <div className={`kc-direct-result-media kc-direct-result-media--video ${phase === "ready" ? "is-ready" : ""}`} aria-busy={phase === "loading" ? "true" : undefined} onDoubleClick={onOpen}>
+      <div
+        className={`wc-direct-result-media wc-direct-result-media--video ${phase === "ready" ? "is-ready" : ""}`}
+        aria-busy={phase === "loading" ? "true" : undefined}
+        onDoubleClick={onOpen}
+      >
         {/* 卡片里只留静音首帧占位，完整播放交给放大层，避免每个视频都常驻解码。 */}
         <video
           ref={videoRef}
@@ -1910,7 +2515,7 @@ function DirectVideoResult({
           <>
             <button
               type="button"
-              className="kc-direct-result-corner kc-direct-result-corner--zoom"
+              className="wc-direct-result-corner wc-direct-result-corner--zoom"
               aria-label="放大查看"
               title="放大查看"
               onClick={onOpen}
@@ -1919,7 +2524,7 @@ function DirectVideoResult({
             </button>
             <button
               type="button"
-              className="kc-direct-result-corner kc-direct-result-corner--remove"
+              className="wc-direct-result-corner wc-direct-result-corner--remove"
               aria-label="删除视频结果"
               title="从工作台移除"
               onClick={onRemove}
@@ -1929,38 +2534,60 @@ function DirectVideoResult({
           </>
         ) : null}
         {phase === "loading" ? (
-          <div className="kc-direct-result-loading is-video" role="status">
+          <div className="wc-direct-result-loading is-video" role="status">
             <LoaderCircle className="is-spinning" aria-hidden="true" />
             <span>正在读取结果</span>
           </div>
         ) : null}
         {phase === "error" ? (
-          <div className="kc-direct-result-loading is-error" role="alert">
+          <div className="wc-direct-result-loading is-error" role="alert">
             <AlertCircle aria-hidden="true" />
             <span>结果加载失败</span>
             <button type="button" onClick={retry}>
-              <RefreshCw aria-hidden="true" />重新加载
+              <RefreshCw aria-hidden="true" />
+              重新加载
             </button>
           </div>
         ) : null}
       </div>
-      <div className="kc-direct-result-body">
+      <div className="wc-direct-result-body">
         <span
-          className="kc-direct-result-caption"
+          className="wc-direct-result-caption"
           title={prompt || job.modelLabel}
           aria-label={`生成提示词：${prompt || job.modelLabel}`}
         >
           {prompt || job.modelLabel}
         </span>
-        <div className="kc-direct-result-controls">
-          <button type="button" aria-label="复用提示词" title="复用提示词" onClick={onReusePrompt}><RotateCcw aria-hidden="true" /></button>
+        <div className="wc-direct-result-controls">
+          <button type="button" aria-label="复用提示词" title="复用提示词" onClick={onReusePrompt}>
+            <RotateCcw aria-hidden="true" />
+          </button>
           {jobReferenceImageCount(job) > 0 ? (
-            <button type="button" aria-label="复用参考图" title={`复用本次使用的 ${jobReferenceImageCount(job)} 张参考图`} onClick={onReuseReferences}><ImagePlus aria-hidden="true" /></button>
+            <button
+              type="button"
+              aria-label="复用参考图"
+              title={`复用本次使用的 ${jobReferenceImageCount(job)} 张参考图`}
+              onClick={onReuseReferences}
+            >
+              <ImagePlus aria-hidden="true" />
+            </button>
           ) : null}
-          <button type="button" onClick={() => void handleDownload()} disabled={!url || downloading} aria-label="下载视频" title="下载"><ArrowDownToLine aria-hidden="true" /></button>
+          <button
+            type="button"
+            onClick={() => void handleDownload()}
+            disabled={!url || downloading}
+            aria-label="下载视频"
+            title="下载"
+          >
+            <ArrowDownToLine aria-hidden="true" />
+          </button>
         </div>
       </div>
-      {downloadError ? <div className="kc-direct-result-download-error" role="alert">{downloadError}</div> : null}
+      {downloadError ? (
+        <div className="wc-direct-result-download-error" role="alert">
+          {downloadError}
+        </div>
+      ) : null}
     </figure>
   );
 }
@@ -1977,14 +2604,14 @@ function persistGeneratedJobArtifacts(job: PublicGenerationJob) {
     if (artifact.kind === "text" || generatedArtifactPersistence.has(artifact.mediaId)) continue;
     const media = mediaFromArtifact(artifact);
     const kind = artifact.kind;
-    const request = Promise.all([
-      cacheServerMedia(media),
-      ensureMediaAsset(media, kind, "canvas"),
-    ]).then(() => undefined).catch(() => undefined).finally(() => {
-      if (generatedArtifactPersistence.get(artifact.mediaId) === request) {
-        generatedArtifactPersistence.delete(artifact.mediaId);
-      }
-    });
+    const request = Promise.all([cacheServerMedia(media), ensureMediaAsset(media, kind, "canvas")])
+      .then(() => undefined)
+      .catch(() => undefined)
+      .finally(() => {
+        if (generatedArtifactPersistence.get(artifact.mediaId) === request) {
+          generatedArtifactPersistence.delete(artifact.mediaId);
+        }
+      });
     generatedArtifactPersistence.set(artifact.mediaId, request);
   }
 }
@@ -2007,9 +2634,11 @@ function mediaFromArtifact(artifact: Exclude<GenerationArtifact, { kind: "text" 
 function jobReferenceImageCount(job: PublicGenerationJob) {
   const inputs = job.inputs;
   if (!inputs) return 0;
-  return (inputs.images?.length ?? 0)
-    + (inputs.styleImages?.length ?? 0)
-    + (inputs.elementImages?.length ?? 0);
+  return (
+    (inputs.images?.length ?? 0) +
+    (inputs.styleImages?.length ?? 0) +
+    (inputs.elementImages?.length ?? 0)
+  );
 }
 
 function readInitialPromptParam() {
@@ -2084,9 +2713,12 @@ function directReferenceMaximum(input: ModelInputCount | undefined, kind: MediaK
 }
 
 function directReferenceInputs(references: DirectReference[], model: PublicModel | null) {
-  const ready = (kind: MediaKind) => references.flatMap((reference) =>
-    reference.kind === kind && reference.status === "ready" && reference.serverId ? [reference.serverId] : []
-  );
+  const ready = (kind: MediaKind) =>
+    references.flatMap((reference) =>
+      reference.kind === kind && reference.status === "ready" && reference.serverId
+        ? [reference.serverId]
+        : [],
+    );
   const imagePurposes = model ? getReferenceImagePurposes(model) : [];
   const images: Record<ReferenceImagePurpose, string[]> = {
     images: [],
@@ -2098,9 +2730,10 @@ function directReferenceInputs(references: DirectReference[], model: PublicModel
     // Fall back to the model's default image purpose when the reference carries
     // none (e.g. uploaded from the home gate), so a ready image is never dropped
     // just because its purpose label was never assigned.
-    const purpose = reference.imagePurpose && imagePurposes.includes(reference.imagePurpose)
-      ? reference.imagePurpose
-      : imagePurposes[0];
+    const purpose =
+      reference.imagePurpose && imagePurposes.includes(reference.imagePurpose)
+        ? reference.imagePurpose
+        : imagePurposes[0];
     if (purpose) images[purpose].push(reference.serverId);
   }
   return {
@@ -2118,10 +2751,14 @@ function directReferenceIssue(model: PublicModel, references: DirectReference[])
   const failed = references.find((reference) => reference.status === "error");
   if (failed) return failed.error ?? `${materialKindLabel(failed.kind)}素材上传失败`;
   const imagePurposes = getReferenceImagePurposes(model);
-  const readyImages = references.filter((reference) => reference.kind === "image" && reference.status === "ready");
+  const readyImages = references.filter(
+    (reference) => reference.kind === "image" && reference.status === "ready",
+  );
   if (readyImages.length && imagePurposes.length === 0) return "当前模型不支持图片素材";
   if (imagePurposes.length > 1) {
-    const unassigned = readyImages.filter((reference) => !reference.imagePurpose || !imagePurposes.includes(reference.imagePurpose));
+    const unassigned = readyImages.filter(
+      (reference) => !reference.imagePurpose || !imagePurposes.includes(reference.imagePurpose),
+    );
     if (unassigned.length) return `请为 ${unassigned.length} 张参考图片选择用途`;
   }
   const inputs = directReferenceInputs(references, model);
@@ -2142,11 +2779,12 @@ function directReferenceIssue(model: PublicModel, references: DirectReference[])
     if (count < min) return `当前模型至少需要 ${min} 个${materialKindLabel(kind)}素材`;
     if (count > max) return `当前模型最多支持 ${max} 个${materialKindLabel(kind)}素材`;
   }
-  const total = inputs.images.length
-    + inputs.styleImages.length
-    + inputs.elementImages.length
-    + inputs.videos.length
-    + inputs.audios.length;
+  const total =
+    inputs.images.length +
+    inputs.styleImages.length +
+    inputs.elementImages.length +
+    inputs.videos.length +
+    inputs.audios.length;
   const totalMax = model.input.referenceMedia?.maxTotalItems;
   if (totalMax !== undefined && total > totalMax) {
     return `当前模型合计最多支持 ${totalMax} 个参考素材`;
@@ -2156,10 +2794,16 @@ function directReferenceIssue(model: PublicModel, references: DirectReference[])
   // 还在补查的时长挡住能生成的请求不划算。
   if (referenceVideoDurationsParameter(model)) {
     const readyVideos = references.filter(
-      (reference) => reference.kind === "video" && reference.status === "ready" && reference.serverId,
+      (reference) =>
+        reference.kind === "video" && reference.status === "ready" && reference.serverId,
     );
-    const durations = referenceVideoDurationsFromMedia(readyVideos.map((reference) => reference.durationMs));
-    if (durations && durations.reduce((sum, seconds) => sum + seconds, 0) > MAX_REFERENCE_VIDEO_TOTAL_SECONDS) {
+    const durations = referenceVideoDurationsFromMedia(
+      readyVideos.map((reference) => reference.durationMs),
+    );
+    if (
+      durations &&
+      durations.reduce((sum, seconds) => sum + seconds, 0) > MAX_REFERENCE_VIDEO_TOTAL_SECONDS
+    ) {
       return `参考视频总时长不能超过 ${MAX_REFERENCE_VIDEO_TOTAL_SECONDS} 秒`;
     }
   }
@@ -2176,9 +2820,11 @@ function filesFromDataTransfer(dataTransfer: DataTransfer) {
 }
 
 function hasFiles(dataTransfer: DataTransfer) {
-  return dataTransfer.files.length > 0
-    || Array.from(dataTransfer.types).includes("Files")
-    || Array.from(dataTransfer.items).some((item) => item.kind === "file");
+  return (
+    dataTransfer.files.length > 0 ||
+    Array.from(dataTransfer.types).includes("Files") ||
+    Array.from(dataTransfer.items).some((item) => item.kind === "file")
+  );
 }
 
 function materialKindLabel(kind: MediaKind) {
@@ -2196,9 +2842,13 @@ function isOutputParameter(parameter: ModelParameter) {
 }
 
 function findOutputParameter(model: PublicModel | null) {
-  return model?.parameters.find((parameter) =>
-    (parameter.type === "integer" || parameter.type === "number") && isOutputParameter(parameter)
-  ) ?? null;
+  return (
+    model?.parameters.find(
+      (parameter) =>
+        (parameter.type === "integer" || parameter.type === "number") &&
+        isOutputParameter(parameter),
+    ) ?? null
+  );
 }
 
 function outputCountRange(model: PublicModel, parameter: ModelParameter) {
@@ -2208,7 +2858,10 @@ function outputCountRange(model: PublicModel, parameter: ModelParameter) {
     return { min: fixed, max: fixed };
   }
   const min = Math.max(1, model.output.minCount, parameter.min ?? 1);
-  const max = Math.max(min, Math.min(8, model.output.maxCount, parameter.max ?? model.output.maxCount));
+  const max = Math.max(
+    min,
+    Math.min(8, model.output.maxCount, parameter.max ?? model.output.maxCount),
+  );
   return {
     min,
     max,
@@ -2233,20 +2886,24 @@ function hasParameterValue(value: unknown) {
 }
 
 function isTerminalJob(job: PublicGenerationJob) {
-  return job.status === "completed" || job.status === "failed" || job.status === "submission_unknown";
+  return (
+    job.status === "completed" || job.status === "failed" || job.status === "submission_unknown"
+  );
 }
 
 function jobStatusLabel(status: PublicGenerationJob["status"]) {
-  return ({
-    reserved: "已计价，等待提交",
-    submitting: "正在提交",
-    queued: "排队中",
-    running: "生成中",
-    validating: "校验结果",
-    submission_unknown: "等待确认",
-    completed: "已完成",
-    failed: "生成失败",
-  } as Record<PublicGenerationJob["status"], string>)[status];
+  return (
+    {
+      reserved: "已计价，等待提交",
+      submitting: "正在提交",
+      queued: "排队中",
+      running: "生成中",
+      validating: "校验结果",
+      submission_unknown: "等待确认",
+      completed: "已完成",
+      failed: "生成失败",
+    } as Record<PublicGenerationJob["status"], string>
+  )[status];
 }
 
 function directStatus({
@@ -2267,11 +2924,15 @@ function directStatus({
   latestJob: PublicGenerationJob | null;
 }) {
   if (draft.submissionError) return { tone: "error" as const, text: draft.submissionError };
-  if (latestJob?.status === "submission_unknown") return { tone: "error" as const, text: "提交结果待确认；再次点击会创建新的请求并正常扣费" };
-  if (latestJob?.status === "failed") return { tone: "error" as const, text: latestJob.error?.message ?? "生成失败，请重试" };
-  if (activeJobs.length) return { tone: "running" as const, text: `${activeJobs.length} 个任务生成中` };
+  if (latestJob?.status === "submission_unknown")
+    return { tone: "error" as const, text: "提交结果待确认；再次点击会创建新的请求并正常扣费" };
+  if (latestJob?.status === "failed")
+    return { tone: "error" as const, text: latestJob.error?.message ?? "生成失败，请重试" };
+  if (activeJobs.length)
+    return { tone: "running" as const, text: `${activeJobs.length} 个任务生成中` };
   if (draft.quoteError) return { tone: "error" as const, text: draft.quoteError };
-  if (catalogStateStatus === "error") return { tone: "error" as const, text: "模型目录暂时无法读取" };
+  if (catalogStateStatus === "error")
+    return { tone: "error" as const, text: "模型目录暂时无法读取" };
   if (catalogStateStatus === "loading") return { tone: "loading" as const, text: "正在读取模型" };
   if (!model) return { tone: "idle" as const, text: "暂无可用模型" };
   if (promptMissing) return { tone: "idle" as const, text: "写下提示词后确认价格" };

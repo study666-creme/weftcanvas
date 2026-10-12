@@ -1,6 +1,6 @@
-import type { CanvasMedia } from "@kachang/contracts";
+import type { CanvasMedia } from "@weftcanvas/contracts";
 import { describe, expect, it } from "vitest";
-import type { KachangNode } from "../types";
+import type { WeftcanvasNode } from "../types";
 
 import {
   collectCanvasMediaCaptures,
@@ -22,10 +22,10 @@ function media(id: string, mimeType: string): CanvasMedia {
   };
 }
 
-function node(id: string, data: Partial<KachangNode["data"]>): KachangNode {
+function node(id: string, data: Partial<WeftcanvasNode["data"]>): WeftcanvasNode {
   return {
     id,
-    type: "kachang",
+    type: "weftcanvas",
     position: { x: 0, y: 0 },
     data: {
       kind: "image",
@@ -48,7 +48,7 @@ function node(id: string, data: Partial<KachangNode["data"]>): KachangNode {
         error: null,
       },
       ...data,
-    } as KachangNode["data"],
+    } as WeftcanvasNode["data"],
   };
 }
 
@@ -95,7 +95,9 @@ describe("collectCanvasMediaCaptures", () => {
 
 describe("projectAssetDisplayName", () => {
   it("prefers the prompt and falls back to the media file name", () => {
-    expect(projectAssetDisplayName("女主 主角 立绘", media("a", "image/png"))).toBe("女主 主角 立绘");
+    expect(projectAssetDisplayName("女主 主角 立绘", media("a", "image/png"))).toBe(
+      "女主 主角 立绘",
+    );
     expect(projectAssetDisplayName("   ", media("a", "image/png"))).toBe("a.bin");
   });
 });

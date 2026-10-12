@@ -45,15 +45,20 @@ describe.skipIf(!databaseUrl)("PostgreSQL generation work queue", () => {
     await insertJob(pool, "job-1", "queued", NOW);
     const queue = createQueue(pool, () => `lease-token-${++sequence}`);
     const first = (await queue.leaseNext("worker:one", iso(NOW), 60_000))!;
-    expect(await queue.release(first.jobId, first.token, {
-      nextAttemptAt: iso(NOW + 5_000),
-      error: "temporary",
-    })).toBe(true);
+    expect(
+      await queue.release(first.jobId, first.token, {
+        nextAttemptAt: iso(NOW + 5_000),
+        error: "temporary",
+      }),
+    ).toBe(true);
     expect(await queue.leaseNext("worker:one", iso(NOW + 4_999), 60_000)).toBeNull();
     const retry = (await queue.leaseNext("worker:one", iso(NOW + 5_000), 60_000))!;
     expect(retry.consecutiveErrorCount).toBe(1);
     await queue.release(retry.jobId, retry.token, { nextAttemptAt: iso(NOW + 6_000), error: null });
-    const reset = await pool.query<{ consecutive_error_count: number; last_worker_error: string | null }>(
+    const reset = await pool.query<{
+      consecutive_error_count: number;
+      last_worker_error: string | null;
+    }>(
       "SELECT consecutive_error_count, last_worker_error FROM canvas_generation_jobs WHERE id = 'job-1'",
     );
     expect(reset.rows[0]).toEqual({ consecutive_error_count: 0, last_worker_error: null });
@@ -67,7 +72,9 @@ describe.skipIf(!databaseUrl)("PostgreSQL generation work queue", () => {
     expect(await queue.renew(first.jobId, "wrong-token", iso(NOW + 500), 1_000)).toBe(false);
     const recovered = await queue.leaseNext("worker:two", iso(NOW + 1_000), 1_000);
     expect(recovered).toMatchObject({ jobId: "job-1", owner: "worker:two", attemptCount: 2 });
-    expect(await queue.release(first.jobId, first.token, { nextAttemptAt: null, error: null })).toBe(false);
+    expect(
+      await queue.release(first.jobId, first.token, { nextAttemptAt: null, error: null }),
+    ).toBe(false);
   });
 
   it("never leases terminal or ambiguous-submission jobs", async () => {

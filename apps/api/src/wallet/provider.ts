@@ -7,7 +7,7 @@ import type {
   WalletProduct,
   WalletRedeemRequest,
   WalletSummary,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 
 export type WalletLedgerItem = {
   id: string;
@@ -61,19 +61,41 @@ export class WalletProviderError extends Error {
 
 export interface WalletProvider {
   getSummary(token: string | undefined): Promise<WalletProviderResult<WalletSummary>>;
-  getLedger(token: string | undefined, limit: number): Promise<WalletProviderResult<WalletLedgerItem[]>>;
+  getLedger(
+    token: string | undefined,
+    limit: number,
+  ): Promise<WalletProviderResult<WalletLedgerItem[]>>;
   getProducts(token: string | undefined): Promise<WalletProviderResult<WalletProductCatalog>>;
-  createCheckout(token: string | undefined, input: WalletCheckoutRequest): Promise<WalletProviderResult<{ orderNo: string; checkoutUrl: string }>>;
+  createCheckout(
+    token: string | undefined,
+    input: WalletCheckoutRequest,
+  ): Promise<WalletProviderResult<{ orderNo: string; checkoutUrl: string }>>;
   getOrder(token: string | undefined, orderNo: string): Promise<WalletProviderResult<WalletOrder>>;
-  redeem(token: string | undefined, input: WalletRedeemRequest): Promise<WalletProviderResult<{ message: string; summary: WalletSummary | null }>>;
+  redeem(
+    token: string | undefined,
+    input: WalletRedeemRequest,
+  ): Promise<WalletProviderResult<{ message: string; summary: WalletSummary | null }>>;
   /** 按 refId 幂等扣减积分（同一 refId 重复调用不会二次扣费）。 */
-  consumeCredit(token: string | undefined, input: WalletCreditOperationInput): Promise<WalletProviderResult<WalletCreditOperationResult>>;
+  consumeCredit(
+    token: string | undefined,
+    input: WalletCreditOperationInput,
+  ): Promise<WalletProviderResult<WalletCreditOperationResult>>;
   /** 按 refId 幂等退回积分（同一 refId 重复调用不会二次到账）。 */
-  refundCredit(token: string | undefined, input: WalletCreditOperationInput): Promise<WalletProviderResult<WalletCreditOperationResult>>;
+  refundCredit(
+    token: string | undefined,
+    input: WalletCreditOperationInput,
+  ): Promise<WalletProviderResult<WalletCreditOperationResult>>;
 }
 
 export interface MembershipTaskProvider {
-  getMembershipTasks(token: string | undefined): Promise<WalletProviderResult<MembershipTaskCenter>>;
-  claimMembershipTask(token: string | undefined, taskKey: string): Promise<WalletProviderResult<MembershipTaskAction>>;
-  recordCanvasNodeCreated(token: string | undefined): Promise<WalletProviderResult<MembershipTaskAction>>;
+  getMembershipTasks(
+    token: string | undefined,
+  ): Promise<WalletProviderResult<MembershipTaskCenter>>;
+  claimMembershipTask(
+    token: string | undefined,
+    taskKey: string,
+  ): Promise<WalletProviderResult<MembershipTaskAction>>;
+  recordCanvasNodeCreated(
+    token: string | undefined,
+  ): Promise<WalletProviderResult<MembershipTaskAction>>;
 }

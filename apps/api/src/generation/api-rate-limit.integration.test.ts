@@ -29,21 +29,27 @@ describe.skipIf(!databaseUrl)("PostgreSQL generation API rate limiter", () => {
 
   it("admits no more than the shared limit under concurrency and resets by window", async () => {
     const limiter = new PostgresFixedWindowRateLimiter(pool, { now: () => now });
-    const attempts = await Promise.all(Array.from({ length: 20 }, () => limiter.consume({
-      scope: "generation:submit:minute",
-      subjectId: "user-1",
-      limit: 5,
-      windowMs: 60_000,
-    })));
+    const attempts = await Promise.all(
+      Array.from({ length: 20 }, () =>
+        limiter.consume({
+          scope: "generation:submit:minute",
+          subjectId: "user-1",
+          limit: 5,
+          windowMs: 60_000,
+        }),
+      ),
+    );
     expect(attempts.filter((result) => result.allowed)).toHaveLength(5);
     expect(attempts.filter((result) => !result.allowed)).toHaveLength(15);
 
     now += 60_000;
-    await expect(limiter.consume({
-      scope: "generation:submit:minute",
-      subjectId: "user-1",
-      limit: 5,
-      windowMs: 60_000,
-    })).resolves.toMatchObject({ allowed: true, remaining: 4 });
+    await expect(
+      limiter.consume({
+        scope: "generation:submit:minute",
+        subjectId: "user-1",
+        limit: 5,
+        windowMs: 60_000,
+      }),
+    ).resolves.toMatchObject({ allowed: true, remaining: 4 });
   });
 });

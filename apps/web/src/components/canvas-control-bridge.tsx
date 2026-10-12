@@ -1,7 +1,11 @@
 import { memo, useEffect } from "react";
 
 import { pollCanvasControlCommands } from "../lib/api-client";
-import { applyCanvasControlCommand, describeCanvasControlOutcome, reportCanvasControlOutcome } from "../lib/canvas-control-client";
+import {
+  applyCanvasControlCommand,
+  describeCanvasControlOutcome,
+  reportCanvasControlOutcome,
+} from "../lib/canvas-control-client";
 import { readCurrentAgentCanvasContext } from "../lib/current-canvas-context";
 import { useCanvasStore } from "../state/canvas-store";
 import { useConnectorStore } from "../state/connector-store";
@@ -16,7 +20,9 @@ const MAX_INTERVAL_MS = 30_000;
  */
 export const CanvasControlBridge = memo(function CanvasControlBridge() {
   const projectId = useCanvasStore((state) => state.projectId);
-  const codexEnabled = useConnectorStore((state) => state.items.some((item) => item.id === "codex" && item.enabled));
+  const codexEnabled = useConnectorStore((state) =>
+    state.items.some((item) => item.id === "codex" && item.enabled),
+  );
   const showToast = useToastStore((state) => state.show);
 
   useEffect(() => {
@@ -33,7 +39,10 @@ export const CanvasControlBridge = memo(function CanvasControlBridge() {
     const tick = async () => {
       if (stopped) return;
       try {
-        const commands = await pollCanvasControlCommands(projectId, readCurrentAgentCanvasContext());
+        const commands = await pollCanvasControlCommands(
+          projectId,
+          readCurrentAgentCanvasContext(),
+        );
         failures = 0;
         for (const command of commands) {
           if (stopped) return;

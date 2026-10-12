@@ -6,12 +6,17 @@ import type {
   ModelInputCount,
   PublicModel,
   ReferenceImagePurpose,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 
-import type { KachangEdge, KachangNode } from "../types";
+import type { WeftcanvasEdge, WeftcanvasNode } from "../types";
 import { useCanvasStore } from "../state/canvas-store";
 import { useCloudProjectStore } from "../state/cloud-project-store";
-import { createMediaUpload, createProviderMediaReference, mediaContentPath, uploadMediaBlob } from "./api-client";
+import {
+  createMediaUpload,
+  createProviderMediaReference,
+  mediaContentPath,
+  uploadMediaBlob,
+} from "./api-client";
 import { indexIncomingNodeIds } from "./canvas-graph";
 import { cacheServerMedia, readMedia } from "./media-store";
 
@@ -63,7 +68,12 @@ export const REFERENCE_VIDEO_DURATIONS_PARAMETER = "referenceVideoDurations";
 export const MAX_REFERENCE_VIDEO_TOTAL_SECONDS = 15;
 
 export function referenceVideoDurationsParameter(model: PublicModel) {
-  return (model.parameters ?? []).find((parameter) => parameter.name === REFERENCE_VIDEO_DURATIONS_PARAMETER && parameter.type === "array") ?? null;
+  return (
+    (model.parameters ?? []).find(
+      (parameter) =>
+        parameter.name === REFERENCE_VIDEO_DURATIONS_PARAMETER && parameter.type === "array",
+    ) ?? null
+  );
 }
 
 /**
@@ -71,15 +81,21 @@ export function referenceVideoDurationsParameter(model: PublicModel) {
  * 量不出时长（老素材没有探测过）就返回 null，由引用校验拦住提交，不去上游换
  * 一句「请求参数无效」。
  */
-export function referenceVideoDurations(references: Pick<GenerationReferences, "videos">): number[] | null {
-  return referenceVideoDurationsFromMedia(references.videos.map((reference) => reference.media.durationMs));
+export function referenceVideoDurations(
+  references: Pick<GenerationReferences, "videos">,
+): number[] | null {
+  return referenceVideoDurationsFromMedia(
+    references.videos.map((reference) => reference.media.durationMs),
+  );
 }
 
 /**
  * 毫秒数组 → 秒数组。画布节点与快速生成页共用：两处引用结构不同，但「视频参考
  * 必须成对声明时长」的上游契约和 15 秒上限是同一条，逻辑只留一份。
  */
-export function referenceVideoDurationsFromMedia(durations: readonly (number | null | undefined)[]): number[] | null {
+export function referenceVideoDurationsFromMedia(
+  durations: readonly (number | null | undefined)[],
+): number[] | null {
   const seconds: number[] = [];
   for (const durationMs of durations) {
     if (!durationMs) return null;
@@ -97,8 +113,8 @@ const imagePurposeOrder: ReferenceImagePurpose[] = ["images", "styleImages", "el
  */
 export function collectUpstreamTextContent(
   nodeId: string,
-  nodes: readonly KachangNode[],
-  edges: readonly KachangEdge[],
+  nodes: readonly WeftcanvasNode[],
+  edges: readonly WeftcanvasEdge[],
 ) {
   const byId = new Map(nodes.map((node) => [node.id, node]));
   const seenBodies = new Set<string>();
@@ -121,8 +137,8 @@ export function collectUpstreamTextContent(
 export function collectGenerationReferences(
   nodeId: string,
   model: PublicModel,
-  nodes: KachangNode[],
-  edges: KachangEdge[],
+  nodes: WeftcanvasNode[],
+  edges: WeftcanvasEdge[],
   explicitNodeIds: readonly string[] = [],
   referenceMode: CanvasReferenceMode = explicitNodeIds.length ? "explicit" : "auto",
   assignments: Readonly<Record<string, ReferenceImagePurpose>> = {},
@@ -154,9 +170,10 @@ export function collectGenerationReferences(
     imageBuckets.images.push(...connectedImages);
   } else {
     for (const reference of connectedImages) {
-      const purpose = imagePurposes.length === 1
-        ? imagePurposes[0]
-        : referenceImagePurposeFor(assignments, reference);
+      const purpose =
+        imagePurposes.length === 1
+          ? imagePurposes[0]
+          : referenceImagePurposeFor(assignments, reference);
       if (!purpose || !imagePurposes.includes(purpose)) {
         unassignedImages.push(reference);
         continue;
@@ -214,25 +231,34 @@ export function collectGenerationReferences(
     connectedImages,
     unassignedImages,
     imagePurposes,
-    overflow: [images.overflow, styleImages.overflow, elementImages.overflow, videos.overflow, audios.overflow]
-      .filter((item): item is GenerationReferenceOverflow => item !== null),
-    aggregateOverflow: aggregateMax !== undefined && references.length > aggregateMax
-      ? { selected: references.length, max: aggregateMax }
-      : null,
+    overflow: [
+      images.overflow,
+      styleImages.overflow,
+      elementImages.overflow,
+      videos.overflow,
+      audios.overflow,
+    ].filter((item): item is GenerationReferenceOverflow => item !== null),
+    aggregateOverflow:
+      aggregateMax !== undefined && references.length > aggregateMax
+        ? { selected: references.length, max: aggregateMax }
+        : null,
   };
 }
 
 export function getReferenceImagePurposes(model: PublicModel): ReferenceImagePurpose[] {
-  return imagePurposeOrder.filter((purpose) => supportsReferences(referenceImageCapability(model, purpose)));
+  return imagePurposeOrder.filter((purpose) =>
+    supportsReferences(referenceImageCapability(model, purpose)),
+  );
 }
 
 export function referenceImageCapability(model: PublicModel, purpose: ReferenceImagePurpose) {
   const referenceMedia = model.input.referenceMedia;
   if (!referenceMedia) return purpose === "images" ? model.input.images : undefined;
   if (purpose !== "images") return referenceMedia[purpose];
-  const hasDeclaredImagePurpose = referenceMedia.images !== undefined
-    || referenceMedia.styleImages !== undefined
-    || referenceMedia.elementImages !== undefined;
+  const hasDeclaredImagePurpose =
+    referenceMedia.images !== undefined ||
+    referenceMedia.styleImages !== undefined ||
+    referenceMedia.elementImages !== undefined;
   return referenceMedia.images ?? (hasDeclaredImagePurpose ? undefined : model.input.images);
 }
 
@@ -252,17 +278,23 @@ export function referenceImagePurposeFor(
   assignments: Readonly<Record<string, ReferenceImagePurpose>>,
   reference: MediaReference,
 ) {
-  return (reference.media.serverId ? assignments[reference.media.serverId] : undefined)
-    ?? assignments[reference.media.id];
+  return (
+    (reference.media.serverId ? assignments[reference.media.serverId] : undefined) ??
+    assignments[reference.media.id]
+  );
 }
 
-function collectExplicitMedia(nodeIds: readonly string[], nodes: KachangNode[]) {
+function collectExplicitMedia(nodeIds: readonly string[], nodes: WeftcanvasNode[]) {
   const byId = new Map(nodes.map((node) => [node.id, node]));
   const seenMedia = new Set<string>();
   const references: MediaReference[] = [];
   for (const nodeId of nodeIds) {
     const node = byId.get(nodeId);
-    if (!node?.data.media || (node.data.kind !== "image" && node.data.kind !== "video" && node.data.kind !== "audio")) continue;
+    if (
+      !node?.data.media ||
+      (node.data.kind !== "image" && node.data.kind !== "video" && node.data.kind !== "audio")
+    )
+      continue;
     const mediaKey = node.data.media.serverId ?? node.data.media.id;
     if (seenMedia.has(mediaKey)) continue;
     seenMedia.add(mediaKey);
@@ -281,7 +313,10 @@ export function referenceCounts(references: GenerationReferences) {
   };
 }
 
-export function generationReferenceError(references: GenerationReferences, model: PublicModel): string | null {
+export function generationReferenceError(
+  references: GenerationReferences,
+  model: PublicModel,
+): string | null {
   if (references.unassignedImages.length) {
     return `请为 ${references.unassignedImages.length} 张参考图片选择用途`;
   }
@@ -313,7 +348,10 @@ export function generationReferenceError(references: GenerationReferences, model
     // 时长缺失不再拦提交：画布上新生成的视频工件可能还没探测出时长，服务端会
     // 从素材记录与任务工件兜底推导。本地只知道一部分时只校验已知部分，总和上限
     // 的最终判定以服务端为准。
-    if (durations !== null && durations.reduce((total, seconds) => total + seconds, 0) > MAX_REFERENCE_VIDEO_TOTAL_SECONDS) {
+    if (
+      durations !== null &&
+      durations.reduce((total, seconds) => total + seconds, 0) > MAX_REFERENCE_VIDEO_TOTAL_SECONDS
+    ) {
       return `参考视频总时长不能超过 ${MAX_REFERENCE_VIDEO_TOTAL_SECONDS} 秒`;
     }
   }
@@ -322,7 +360,10 @@ export function generationReferenceError(references: GenerationReferences, model
 
 export function composeReferenceAwarePrompt(
   body: string,
-  references: Pick<GenerationReferences, "images" | "styleImages" | "elementImages" | "videos" | "audios"> | null,
+  references: Pick<
+    GenerationReferences,
+    "images" | "styleImages" | "elementImages" | "videos" | "audios"
+  > | null,
 ) {
   if (!references) return body.trim();
   const groups = [
@@ -338,7 +379,9 @@ export function composeReferenceAwarePrompt(
   return prompt ? `${prompt}\n${referenceHint}` : referenceHint;
 }
 
-export async function prepareGenerationInputs(references: GenerationReferences): Promise<GenerationJobInput> {
+export async function prepareGenerationInputs(
+  references: GenerationReferences,
+): Promise<GenerationJobInput> {
   const cloudProject = activeCloudProject();
   const cache = new Map<string, Promise<string>>();
   const prepare = (reference: MediaReference) => {
@@ -407,14 +450,15 @@ function selectReferences(
   const capabilityMax = !capability
     ? 0
     : capability.multiple
-      ? capability.max ?? requestLimit
+      ? (capability.max ?? requestLimit)
       : Math.min(1, capability.max ?? 1);
   const max = Math.min(capabilityMax, requestLimit);
   return {
     references: max > 0 ? candidates : [],
-    overflow: candidates.length > max
-      ? { kind, ...(purpose ? { purpose } : {}), selected: candidates.length, max }
-      : null,
+    overflow:
+      candidates.length > max
+        ? { kind, ...(purpose ? { purpose } : {}), selected: candidates.length, max }
+        : null,
   };
 }
 
@@ -431,12 +475,17 @@ async function prepareReference(
   cloudProject?: { projectId: string; shared: boolean },
 ) {
   const projectId = cloudProject?.projectId;
-  if (!cloudProject?.shared && reference.media.serverId && reference.media.serverId !== reference.media.id) {
+  if (
+    !cloudProject?.shared &&
+    reference.media.serverId &&
+    reference.media.serverId !== reference.media.id
+  ) {
     return reference.media.serverId;
   }
-  const stored = reference.media.source === "server"
-    ? await readMedia(reference.media.id).catch(() => null)
-    : await readMedia(reference.media.id);
+  const stored =
+    reference.media.source === "server"
+      ? await readMedia(reference.media.id).catch(() => null)
+      : await readMedia(reference.media.id);
   if (reference.media.source === "server" && !stored) {
     const readProjectId = reference.media.id.startsWith("phm_") ? undefined : projectId;
     const cachedFromServer = readProjectId
@@ -483,7 +532,9 @@ async function uploadPreparedReference(
     idempotencyKey: await uploadRequestKey(stored.id, projectId),
     ...(projectId ? { projectId } : {}),
   });
-  const ready = intent.upload ? await uploadMediaBlob(intent.media, intent.upload, stored.blob) : intent.media;
+  const ready = intent.upload
+    ? await uploadMediaBlob(intent.media, intent.upload, stored.blob)
+    : intent.media;
   if (ready.status !== "ready") throw new Error(`${mediaLabel(reference.kind)}素材暂时无法使用`);
 
   if (applyToNode) {
@@ -505,11 +556,14 @@ async function readReferenceAsDataUrl(reference: MediaReference, projectId?: str
   } else {
     const readProjectId = reference.media.id.startsWith("phm_") ? undefined : projectId;
     // same-origin：302 到 R2 预签名地址后浏览器去掉凭据；include 会被 R2 CORS 拒绝。
-    const response = await fetch(mediaContentPath(reference.media.id, readProjectId), { credentials: "same-origin" });
+    const response = await fetch(mediaContentPath(reference.media.id, readProjectId), {
+      credentials: "same-origin",
+    });
     if (!response.ok) throw new Error(`${mediaLabel(reference.kind)}素材暂时无法读取`);
     blob = await response.blob();
   }
-  if (blob.size > 60 * 1024 * 1024) throw new Error(`${mediaLabel(reference.kind)}素材过大，无法直接提交`);
+  if (blob.size > 60 * 1024 * 1024)
+    throw new Error(`${mediaLabel(reference.kind)}素材过大，无法直接提交`);
   return blobToDataUrl(blob);
 }
 
@@ -522,7 +576,10 @@ function activeCloudProject() {
 function blobToDataUrl(blob: Blob) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("素材读取失败"));
+    reader.onload = () =>
+      typeof reader.result === "string"
+        ? resolve(reader.result)
+        : reject(new Error("素材读取失败"));
     reader.onerror = () => reject(reader.error ?? new Error("素材读取失败"));
     reader.readAsDataURL(blob);
   });
@@ -542,6 +599,8 @@ async function uploadRequestKey(localId: string, projectId?: string) {
     "SHA-256",
     new TextEncoder().encode(`${projectId ?? "personal"}:${localId}`),
   );
-  const hex = [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join("");
+  const hex = [...new Uint8Array(digest)]
+    .map((value) => value.toString(16).padStart(2, "0"))
+    .join("");
   return `upload:${hex}`;
 }

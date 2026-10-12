@@ -11,50 +11,50 @@
  */
 
 :root[data-edge-path-style="amber-edge"] {
-  --kc-amber-base: #c08a3e;
-  --kc-amber-halo: rgb(212 160 74 / 22%);
-  --kc-amber-glow: rgb(240 198 116 / 92%);
-  --kc-amber-gem: #ffd894;
-  --kc-amber-track: rgb(212 160 74 / 36%);
+  --wc-amber-base: #c08a3e;
+  --wc-amber-halo: rgb(212 160 74 / 22%);
+  --wc-amber-glow: rgb(240 198 116 / 92%);
+  --wc-amber-gem: #ffd894;
+  --wc-amber-track: rgb(212 160 74 / 36%);
 }
 
 :root[data-theme="light"][data-edge-path-style="amber-edge"] {
-  --kc-amber-base: #96662a;
-  --kc-amber-halo: rgb(150 102 42 / 26%);
-  --kc-amber-glow: rgb(212 160 74 / 92%);
-  --kc-amber-gem: #c08a3e;
-  --kc-amber-track: rgb(150 102 42 / 40%);
+  --wc-amber-base: #96662a;
+  --wc-amber-halo: rgb(150 102 42 / 26%);
+  --wc-amber-glow: rgb(212 160 74 / 92%);
+  --wc-amber-gem: #c08a3e;
+  --wc-amber-track: rgb(150 102 42 / 40%);
 }
 
 /* —— 基底连线（BaseEdge）—— */
 :root[data-edge-path-style="amber-edge"] .react-flow__edge-path {
-  stroke: var(--kc-amber-base);
+  stroke: var(--wc-amber-base);
   stroke-width: 1.4;
   stroke-linecap: round;
-  filter: drop-shadow(0 0 1.4px var(--kc-amber-halo));
+  filter: drop-shadow(0 0 1.4px var(--wc-amber-halo));
 }
 
 :root[data-edge-path-style="amber-edge"] .react-flow__edge.selected .react-flow__edge-path {
-  stroke: var(--kc-amber-gem);
+  stroke: var(--wc-amber-gem);
   stroke-width: 2;
 }
 
 :root[data-edge-path-style="amber-edge"] .react-flow__edge:hover .react-flow__edge-path {
-  stroke: var(--kc-amber-glow);
+  stroke: var(--wc-amber-glow);
   stroke-width: 1.8;
 }
 
-/* —— 外圈光晕（.kc-edge-aura）—— */
-:root[data-edge-path-style="amber-edge"] .kc-edge-aura {
-  stroke: var(--kc-amber-halo);
+/* —— 外圈光晕（.wc-edge-aura）—— */
+:root[data-edge-path-style="amber-edge"] .wc-edge-aura {
+  stroke: var(--wc-amber-halo);
 }
 
-:root[data-edge-path-style="amber-edge"] .react-flow__edge.selected .kc-edge-aura,
-:root[data-edge-path-style="amber-edge"] .kc-edge-aura[data-selected="true"] {
-  stroke: var(--kc-amber-track);
+:root[data-edge-path-style="amber-edge"] .react-flow__edge.selected .wc-edge-aura,
+:root[data-edge-path-style="amber-edge"] .wc-edge-aura[data-selected="true"] {
+  stroke: var(--wc-amber-track);
 }
 
-/* —— 流向能量段（.kc-edge-energy）—— */
-:root[data-edge-path-style="amber-edge"] .kc-edge-energy {
-  stroke: var(--kc-amber-glow);
+/* —— 流向能量段（.wc-edge-energy）—— */
+:root[data-edge-path-style="amber-edge"] .wc-edge-energy {
+  stroke: var(--wc-amber-glow);
 }

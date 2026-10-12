@@ -6,7 +6,7 @@ import type {
   WalletProduct,
   WalletRedeemRequest,
   WalletSummary,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 import { create } from "zustand";
 
 import {
@@ -70,7 +70,8 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     const request = (async () => {
       try {
         const summary = await fetchWallet();
-        if (currentWalletRequest(requestEpoch, requestOwner)) set({ summary, summaryStatus: "ready", error: null });
+        if (currentWalletRequest(requestEpoch, requestOwner))
+          set({ summary, summaryStatus: "ready", error: null });
       } catch (cause) {
         if (!currentWalletRequest(requestEpoch, requestOwner)) return;
         handleUnauthorized(cause);
@@ -123,7 +124,8 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     const request = (async () => {
       try {
         const ledger = await fetchWalletLedger(20);
-        if (currentWalletRequest(requestEpoch, requestOwner)) set({ ledger, ledgerStatus: "ready", error: null });
+        if (currentWalletRequest(requestEpoch, requestOwner))
+          set({ ledger, ledgerStatus: "ready", error: null });
       } catch (cause) {
         if (!currentWalletRequest(requestEpoch, requestOwner)) return;
         handleUnauthorized(cause);
@@ -144,7 +146,8 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       const result = await createWalletCheckout(input);
       return result;
     } catch (cause) {
-      if (!currentWalletRequest(requestEpoch, requestOwner)) throw new Error("账号状态已变化，请重新操作");
+      if (!currentWalletRequest(requestEpoch, requestOwner))
+        throw new Error("账号状态已变化，请重新操作");
       handleUnauthorized(cause);
       const error = walletError(cause);
       set({ error });
@@ -158,7 +161,8 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     try {
       return await fetchWalletOrder(orderNo);
     } catch (cause) {
-      if (!currentWalletRequest(requestEpoch, requestOwner)) throw new Error("账号状态已变化，请重新操作");
+      if (!currentWalletRequest(requestEpoch, requestOwner))
+        throw new Error("账号状态已变化，请重新操作");
       handleUnauthorized(cause);
       const error = walletError(cause);
       set({ error });
@@ -174,7 +178,9 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       const result = await redeemWalletCode(input);
       if (currentWalletRequest(requestEpoch, requestOwner)) {
         set({
-          ...(result.summary ? { summary: result.summary, summaryStatus: "ready" as const } : { summaryStatus: "idle" as const }),
+          ...(result.summary
+            ? { summary: result.summary, summaryStatus: "ready" as const }
+            : { summaryStatus: "idle" as const }),
           ledgerStatus: "idle",
           error: null,
         });
@@ -183,7 +189,8 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       }
       return result.message;
     } catch (cause) {
-      if (!currentWalletRequest(requestEpoch, requestOwner)) throw new Error("账号状态已变化，请重新操作");
+      if (!currentWalletRequest(requestEpoch, requestOwner))
+        throw new Error("账号状态已变化，请重新操作");
       handleUnauthorized(cause);
       const error = walletError(cause);
       set({ error });
@@ -228,5 +235,9 @@ function walletError(cause: unknown) {
 }
 
 function currentWalletRequest(epoch: number, ownerId: string | undefined) {
-  return epoch === walletEpoch && ownerId !== undefined && useIdentityStore.getState().session?.user.id === ownerId;
+  return (
+    epoch === walletEpoch &&
+    ownerId !== undefined &&
+    useIdentityStore.getState().session?.user.id === ownerId
+  );
 }

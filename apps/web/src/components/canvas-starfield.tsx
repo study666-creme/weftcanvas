@@ -44,7 +44,8 @@ export const CanvasStarfield = memo(function CanvasStarfield() {
         if (!layer) continue;
         const presentation = getStarfieldLayerPresentation(metrics[depth]);
         const previous = applied.get(depth);
-        if (presentation.transform !== previous?.transform) layer.style.transform = presentation.transform;
+        if (presentation.transform !== previous?.transform)
+          layer.style.transform = presentation.transform;
         applied.set(depth, presentation);
       }
     };
@@ -53,10 +54,8 @@ export const CanvasStarfield = memo(function CanvasStarfield() {
     const unsubscribe = store.subscribe((state, previousState) => {
       const nextTransform = state.transform;
       const previousTransform = previousState.transform;
-      if (
-        nextTransform[0] === previousTransform[0]
-        && nextTransform[1] === previousTransform[1]
-      ) return;
+      if (nextTransform[0] === previousTransform[0] && nextTransform[1] === previousTransform[1])
+        return;
 
       latestViewport = viewportFromTransform(nextTransform);
       // Skip the repaint while the viewport is actively moving: the canvas is
@@ -93,11 +92,11 @@ export const CanvasStarfield = memo(function CanvasStarfield() {
   }, [store]);
 
   return (
-    <div className="kc-canvas-starfield" data-testid="canvas-starfield" aria-hidden="true">
-      <span ref={farRef} className="kc-canvas-starfield-layer is-far" data-depth="far" />
-      <span ref={midRef} className="kc-canvas-starfield-layer is-mid" data-depth="mid" />
-      <span ref={nearRef} className="kc-canvas-starfield-layer is-near" data-depth="near" />
-      <span className="kc-canvas-starfield-dust" />
+    <div className="wc-canvas-starfield" data-testid="canvas-starfield" aria-hidden="true">
+      <span ref={farRef} className="wc-canvas-starfield-layer is-far" data-depth="far" />
+      <span ref={midRef} className="wc-canvas-starfield-layer is-mid" data-depth="mid" />
+      <span ref={nearRef} className="wc-canvas-starfield-layer is-near" data-depth="near" />
+      <span className="wc-canvas-starfield-dust" />
     </div>
   );
 });
@@ -123,7 +122,9 @@ type StarfieldLayerPresentation = {
   transform: string;
 };
 
-export function getStarfieldLayerPresentation(metric: StarfieldLayerMetric): StarfieldLayerPresentation {
+export function getStarfieldLayerPresentation(
+  metric: StarfieldLayerMetric,
+): StarfieldLayerPresentation {
   return {
     transform: `translate3d(${metric.x}px, ${metric.y}px, 0)`,
   };
@@ -142,7 +143,7 @@ function layerMetrics(x: number, y: number, size: number, parallax: number) {
 }
 
 function centeredModulo(value: number, divisor: number) {
-  return ((value + divisor / 2) % divisor + divisor) % divisor - divisor / 2;
+  return ((((value + divisor / 2) % divisor) + divisor) % divisor) - divisor / 2;
 }
 
 function roundToThree(value: number) {

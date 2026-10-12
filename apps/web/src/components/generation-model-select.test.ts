@@ -1,13 +1,29 @@
-import type { ModelModality, PublicModel } from "@kachang/contracts";
+import type { ModelModality, PublicModel } from "@weftcanvas/contracts";
 import { describe, expect, it } from "vitest";
 
-import { modelGroupLabel, modelPickerLabel, modelPriceLabel, orderModelsForPicker, pickDefaultModel, pricingUnitText } from "./generation-model-select";
+import {
+  modelGroupLabel,
+  modelPickerLabel,
+  modelPriceLabel,
+  orderModelsForPicker,
+  pickDefaultModel,
+  pricingUnitText,
+} from "./generation-model-select";
 
 describe("generation model select", () => {
   it("shows the public billing unit in model prices", () => {
     expect(modelPriceLabel(model("image", "image-price", "Image", 0))).toBe("1 积分/张");
     expect(modelPriceLabel(model("video", "video-price", "Video", 0))).toBe("1 积分/秒");
-    expect(modelPriceLabel({ ...model("text", "text-price", "Text", 0), pricing: { ...model("text", "text-price", "Text", 0).pricing, unit: "request", mode: "fixed" } })).toBe("1 积分/条");
+    expect(
+      modelPriceLabel({
+        ...model("text", "text-price", "Text", 0),
+        pricing: {
+          ...model("text", "text-price", "Text", 0).pricing,
+          unit: "request",
+          mode: "fixed",
+        },
+      }),
+    ).toBe("1 积分/条");
     expect(pricingUnitText("image")).toBe("按张计费");
     expect(pricingUnitText("second")).toBe("按秒计费");
     expect(pricingUnitText("request")).toBe("按条计费");
@@ -15,14 +31,18 @@ describe("generation model select", () => {
   });
   it("groups video models by route line instead of model family", () => {
     expect(modelGroupLabel(model("video", "sd2.0-720p-pro", "SD 2.0 Pro", 0, 2))).toBe("线路二");
-    expect(modelGroupLabel(model("video", "grok-imagine-video-1.5", "Grok 1.5", 0, 2))).toBe("线路二");
+    expect(modelGroupLabel(model("video", "grok-imagine-video-1.5", "Grok 1.5", 0, 2))).toBe(
+      "线路二",
+    );
     expect(modelGroupLabel(model("video", "veo-3", "Veo 3", 0, 1))).toBe("线路一");
   });
 
   it("formats route line labels through 99", () => {
-    expect([1, 2, 10, 11, 20, 99].map((routeLine) => (
-      modelGroupLabel(model("video", `line-${routeLine}`, "Video", 0, routeLine))
-    ))).toEqual(["线路一", "线路二", "线路十", "线路十一", "线路二十", "线路九十九"]);
+    expect(
+      [1, 2, 10, 11, 20, 99].map((routeLine) =>
+        modelGroupLabel(model("video", `line-${routeLine}`, "Video", 0, routeLine)),
+      ),
+    ).toEqual(["线路一", "线路二", "线路十", "线路十一", "线路二十", "线路九十九"]);
   });
 
   it("orders video models by route line, model order, then label", () => {
@@ -50,12 +70,11 @@ describe("generation model select", () => {
     const lineTwo = model("video", "kling-line-two", "Kling", 0, 2);
 
     expect([missingGrok, missingVeo].map(modelGroupLabel)).toEqual(["线路待同步", "线路待同步"]);
-    expect(orderModelsForPicker([lineTwo, explicitLineOne, missingGrok, missingVeo]).map((item) => item.id)).toEqual([
-      "sd-explicit-line-one",
-      "kling-line-two",
-      "veo-missing-line",
-      "grok-missing-line",
-    ]);
+    expect(
+      orderModelsForPicker([lineTwo, explicitLineOne, missingGrok, missingVeo]).map(
+        (item) => item.id,
+      ),
+    ).toEqual(["sd-explicit-line-one", "kling-line-two", "veo-missing-line", "grok-missing-line"]);
   });
 
   it("groups and orders image models as universal, banana, then other", () => {
@@ -84,20 +103,42 @@ describe("generation model select", () => {
   });
 
   it("groups every current image catalog model into its requested family", () => {
-    for (const id of ["gpt-image-2-1k", "gpt-image-2", "gpt-image-2-ext", "gpt-image-2-free", "gpt-image-2-4k-Adobe"]) {
+    for (const id of [
+      "gpt-image-2-1k",
+      "gpt-image-2",
+      "gpt-image-2-ext",
+      "gpt-image-2-free",
+      "gpt-image-2-4k-Adobe",
+    ]) {
       expect(modelGroupLabel(model("image", id, id))).toBe("全能模型2");
     }
-    for (const id of ["nano-banana", "nano-banana-fast", "nano-banana-2-lite", "nano-banana-pro", "nano-banana-2"]) {
+    for (const id of [
+      "nano-banana",
+      "nano-banana-fast",
+      "nano-banana-2-lite",
+      "nano-banana-pro",
+      "nano-banana-2",
+    ]) {
       expect(modelGroupLabel(model("image", id, id))).toBe("香蕉");
     }
   });
 
   it("uses the original English variant names for banana models", () => {
-    expect(modelPickerLabel(model("image", "nano-banana", "香蕉 · 标准 1K"))).toBe("香蕉 · Standard 1K");
-    expect(modelPickerLabel(model("image", "nano-banana-fast", "香蕉 · 极速 1K"))).toBe("香蕉 · Fast 1K");
-    expect(modelPickerLabel(model("image", "nano-banana-2-lite", "香蕉 · Lite 1K"))).toBe("香蕉 · Lite 1K");
-    expect(modelPickerLabel(model("image", "nano-banana-pro", "香蕉 · 专业 1K/2K/4K"))).toBe("香蕉 · Pro 1K/2K/4K");
-    expect(modelPickerLabel(model("image", "nano-banana-2", "香蕉 · 2代 1K/2K/4K"))).toBe("香蕉 · 2 1K/2K/4K");
+    expect(modelPickerLabel(model("image", "nano-banana", "香蕉 · 标准 1K"))).toBe(
+      "香蕉 · Standard 1K",
+    );
+    expect(modelPickerLabel(model("image", "nano-banana-fast", "香蕉 · 极速 1K"))).toBe(
+      "香蕉 · Fast 1K",
+    );
+    expect(modelPickerLabel(model("image", "nano-banana-2-lite", "香蕉 · Lite 1K"))).toBe(
+      "香蕉 · Lite 1K",
+    );
+    expect(modelPickerLabel(model("image", "nano-banana-pro", "香蕉 · 专业 1K/2K/4K"))).toBe(
+      "香蕉 · Pro 1K/2K/4K",
+    );
+    expect(modelPickerLabel(model("image", "nano-banana-2", "香蕉 · 2代 1K/2K/4K"))).toBe(
+      "香蕉 · 2 1K/2K/4K",
+    );
   });
 
   it("keeps non-image and non-video lists in their existing order", () => {
@@ -109,10 +150,18 @@ describe("generation model select", () => {
 
   it("groups every custom image model into one dedicated bottom group regardless of family labels", () => {
     const customBanana = model("image", customKey("image", "nano-banana-custom"), "香蕉 · 专业 1K");
-    const customUniversal = model("image", customKey("image", "gpt-image-2-custom"), "全能模型2 · 特价");
+    const customUniversal = model(
+      "image",
+      customKey("image", "gpt-image-2-custom"),
+      "全能模型2 · 特价",
+    );
     const customGeneric = model("image", customKey("image", "ordinary-model"), "创作图片");
 
-    expect([customBanana, customUniversal, customGeneric].map(modelGroupLabel)).toEqual(["自有 API", "自有 API", "自有 API"]);
+    expect([customBanana, customUniversal, customGeneric].map(modelGroupLabel)).toEqual([
+      "自有 API",
+      "自有 API",
+      "自有 API",
+    ]);
     expect(modelPickerLabel(customBanana)).toBe("香蕉 · 专业 1K");
   });
 
@@ -145,8 +194,20 @@ describe("generation model select", () => {
   });
 
   it("groups custom video models into the dedicated group instead of a route line", () => {
-    const customVideo = model("video", customKey("video", "grok-imagine-video-1.5"), "Grok 1.5", 0, 2);
-    const customRouteLike = model("video", customKey("video", "sd2.0-720p-pro"), "SD 2.0 Pro", 0, 2);
+    const customVideo = model(
+      "video",
+      customKey("video", "grok-imagine-video-1.5"),
+      "Grok 1.5",
+      0,
+      2,
+    );
+    const customRouteLike = model(
+      "video",
+      customKey("video", "sd2.0-720p-pro"),
+      "SD 2.0 Pro",
+      0,
+      2,
+    );
 
     expect([customVideo, customRouteLike].map(modelGroupLabel)).toEqual(["自有 API", "自有 API"]);
   });
@@ -175,7 +236,10 @@ describe("generation model select", () => {
 
   it("defaults to a stable-zone model and keeps promo models last in the picker", () => {
     const stableLineOne = model("video", "sd2.0-720p-pro", "SD 2.0 Pro", 0, 1);
-    const promoLineOne = { ...model("video", "promo-veo", "特惠 Veo", 0, 1), zone: "promo" as const };
+    const promoLineOne = {
+      ...model("video", "promo-veo", "特惠 Veo", 0, 1),
+      zone: "promo" as const,
+    };
     const lineTwo = model("video", "kling-line-two", "Kling", 0, 2);
 
     expect(pickDefaultModel([promoLineOne, stableLineOne])).toBe(stableLineOne);
@@ -183,15 +247,19 @@ describe("generation model select", () => {
     expect(pickDefaultModel([])).toBeNull();
     expect(modelGroupLabel(promoLineOne)).toBe("特惠模型");
 
-    expect(orderModelsForPicker([promoLineOne, lineTwo, stableLineOne]).map((item) => item.id)).toEqual([
-      "sd2.0-720p-pro",
-      "kling-line-two",
-      "promo-veo",
-    ]);
+    expect(
+      orderModelsForPicker([promoLineOne, lineTwo, stableLineOne]).map((item) => item.id),
+    ).toEqual(["sd2.0-720p-pro", "kling-line-two", "promo-veo"]);
   });
 });
 
-function model(modality: ModelModality, id: string, label: string, order = 0, routeLine?: number): PublicModel {
+function model(
+  modality: ModelModality,
+  id: string,
+  label: string,
+  order = 0,
+  routeLine?: number,
+): PublicModel {
   return {
     id,
     label,
@@ -205,7 +273,12 @@ function model(modality: ModelModality, id: string, label: string, order = 0, ro
     parameters: [],
     pricing: {
       mode: "fixed",
-      unit: modality === "video" || modality === "audio" ? "second" : modality === "text" ? "token" : "image",
+      unit:
+        modality === "video" || modality === "audio"
+          ? "second"
+          : modality === "text"
+            ? "token"
+            : "image",
       currency: "CNY",
       creditsPerYuan: 100,
       baseCreditMicros: 1_000_000,

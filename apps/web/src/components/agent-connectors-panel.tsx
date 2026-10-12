@@ -1,5 +1,14 @@
-import type { AgentConnector } from "@kachang/contracts";
-import { Blocks, Check, CircleAlert, LoaderCircle, RefreshCw, Terminal, Unplug, X } from "lucide-react";
+import type { AgentConnector } from "@weftcanvas/contracts";
+import {
+  Blocks,
+  Check,
+  CircleAlert,
+  LoaderCircle,
+  RefreshCw,
+  Terminal,
+  Unplug,
+  X,
+} from "lucide-react";
 import { memo, useEffect, useState } from "react";
 
 import { useConnectorStore } from "../state/connector-store";
@@ -27,7 +36,11 @@ const ENDPOINT_PLACEHOLDERS: Record<string, string> = {
  * 运行时自己写 Codex 的 MCP 配置，自己把 Blender 插件装好并打开 Blender，
  * 结果（以及"还需要做什么"）原样显示在这里。
  */
-export const AgentConnectorsPanel = memo(function AgentConnectorsPanel({ onClose }: { onClose: () => void }) {
+export const AgentConnectorsPanel = memo(function AgentConnectorsPanel({
+  onClose,
+}: {
+  onClose: () => void;
+}) {
   const items = useConnectorStore((state) => state.items);
   const status = useConnectorStore((state) => state.status);
   const error = useConnectorStore((state) => state.error);
@@ -68,9 +81,12 @@ export const AgentConnectorsPanel = memo(function AgentConnectorsPanel({ onClose
   };
 
   return (
-    <section className="kc-connectors" aria-label="Agent 外部连接">
-      <header className="kc-connectors-head">
-        <span><Unplug aria-hidden="true" />外部连接</span>
+    <section className="wc-connectors" aria-label="Agent 外部连接">
+      <header className="wc-connectors-head">
+        <span>
+          <Unplug aria-hidden="true" />
+          外部连接
+        </span>
         <div>
           <button
             type="button"
@@ -79,7 +95,10 @@ export const AgentConnectorsPanel = memo(function AgentConnectorsPanel({ onClose
             onClick={() => void load(true)}
             disabled={status === "loading"}
           >
-            <RefreshCw className={status === "loading" ? "is-spinning" : undefined} aria-hidden="true" />
+            <RefreshCw
+              className={status === "loading" ? "is-spinning" : undefined}
+              aria-hidden="true"
+            />
           </button>
           <button type="button" aria-label="收起外部连接" title="收起" onClick={onClose}>
             <X aria-hidden="true" />
@@ -87,7 +106,7 @@ export const AgentConnectorsPanel = memo(function AgentConnectorsPanel({ onClose
         </div>
       </header>
 
-      <p className="kc-connectors-note">
+      <p className="wc-connectors-note">
         点「连接」就行：运行时会自动把画布接进本机 Codex，或把 Blender 插件装好并打开 Blender。
         连上以后，Codex 对画布的操作会直接落盘（可撤销回退），Blender 则由 Agent 在本机执行 Python。
       </p>
@@ -95,7 +114,7 @@ export const AgentConnectorsPanel = memo(function AgentConnectorsPanel({ onClose
       <AgentRemoteConnectors />
 
       {items.length ? (
-        <ul className="kc-connectors-list">
+        <ul className="wc-connectors-list">
           {items.map((connector) => (
             <ConnectorRow
               key={connector.id}
@@ -109,14 +128,25 @@ export const AgentConnectorsPanel = memo(function AgentConnectorsPanel({ onClose
           ))}
         </ul>
       ) : (
-        <div className="kc-connectors-empty" role="status">
-          {status === "loading" ? <LoaderCircle className="is-spinning" aria-hidden="true" /> : <CircleAlert aria-hidden="true" />}
-          <span>{identityStatus !== "authenticated" ? "登录后可管理本机连接" : error || "没有读到本机连接"}</span>
+        <div className="wc-connectors-empty" role="status">
+          {status === "loading" ? (
+            <LoaderCircle className="is-spinning" aria-hidden="true" />
+          ) : (
+            <CircleAlert aria-hidden="true" />
+          )}
+          <span>
+            {identityStatus !== "authenticated"
+              ? "登录后可管理本机连接"
+              : error || "没有读到本机连接"}
+          </span>
         </div>
       )}
 
       {items.length && error ? (
-        <div className="kc-connectors-error" role="alert"><CircleAlert aria-hidden="true" /><span>{error}</span></div>
+        <div className="wc-connectors-error" role="alert">
+          <CircleAlert aria-hidden="true" />
+          <span>{error}</span>
+        </div>
       ) : null}
     </section>
   );
@@ -152,20 +182,28 @@ function ConnectorRow({
   };
 
   return (
-    <li className="kc-connector" data-connector={connector.id} data-state={connector.state}>
-      <div className="kc-connector-main">
-        <span className="kc-connector-icon" aria-hidden="true"><Icon /></span>
-        <div className="kc-connector-copy">
+    <li className="wc-connector" data-connector={connector.id} data-state={connector.state}>
+      <div className="wc-connector-main">
+        <span className="wc-connector-icon" aria-hidden="true">
+          <Icon />
+        </span>
+        <div className="wc-connector-copy">
           <strong>{connector.label}</strong>
           <small>{connector.summary}</small>
         </div>
-        <span className="kc-connector-state" data-state={connector.state}>
-          {busy ? <LoaderCircle className="is-spinning" aria-hidden="true" /> : connected ? <Check aria-hidden="true" /> : <i aria-hidden="true" />}
+        <span className="wc-connector-state" data-state={connector.state}>
+          {busy ? (
+            <LoaderCircle className="is-spinning" aria-hidden="true" />
+          ) : connected ? (
+            <Check aria-hidden="true" />
+          ) : (
+            <i aria-hidden="true" />
+          )}
           {busy ? "接入中" : STATE_LABELS[connector.state]}
         </span>
         <button
           type="button"
-          className="kc-connector-action"
+          className="wc-connector-action"
           data-primary={connector.enabled ? undefined : "true"}
           aria-label={`${connector.enabled ? "断开" : "连接"}${connector.label}`}
           disabled={disabled}
@@ -175,17 +213,21 @@ function ConnectorRow({
         </button>
       </div>
 
-      {connector.enabled && connector.detail ? <p className="kc-connector-detail">{connector.detail}</p> : null}
+      {connector.enabled && connector.detail ? (
+        <p className="wc-connector-detail">{connector.detail}</p>
+      ) : null}
 
       {connected && connector.capabilities.length ? (
-        <ul className="kc-connector-capabilities">
-          {connector.capabilities.map((capability) => <li key={capability}>{capability}</li>)}
+        <ul className="wc-connector-capabilities">
+          {connector.capabilities.map((capability) => (
+            <li key={capability}>{capability}</li>
+          ))}
         </ul>
       ) : null}
 
-      <details className="kc-connector-setup">
+      <details className="wc-connector-setup">
         <summary>高级</summary>
-        <label className="kc-connector-endpoint">
+        <label className="wc-connector-endpoint">
           <span>{connector.id === "blender" ? "桥接地址" : "Codex 命令"}</span>
           <input
             type="text"
@@ -205,7 +247,7 @@ function ConnectorRow({
             }}
           />
         </label>
-        {connector.setup ? <p className="kc-connector-setup-text">{connector.setup}</p> : null}
+        {connector.setup ? <p className="wc-connector-setup-text">{connector.setup}</p> : null}
       </details>
     </li>
   );

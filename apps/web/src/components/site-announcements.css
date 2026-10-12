@@ -1,7 +1,7 @@
 /* 站点公告（画布侧）：右下角非阻塞卡片栈，当日关闭后不再出现。
- * 配色跟随画布界面令牌（--kc-chrome-*），不引入新的主题体系。 */
+ * 配色跟随画布界面令牌（--wc-chrome-*），不引入新的主题体系。 */
 
-.kc-site-announcements {
+.wc-site-announcements {
   position: fixed;
   right: 16px;
   bottom: 16px;
@@ -13,39 +13,39 @@
   pointer-events: none;
 }
 
-.kc-site-announcement {
+.wc-site-announcement {
   pointer-events: auto;
-  background: var(--kc-chrome-panel-bg, rgba(18, 22, 28, 0.92));
-  color: var(--kc-chrome-text, #e8ecf1);
-  border: 1px solid var(--kc-chrome-border, rgba(255, 255, 255, 0.12));
+  background: var(--wc-chrome-panel-bg, rgba(18, 22, 28, 0.92));
+  color: var(--wc-chrome-text, #e8ecf1);
+  border: 1px solid var(--wc-chrome-border, rgba(255, 255, 255, 0.12));
   border-radius: 12px;
   padding: 10px 12px 12px;
   box-shadow: 0 10px 32px rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(10px);
 }
 
-.kc-site-announcement-head {
+.wc-site-announcement-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 6px;
 }
 
-.kc-site-announcement-badge {
+.wc-site-announcement-badge {
   font-size: 11px;
   line-height: 1;
   padding: 3px 8px;
   border-radius: 999px;
-  background: var(--kc-chrome-accent-soft, rgba(96, 165, 250, 0.18));
-  color: var(--kc-chrome-accent, #7fb2f0);
+  background: var(--wc-chrome-accent-soft, rgba(96, 165, 250, 0.18));
+  color: var(--wc-chrome-accent, #7fb2f0);
   letter-spacing: 0.08em;
 }
 
-.kc-site-announcement-close {
+.wc-site-announcement-close {
   appearance: none;
   border: 0;
   background: transparent;
-  color: var(--kc-chrome-text-muted, #9aa5b1);
+  color: var(--wc-chrome-text-muted, #9aa5b1);
   font-size: 16px;
   line-height: 1;
   padding: 2px 6px;
@@ -53,12 +53,12 @@
   cursor: pointer;
 }
 
-.kc-site-announcement-close:hover {
-  color: var(--kc-chrome-text, #e8ecf1);
-  background: var(--kc-chrome-hover, rgba(255, 255, 255, 0.08));
+.wc-site-announcement-close:hover {
+  color: var(--wc-chrome-text, #e8ecf1);
+  background: var(--wc-chrome-hover, rgba(255, 255, 255, 0.08));
 }
 
-.kc-site-announcement-text {
+.wc-site-announcement-text {
   margin: 0;
   font-size: 13px;
   line-height: 1.55;

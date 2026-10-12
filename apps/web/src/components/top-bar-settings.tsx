@@ -26,21 +26,29 @@ export const TopBarSettings = memo(function TopBarSettings({
 }: TopBarSettingsProps) {
   const apiProfiles = useCustomApiStore((state) => state.profiles);
   const apiConnecting = apiProfiles.some((profile) => profile.connecting || profile.refreshing);
-  const connectedApiCount = apiProfiles.filter((profile) => profile.enabled && profile.availableModelIds.length > 0).length;
+  const connectedApiCount = apiProfiles.filter(
+    (profile) => profile.enabled && profile.availableModelIds.length > 0,
+  ).length;
 
   return (
-    <div className={`kc-topbar-settings ${appearanceOpen ? "is-active" : ""}`}>
+    <div className={`wc-topbar-settings ${appearanceOpen ? "is-active" : ""}`}>
       <button
         ref={triggerRef}
         type="button"
-        className={`kc-icon-button kc-topbar-settings-trigger ${connectedApiCount ? "is-connected" : ""}`}
+        className={`wc-icon-button wc-topbar-settings-trigger ${connectedApiCount ? "is-connected" : ""}`}
         aria-label={appearanceOpen ? "收起设置" : "打开设置"}
         title={connectedApiCount ? `设置 · ${connectedApiCount} 个自有 API 已就绪` : "设置"}
         aria-expanded={appearanceOpen}
         onClick={onOpenAppearance}
       >
-        {apiConnecting ? <LoaderCircle className="is-spinning" aria-hidden="true" /> : <Settings aria-hidden="true" />}
-        {connectedApiCount && !apiConnecting ? <span className="kc-api-indicator" aria-hidden="true" /> : null}
+        {apiConnecting ? (
+          <LoaderCircle className="is-spinning" aria-hidden="true" />
+        ) : (
+          <Settings aria-hidden="true" />
+        )}
+        {connectedApiCount && !apiConnecting ? (
+          <span className="wc-api-indicator" aria-hidden="true" />
+        ) : null}
       </button>
     </div>
   );

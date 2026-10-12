@@ -1,4 +1,4 @@
-import type { ModelModality, PublicGenerationJob } from "@kachang/contracts";
+import type { ModelModality, PublicGenerationJob } from "@weftcanvas/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -33,7 +33,12 @@ describe("direct generation history", () => {
 
   it("rejects malformed records and keeps the newest version of a recovered job", () => {
     const original = job("same-job", "image", 1);
-    const current = { ...original, version: 3, progress: 80, updatedAt: "2026-07-22T02:00:00.000Z" };
+    const current = {
+      ...original,
+      version: 3,
+      progress: 80,
+      updatedAt: "2026-07-22T02:00:00.000Z",
+    };
     const wrongProject = { ...job("other", "image"), projectId: "another-project" };
 
     const merged = mergeDirectGenerationJobs({ image: [original], video: [] }, [
@@ -55,7 +60,11 @@ describe("direct generation history", () => {
   });
 });
 
-function job(id: string, modality: Extract<ModelModality, "image" | "video">, version = 1): PublicGenerationJob {
+function job(
+  id: string,
+  modality: Extract<ModelModality, "image" | "video">,
+  version = 1,
+): PublicGenerationJob {
   const createdAt = "2026-07-22T01:00:00.000Z";
   return {
     schemaVersion: 1,
@@ -98,11 +107,17 @@ function job(id: string, modality: Extract<ModelModality, "image" | "video">, ve
 function memoryStorage(): Storage {
   const values = new Map<string, string>();
   return {
-    get length() { return values.size; },
+    get length() {
+      return values.size;
+    },
     clear: () => values.clear(),
     getItem: (key) => values.get(key) ?? null,
     key: (index) => [...values.keys()][index] ?? null,
-    removeItem: (key) => { values.delete(key); },
-    setItem: (key, value) => { values.set(key, String(value)); },
+    removeItem: (key) => {
+      values.delete(key);
+    },
+    setItem: (key, value) => {
+      values.set(key, String(value));
+    },
   };
 }

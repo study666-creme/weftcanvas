@@ -25,25 +25,47 @@ import {
 export type { ThemeMode } from "./lib/theme-schedule";
 type EntryState = "idle" | "inside";
 type AppRoute =
-  | { view: "home" }
-  | { view: "canvas" }
-  | { view: "generate"; modality: DirectModality };
+  { view: "home" } | { view: "canvas" } | { view: "generate"; modality: DirectModality };
 
-const AccountDataController = lazy(async () => ({ default: (await import("./components/account-data-controller")).AccountDataController }));
-const AccountDialog = lazy(async () => ({ default: (await import("./components/account-dialog")).AccountDialog }));
-const AuthScreen = lazy(async () => ({ default: (await import("./components/auth-screen")).AuthScreen }));
-const CanvasRoute = lazy(async () => ({ default: (await import("./components/canvas-route")).CanvasRoute }));
-const CollaborationDialog = lazy(async () => ({ default: (await import("./components/collaboration-dialog")).CollaborationDialog }));
-const CloudResourceDialog = lazy(async () => ({ default: (await import("./components/cloud-resource-dialog")).CloudResourceDialog }));
-const CustomApiDialogHost = lazy(async () => ({ default: (await import("./components/custom-api-dialog-host")).CustomApiDialogHost }));
-const DirectGenerationPage = lazy(async () => ({ default: (await import("./components/direct-generation-page")).DirectGenerationPage }));
-const CanvasEntryLoaderLazy = lazy(async () => ({ default: (await import("./components/canvas-entry-loader")).CanvasEntryLoader }));
+const AccountDataController = lazy(async () => ({
+  default: (await import("./components/account-data-controller")).AccountDataController,
+}));
+const AccountDialog = lazy(async () => ({
+  default: (await import("./components/account-dialog")).AccountDialog,
+}));
+const AuthScreen = lazy(async () => ({
+  default: (await import("./components/auth-screen")).AuthScreen,
+}));
+const CanvasRoute = lazy(async () => ({
+  default: (await import("./components/canvas-route")).CanvasRoute,
+}));
+const CollaborationDialog = lazy(async () => ({
+  default: (await import("./components/collaboration-dialog")).CollaborationDialog,
+}));
+const CloudResourceDialog = lazy(async () => ({
+  default: (await import("./components/cloud-resource-dialog")).CloudResourceDialog,
+}));
+const CustomApiDialogHost = lazy(async () => ({
+  default: (await import("./components/custom-api-dialog-host")).CustomApiDialogHost,
+}));
+const DirectGenerationPage = lazy(async () => ({
+  default: (await import("./components/direct-generation-page")).DirectGenerationPage,
+}));
+const CanvasEntryLoaderLazy = lazy(async () => ({
+  default: (await import("./components/canvas-entry-loader")).CanvasEntryLoader,
+}));
 // 首页入口整页懒加载：index.html 的启动屏先亮，入口模块与首屏渲染并行下载，
 // 避免整包 entry 被入口的模型选择/参数控件依赖图拖大。
-const EntryGateLazy = lazy(async () => ({ default: (await import("./components/entry-gate")).EntryGate }));
+const EntryGateLazy = lazy(async () => ({
+  default: (await import("./components/entry-gate")).EntryGate,
+}));
 
 function SuspenseCanvasLoader() {
-  return <Suspense fallback={null}><CanvasEntryLoaderLazy /></Suspense>;
+  return (
+    <Suspense fallback={null}>
+      <CanvasEntryLoaderLazy />
+    </Suspense>
+  );
 }
 
 function routeFromPath(pathname = window.location.pathname): AppRoute {
@@ -57,8 +79,12 @@ function routeFromPath(pathname = window.location.pathname): AppRoute {
 export function App() {
   const [route, setRoute] = useState<AppRoute>(routeFromPath);
   const [theme, setTheme] = useState<ThemeMode>(initialTheme);
-  const [entryState, setEntryState] = useState<EntryState>(() => routeFromPath().view === "home" ? "idle" : "inside");
-  const [canvasBootVisible, setCanvasBootVisible] = useState(() => routeFromPath().view === "canvas");
+  const [entryState, setEntryState] = useState<EntryState>(() =>
+    routeFromPath().view === "home" ? "idle" : "inside",
+  );
+  const [canvasBootVisible, setCanvasBootVisible] = useState(
+    () => routeFromPath().view === "canvas",
+  );
   const [workspaceReady, setWorkspaceReady] = useState(false);
   const hydrateIdentity = useIdentityStore((state) => state.hydrate);
   const identityStatus = useIdentityStore((state) => state.status);
@@ -92,7 +118,15 @@ export function App() {
     document.documentElement.dataset.cursorStyle = cursorStyle;
     document.documentElement.dataset.edgePathStyle = edgePathStyle;
     document.documentElement.dataset.edgeFlowStyle = edgeFlowStyle;
-  }, [canvasVisualStyle, chromeVisualStyle, colorScheme, cursorStyle, edgeFlowStyle, edgePathStyle, generationEffectStyle]);
+  }, [
+    canvasVisualStyle,
+    chromeVisualStyle,
+    colorScheme,
+    cursorStyle,
+    edgeFlowStyle,
+    edgePathStyle,
+    generationEffectStyle,
+  ]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -100,7 +134,7 @@ export function App() {
   }, [theme]);
 
   // 主题切换统一入口：整页换色走 View Transition 交叉淡化，避免生硬闪眼。
-  // flushSync 让 React 提交（.kc-app 的 data-theme 等）发生在过渡回调内，
+  // flushSync 让 React 提交（.wc-app 的 data-theme 等）发生在过渡回调内，
   // 新快照拿到的才是换色后的 DOM；不支持或用户要求减少动效时直接切换。
   const themeRef = useRef(theme);
   themeRef.current = theme;
@@ -111,7 +145,10 @@ export function App() {
       flushSync(() => setTheme(next));
     };
     const doc = document as Document & { startViewTransition?: (callback: () => void) => unknown };
-    if (doc.startViewTransition && !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+    if (
+      doc.startViewTransition &&
+      !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+    ) {
       doc.startViewTransition(commit);
     } else {
       commit();
@@ -156,7 +193,7 @@ export function App() {
     if (accountDialogOpen) setAccountDialogLoaded(true);
   }, [accountDialogOpen]);
 
-  // 首屏流畅度优先：index.html 的引导脚本已无条件把 data-kc-motion="lite" 打在
+  // 首屏流畅度优先：index.html 的引导脚本已无条件把 data-wc-motion="lite" 打在
   // <html> 上（静态英雄层、无星空/光晕/毛玻璃动画）。此前的运行时帧率采样只在
   // 首屏已经卡过 1.2 秒之后才降级，对弱机等于「先卡够再救」，已移除；弱动效
   // 现在是所有设备的默认，不做强机回升。
@@ -213,14 +250,29 @@ export function App() {
     useIdentityStore.getState().openDialog("login");
   }, [identityStatus, route, entryState, forceLanding]);
 
-  // 首屏闸门：未认证（或账号服务不可用）时首页整页渲染「开启创作」闸门——
-  // 保留登录页的影片背景与版式，但不再要求凭据，一键即可进画布；账号表单
-  // 收在闸门内的次要入口里，需要云端资产/钱包的用户再展开。
+  // 游客通道：本会话内免登录进入首屏落地页（sessionStorage 记忆，刷新不丢）。
+  const [guestEntered, setGuestEntered] = useState(
+    () => window.sessionStorage.getItem("weftcanvas:entry-guest:v1") === "1",
+  );
+  const enterAsGuest = () => {
+    window.sessionStorage.setItem("weftcanvas:entry-guest:v1", "1");
+    setGuestEntered(true);
+  };
+
+  // 首屏登录页：未认证（或账号服务不可用）时首页整页渲染登录面板——保留影片
+  // 背景与版式，表单为主入口，下方提供与登录同权重的「游客访问」按钮（免登录进首屏）。
   // hydration 进行中显示轻量加载态；已认证则直接进入画布。
-  const showLoginFirst = route.view === "home" && entryState !== "inside" && !forceLanding
-    && (identityStatus === "anonymous" || identityStatus === "unavailable");
-  const homeAuthLoading = route.view === "home" && entryState !== "inside" && !forceLanding
-    && (identityStatus === "idle" || identityStatus === "loading");
+  const showLoginFirst =
+    route.view === "home" &&
+    entryState !== "inside" &&
+    !forceLanding &&
+    !guestEntered &&
+    (identityStatus === "anonymous" || identityStatus === "unavailable");
+  const homeAuthLoading =
+    route.view === "home" &&
+    entryState !== "inside" &&
+    !forceLanding &&
+    (identityStatus === "idle" || identityStatus === "loading");
 
   // 登录成功 → 自动进入画布，但仅限"刚从登录页走过来"的这一次；
   // 已登录用户访问 / 停在首页（项目库侧栏的「首页」链接因此能真正回首页，
@@ -240,15 +292,8 @@ export function App() {
     window.setTimeout(() => enterCanvasRef.current(), 250);
   }, [identityStatus, showLoginFirst]);
 
-  // /generate/* 直达同样需要登录：未认证访问生成工作区 → 弹回首页并打开登录层。
-  const directNeedsAuth = route.view === "generate" && (identityStatus === "anonymous" || identityStatus === "unavailable");
-  useEffect(() => {
-    if (!directNeedsAuth) return;
-    window.history.replaceState(null, "", "/");
-    setRoute({ view: "home" });
-    setEntryState("idle");
-    useIdentityStore.getState().openDialog("login");
-  }, [directNeedsAuth]);
+  // /generate/* 工作台对游客开放（与画布一致）：目录缺失时由演示目录兜底，
+  // 未配置 API / 未登录时提交会被 studio 诚实拦截并指向设置，不再弹回登录。
 
   // 未认证直达 /canvas 不再弹回首页：画布对匿名访客开放（本地项目 + BYOK）。
 
@@ -258,20 +303,42 @@ export function App() {
     setRoute({ view: "generate", modality });
   };
 
-  if (route.view === "generate" && !directNeedsAuth) {
+  if (route.view === "generate") {
     return (
-      <div className="kc-app kc-app--direct-generation" data-theme={theme} data-canvas-style={canvasVisualStyle} data-node-style={canvasVisualStyle} data-chrome-style={chromeVisualStyle} data-generation-effect={generationEffectStyle} data-edge-path-style={edgePathStyle} data-edge-flow-style={edgeFlowStyle}>
+      <div
+        className="wc-app wc-app--direct-generation"
+        data-theme={theme}
+        data-canvas-style={canvasVisualStyle}
+        data-node-style={canvasVisualStyle}
+        data-chrome-style={chromeVisualStyle}
+        data-generation-effect={generationEffectStyle}
+        data-edge-path-style={edgePathStyle}
+        data-edge-flow-style={edgeFlowStyle}
+      >
         <PointerFeedback />
-        <Suspense fallback={null}><AccountDataController /></Suspense>
+        <Suspense fallback={null}>
+          <AccountDataController />
+        </Suspense>
         <Suspense fallback={<RouteLoadingState label="正在打开生成工作区" />}>
-          <DirectGenerationPage modality={route.modality} onModalityChange={changeDirectModality} theme={theme} onToggleTheme={toggleTheme} />
+          <DirectGenerationPage
+            modality={route.modality}
+            onModalityChange={changeDirectModality}
+            theme={theme}
+            onToggleTheme={toggleTheme}
+          />
         </Suspense>
         {accountDialogOpen && !identitySession ? (
-          <Suspense fallback={null}><AuthScreen /></Suspense>
+          <Suspense fallback={null}>
+            <AuthScreen />
+          </Suspense>
         ) : accountDialogLoaded || accountDialogOpen ? (
-          <Suspense fallback={<DialogLoadingState />}><AccountDialog /></Suspense>
+          <Suspense fallback={<DialogLoadingState />}>
+            <AccountDialog />
+          </Suspense>
         ) : null}
-        <Suspense fallback={null}><CustomApiDialogHost /></Suspense>
+        <Suspense fallback={null}>
+          <CustomApiDialogHost />
+        </Suspense>
         <GlobalConfirmDialog />
         <GlobalTooltip />
         <SiteAnnouncements />
@@ -281,7 +348,16 @@ export function App() {
   }
 
   return (
-    <div className={`kc-app kc-app--entry-${entryState} ${canvasBootVisible ? "kc-app--canvas-loading" : ""}`} data-theme={theme} data-canvas-style={canvasVisualStyle} data-node-style={canvasVisualStyle} data-chrome-style={chromeVisualStyle} data-generation-effect={generationEffectStyle} data-edge-path-style={edgePathStyle} data-edge-flow-style={edgeFlowStyle}>
+    <div
+      className={`wc-app wc-app--entry-${entryState} ${canvasBootVisible ? "wc-app--canvas-loading" : ""}`}
+      data-theme={theme}
+      data-canvas-style={canvasVisualStyle}
+      data-node-style={canvasVisualStyle}
+      data-chrome-style={chromeVisualStyle}
+      data-generation-effect={generationEffectStyle}
+      data-edge-path-style={edgePathStyle}
+      data-edge-flow-style={edgeFlowStyle}
+    >
       {route.view === "canvas" ? (
         <Suspense fallback={<SuspenseCanvasLoader />}>
           <CanvasRoute
@@ -300,23 +376,43 @@ export function App() {
       {/* 首屏/登录页不再挂自绘光标：它隐藏系统光标并用 DOM 逐帧跟随，主线程
           一忙就「鼠标发黏」。这里回归原生光标（硬件合成零延迟）；画布工作区若
           挂载它，由各自路由自行决定。 */}
-      {route.view === "canvas" || accountDialogOpen ? <Suspense fallback={null}><AccountDataController /></Suspense> : null}
+      {route.view === "canvas" || accountDialogOpen ? (
+        <Suspense fallback={null}>
+          <AccountDataController />
+        </Suspense>
+      ) : null}
       {route.view === "home" && entryState !== "inside" ? (
         showLoginFirst ? (
-          <Suspense fallback={<RouteLoadingState label="正在打开登录页" />}><AuthScreen mandatory onStart={enterCanvas} /></Suspense>
+          <Suspense fallback={<RouteLoadingState label="正在打开登录页" />}>
+            <AuthScreen mandatory onStart={enterCanvas} onGuest={enterAsGuest} />
+          </Suspense>
         ) : homeAuthLoading ? (
           <RouteLoadingState label="正在校验登录状态" />
         ) : (
-          <Suspense fallback={null}><EntryGateLazy onEnter={enterCanvas} theme={theme} onToggleTheme={toggleTheme} /></Suspense>
+          <Suspense fallback={null}>
+            <EntryGateLazy onEnter={enterCanvas} theme={theme} onToggleTheme={toggleTheme} />
+          </Suspense>
         )
       ) : null}
       {accountDialogOpen && !identitySession && !showLoginFirst ? (
-        <Suspense fallback={null}><AuthScreen /></Suspense>
+        <Suspense fallback={null}>
+          <AuthScreen />
+        </Suspense>
       ) : accountDialogLoaded || accountDialogOpen ? (
-        <Suspense fallback={<DialogLoadingState />}><AccountDialog /></Suspense>
+        <Suspense fallback={<DialogLoadingState />}>
+          <AccountDialog />
+        </Suspense>
       ) : null}
-      {collaborationDialogOpen ? <Suspense fallback={<DialogLoadingState />}><CollaborationDialog /></Suspense> : null}
-      {cloudResourceDialogOpen ? <Suspense fallback={<DialogLoadingState />}><CloudResourceDialog /></Suspense> : null}
+      {collaborationDialogOpen ? (
+        <Suspense fallback={<DialogLoadingState />}>
+          <CollaborationDialog />
+        </Suspense>
+      ) : null}
+      {cloudResourceDialogOpen ? (
+        <Suspense fallback={<DialogLoadingState />}>
+          <CloudResourceDialog />
+        </Suspense>
+      ) : null}
       <GlobalConfirmDialog />
       <GlobalTooltip />
       <SiteAnnouncements />
@@ -326,9 +422,22 @@ export function App() {
 }
 
 function DialogLoadingState() {
-  return <div className="kc-lazy-dialog-backdrop" role="status" aria-label="正在打开"><span /></div>;
+  return (
+    <div className="wc-lazy-dialog-backdrop" role="status" aria-label="正在打开">
+      <span />
+    </div>
+  );
 }
 
 function RouteLoadingState({ label, canvasBoot = false }: { label: string; canvasBoot?: boolean }) {
-  return <main className={`kc-route-loading ${canvasBoot ? "kc-canvas-entry-loader" : ""}`} role="status" aria-label={label}><span /><small>{label}</small></main>;
+  return (
+    <main
+      className={`wc-route-loading ${canvasBoot ? "wc-canvas-entry-loader" : ""}`}
+      role="status"
+      aria-label={label}
+    >
+      <span />
+      <small>{label}</small>
+    </main>
+  );
 }

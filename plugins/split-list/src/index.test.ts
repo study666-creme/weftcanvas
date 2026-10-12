@@ -59,7 +59,10 @@ describe("split-list plugin", () => {
     expect(definition.label()).toBe("批量拆单");
     expect(definition.creatable).not.toBe(false);
     expect(definition.accent).toBe("jade");
-    expect(definition.createDraft({ defaultAspectRatio: "16:9" })).toEqual({ width: 308, height: 190 });
+    expect(definition.createDraft({ defaultAspectRatio: "16:9" })).toEqual({
+      width: 308,
+      height: 190,
+    });
     expect(typeof definition.renderBody).toBe("function");
   });
 });

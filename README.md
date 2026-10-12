@@ -17,7 +17,7 @@
 - BYOK 直连：在设置里填自己的 OpenAI 兼容或 Gemini 端点，请求由浏览器直发，
   Key 只落在本机 `localStorage`，不经过任何我们的服务。
 - Agent：右侧回复工作区 + 本地连接器（Codex 走 MCP 操作当前画布、Blender 走
-  `kachang_bridge` 插件）。
+  `weftcanvas_bridge` 插件）。
 - 生成任务的持久化 worker（PostgreSQL 队列、租约与 fencing）。
 
 **不包含**（商业版持有，开源仓库里没有）：

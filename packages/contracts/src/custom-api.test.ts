@@ -4,14 +4,16 @@ import { customApiCatalogModelSchema, customApiCatalogParameterSchema } from "./
 
 describe("custom API catalog contracts", () => {
   it("preserves an explicitly disabled media array", () => {
-    expect(customApiCatalogParameterSchema.parse({
-      name: "referenceImages",
-      path: "images",
-      type: "array",
-      min_items: 0,
-      max_items: 0,
-      items: { type: "string", format: "uri-or-data-image" },
-    })).toMatchObject({ min_items: 0, max_items: 0 });
+    expect(
+      customApiCatalogParameterSchema.parse({
+        name: "referenceImages",
+        path: "images",
+        type: "array",
+        min_items: 0,
+        max_items: 0,
+        items: { type: "string", format: "uri-or-data-image" },
+      }),
+    ).toMatchObject({ min_items: 0, max_items: 0 });
   });
 
   it("accepts video.v1 protocol metadata from the public catalog", () => {
@@ -44,7 +46,11 @@ describe("custom API catalog contracts", () => {
         endpoint: { method: "POST", path: "/v1/images/generations" },
         media_roles: ["reference", "style_reference", "element_reference", "mask"],
       },
-      endpoint: { method: "POST", path: "/v1/images/generations", content_type: "application/json" },
+      endpoint: {
+        method: "POST",
+        path: "/v1/images/generations",
+        content_type: "application/json",
+      },
       output: { type: "image", count: { fixed: 1 } },
       parameters: [],
     });

@@ -1,4 +1,4 @@
-import { canvasProjectSchema, type CanvasProject } from "@kachang/contracts";
+import { canvasProjectSchema, type CanvasProject } from "@weftcanvas/contracts";
 import { create } from "zustand";
 
 import {
@@ -144,7 +144,11 @@ export const useProjectLibraryStore = create<ProjectLibraryState>((set, get) => 
           projects = loadSummaries();
         }
       }
-      set({ projects, open: deletingActive ? false : get().open, query: deletingActive ? "" : get().query });
+      set({
+        projects,
+        open: deletingActive ? false : get().open,
+        query: deletingActive ? "" : get().query,
+      });
       useToastStore.getState().show("项目已删除", "success");
     } catch {
       useToastStore.getState().show("项目删除失败", "error");
@@ -187,8 +191,8 @@ function loadSummaries() {
 function nextCanvasName(projects: ProjectSummary[]) {
   const names = new Set(projects.map((project) => project.name));
   for (let index = 1; index < 10_000; index += 1) {
-    const candidate = `卡藏画布 ${index}`;
+    const candidate = `纬线画布 ${index}`;
     if (!names.has(candidate)) return candidate;
   }
-  return `卡藏画布 ${Date.now()}`;
+  return `纬线画布 ${Date.now()}`;
 }

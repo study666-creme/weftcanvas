@@ -1,6 +1,6 @@
-import type { CanvasNodeKind } from "@kachang/contracts";
+import type { CanvasNodeKind } from "@weftcanvas/contracts";
 
-import type { KachangEdge, KachangNode } from "../types";
+import type { WeftcanvasEdge, WeftcanvasNode } from "../types";
 import { indexIncomingNodeIds } from "./canvas-graph";
 
 const referenceKindLabels = {
@@ -31,7 +31,10 @@ export function referenceKindLabel(kind: CanvasNodeKind) {
   return isReferenceKind(kind) ? referenceKindLabels[kind] : "素材";
 }
 
-export function createReferenceMentionMap(referenceNodeIds: readonly string[], nodes: readonly KachangNode[]) {
+export function createReferenceMentionMap(
+  referenceNodeIds: readonly string[],
+  nodes: readonly WeftcanvasNode[],
+) {
   const byId = new Map(nodes.map((node) => [node.id, node]));
   const counts: Record<ReferenceKind, number> = { image: 0, video: 0, audio: 0 };
   const mentions = new Map<string, string>();
@@ -48,7 +51,7 @@ export function createReferenceMentionMap(referenceNodeIds: readonly string[], n
 export function generationReferenceMentionNodeIds(
   nodeId: string,
   referenceNodeIds: readonly string[],
-  nodes: readonly KachangNode[],
+  nodes: readonly WeftcanvasNode[],
 ) {
   const target = nodes.find((node) => node.id === nodeId);
   if (!target?.data.media || !isReferenceKind(target.data.kind)) return [...referenceNodeIds];
@@ -58,7 +61,7 @@ export function generationReferenceMentionNodeIds(
 export function referenceIdsPresentInBody(
   body: string,
   referenceNodeIds: readonly string[],
-  nodes: readonly KachangNode[],
+  nodes: readonly WeftcanvasNode[],
 ) {
   const mentions = createReferenceMentionMap(referenceNodeIds, nodes);
   return referenceNodeIds.filter((nodeId, index) => {
@@ -72,7 +75,7 @@ export function reconcileReferenceMentions(
   body: string,
   previousNodeIds: readonly string[],
   nextNodeIds: readonly string[],
-  nodes: readonly KachangNode[],
+  nodes: readonly WeftcanvasNode[],
 ) {
   const previousMentions = createReferenceMentionMap(previousNodeIds, nodes);
   const nextMentions = createReferenceMentionMap(nextNodeIds, nodes);
@@ -82,7 +85,7 @@ export function reconcileReferenceMentions(
   [...previousMentions.entries()]
     .sort((left, right) => right[1].length - left[1].length)
     .forEach(([nodeId, mention], index) => {
-      const placeholder = `\uE000kc-ref-${index}\uE001`;
+      const placeholder = `\uE000wc-ref-${index}\uE001`;
       placeholders.set(nodeId, placeholder);
       nextBody = nextBody.replace(mentionPattern(mention), placeholder);
     });
@@ -98,16 +101,20 @@ export function reconcileReferenceMentions(
 export function stripUnboundReferenceMentions(
   body: string,
   referenceNodeIds: readonly string[],
-  nodes: readonly KachangNode[],
+  nodes: readonly WeftcanvasNode[],
 ) {
-  const allowed = new Set([...createReferenceMentionMap(referenceNodeIds, nodes).values()].map((value) => `@${value}`));
-  return cleanReferenceWhitespace(body.replace(/@(图片|视频|音频)\d+/gu, (value) => allowed.has(value) ? value : ""));
+  const allowed = new Set(
+    [...createReferenceMentionMap(referenceNodeIds, nodes).values()].map((value) => `@${value}`),
+  );
+  return cleanReferenceWhitespace(
+    body.replace(/@(图片|视频|音频)\d+/gu, (value) => (allowed.has(value) ? value : "")),
+  );
 }
 
 export function findPromptReferenceRanges(
   body: string,
   referenceNodeIds: readonly string[],
-  nodes: readonly KachangNode[],
+  nodes: readonly WeftcanvasNode[],
 ) {
   const mentions = createReferenceMentionMap(referenceNodeIds, nodes);
   const ranges: PromptReferenceRange[] = [];
@@ -125,7 +132,7 @@ export function ensurePromptReferenceMentions(
   body: string,
   referenceNodeIds: readonly string[],
   mentionNodeIds: readonly string[],
-  nodes: readonly KachangNode[],
+  nodes: readonly WeftcanvasNode[],
 ) {
   const mentions = createReferenceMentionMap(mentionNodeIds, nodes);
   let nextBody = body;
@@ -151,7 +158,7 @@ export function deletePromptReferenceAtSelection(
   selectionStart: number,
   selectionEnd: number,
   referenceNodeIds: readonly string[],
-  nodes: readonly KachangNode[],
+  nodes: readonly WeftcanvasNode[],
   direction: "backward" | "forward",
 ): PromptReferenceDeletion | null {
   const start = Math.max(0, Math.min(selectionStart, selectionEnd, body.length));
@@ -162,10 +169,11 @@ export function deletePromptReferenceAtSelection(
   if (start !== end) {
     affected = ranges.filter((range) => range.start < end && range.end > start);
   } else if (direction === "backward") {
-    affected = ranges.filter((range) => (
-      (start > range.start && start <= range.end)
-      || (body[start - 1] === " " && start - 1 === range.end)
-    ));
+    affected = ranges.filter(
+      (range) =>
+        (start > range.start && start <= range.end) ||
+        (body[start - 1] === " " && start - 1 === range.end),
+    );
   } else {
     affected = ranges.filter((range) => start >= range.start && start < range.end);
   }
@@ -190,7 +198,7 @@ export function deletePromptReferenceAtSelection(
 export function stripReferenceMentionTokens(
   body: string,
   referenceNodeIds: readonly string[],
-  nodes: readonly KachangNode[],
+  nodes: readonly WeftcanvasNode[],
 ) {
   const ranges = findPromptReferenceRanges(body, referenceNodeIds, nodes);
   if (!ranges.length) return body;
@@ -202,9 +210,9 @@ export function stripReferenceMentionTokens(
 }
 
 export function pruneDisconnectedPromptReferences(
-  nodes: readonly KachangNode[],
-  edges: readonly KachangEdge[],
-  mentionNodes: readonly KachangNode[] = nodes,
+  nodes: readonly WeftcanvasNode[],
+  edges: readonly WeftcanvasEdge[],
+  mentionNodes: readonly WeftcanvasNode[] = nodes,
 ) {
   const incoming = indexIncomingNodeIds(edges);
   const existingById = new Map(nodes.map((node) => [node.id, node]));
@@ -215,12 +223,29 @@ export function pruneDisconnectedPromptReferences(
     const allowedIds = new Set(incoming.get(node.id) ?? []);
     const referenceNodeIds = previousIds.filter((id) => {
       const reference = existingById.get(id);
-      return allowedIds.has(id) && Boolean(reference?.data.media) && Boolean(reference && isReferenceKind(reference.data.kind));
+      return (
+        allowedIds.has(id) &&
+        Boolean(reference?.data.media) &&
+        Boolean(reference && isReferenceKind(reference.data.kind))
+      );
     });
     if (referenceNodeIds.length === previousIds.length) return node;
-    const previousMentionIds = generationReferenceMentionNodeIds(node.id, previousIds, mentionNodes);
-    const nextMentionIds = generationReferenceMentionNodeIds(node.id, referenceNodeIds, mentionNodes);
-    const canonicalBody = ensurePromptReferenceMentions(node.data.body, previousIds, previousMentionIds, mentionNodes);
+    const previousMentionIds = generationReferenceMentionNodeIds(
+      node.id,
+      previousIds,
+      mentionNodes,
+    );
+    const nextMentionIds = generationReferenceMentionNodeIds(
+      node.id,
+      referenceNodeIds,
+      mentionNodes,
+    );
+    const canonicalBody = ensurePromptReferenceMentions(
+      node.data.body,
+      previousIds,
+      previousMentionIds,
+      mentionNodes,
+    );
     const body = stripUnboundReferenceMentions(
       reconcileReferenceMentions(canonicalBody, previousMentionIds, nextMentionIds, mentionNodes),
       nextMentionIds,

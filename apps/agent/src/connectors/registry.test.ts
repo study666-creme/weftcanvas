@@ -14,8 +14,16 @@ function probes(overrides: Partial<ConnectorProbes> = {}): ConnectorProbes {
 
 function provisioner(overrides: Partial<ConnectorProvisioner> = {}): ConnectorProvisioner {
   return {
-    codex: vi.fn(async () => ({ ok: true, detail: "已写入 Codex 配置", action: "重启 Codex 后生效" })),
-    blender: vi.fn(async () => ({ ok: true, detail: "已装好插件并启用，已启动 Blender", action: null })),
+    codex: vi.fn(async () => ({
+      ok: true,
+      detail: "已写入 Codex 配置",
+      action: "重启 Codex 后生效",
+    })),
+    blender: vi.fn(async () => ({
+      ok: true,
+      detail: "已装好插件并启用，已启动 Blender",
+      action: null,
+    })),
     ...overrides,
   };
 }
@@ -23,7 +31,9 @@ function provisioner(overrides: Partial<ConnectorProvisioner> = {}): ConnectorPr
 describe("AgentConnectorRegistry", () => {
   it("reports disabled connectors without probing the machine", async () => {
     const fake = probes();
-    const registry = new AgentConnectorRegistry(new MemoryConnectorSettingsStore(), { probes: fake });
+    const registry = new AgentConnectorRegistry(new MemoryConnectorSettingsStore(), {
+      probes: fake,
+    });
     const list = await registry.list();
     expect(list.map((item) => item.state)).toEqual(["disabled", "disabled"]);
     expect(fake.codex).not.toHaveBeenCalled();
@@ -107,7 +117,9 @@ describe("AgentConnectorRegistry.connect", () => {
     const provision = provisioner();
     const store = new MemoryConnectorSettingsStore();
     const registry = new AgentConnectorRegistry(store, {
-      probes: probes({ blender: vi.fn(async () => ({ reachable: false, detail: "端口上没有 Blender 桥接在监听" })) }),
+      probes: probes({
+        blender: vi.fn(async () => ({ reachable: false, detail: "端口上没有 Blender 桥接在监听" })),
+      }),
       provisioner: provision,
       defaults: { blender: "127.0.0.1:9876" },
     });
@@ -123,8 +135,14 @@ describe("AgentConnectorRegistry.connect", () => {
 
   it("keeps the switch on and explains the failure when provisioning throws", async () => {
     const registry = new AgentConnectorRegistry(new MemoryConnectorSettingsStore(), {
-      probes: probes({ codex: vi.fn(async () => ({ reachable: false, detail: "本机找不到 codex" })) }),
-      provisioner: provisioner({ codex: vi.fn(async () => { throw new Error("boom"); }) }),
+      probes: probes({
+        codex: vi.fn(async () => ({ reachable: false, detail: "本机找不到 codex" })),
+      }),
+      provisioner: provisioner({
+        codex: vi.fn(async () => {
+          throw new Error("boom");
+        }),
+      }),
     });
     const connector = await registry.connect("codex");
     expect(connector.enabled).toBe(true);
@@ -133,7 +151,9 @@ describe("AgentConnectorRegistry.connect", () => {
   });
 
   it("still connects when no provisioner is configured", async () => {
-    const registry = new AgentConnectorRegistry(new MemoryConnectorSettingsStore(), { probes: probes() });
+    const registry = new AgentConnectorRegistry(new MemoryConnectorSettingsStore(), {
+      probes: probes(),
+    });
     const connector = await registry.connect("codex");
     expect(connector).toMatchObject({ enabled: true, state: "ready" });
   });

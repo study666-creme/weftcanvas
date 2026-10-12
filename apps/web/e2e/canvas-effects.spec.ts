@@ -1,7 +1,9 @@
 import { expect, test } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({ json: { ok: true, data: null } }));
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({ json: { ok: true, data: null } }),
+  );
   await page.addInitScript(() => {
     const now = Date.now();
     const generation = {
@@ -23,7 +25,7 @@ test.beforeEach(async ({ page }) => {
       nodes: [
         {
           id: "source-text",
-          type: "kachang",
+          type: "weftcanvas",
           position: { x: 120, y: 220 },
           selected: false,
           data: {
@@ -35,14 +37,20 @@ test.beforeEach(async ({ page }) => {
             media: null,
             directorCapture: null,
             config: null,
-            generation: { ...generation, jobId: null, jobVersion: null, jobCreatedAt: null, jobStatus: null },
+            generation: {
+              ...generation,
+              jobId: null,
+              jobVersion: null,
+              jobCreatedAt: null,
+              jobStatus: null,
+            },
             createdAt: now,
             updatedAt: now,
           },
         },
         {
           id: "running-video",
-          type: "kachang",
+          type: "weftcanvas",
           position: { x: 620, y: 220 },
           width: 340,
           height: 192,
@@ -69,12 +77,26 @@ test.beforeEach(async ({ page }) => {
       updatedAt: now,
     };
     localStorage.clear();
-    localStorage.setItem(`kachang-canvas:project-data:v1:${encodeURIComponent(project.id)}`, JSON.stringify(project));
-    localStorage.setItem("kachang-canvas:projects:v1", JSON.stringify({
-      version: 1,
-      projects: [{ id: project.id, name: project.name, createdAt: now, updatedAt: now, nodeCount: project.nodes.length }],
-    }));
-    localStorage.setItem("kachang-canvas:active-project:v1", project.id);
+    localStorage.setItem(
+      `weftcanvas:project-data:v1:${encodeURIComponent(project.id)}`,
+      JSON.stringify(project),
+    );
+    localStorage.setItem(
+      "weftcanvas:projects:v1",
+      JSON.stringify({
+        version: 1,
+        projects: [
+          {
+            id: project.id,
+            name: project.name,
+            createdAt: now,
+            updatedAt: now,
+            nodeCount: project.nodes.length,
+          },
+        ],
+      }),
+    );
+    localStorage.setItem("weftcanvas:active-project:v1", project.id);
   });
 });
 
@@ -82,50 +104,65 @@ test("canvas effect choices animate the real generation node and active edge", a
   await page.goto("/canvas");
 
   const edge = page.locator('.react-flow__edge[data-id="motion-edge"]');
-  const videoNode = page.locator('.react-flow__node-kachang[data-id="running-video"] .kc-node-wrap--video');
-  await expect(videoNode).toHaveClass(/kc-accent--blue/);
-  await expect(videoNode).not.toHaveClass(/kc-accent--coral/);
-  await page.locator('.react-flow__node-kachang[data-id="running-video"] .kc-node-drag-strip').click();
-  const energy = edge.locator(".kc-edge-energy");
-  await expect(edge.locator(".kc-edge-effect--stream.is-active")).toBeAttached();
-  await expect.poll(() => energy.evaluate((element) => Number(getComputedStyle(element).opacity))).toBeGreaterThan(0.5);
-  await expect(energy).toHaveCSS("animation-name", "kc-edge-energy-flow");
+  const videoNode = page.locator(
+    '.react-flow__node-weftcanvas[data-id="running-video"] .wc-node-wrap--video',
+  );
+  await expect(videoNode).toHaveClass(/wc-accent--blue/);
+  await expect(videoNode).not.toHaveClass(/wc-accent--coral/);
+  await page
+    .locator('.react-flow__node-weftcanvas[data-id="running-video"] .wc-node-drag-strip')
+    .click();
+  const energy = edge.locator(".wc-edge-energy");
+  await expect(edge.locator(".wc-edge-effect--stream.is-active")).toBeAttached();
+  await expect
+    .poll(() => energy.evaluate((element) => Number(getComputedStyle(element).opacity)))
+    .toBeGreaterThan(0.5);
+  await expect(energy).toHaveCSS("animation-name", "wc-edge-energy-flow");
   const edgeOffset = await energy.evaluate((element) => getComputedStyle(element).strokeDashoffset);
-  await expect.poll(() => energy.evaluate((element) => getComputedStyle(element).strokeDashoffset)).not.toBe(edgeOffset);
+  await expect
+    .poll(() => energy.evaluate((element) => getComputedStyle(element).strokeDashoffset))
+    .not.toBe(edgeOffset);
 
-  const scene = page.locator(".kc-video-generation-scene");
-  const field = scene.locator(".kc-video-generation-field");
-  const sweep = scene.locator(".kc-video-generation-sweep");
+  const scene = page.locator(".wc-video-generation-scene");
+  const field = scene.locator(".wc-video-generation-field");
+  const sweep = scene.locator(".wc-video-generation-sweep");
   await expect(scene).toBeVisible();
-  await expect(sweep).toHaveCSS("animation-name", "kc-video-generation-sweep");
+  await expect(sweep).toHaveCSS("animation-name", "wc-video-generation-sweep");
 
   await page.getByLabel("打开 UI 设置").click();
-  const effects = page.locator("#kc-ui-settings-panel-visual .kc-appearance-group--previews button");
+  const effects = page.locator(
+    "#wc-ui-settings-panel-visual .wc-appearance-group--previews button",
+  );
   await expect(effects).toHaveCount(4);
 
   await effects.nth(1).click();
   await expect(page.locator("html")).toHaveAttribute("data-generation-effect", "nebula");
-  await expect(field).toHaveCSS("animation-name", "kc-cosmos-nebula-primary");
-  await expect(sweep).toHaveCSS("animation-name", "kc-cosmos-nebula-secondary");
-  await expect(scene.locator(".kc-video-generation-scan")).toBeHidden();
+  await expect(field).toHaveCSS("animation-name", "wc-cosmos-nebula-primary");
+  await expect(sweep).toHaveCSS("animation-name", "wc-cosmos-nebula-secondary");
+  await expect(scene.locator(".wc-video-generation-scan")).toBeHidden();
   const nebulaTransform = await field.evaluate((element) => getComputedStyle(element).transform);
-  await expect.poll(() => field.evaluate((element) => getComputedStyle(element).transform)).not.toBe(nebulaTransform);
+  await expect
+    .poll(() => field.evaluate((element) => getComputedStyle(element).transform))
+    .not.toBe(nebulaTransform);
 
   await effects.nth(2).click();
   await expect(page.locator("html")).toHaveAttribute("data-generation-effect", "water");
-  await expect(field).toHaveCSS("animation-name", "kc-water-generation-primary");
-  await expect(sweep).toHaveCSS("animation-name", "kc-water-generation-secondary");
+  await expect(field).toHaveCSS("animation-name", "wc-water-generation-primary");
+  await expect(sweep).toHaveCSS("animation-name", "wc-water-generation-secondary");
 
   await effects.nth(3).click();
   await expect(page.locator("html")).toHaveAttribute("data-generation-effect", "quiet");
   await expect(field).not.toBeAttached();
-  const runningNode = page.locator('.react-flow__node-kachang[data-id="running-video"]');
-  const quietScene = runningNode.locator(".kc-quiet-generation-scene");
+  const runningNode = page.locator('.react-flow__node-weftcanvas[data-id="running-video"]');
+  const quietScene = runningNode.locator(".wc-quiet-generation-scene");
   await expect(quietScene).toBeAttached();
-  await expect(quietScene.locator(".kc-quiet-generation-sweep")).toHaveCSS("animation-name", "kc-quiet-sweep");
-  const quietRing = runningNode.locator(".kc-quiet-ring");
+  await expect(quietScene.locator(".wc-quiet-generation-sweep")).toHaveCSS(
+    "animation-name",
+    "wc-quiet-sweep",
+  );
+  const quietRing = runningNode.locator(".wc-quiet-ring");
   await expect(quietRing).toBeAttached();
-  await expect(runningNode.locator(".kc-node-loading-label")).toContainText("正在生成视频");
+  await expect(runningNode.locator(".wc-node-loading-label")).toContainText("正在生成视频");
   const ringMetrics = await quietRing.evaluate((element) => {
     const ring = element as HTMLElement;
     return {
@@ -139,9 +176,9 @@ test("canvas effect choices animate the real generation node and active edge", a
   expect(ringMetrics.offsetHeight).toBe(36);
   expect(ringMetrics.boxWidth).toBeGreaterThan(0);
   expect(ringMetrics.boxHeight).toBeGreaterThan(0);
-  const copyBox = await runningNode.locator(".kc-node-loading-copy").boundingBox();
+  const copyBox = await runningNode.locator(".wc-node-loading-copy").boundingBox();
   expect(copyBox).not.toBeNull();
-  const railBox = await runningNode.locator(".kc-node-loading-track").boundingBox();
+  const railBox = await runningNode.locator(".wc-node-loading-track").boundingBox();
   expect(railBox).not.toBeNull();
   const ringBox = await quietRing.boundingBox();
   expect(ringBox).not.toBeNull();
@@ -152,31 +189,41 @@ test("canvas effect choices animate the real generation node and active edge", a
   expect(railBox!.y + railBox!.height).toBeLessThanOrEqual(nodeBox!.y + nodeBox!.height);
 
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await expect(quietScene.locator(".kc-quiet-generation-sweep")).toHaveCSS("animation-name", "kc-quiet-sweep");
-  await expect(quietScene.locator(".kc-quiet-generation-sweep")).toHaveCSS("animation-iteration-count", "infinite");
-  await expect(page.locator(".kc-node-loading-label")).toContainText("正在生成视频");
+  await expect(quietScene.locator(".wc-quiet-generation-sweep")).toHaveCSS(
+    "animation-name",
+    "wc-quiet-sweep",
+  );
+  await expect(quietScene.locator(".wc-quiet-generation-sweep")).toHaveCSS(
+    "animation-iteration-count",
+    "infinite",
+  );
+  await expect(page.locator(".wc-node-loading-label")).toContainText("正在生成视频");
   // 减弱动效下扩散环被隐藏，但指针反馈层仍在，且原生光标必须保持可见。
   const pulse = page.getByTestId("pointer-pulse");
   await expect(pulse).toBeAttached();
-  await expect(pulse.locator(".kc-pointer-pulse-ring")).toBeHidden();
+  await expect(pulse.locator(".wc-pointer-pulse-ring")).toBeHidden();
   await expect(pulse).toHaveCSS("pointer-events", "none");
   expect(await page.evaluate(() => getComputedStyle(document.body).cursor)).not.toBe("none");
-  expect(await page.evaluate(() => document.documentElement.classList.contains("has-kc-cursor"))).toBe(false);
+  expect(
+    await page.evaluate(() => document.documentElement.classList.contains("has-wc-cursor")),
+  ).toBe(false);
 });
 
-test("quiet renders a calm centered generation state inside the real media node", async ({ page }) => {
+test("quiet renders a calm centered generation state inside the real media node", async ({
+  page,
+}) => {
   await page.goto("/canvas");
   await page.getByLabel("打开 UI 设置").click();
   await page.getByRole("button", { name: "光环生成动效" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-generation-effect", "quiet");
 
-  const runningNode = page.locator('.react-flow__node-kachang[data-id="running-video"]');
-  const loading = runningNode.locator(".kc-node-loading");
+  const runningNode = page.locator('.react-flow__node-weftcanvas[data-id="running-video"]');
+  const loading = runningNode.locator(".wc-node-loading");
   await expect(loading).toHaveAttribute("data-generation-effect", "quiet");
   await expect(loading).toContainText("正在生成视频");
   await expect(loading).toContainText("42%");
 
-  const ring = loading.locator(".kc-quiet-ring");
+  const ring = loading.locator(".wc-quiet-ring");
   await expect(ring).toHaveCount(1);
   const ringMetrics = await ring.evaluate((element) => {
     const ringEl = element as HTMLElement;
@@ -192,15 +239,15 @@ test("quiet renders a calm centered generation state inside the real media node"
   expect(ringMetrics.boxWidth).toBeGreaterThan(0);
   expect(ringMetrics.boxHeight).toBeGreaterThan(0);
 
-  const copy = loading.locator(".kc-node-loading-copy");
-  const track = loading.locator(".kc-node-loading-track");
+  const copy = loading.locator(".wc-node-loading-copy");
+  const track = loading.locator(".wc-node-loading-track");
   await expect(copy).toBeVisible();
   await expect(track).toBeVisible();
 
   const layout = await loading.evaluate((element) => {
-    const ring = element.querySelector<HTMLElement>(".kc-quiet-ring")!;
-    const copy = element.querySelector<HTMLElement>(".kc-node-loading-copy")!;
-    const track = element.querySelector<HTMLElement>(".kc-node-loading-track")!;
+    const ring = element.querySelector<HTMLElement>(".wc-quiet-ring")!;
+    const copy = element.querySelector<HTMLElement>(".wc-node-loading-copy")!;
+    const track = element.querySelector<HTMLElement>(".wc-node-loading-track")!;
     const node = element.getBoundingClientRect();
     const rb = ring.getBoundingClientRect();
     const cb = copy.getBoundingClientRect();
@@ -236,32 +283,51 @@ test("quiet renders a calm centered generation state inside the real media node"
   expect(ringBoxBefore).not.toBeNull();
   expect(Math.round(ringBoxAfter!.width)).toBe(Math.round(ringBoxBefore!.width));
   expect(Math.round(ringBoxAfter!.height)).toBe(Math.round(ringBoxBefore!.height));
-  const sweepBefore = await loading.locator(".kc-quiet-generation-sweep").evaluate((element) => getComputedStyle(element).transform);
-  await expect.poll(() => loading.locator(".kc-quiet-generation-sweep").evaluate((element) => getComputedStyle(element).transform)).not.toBe(sweepBefore);
+  const sweepBefore = await loading
+    .locator(".wc-quiet-generation-sweep")
+    .evaluate((element) => getComputedStyle(element).transform);
+  await expect
+    .poll(() =>
+      loading
+        .locator(".wc-quiet-generation-sweep")
+        .evaluate((element) => getComputedStyle(element).transform),
+    )
+    .not.toBe(sweepBefore);
 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(loading).toContainText("正在生成视频");
   await expect(ring).toBeVisible();
-  await expect(loading.locator(".kc-quiet-generation-sweep")).toHaveCSS("animation-name", "kc-quiet-sweep");
-  await expect.poll(() => ring.evaluate((element) => getComputedStyle(element, "::before").animationName)).toBe("kc-quiet-ring-rotate");
+  await expect(loading.locator(".wc-quiet-generation-sweep")).toHaveCSS(
+    "animation-name",
+    "wc-quiet-sweep",
+  );
+  await expect
+    .poll(() => ring.evaluate((element) => getComputedStyle(element, "::before").animationName))
+    .toBe("wc-quiet-ring-rotate");
   await page.emulateMedia({ reducedMotion: "no-preference" });
 });
 
-test("ordinary unselected connections remain static until an endpoint or edge is selected", async ({ page }) => {
+test("ordinary unselected connections remain static until an endpoint or edge is selected", async ({
+  page,
+}) => {
   await page.goto("/canvas");
 
   const edge = page.locator('.react-flow__edge[data-id="motion-edge"]');
-  const renderer = edge.locator('.kc-edge-renderer[data-edge-energy-active="false"][data-edge-energy-ambient="false"]');
+  const renderer = edge.locator(
+    '.wc-edge-renderer[data-edge-energy-active="false"][data-edge-energy-ambient="false"]',
+  );
   await expect(renderer).toBeAttached();
-  await expect(renderer.locator(".kc-edge-energy")).toHaveCount(0);
-  await expect(renderer.locator(".kc-edge-effect")).toHaveCount(0);
+  await expect(renderer.locator(".wc-edge-energy")).toHaveCount(0);
+  await expect(renderer.locator(".wc-edge-effect")).toHaveCount(0);
 
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await expect(renderer.locator(".kc-edge-effect")).toHaveCount(0);
+  await expect(renderer.locator(".wc-edge-effect")).toHaveCount(0);
   await page.emulateMedia({ reducedMotion: "no-preference" });
 });
 
-test("pointer feedback stays available when pointer media queries under-report it", async ({ page }) => {
+test("pointer feedback stays available when pointer media queries under-report it", async ({
+  page,
+}) => {
   await page.addInitScript(() => {
     const nativeMatchMedia = window.matchMedia.bind(window);
     window.matchMedia = (query: string) => {
@@ -286,7 +352,9 @@ test("pointer feedback stays available when pointer media queries under-report i
   await expect(pulse).toHaveCSS("pointer-events", "none");
   // 原生光标始终可见：不再有隐藏光标的类，也不再强制 cursor: none。
   expect(await page.evaluate(() => getComputedStyle(document.body).cursor)).not.toBe("none");
-  expect(await page.evaluate(() => document.documentElement.classList.contains("has-kc-cursor"))).toBe(false);
+  expect(
+    await page.evaluate(() => document.documentElement.classList.contains("has-wc-cursor")),
+  ).toBe(false);
 
   // 指针媒体查询谎报时，真实鼠标依然能触发进入反馈。
   await page.mouse.move(920, 620);

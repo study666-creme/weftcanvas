@@ -1,4 +1,4 @@
-import type { CanvasMedia, CanvasNodeKind } from "@kachang/contracts";
+import type { CanvasMedia, CanvasNodeKind } from "@weftcanvas/contracts";
 
 /** 画布可插入对象：媒体节点（image/video/audio）或纯文本节点。社区弹层/资源面板复用。 */
 export type InsertableAsset = {

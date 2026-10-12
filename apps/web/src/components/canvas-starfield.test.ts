@@ -40,6 +40,8 @@ describe("depth-aware canvas starfield", () => {
     expect(Math.abs(zoomedOut.near.y)).toBeLessThanOrEqual(zoomedOut.near.size / 2);
     expect(zoomedIn.far.size).toBe(173);
     expect(zoomedIn.near.size).toBe(487);
-    expect(getStarfieldLayerPresentation(zoomedIn.near)).toEqual({ transform: "translate3d(0px, 0px, 0)" });
+    expect(getStarfieldLayerPresentation(zoomedIn.near)).toEqual({
+      transform: "translate3d(0px, 0px, 0)",
+    });
   });
 });

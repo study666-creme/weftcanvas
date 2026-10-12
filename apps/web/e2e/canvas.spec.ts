@@ -9,7 +9,9 @@ const audioFixture = fileURLToPath(new URL("./audio-tone.mp3", import.meta.url))
 
 test.beforeEach(async ({ page }) => {
   await mockAuthenticatedBackgroundApis(page);
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({ json: { ok: true, data: null } }));
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({ json: { ok: true, data: null } }),
+  );
   await page.route("**/api/v1/model-catalog*", (route) => {
     const now = new Date();
     return route.fulfill({
@@ -32,9 +34,9 @@ test.beforeEach(async ({ page }) => {
 async function cleanProject(page: Page, options: { starter?: boolean } = {}) {
   const { starter = true } = options;
   await page.addInitScript(() => {
-    if (sessionStorage.getItem("kachang-e2e-cleaned")) return;
+    if (sessionStorage.getItem("weftcanvas-e2e-cleaned")) return;
     localStorage.clear();
-    sessionStorage.setItem("kachang-e2e-cleaned", "1");
+    sessionStorage.setItem("weftcanvas-e2e-cleaned", "1");
   });
   if (starter) {
     await seedStarterCanvas(page);
@@ -49,7 +51,7 @@ async function openCanvas(page: Page) {
   // while. Then require the boot overlay to be gone: it is position-fixed and
   // would swallow the scenario's pointer events while leaving.
   await expect(page.locator(".react-flow__renderer")).toBeVisible({ timeout: 20_000 });
-  await expect(page.locator(".kc-canvas-entry-loader")).toHaveCount(0, { timeout: 20_000 });
+  await expect(page.locator(".wc-canvas-entry-loader")).toHaveCount(0, { timeout: 20_000 });
 }
 
 function readContentEditableCaretOffset(editor: HTMLElement) {
@@ -72,19 +74,19 @@ test("desktop canvas supports core creation and editing flow", async ({ page }) 
   await cleanProject(page);
   await openCanvas(page);
 
-  await expect(page.getByLabel("卡藏画布", { exact: true })).toBeVisible();
-  const nodes = page.locator(".react-flow__node-kachang");
+  await expect(page.getByLabel("纬线画布", { exact: true })).toBeVisible();
+  const nodes = page.locator(".react-flow__node-weftcanvas");
   await expect(nodes).toHaveCount(3);
 
   const creation = page.getByRole("navigation", { name: "创建工具" });
   const editing = page.getByRole("navigation", { name: "编辑工具" });
   const editingBox = await editing.boundingBox();
   expect(editingBox).not.toBeNull();
-  expect(Math.abs((editingBox!.x + editingBox!.width / 2) - 720)).toBeLessThan(2);
+  expect(Math.abs(editingBox!.x + editingBox!.width / 2 - 720)).toBeLessThan(2);
 
-  const textNode = nodes.filter({ has: page.locator('.kc-node-wrap[data-node-kind="text"]') });
-  await textNode.locator(".kc-node-drag-strip").click();
-  const nodeToolbar = page.locator(".kc-node-action-toolbar");
+  const textNode = nodes.filter({ has: page.locator('.wc-node-wrap[data-node-kind="text"]') });
+  await textNode.locator(".wc-node-drag-strip").click();
+  const nodeToolbar = page.locator(".wc-node-action-toolbar");
   await expect(nodeToolbar).toBeVisible();
   await expect(page.locator(".react-flow__resize-control")).toHaveCount(0);
   await nodeToolbar.getByLabel("全屏编辑").click();
@@ -95,13 +97,13 @@ test("desktop canvas supports core creation and editing flow", async ({ page }) 
   await page.keyboard.type("近景，人物停在渡口灯下。", { delay: 8 });
   await editDialog.getByLabel("收起").click();
   await expect(nodes).toHaveCount(3);
-  await expect(textNode.locator(".kc-node-text-preview")).toHaveText("近景，人物停在渡口灯下。");
+  await expect(textNode.locator(".wc-node-text-preview")).toHaveText("近景，人物停在渡口灯下。");
 
   await page.locator(".react-flow__pane").click({ position: { x: 1100, y: 700 } });
   await page.keyboard.press("Control+Z");
-  await expect(textNode.locator(".kc-node-text-preview")).toContainText("低机位跟拍");
+  await expect(textNode.locator(".wc-node-text-preview")).toContainText("低机位跟拍");
   await page.keyboard.press("Control+Y");
-  await expect(textNode.locator(".kc-node-text-preview")).toHaveText("近景，人物停在渡口灯下。");
+  await expect(textNode.locator(".wc-node-text-preview")).toHaveText("近景，人物停在渡口灯下。");
 
   await creation.getByRole("button", { name: "添加文本节点" }).click();
   await expect(nodes).toHaveCount(4);
@@ -111,7 +113,9 @@ test("desktop canvas supports core creation and editing flow", async ({ page }) 
   expect(errors).toEqual([]);
 });
 
-test("double click expands text and media nodes into focused full-screen views", async ({ page }) => {
+test("double click expands text and media nodes into focused full-screen views", async ({
+  page,
+}) => {
   await cleanProject(page, { starter: false });
   await openCanvas(page);
 
@@ -119,24 +123,30 @@ test("double click expands text and media nodes into focused full-screen views",
   await creation.getByRole("button", { name: "添加文本节点" }).click();
   await creation.getByRole("button", { name: "添加图片节点" }).click();
   await creation.getByRole("button", { name: "添加视频节点" }).click();
-  await expect(page.locator(".react-flow__node-kachang")).toHaveCount(3);
+  await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(3);
 
-  const textNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="text"])');
-  await textNode.locator(".kc-node-surface").dblclick();
+  const textNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="text"])',
+  );
+  await textNode.locator(".wc-node-surface").dblclick();
   await expect(page.getByRole("dialog", { name: "编辑文本节点" })).toBeVisible();
   await page.keyboard.press("Escape");
 
-  const imageNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="image"])');
+  const imageNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="image"])',
+  );
   await imageNode.locator('input[type="file"]').setInputFiles({
     name: "cinema-preview.svg",
     mimeType: "image/svg+xml",
-    buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540"><rect width="960" height="540" fill="#151515"/><circle cx="480" cy="270" r="96" fill="#f4f4f4"/></svg>'),
+    buffer: Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540"><rect width="960" height="540" fill="#151515"/><circle cx="480" cy="270" r="96" fill="#f4f4f4"/></svg>',
+    ),
   });
   await expect(imageNode.locator("img")).toBeVisible();
-  await imageNode.locator(".kc-node-surface").dblclick();
+  await imageNode.locator(".wc-node-surface").dblclick();
 
-  const preview = page.locator(".kc-node-overlay--preview");
-  const panel = preview.locator(".kc-node-overlay-panel--preview");
+  const preview = page.locator(".wc-node-overlay--preview");
+  const panel = preview.locator(".wc-node-overlay-panel--preview");
   await expect(preview).toBeVisible();
   await expect(preview.getByRole("img", { name: "cinema-preview.svg" })).toBeVisible();
   const panelBox = await panel.boundingBox();
@@ -146,14 +156,18 @@ test("double click expands text and media nodes into focused full-screen views",
   await page.keyboard.press("Escape");
   await expect(preview).toHaveCount(0);
 
-  const videoNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="video"])');
+  const videoNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="video"])',
+  );
   await videoNode.locator('input[type="file"]').setInputFiles(videoFixture);
-  await expect(videoNode.locator(".kc-node-media-frame")).toHaveClass(/is-measured/);
-  await expect(videoNode.locator(".kc-node-video-player > video")).toBeVisible();
-  await videoNode.locator(".kc-node-video-player > video").dblclick({ force: true, position: { x: 20, y: 20 } });
+  await expect(videoNode.locator(".wc-node-media-frame")).toHaveClass(/is-measured/);
+  await expect(videoNode.locator(".wc-node-video-player > video")).toBeVisible();
+  await videoNode
+    .locator(".wc-node-video-player > video")
+    .dblclick({ force: true, position: { x: 20, y: 20 } });
 
-  const videoPreview = page.locator(".kc-node-overlay--preview");
-  const media = videoPreview.locator(".kc-node-overlay-media");
+  const videoPreview = page.locator(".wc-node-overlay--preview");
+  const media = videoPreview.locator(".wc-node-overlay-media");
   const video = media.locator("video");
   await expect(videoPreview).toBeVisible();
   await expect(video).toBeVisible();
@@ -169,11 +183,13 @@ test("double click expands text and media nodes into focused full-screen views",
   await expect(videoPreview).toHaveCount(0);
 });
 
-test("optional minimap and shortcut help restore legacy navigation affordances", async ({ page }) => {
+test("optional minimap and shortcut help restore legacy navigation affordances", async ({
+  page,
+}) => {
   await cleanProject(page);
   await openCanvas(page);
 
-  await expect(page.locator(".kc-mini-map")).toHaveCount(0);
+  await expect(page.locator(".wc-mini-map")).toHaveCount(0);
   await page.getByLabel("显示小地图").click();
   await expect(page.getByLabel("画布小地图")).toBeVisible();
   await expect(page.getByLabel("隐藏小地图")).toHaveAttribute("aria-pressed", "true");
@@ -181,7 +197,7 @@ test("optional minimap and shortcut help restore legacy navigation affordances",
   await page.reload();
   await expect(page.getByLabel("画布小地图")).toBeVisible();
   await page.getByLabel("隐藏小地图").click();
-  await expect(page.locator(".kc-mini-map")).toHaveCount(0);
+  await expect(page.locator(".wc-mini-map")).toHaveCount(0);
 
   await page.getByLabel("画布快捷键").click();
   const dialog = page.getByRole("dialog", { name: "画布快捷键" });
@@ -205,12 +221,14 @@ test("optional minimap and shortcut help restore legacy navigation affordances",
 test("node hover toolbar stays stable and opens functional overlays", async ({ page }) => {
   await cleanProject(page);
   await openCanvas(page);
-  const toolbar = page.locator(".kc-node-action-toolbar");
-  const configNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="config"])');
+  const toolbar = page.locator(".wc-node-action-toolbar");
+  const configNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="config"])',
+  );
 
   await configNode.hover();
   await expect(toolbar).toBeVisible();
-  await expect(page.locator(".kc-node-caption, .kc-node-textarea")).toHaveCount(0);
+  await expect(page.locator(".wc-node-caption, .wc-node-textarea")).toHaveCount(0);
   await toolbar.hover();
   await page.waitForTimeout(220);
   await expect(toolbar).toBeVisible();
@@ -223,7 +241,9 @@ test("node hover toolbar stays stable and opens functional overlays", async ({ p
   await infoDialog.getByLabel("收起").click();
   await expect(infoDialog).toBeHidden();
 
-  const textNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="text"])');
+  const textNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="text"])',
+  );
   await textNode.hover();
   await toolbar.getByLabel("全屏编辑").click();
   const editDialog = page.getByRole("dialog", { name: "编辑文本节点" });
@@ -231,7 +251,7 @@ test("node hover toolbar stays stable and opens functional overlays", async ({ p
   await expect(editor).toBeFocused();
   await editor.fill("全屏编辑后的分镜文本");
   await editDialog.getByLabel("收起").click();
-  await expect(textNode.locator(".kc-node-text-preview")).toHaveText("全屏编辑后的分镜文本");
+  await expect(textNode.locator(".wc-node-text-preview")).toHaveText("全屏编辑后的分镜文本");
 });
 
 test("space pan releases cleanly and pointer movement does not stay attached", async ({ page }) => {
@@ -239,7 +259,7 @@ test("space pan releases cleanly and pointer movement does not stay attached", a
   await openCanvas(page);
   const pane = page.locator(".react-flow__pane");
   const viewport = page.locator(".react-flow__viewport");
-  const textPreview = page.locator(".kc-node-text-preview").first();
+  const textPreview = page.locator(".wc-node-text-preview").first();
   const edges = page.locator(".react-flow__edge");
   const box = await pane.boundingBox();
   expect(box).not.toBeNull();
@@ -252,7 +272,7 @@ test("space pan releases cleanly and pointer movement does not stay attached", a
   await expect(edges).toHaveCount(2);
   await page.mouse.up();
   await page.keyboard.up("Space");
-  await expect(page.locator(".kc-workspace")).not.toHaveClass(/is-space-pan/);
+  await expect(page.locator(".wc-workspace")).not.toHaveClass(/is-space-pan/);
 
   const releasedTransform = await viewport.getAttribute("style");
   await page.mouse.move(box!.x + 760, box!.y + 420, { steps: 8 });
@@ -265,7 +285,7 @@ test("blank canvas left drag stays still until Space enables panning", async ({ 
   await openCanvas(page);
   const pane = page.locator(".react-flow__pane");
   const viewport = page.locator(".react-flow__viewport");
-  const workspace = page.locator(".kc-workspace");
+  const workspace = page.locator(".wc-workspace");
   const box = await pane.boundingBox();
   expect(box).not.toBeNull();
 
@@ -292,10 +312,12 @@ test("blank canvas left drag stays still until Space enables panning", async ({ 
   await expect(pane).not.toHaveClass(/dragging/);
 });
 
-test("blank left drag draws a selection box without moving the canvas", async ({ page }, testInfo) => {
+test("blank left drag draws a selection box without moving the canvas", async ({
+  page,
+}, testInfo) => {
   await cleanProject(page);
   await openCanvas(page);
-  const node = page.locator(".react-flow__node-kachang").first();
+  const node = page.locator(".react-flow__node-weftcanvas").first();
   const viewport = page.locator(".react-flow__viewport");
   const nodeBox = await node.boundingBox();
   expect(nodeBox).not.toBeNull();
@@ -326,23 +348,32 @@ test("blank left drag draws a selection box without moving the canvas", async ({
   await expect(node).toHaveClass(/selected/);
   const selectedFeedback = await node.evaluate((element) => {
     const style = getComputedStyle(element, "::after");
-    return { borderStyle: style.borderStyle, borderWidth: style.borderWidth, borderColor: style.borderColor };
+    return {
+      borderStyle: style.borderStyle,
+      borderWidth: style.borderWidth,
+      borderColor: style.borderColor,
+    };
   });
   expect(selectedFeedback.borderStyle).toBe("solid");
   expect(Number.parseFloat(selectedFeedback.borderWidth)).toBeGreaterThanOrEqual(1);
   expect(selectedFeedback.borderColor).not.toBe("rgba(0, 0, 0, 0)");
-  await page.screenshot({ path: testInfo.outputPath("selected-node-feedback.png"), fullPage: true });
+  await page.screenshot({
+    path: testInfo.outputPath("selected-node-feedback.png"),
+    fullPage: true,
+  });
   expect(await viewport.getAttribute("style")).toBe(before);
 });
 
 test("marquee multi-selection does not open every node prompt composer", async ({ page }) => {
   await cleanProject(page);
   await openCanvas(page);
-  const nodes = page.locator(".react-flow__node-kachang");
-  const boxes = await nodes.evaluateAll((elements) => elements.map((element) => {
-    const box = element.getBoundingClientRect();
-    return { left: box.left, top: box.top, right: box.right, bottom: box.bottom };
-  }));
+  const nodes = page.locator(".react-flow__node-weftcanvas");
+  const boxes = await nodes.evaluateAll((elements) =>
+    elements.map((element) => {
+      const box = element.getBoundingClientRect();
+      return { left: box.left, top: box.top, right: box.right, bottom: box.bottom };
+    }),
+  );
   const start = {
     x: Math.max(2, Math.min(...boxes.map((box) => box.left)) - 22),
     y: Math.max(2, Math.min(...boxes.map((box) => box.top)) - 22),
@@ -356,28 +387,38 @@ test("marquee multi-selection does not open every node prompt composer", async (
   await page.mouse.down();
   await page.mouse.move(end.x, end.y, { steps: 12 });
   await expect(page.locator(".react-flow__selection")).toBeVisible();
-  await expect(page.locator(".kc-node-prompt-composer")).toHaveCount(0);
+  await expect(page.locator(".wc-node-prompt-composer")).toHaveCount(0);
   await page.mouse.up();
 
-  await expect(page.locator(".react-flow__node-kachang.selected")).toHaveCount(boxes.length);
-  await expect(page.locator(".kc-node-prompt-composer")).toHaveCount(0);
+  await expect(page.locator(".react-flow__node-weftcanvas.selected")).toHaveCount(boxes.length);
+  await expect(page.locator(".wc-node-prompt-composer")).toHaveCount(0);
 
   await page.keyboard.press("Escape");
-  await nodes.first().locator(".kc-node-drag-strip").click();
-  await expect(page.locator(".react-flow__node-kachang.selected")).toHaveCount(1);
-  await expect(page.locator(".kc-node-prompt-composer")).toHaveCount(1);
+  await nodes.first().locator(".wc-node-drag-strip").click();
+  await expect(page.locator(".react-flow__node-weftcanvas.selected")).toHaveCount(1);
+  await expect(page.locator(".wc-node-prompt-composer")).toHaveCount(1);
 });
 
-test("multi-selection exposes complete group, duplicate, delete, and clear actions", async ({ page }) => {
+test("multi-selection exposes complete group, duplicate, delete, and clear actions", async ({
+  page,
+}) => {
   await cleanProject(page);
   await openCanvas(page);
-  const nodes = page.locator(".react-flow__node-kachang");
-  const boxes = await nodes.evaluateAll((elements) => elements.map((element) => {
-    const box = element.getBoundingClientRect();
-    return { left: box.left, top: box.top, right: box.right, bottom: box.bottom };
-  }));
-  const start = { x: Math.min(...boxes.map((box) => box.left)) - 24, y: Math.min(...boxes.map((box) => box.top)) - 24 };
-  const end = { x: Math.max(...boxes.map((box) => box.right)) + 24, y: Math.max(...boxes.map((box) => box.bottom)) + 24 };
+  const nodes = page.locator(".react-flow__node-weftcanvas");
+  const boxes = await nodes.evaluateAll((elements) =>
+    elements.map((element) => {
+      const box = element.getBoundingClientRect();
+      return { left: box.left, top: box.top, right: box.right, bottom: box.bottom };
+    }),
+  );
+  const start = {
+    x: Math.min(...boxes.map((box) => box.left)) - 24,
+    y: Math.min(...boxes.map((box) => box.top)) - 24,
+  };
+  const end = {
+    x: Math.max(...boxes.map((box) => box.right)) + 24,
+    y: Math.max(...boxes.map((box) => box.bottom)) + 24,
+  };
 
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
@@ -392,15 +433,15 @@ test("multi-selection exposes complete group, duplicate, delete, and clear actio
   await expect(selectionRect).not.toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
 
   await selectionToolbar.getByLabel("组合选中节点").click();
-  await expect(page.locator(".kc-group-frame")).toHaveCount(1);
+  await expect(page.locator(".wc-group-frame")).toHaveCount(1);
   await expect(selectionToolbar.getByLabel("解散选中组合")).toBeVisible();
 
   await selectionToolbar.getByLabel("创建选中节点副本").click();
   await expect(nodes).toHaveCount(6);
-  await expect(page.locator(".kc-group-frame")).toHaveCount(2);
+  await expect(page.locator(".wc-group-frame")).toHaveCount(2);
   await selectionToolbar.getByLabel("删除选中节点").click();
   await expect(nodes).toHaveCount(3);
-  await expect(page.locator(".kc-group-frame")).toHaveCount(1);
+  await expect(page.locator(".wc-group-frame")).toHaveCount(1);
 
   await page.getByRole("navigation", { name: "编辑工具" }).getByLabel("清空画布").click();
   const clearDialog = page.getByRole("dialog", { name: "清空画布" });
@@ -420,10 +461,11 @@ test("wheel pans vertically and Control plus wheel zooms", async ({ page }) => {
   const box = await pane.boundingBox();
   expect(box).not.toBeNull();
 
-  const readViewport = () => viewport.evaluate((element) => {
-    const matrix = new DOMMatrixReadOnly(getComputedStyle(element).transform);
-    return { x: matrix.m41, y: matrix.m42, zoom: matrix.a };
-  });
+  const readViewport = () =>
+    viewport.evaluate((element) => {
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(element).transform);
+      return { x: matrix.m41, y: matrix.m42, zoom: matrix.a };
+    });
 
   await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
   const initial = await readViewport();
@@ -445,14 +487,17 @@ test("wheel pans vertically and Control plus wheel zooms", async ({ page }) => {
   await expect.poll(async () => (await readViewport()).zoom).toBeGreaterThan(afterControlZoom.zoom);
 });
 
-test("zoom controls allow a ten percent overview without crossing the lower bound", async ({ page }) => {
+test("zoom controls allow a ten percent overview without crossing the lower bound", async ({
+  page,
+}) => {
   await cleanProject(page);
   await openCanvas(page);
 
-  const slider = page.locator('.kc-zoom-control input[type="range"]');
+  const slider = page.locator('.wc-zoom-control input[type="range"]');
   const zoomOut = page.getByRole("button", { name: "缩小", exact: true });
   const viewport = page.locator(".react-flow__viewport");
-  const readZoom = () => viewport.evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).a);
+  const readZoom = () =>
+    viewport.evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).a);
 
   await expect(slider).toHaveAttribute("min", "10");
   await slider.fill("25");
@@ -470,42 +515,58 @@ test("zoom controls allow a ten percent overview without crossing the lower boun
   expect(await readZoom()).toBeCloseTo(0.1, 2);
 });
 
-test("nodes created and media dropped at a ten percent overview keep stable intrinsic dimensions", async ({ page }, testInfo) => {
+test("nodes created and media dropped at a ten percent overview keep stable intrinsic dimensions", async ({
+  page,
+}, testInfo) => {
   await cleanProject(page);
   await openCanvas(page);
 
-  const slider = page.locator('.kc-zoom-control input[type="range"]');
-  const nodes = page.locator(".react-flow__node-kachang");
+  const slider = page.locator('.wc-zoom-control input[type="range"]');
+  const nodes = page.locator(".react-flow__node-weftcanvas");
   const viewport = page.locator(".react-flow__viewport");
-  const readZoom = () => viewport.evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).a);
+  const readZoom = () =>
+    viewport.evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).a);
   await slider.fill("10");
   await expect(slider).toHaveValue("10");
 
   const beforeCreate = await nodes.count();
-  await page.getByRole("navigation", { name: "创建工具" }).locator(".kc-create-rail-plus-wrapper").hover();
-  await page.getByRole("navigation", { name: "创建工具" }).getByRole("menuitem", { name: "添加图片节点" }).click();
+  await page
+    .getByRole("navigation", { name: "创建工具" })
+    .locator(".wc-create-rail-plus-wrapper")
+    .hover();
+  await page
+    .getByRole("navigation", { name: "创建工具" })
+    .getByRole("menuitem", { name: "添加图片节点" })
+    .click();
   await expect(nodes).toHaveCount(beforeCreate + 1);
   const overviewBox = await nodes.last().boundingBox();
   expect(overviewBox).not.toBeNull();
   expect(overviewBox!.width).toBeGreaterThanOrEqual(30);
   expect(overviewBox!.width).toBeLessThan(60);
 
-  const shell = page.locator(".kc-flow-shell");
+  const shell = page.locator(".wc-flow-shell");
   const shellBox = await shell.boundingBox();
   expect(shellBox).not.toBeNull();
-  const dropPoint = { x: shellBox!.x + shellBox!.width * 0.72, y: shellBox!.y + shellBox!.height * 0.62 };
+  const dropPoint = {
+    x: shellBox!.x + shellBox!.width * 0.72,
+    y: shellBox!.y + shellBox!.height * 0.62,
+  };
   await shell.evaluate((element, point) => {
-    const binary = atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+    const binary = atob(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+    );
     const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
     const transfer = new DataTransfer();
     transfer.items.add(new File([bytes], "overview-upload.png", { type: "image/png" }));
-    element.dispatchEvent(new DragEvent("drop", {
-      bubbles: true,
-      cancelable: true,
-      clientX: point.x,
-      clientY: point.y,
-      dataTransfer: transfer,
-    }));
+    element.dispatchEvent(
+      new DragEvent("drop", {
+        bubbles: true,
+        cancelable: true,
+        clientX: point.x,
+        clientY: point.y,
+        dataTransfer: transfer,
+      }),
+    );
   }, dropPoint);
 
   await expect(nodes).toHaveCount(beforeCreate + 2);
@@ -526,7 +587,7 @@ test("nodes created and media dropped at a ten percent overview keep stable intr
   const created = nodes.nth(beforeCreate);
   const createdId = await created.getAttribute("data-id");
   expect(createdId).not.toBeNull();
-  const createdById = page.locator(`.react-flow__node-kachang[data-id="${createdId}"]`);
+  const createdById = page.locator(`.react-flow__node-weftcanvas[data-id="${createdId}"]`);
   const createdOverviewBox = await created.boundingBox();
   expect(createdOverviewBox).not.toBeNull();
   await page.mouse.move(
@@ -539,10 +600,12 @@ test("nodes created and media dropped at a ten percent overview keep stable intr
   }
   await page.keyboard.up("Control");
 
-  await expect.poll(async () => {
-    const box = await createdById.boundingBox();
-    return box ? Math.round(box.width / (await readZoom())) : -1;
-  }).toBeGreaterThanOrEqual(330);
+  await expect
+    .poll(async () => {
+      const box = await createdById.boundingBox();
+      return box ? Math.round(box.width / (await readZoom())) : -1;
+    })
+    .toBeGreaterThanOrEqual(330);
   const createdAtFullZoom = await createdById.boundingBox();
   expect(createdAtFullZoom).not.toBeNull();
   const fullZoom = await readZoom();
@@ -550,42 +613,64 @@ test("nodes created and media dropped at a ten percent overview keep stable intr
   expect(Math.round(createdAtFullZoom!.width / fullZoom)).toBeLessThanOrEqual(400);
   expect(createdAtFullZoom!.width).toBeLessThan(1440 * 0.5 * fullZoom);
 
-  await page.screenshot({ path: testInfo.outputPath("stable-node-size-at-full-zoom.png"), fullPage: true });
+  await page.screenshot({
+    path: testInfo.outputPath("stable-node-size-at-full-zoom.png"),
+    fullPage: true,
+  });
 });
 
-test("Control plus wheel resizes the selected node without zooming the canvas", async ({ page }) => {
+test("Control plus wheel resizes the selected node without zooming the canvas", async ({
+  page,
+}) => {
   await cleanProject(page);
   await openCanvas(page);
 
   const viewport = page.locator(".react-flow__viewport");
-  const textNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="text"])');
-  await textNode.locator(".kc-node-drag-strip").click();
+  const textNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="text"])',
+  );
+  await textNode.locator(".wc-node-drag-strip").click();
 
   const beforeNode = await textNode.boundingBox();
-  const beforeZoom = await viewport.evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).a);
+  const beforeZoom = await viewport.evaluate(
+    (element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).a,
+  );
   expect(beforeNode).not.toBeNull();
 
-  await page.mouse.move(beforeNode!.x + beforeNode!.width / 2, beforeNode!.y + beforeNode!.height / 2);
+  await page.mouse.move(
+    beforeNode!.x + beforeNode!.width / 2,
+    beforeNode!.y + beforeNode!.height / 2,
+  );
   await page.keyboard.down("Control");
   await page.mouse.wheel(0, -220);
   await page.keyboard.up("Control");
 
-  await expect.poll(async () => (await textNode.boundingBox())?.width ?? 0).toBeGreaterThan(beforeNode!.width + 20);
-  const afterZoom = await viewport.evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).a);
+  await expect
+    .poll(async () => (await textNode.boundingBox())?.width ?? 0)
+    .toBeGreaterThan(beforeNode!.width + 20);
+  const afterZoom = await viewport.evaluate(
+    (element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).a,
+  );
   expect(afterZoom).toBeCloseTo(beforeZoom, 5);
 
   await page.waitForTimeout(240);
   await page.keyboard.press("Control+z");
-  await expect.poll(async () => (await textNode.boundingBox())?.width ?? 0).toBeCloseTo(beforeNode!.width, 0);
+  await expect
+    .poll(async () => (await textNode.boundingBox())?.width ?? 0)
+    .toBeCloseTo(beforeNode!.width, 0);
 });
 
-test("Control plus wheel over a node prompt zooms the canvas instead of the browser or node", async ({ page }) => {
+test("Control plus wheel over a node prompt zooms the canvas instead of the browser or node", async ({
+  page,
+}) => {
   await cleanProject(page);
   await openCanvas(page);
 
   const viewport = page.locator(".react-flow__viewport");
-  const textNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="text"])');
-  await textNode.locator(".kc-node-drag-strip").click();
+  const textNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="text"])',
+  );
+  await textNode.locator(".wc-node-drag-strip").click();
   const prompt = page.getByLabel("文本节点提示词");
   await expect(prompt).toBeVisible();
 
@@ -604,11 +689,16 @@ test("Control plus wheel over a node prompt zooms the canvas instead of the brow
 
   await page.evaluate(() => {
     (window as Window & { __kcWheelPrevented?: boolean }).__kcWheelPrevented = false;
-    window.addEventListener("wheel", (event) => {
-      window.setTimeout(() => {
-        (window as Window & { __kcWheelPrevented?: boolean }).__kcWheelPrevented = event.defaultPrevented;
-      });
-    }, { capture: true, once: true });
+    window.addEventListener(
+      "wheel",
+      (event) => {
+        window.setTimeout(() => {
+          (window as Window & { __kcWheelPrevented?: boolean }).__kcWheelPrevented =
+            event.defaultPrevented;
+        });
+      },
+      { capture: true, once: true },
+    );
   });
 
   await page.mouse.move(promptBox!.x + promptBox!.width / 2, promptBox!.y + promptBox!.height / 2);
@@ -616,17 +706,34 @@ test("Control plus wheel over a node prompt zooms the canvas instead of the brow
   await page.mouse.wheel(0, -220);
   await page.keyboard.up("Control");
 
-  await expect.poll(async () => viewport.evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).a)).toBeGreaterThan(beforeViewport.zoom);
-  await expect.poll(() => page.evaluate(() => (window as Window & { __kcWheelPrevented?: boolean }).__kcWheelPrevented)).toBe(true);
-  const afterPromptZoom = await viewport.evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).a);
-  const editorControl = page.locator(".kc-node-reference-trigger");
+  await expect
+    .poll(async () =>
+      viewport.evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).a),
+    )
+    .toBeGreaterThan(beforeViewport.zoom);
+  await expect
+    .poll(() =>
+      page.evaluate(() => (window as Window & { __kcWheelPrevented?: boolean }).__kcWheelPrevented),
+    )
+    .toBe(true);
+  const afterPromptZoom = await viewport.evaluate(
+    (element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).a,
+  );
+  const editorControl = page.locator(".wc-node-reference-trigger");
   const editorControlBox = await editorControl.boundingBox();
   expect(editorControlBox).not.toBeNull();
-  await page.mouse.move(editorControlBox!.x + editorControlBox!.width / 2, editorControlBox!.y + editorControlBox!.height / 2);
+  await page.mouse.move(
+    editorControlBox!.x + editorControlBox!.width / 2,
+    editorControlBox!.y + editorControlBox!.height / 2,
+  );
   await page.keyboard.down("Control");
   await page.mouse.wheel(0, -140);
   await page.keyboard.up("Control");
-  await expect.poll(async () => viewport.evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).a)).toBeGreaterThan(afterPromptZoom);
+  await expect
+    .poll(async () =>
+      viewport.evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).a),
+    )
+    .toBeGreaterThan(afterPromptZoom);
   const afterNode = await textNode.boundingBox();
   const afterPageScale = await page.evaluate(() => ({
     ratio: document.documentElement.getBoundingClientRect().width / window.innerWidth,
@@ -634,19 +741,23 @@ test("Control plus wheel over a node prompt zooms the canvas instead of the brow
   }));
   expect(afterNode).not.toBeNull();
   expect(afterNode!.width / beforeNode!.width).toBeCloseTo(
-    (await viewport.evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).a)) / beforeViewport.zoom,
+    (await viewport.evaluate(
+      (element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).a,
+    )) / beforeViewport.zoom,
     1,
   );
   expect(afterPageScale).toEqual(beforePageScale);
 });
 
-test("pointer feedback pulses on interactive hover and press while the native cursor stays visible", async ({ page }, testInfo) => {
+test("pointer feedback pulses on interactive hover and press while the native cursor stays visible", async ({
+  page,
+}, testInfo) => {
   await cleanProject(page);
   await openCanvas(page);
   const pulse = page.getByTestId("pointer-pulse");
   await expect(pulse).toBeAttached();
-  // 自绘光标已下线：原生光标必须仍然可见，<html> 上不再挂 has-kc-cursor。
-  await expect(page.locator("html")).not.toHaveClass(/has-kc-cursor/);
+  // 自绘光标已下线：原生光标必须仍然可见，<html> 上不再挂 has-wc-cursor。
+  await expect(page.locator("html")).not.toHaveClass(/has-wc-cursor/);
   expect(await page.evaluate(() => getComputedStyle(document.body).cursor)).not.toBe("none");
   // 反馈层不能参与命中，否则会挡住画布与按钮。
   expect(await pulse.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe("none");
@@ -655,8 +766,10 @@ test("pointer feedback pulses on interactive hover and press while the native cu
   // 所以断言要紧跟动作，用轮询超时兜住时序。
   await page.getByLabel("切换主题").hover();
   await expect(pulse).toHaveClass(/is-enter/, { timeout: 1_000 });
-  const textNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="text"])');
-  await textNode.locator(".kc-node-text-preview").hover();
+  const textNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="text"])',
+  );
+  await textNode.locator(".wc-node-text-preview").hover();
   await expect(pulse).toHaveClass(/is-enter/, { timeout: 1_000 });
 
   await page.mouse.down();
@@ -677,16 +790,17 @@ test("pointer feedback pulses on interactive hover and press while the native cu
 test("node drag, quick add, clipboard, and text deletion stay predictable", async ({ page }) => {
   const flowWarnings: string[] = [];
   page.on("console", (message) => {
-    if (message.type() === "warning" && message.text().includes("[React Flow]")) flowWarnings.push(message.text());
+    if (message.type() === "warning" && message.text().includes("[React Flow]"))
+      flowWarnings.push(message.text());
   });
   await cleanProject(page);
   await openCanvas(page);
-  const nodes = page.locator(".react-flow__node-kachang");
+  const nodes = page.locator(".react-flow__node-weftcanvas");
   const edges = page.locator(".react-flow__edge");
-  const textNode = nodes.filter({ has: page.locator('.kc-node-wrap[data-node-kind="text"]') });
+  const textNode = nodes.filter({ has: page.locator('.wc-node-wrap[data-node-kind="text"]') });
 
   await textNode.hover();
-  const nodeToolbar = page.locator(".kc-node-action-toolbar");
+  const nodeToolbar = page.locator(".wc-node-action-toolbar");
   await nodeToolbar.getByLabel("全屏编辑").click();
   const editDialog = page.getByRole("dialog", { name: "编辑文本节点" });
   const body = editDialog.getByLabel("节点内容");
@@ -696,7 +810,7 @@ test("node drag, quick add, clipboard, and text deletion stay predictable", asyn
   await expect(nodes).toHaveCount(3);
   await editDialog.getByLabel("收起").click();
 
-  const dragTarget = textNode.locator(".kc-node-text-preview");
+  const dragTarget = textNode.locator(".wc-node-text-preview");
   const before = await textNode.boundingBox();
   const target = await dragTarget.boundingBox();
   expect(before).not.toBeNull();
@@ -711,14 +825,14 @@ test("node drag, quick add, clipboard, and text deletion stay predictable", asyn
   expect(after).not.toBeNull();
   expect(Math.abs(after!.x - before!.x)).toBeGreaterThan(50);
 
-  await textNode.locator(".kc-node-drag-strip").click();
+  await textNode.locator(".wc-node-drag-strip").click();
   await page.keyboard.press("Control+C");
   await page.keyboard.press("Control+V");
   await expect(nodes).toHaveCount(4);
   await page.keyboard.press("Control+Z");
   await expect(nodes).toHaveCount(3);
 
-  await textNode.locator(".kc-node-port-zone--right .kc-node-port-core").click();
+  await textNode.locator(".wc-node-port-zone--right .wc-node-port-core").click();
   await textNode.getByLabel("添加图片节点").click();
   await expect(nodes).toHaveCount(4);
   await expect(edges).toHaveCount(3);
@@ -728,54 +842,71 @@ test("node drag, quick add, clipboard, and text deletion stay predictable", asyn
 test("system clipboard text and images create centered canvas nodes", async ({ page }) => {
   await cleanProject(page);
   await openCanvas(page);
-  const nodes = page.locator(".react-flow__node-kachang");
+  const nodes = page.locator(".react-flow__node-weftcanvas");
 
   await page.evaluate(() => {
     const transfer = new DataTransfer();
     transfer.setData("text/plain", "从系统剪贴板进入的分镜提示");
-    window.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: transfer }));
+    window.dispatchEvent(
+      new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: transfer }),
+    );
   });
   await expect(nodes).toHaveCount(4);
-  const pastedText = page.locator('.kc-node-wrap[data-node-kind="text"]').filter({ hasText: "从系统剪贴板进入的分镜提示" });
+  const pastedText = page
+    .locator('.wc-node-wrap[data-node-kind="text"]')
+    .filter({ hasText: "从系统剪贴板进入的分镜提示" });
   await expect(pastedText).toHaveCount(1);
-  const nativeCopyTypes = await page.locator(".kc-project-heading > span").evaluate((element) => {
+  const nativeCopyTypes = await page.locator(".wc-project-heading > span").evaluate((element) => {
     const selection = window.getSelection()!;
     const range = document.createRange();
     range.selectNodeContents(element);
     selection.removeAllRanges();
     selection.addRange(range);
     const transfer = new DataTransfer();
-    window.dispatchEvent(new ClipboardEvent("copy", { bubbles: true, cancelable: true, clipboardData: transfer }));
+    window.dispatchEvent(
+      new ClipboardEvent("copy", { bubbles: true, cancelable: true, clipboardData: transfer }),
+    );
     selection.removeAllRanges();
     return Array.from(transfer.types);
   });
-  expect(nativeCopyTypes).not.toContain("application/x-kachang-canvas-selection");
+  expect(nativeCopyTypes).not.toContain("application/x-weftcanvas-selection");
   await page.keyboard.press("Control+Z");
   await expect(nodes).toHaveCount(3);
 
   await page.evaluate(() => {
-    const binary = atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+    const binary = atob(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+    );
     const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
     const transfer = new DataTransfer();
     transfer.items.add(new File([bytes], "clipboard-frame.png", { type: "image/png" }));
-    window.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: transfer }));
+    window.dispatchEvent(
+      new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: transfer }),
+    );
   });
   await expect(nodes).toHaveCount(4);
-  await expect(page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="image"]) img')).toBeVisible();
+  await expect(
+    page.locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="image"]) img'),
+  ).toBeVisible();
 });
 
 test("multi-file drop is laid out as one undoable insertion", async ({ page }) => {
   await cleanProject(page);
   await openCanvas(page);
-  const shell = page.locator(".kc-flow-shell");
+  const shell = page.locator(".wc-flow-shell");
   const shellBox = await shell.boundingBox();
   expect(shellBox).not.toBeNull();
-  const dropPoint = { x: shellBox!.x + shellBox!.width * 0.67, y: shellBox!.y + shellBox!.height * 0.6 };
+  const dropPoint = {
+    x: shellBox!.x + shellBox!.width * 0.67,
+    y: shellBox!.y + shellBox!.height * 0.6,
+  };
 
   await shell.evaluate((element) => {
     const transfer = new DataTransfer();
     transfer.items.add(new File(["preview"], "preview.txt", { type: "text/plain" }));
-    element.dispatchEvent(new DragEvent("dragenter", { bubbles: true, cancelable: true, dataTransfer: transfer }));
+    element.dispatchEvent(
+      new DragEvent("dragenter", { bubbles: true, cancelable: true, dataTransfer: transfer }),
+    );
   });
   await expect(shell).toHaveClass(/is-file-drop-active/);
 
@@ -784,48 +915,54 @@ test("multi-file drop is laid out as one undoable insertion", async ({ page }) =
     transfer.items.add(new File(["镜头一"], "shot-one.txt", { type: "text/plain" }));
     transfer.items.add(new File(["镜头二"], "shot-two.md", { type: "text/markdown" }));
     transfer.items.add(new File(["invalid"], "archive.zip", { type: "application/zip" }));
-    element.dispatchEvent(new DragEvent("drop", {
-      bubbles: true,
-      cancelable: true,
-      clientX: point.x,
-      clientY: point.y,
-      dataTransfer: transfer,
-    }));
+    element.dispatchEvent(
+      new DragEvent("drop", {
+        bubbles: true,
+        cancelable: true,
+        clientX: point.x,
+        clientY: point.y,
+        dataTransfer: transfer,
+      }),
+    );
   }, dropPoint);
   await expect(shell).not.toHaveClass(/is-file-drop-active/);
 
-  const inserted = page.locator('.react-flow__node-kachang:has(.kc-node-text-preview:text-is("镜头一")), .react-flow__node-kachang:has(.kc-node-text-preview:text-is("镜头二"))');
-  await expect(page.locator(".react-flow__node-kachang")).toHaveCount(5);
+  const inserted = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-text-preview:text-is("镜头一")), .react-flow__node-weftcanvas:has(.wc-node-text-preview:text-is("镜头二"))',
+  );
+  await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(5);
   await expect(inserted).toHaveCount(2);
-  await expect(page.locator(".react-flow__node-kachang.selected")).toHaveCount(2);
-  await expect(page.locator(".kc-node-prompt-composer")).toHaveCount(0);
-  const insertedBoxes = await inserted.evaluateAll((elements) => elements.map((element) => {
-    const box = element.getBoundingClientRect();
-    return { left: box.left, right: box.right, top: box.top, bottom: box.bottom };
-  }));
+  await expect(page.locator(".react-flow__node-weftcanvas.selected")).toHaveCount(2);
+  await expect(page.locator(".wc-node-prompt-composer")).toHaveCount(0);
+  const insertedBoxes = await inserted.evaluateAll((elements) =>
+    elements.map((element) => {
+      const box = element.getBoundingClientRect();
+      return { left: box.left, right: box.right, top: box.top, bottom: box.bottom };
+    }),
+  );
   expect(insertedBoxes[0]!.right).toBeLessThan(insertedBoxes[1]!.left);
-  await expect(page.locator(".kc-toast--error")).toContainText("1 个文件无法加入画布");
+  await expect(page.locator(".wc-toast--error")).toContainText("1 个文件无法加入画布");
 
   await page.keyboard.press("Control+Z");
-  await expect(page.locator(".react-flow__node-kachang")).toHaveCount(3);
+  await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(3);
 });
 
 test("context menu preserves multi-selection and stays inside the viewport", async ({ page }) => {
   await cleanProject(page);
   await openCanvas(page);
-  const nodes = page.locator(".react-flow__node-kachang");
+  const nodes = page.locator(".react-flow__node-weftcanvas");
   const first = nodes.nth(0);
   const second = nodes.nth(1);
-  await first.locator(".kc-node-drag-strip").click();
+  await first.locator(".wc-node-drag-strip").click();
   await page.keyboard.down("Control");
-  await second.locator(".kc-node-drag-strip").click();
+  await second.locator(".wc-node-drag-strip").click();
   await page.keyboard.up("Control");
-  await expect(page.locator(".react-flow__node-kachang.selected")).toHaveCount(2);
+  await expect(page.locator(".react-flow__node-weftcanvas.selected")).toHaveCount(2);
 
-  await second.locator(".kc-node-drag-strip").click({ button: "right" });
+  await second.locator(".wc-node-drag-strip").click({ button: "right" });
   const nodeMenu = page.getByRole("menu", { name: "节点操作" });
   await expect(nodeMenu).toBeVisible();
-  await expect(page.locator(".react-flow__node-kachang.selected")).toHaveCount(2);
+  await expect(page.locator(".react-flow__node-weftcanvas.selected")).toHaveCount(2);
   await page.keyboard.press("Backspace");
   await expect(nodes).toHaveCount(3);
   await nodeMenu.getByRole("menuitem", { name: "复制选中节点" }).click();
@@ -833,7 +970,9 @@ test("context menu preserves multi-selection and stays inside the viewport", asy
   const pane = page.locator(".react-flow__pane");
   const paneBox = await pane.boundingBox();
   expect(paneBox).not.toBeNull();
-  await page.mouse.click(paneBox!.x + paneBox!.width - 4, paneBox!.y + paneBox!.height - 4, { button: "right" });
+  await page.mouse.click(paneBox!.x + paneBox!.width - 4, paneBox!.y + paneBox!.height - 4, {
+    button: "right",
+  });
   const paneMenu = page.getByRole("menu", { name: "画布操作" });
   await expect(paneMenu).toBeVisible();
   const menuBox = await paneMenu.boundingBox();
@@ -842,22 +981,35 @@ test("context menu preserves multi-selection and stays inside the viewport", asy
   expect(menuBox!.y + menuBox!.height).toBeLessThanOrEqual(page.viewportSize()!.height - 11);
   await paneMenu.getByRole("menuitem", { name: "粘贴到此处" }).click();
   await expect(nodes).toHaveCount(5);
-  await expect(page.locator(".react-flow__node-kachang.selected")).toHaveCount(2);
-  const pastedBoxes = await page.locator(".react-flow__node-kachang.selected").evaluateAll((elements) => elements.map((element) => {
-    const box = element.getBoundingClientRect();
-    return { left: box.left, top: box.top, right: box.right, bottom: box.bottom };
-  }));
+  await expect(page.locator(".react-flow__node-weftcanvas.selected")).toHaveCount(2);
+  const pastedBoxes = await page
+    .locator(".react-flow__node-weftcanvas.selected")
+    .evaluateAll((elements) =>
+      elements.map((element) => {
+        const box = element.getBoundingClientRect();
+        return { left: box.left, top: box.top, right: box.right, bottom: box.bottom };
+      }),
+    );
   expect(Math.min(...pastedBoxes.map((box) => box.left))).toBeGreaterThanOrEqual(20);
-  expect(Math.max(...pastedBoxes.map((box) => box.right))).toBeLessThanOrEqual(page.viewportSize()!.width - 20);
-  expect(Math.max(...pastedBoxes.map((box) => box.bottom))).toBeLessThanOrEqual(page.viewportSize()!.height - 20);
+  expect(Math.max(...pastedBoxes.map((box) => box.right))).toBeLessThanOrEqual(
+    page.viewportSize()!.width - 20,
+  );
+  expect(Math.max(...pastedBoxes.map((box) => box.bottom))).toBeLessThanOrEqual(
+    page.viewportSize()!.height - 20,
+  );
 });
 
-test("edge context menu deletes only the selected connection and remains undoable", async ({ page }) => {
+test("edge context menu deletes only the selected connection and remains undoable", async ({
+  page,
+}) => {
   await cleanProject(page);
   await openCanvas(page);
   const edges = page.locator(".react-flow__edge");
   await expect(edges).toHaveCount(2);
-  await edges.first().locator(".react-flow__edge-interaction").click({ button: "right", force: true });
+  await edges
+    .first()
+    .locator(".react-flow__edge-interaction")
+    .click({ button: "right", force: true });
   const menu = page.getByRole("menu", { name: "连线操作" });
   await expect(menu).toBeVisible();
   await menu.getByRole("menuitem", { name: "删除连线" }).click();
@@ -869,13 +1021,18 @@ test("edge context menu deletes only the selected connection and remains undoabl
 test("image media persists in IndexedDB and renders", async ({ page }) => {
   await cleanProject(page);
   await openCanvas(page);
-  const imageNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="image"])');
+  const imageNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="image"])',
+  );
   const beforeUpload = await imageNode.boundingBox();
   const input = imageNode.locator('input[type="file"]');
   await input.setInputFiles({
     name: "frame.png",
     mimeType: "image/png",
-    buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"),
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "base64",
+    ),
   });
   await expect(imageNode.locator("img")).toBeVisible();
   const afterUpload = await imageNode.boundingBox();
@@ -883,9 +1040,9 @@ test("image media persists in IndexedDB and renders", async ({ page }) => {
   expect(afterUpload).not.toBeNull();
   expect(afterUpload!.height - beforeUpload!.height).toBeGreaterThan(90);
   expect(Math.abs(afterUpload!.width - afterUpload!.height)).toBeLessThan(3);
-  await expect(imageNode.locator(".kc-node-media-frame")).toHaveClass(/is-measured/);
+  await expect(imageNode.locator(".wc-node-media-frame")).toHaveClass(/is-measured/);
   const mediaBounds = await imageNode.evaluate((node) => {
-    const surface = node.querySelector<HTMLElement>(".kc-node-surface")!.getBoundingClientRect();
+    const surface = node.querySelector<HTMLElement>(".wc-node-surface")!.getBoundingClientRect();
     const image = node.querySelector<HTMLImageElement>("img")!.getBoundingClientRect();
     return {
       widthDelta: Math.abs(surface.width - image.width),
@@ -899,9 +1056,16 @@ test("image media persists in IndexedDB and renders", async ({ page }) => {
   const imageBounds = await imageNode.locator("img").boundingBox();
   expect(beforeDrag).not.toBeNull();
   expect(imageBounds).not.toBeNull();
-  await page.mouse.move(imageBounds!.x + imageBounds!.width * 0.42, imageBounds!.y + imageBounds!.height * 0.42);
+  await page.mouse.move(
+    imageBounds!.x + imageBounds!.width * 0.42,
+    imageBounds!.y + imageBounds!.height * 0.42,
+  );
   await page.mouse.down();
-  await page.mouse.move(imageBounds!.x + imageBounds!.width * 0.42 + 96, imageBounds!.y + imageBounds!.height * 0.42 + 34, { steps: 9 });
+  await page.mouse.move(
+    imageBounds!.x + imageBounds!.width * 0.42 + 96,
+    imageBounds!.y + imageBounds!.height * 0.42 + 34,
+    { steps: 9 },
+  );
   await page.mouse.up();
   const afterDrag = await imageNode.boundingBox();
   expect(afterDrag).not.toBeNull();
@@ -909,43 +1073,66 @@ test("image media persists in IndexedDB and renders", async ({ page }) => {
 
   await page.waitForTimeout(240);
   await page.reload();
-  await expect(page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="image"]) img')).toBeVisible();
+  await expect(
+    page.locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="image"]) img'),
+  ).toBeVisible();
 });
 
-test("node prompt composer shows connected media and renders references as previewable thumbnails", async ({ page }, testInfo) => {
+test("node prompt composer shows connected media and renders references as previewable thumbnails", async ({
+  page,
+}, testInfo) => {
   await cleanProject(page);
   await openCanvas(page);
 
-  const imageNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="image"])').first();
+  const imageNode = page
+    .locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="image"])')
+    .first();
   await imageNode.locator('input[type="file"]').setInputFiles({
     name: "reference-frame.png",
     mimeType: "image/png",
-    buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"),
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "base64",
+    ),
   });
   await expect(imageNode.locator("img")).toBeVisible();
 
-  await page.getByRole("navigation", { name: "创建工具" }).getByRole("button", { name: "添加视频节点" }).click();
-  const videoNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="video"])').last();
+  await page
+    .getByRole("navigation", { name: "创建工具" })
+    .getByRole("button", { name: "添加视频节点" })
+    .click();
+  const videoNode = page
+    .locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="video"])')
+    .last();
   await imageNode.hover();
-  const imageSource = await imageNode.locator(".kc-node-port-zone--right .kc-node-port-core").boundingBox();
+  const imageSource = await imageNode
+    .locator(".wc-node-port-zone--right .wc-node-port-core")
+    .boundingBox();
   const videoTarget = await videoNode.boundingBox();
   expect(imageSource).not.toBeNull();
   expect(videoTarget).not.toBeNull();
-  await page.mouse.move(imageSource!.x + imageSource!.width / 2, imageSource!.y + imageSource!.height / 2);
+  await page.mouse.move(
+    imageSource!.x + imageSource!.width / 2,
+    imageSource!.y + imageSource!.height / 2,
+  );
   await page.mouse.down();
-  await page.mouse.move(videoTarget!.x + 2, videoTarget!.y + videoTarget!.height / 2, { steps: 14 });
+  await page.mouse.move(videoTarget!.x + 2, videoTarget!.y + videoTarget!.height / 2, {
+    steps: 14,
+  });
   await page.mouse.up();
   await expect(page.locator(".react-flow__edge")).toHaveCount(3);
 
-  await imageNode.locator(".kc-node-drag-strip").click();
+  await imageNode.locator(".wc-node-drag-strip").click();
   for (let index = 0; index < 4; index += 1) await page.keyboard.press("Control+D");
-  await expect(page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="image"])')).toHaveCount(5);
+  await expect(
+    page.locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="image"])'),
+  ).toHaveCount(5);
   await page.keyboard.press("Escape");
-  await videoNode.locator(".kc-node-drag-strip").click();
+  await videoNode.locator(".wc-node-drag-strip").click();
   const prompt = page.getByLabel("视频节点提示词");
   await expect(prompt).toBeVisible();
   await expect(prompt).toHaveAttribute("contenteditable", "true");
-  const promptComposer = page.locator(".kc-node-prompt-composer");
+  const promptComposer = page.locator(".wc-node-prompt-composer");
   const composerBox = await promptComposer.boundingBox();
   const promptBox = await prompt.boundingBox();
   const selectedNodeBox = await videoNode.boundingBox();
@@ -969,15 +1156,19 @@ test("node prompt composer shows connected media and renders references as previ
   const generateBox = await inlineGenerate.boundingBox();
   expect(modelBox).not.toBeNull();
   expect(generateBox).not.toBeNull();
-  expect(Math.abs((modelBox!.y + modelBox!.height / 2) - (generateBox!.y + generateBox!.height / 2))).toBeLessThan(8);
+  expect(
+    Math.abs(modelBox!.y + modelBox!.height / 2 - (generateBox!.y + generateBox!.height / 2)),
+  ).toBeLessThan(8);
 
   const connectedReferences = page.getByLabel("已连接素材");
   await expect(connectedReferences).toBeVisible();
-  const connectedReference = connectedReferences.locator(".kc-node-reference-chip").first();
-  const connectedReferenceChoice = connectedReference.locator(".kc-node-reference-choice");
+  const connectedReference = connectedReferences.locator(".wc-node-reference-chip").first();
+  const connectedReferenceChoice = connectedReference.locator(".wc-node-reference-choice");
   await expect(connectedReferenceChoice).toHaveAttribute("aria-pressed", "false");
   await expect(connectedReference.locator("img")).toBeVisible();
-  await connectedReference.locator(".kc-node-reference-thumbnail").hover({ position: { x: 10, y: 30 } });
+  await connectedReference
+    .locator(".wc-node-reference-thumbnail")
+    .hover({ position: { x: 10, y: 30 } });
   const hoverPreview = page.locator("[data-reference-preview]");
   await expect(hoverPreview).toBeVisible();
   await expect(hoverPreview.locator("img")).toBeVisible();
@@ -1004,7 +1195,7 @@ test("node prompt composer shows connected media and renders references as previ
   await expect(token).toHaveCount(1);
   await expect(token).toHaveAttribute("data-reference-token", "@图片1");
   await expect(token.locator("img")).toBeVisible();
-  await token.locator(".kc-node-reference-thumbnail").hover();
+  await token.locator(".wc-node-reference-thumbnail").hover();
   await expect(page.locator("[data-reference-preview]").locator("img")).toBeVisible();
   const inlinePreviewBox = await page.locator("[data-reference-preview]").boundingBox();
   expect(inlinePreviewBox).not.toBeNull();
@@ -1013,15 +1204,19 @@ test("node prompt composer shows connected media and renders references as previ
   await page.screenshot({ path: testInfo.outputPath("inline-reference-token-preview.png") });
 
   await page.setViewportSize({ width: 430, height: 800 });
-  await expect.poll(async () => {
-    const box = await promptComposer.boundingBox();
-    return box ? box.x + box.width : Number.POSITIVE_INFINITY;
-  }).toBeLessThanOrEqual(419);
+  await expect
+    .poll(async () => {
+      const box = await promptComposer.boundingBox();
+      return box ? box.x + box.width : Number.POSITIVE_INFINITY;
+    })
+    .toBeLessThanOrEqual(419);
   const compactComposerBox = await promptComposer.boundingBox();
   expect(compactComposerBox).not.toBeNull();
   expect(compactComposerBox!.x).toBeGreaterThanOrEqual(11);
   expect(compactComposerBox!.x + compactComposerBox!.width).toBeLessThanOrEqual(419);
-  expect(await prompt.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  expect(await prompt.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(
+    true,
+  );
   await page.screenshot({ path: testInfo.outputPath("inline-reference-token-compact.png") });
   await page.setViewportSize({ width: 1440, height: 900 });
 
@@ -1052,15 +1247,28 @@ test("node prompt composer shows connected media and renders references as previ
 
   await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
   await page.reload();
-  const restoredVideo = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="video"])').last();
-  await restoredVideo.locator(".kc-node-drag-strip").click();
+  const restoredVideo = page
+    .locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="video"])')
+    .last();
+  await restoredVideo.locator(".wc-node-drag-strip").click();
   await expect(page.getByLabel("视频节点提示词")).toHaveText("镜头缓慢推进，人物在雨中回头");
   await expect(page.getByLabel("已连接素材")).toBeVisible();
   await expect(page.getByLabel("视频节点提示词").locator("[data-reference-token]")).toHaveCount(0);
   const savedGeneration = await page.evaluate(() => {
-    const projectId = localStorage.getItem("kachang-canvas:active-project:v1");
-    const raw = projectId ? localStorage.getItem(`kachang-canvas:project-data:v1:${encodeURIComponent(projectId)}`) : null;
-    const project = raw ? JSON.parse(raw) as { nodes: Array<{ data: { kind: string; generation: { referenceMode: string; referenceNodeIds: string[] } } }> } : null;
+    const projectId = localStorage.getItem("weftcanvas:active-project:v1");
+    const raw = projectId
+      ? localStorage.getItem(`weftcanvas:project-data:v1:${encodeURIComponent(projectId)}`)
+      : null;
+    const project = raw
+      ? (JSON.parse(raw) as {
+          nodes: Array<{
+            data: {
+              kind: string;
+              generation: { referenceMode: string; referenceNodeIds: string[] };
+            };
+          }>;
+        })
+      : null;
     return project?.nodes.find((node) => node.data.kind === "video")?.data.generation ?? null;
   });
   expect(savedGeneration).toMatchObject({ referenceMode: "explicit", referenceNodeIds: [] });
@@ -1070,24 +1278,41 @@ test("node prompt editor keeps the clicked insertion point while typing", async 
   await cleanProject(page);
   await openCanvas(page);
 
-  const imageNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="image"])').first();
+  const imageNode = page
+    .locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="image"])')
+    .first();
   await imageNode.locator('input[type="file"]').setInputFiles({
     name: "caret-reference.png",
     mimeType: "image/png",
-    buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"),
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "base64",
+    ),
   });
-  await page.getByRole("navigation", { name: "创建工具" }).getByRole("button", { name: "添加视频节点" }).click();
-  const videoNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="video"])').first();
+  await page
+    .getByRole("navigation", { name: "创建工具" })
+    .getByRole("button", { name: "添加视频节点" })
+    .click();
+  const videoNode = page
+    .locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="video"])')
+    .first();
   await imageNode.hover();
-  const imageSource = await imageNode.locator(".kc-node-port-zone--right .kc-node-port-core").boundingBox();
+  const imageSource = await imageNode
+    .locator(".wc-node-port-zone--right .wc-node-port-core")
+    .boundingBox();
   const videoTarget = await videoNode.boundingBox();
   expect(imageSource).not.toBeNull();
   expect(videoTarget).not.toBeNull();
-  await page.mouse.move(imageSource!.x + imageSource!.width / 2, imageSource!.y + imageSource!.height / 2);
+  await page.mouse.move(
+    imageSource!.x + imageSource!.width / 2,
+    imageSource!.y + imageSource!.height / 2,
+  );
   await page.mouse.down();
-  await page.mouse.move(videoTarget!.x + 2, videoTarget!.y + videoTarget!.height / 2, { steps: 14 });
+  await page.mouse.move(videoTarget!.x + 2, videoTarget!.y + videoTarget!.height / 2, {
+    steps: 14,
+  });
   await page.mouse.up();
-  await videoNode.locator(".kc-node-drag-strip").click();
+  await videoNode.locator(".wc-node-drag-strip").click();
   const prompt = page.getByLabel("视频节点提示词");
   await prompt.fill("甲乙丙丁");
   await prompt.evaluate((editor) => {
@@ -1108,13 +1333,29 @@ test("node prompt editor keeps the clicked insertion point while typing", async 
   await page.keyboard.insertText("中");
 
   await expect(prompt).toHaveText("甲乙中丙丁");
-  await expect.poll(() => prompt.evaluate((editor) => (editor as HTMLElement & { __stablePromptEditor?: boolean }).__stablePromptEditor === true)).toBe(true);
+  await expect
+    .poll(() =>
+      prompt.evaluate(
+        (editor) =>
+          (editor as HTMLElement & { __stablePromptEditor?: boolean }).__stablePromptEditor ===
+          true,
+      ),
+    )
+    .toBe(true);
   await expect.poll(() => prompt.evaluate(readContentEditableCaretOffset)).toBe(3);
 
   await page.keyboard.insertText("文");
 
   await expect(prompt).toHaveText("甲乙中文丙丁");
-  await expect.poll(() => prompt.evaluate((editor) => (editor as HTMLElement & { __stablePromptEditor?: boolean }).__stablePromptEditor === true)).toBe(true);
+  await expect
+    .poll(() =>
+      prompt.evaluate(
+        (editor) =>
+          (editor as HTMLElement & { __stablePromptEditor?: boolean }).__stablePromptEditor ===
+          true,
+      ),
+    )
+    .toBe(true);
   await expect.poll(() => prompt.evaluate(readContentEditableCaretOffset)).toBe(4);
 
   await prompt.fill("甲乙丙丁");
@@ -1134,12 +1375,22 @@ test("node prompt editor keeps the clicked insertion point while typing", async 
     range.collapse(true);
     selection?.removeAllRanges();
     selection?.addRange(range);
-    editor.dispatchEvent(new InputEvent("input", { inputType: "insertCompositionText", data: "汉", bubbles: true }));
+    editor.dispatchEvent(
+      new InputEvent("input", { inputType: "insertCompositionText", data: "汉", bubbles: true }),
+    );
     editor.dispatchEvent(new CompositionEvent("compositionend", { data: "汉", bubbles: true }));
   });
 
   await expect(prompt).toHaveText("甲乙汉丙丁");
-  await expect.poll(() => prompt.evaluate((editor) => (editor as HTMLElement & { __stablePromptEditor?: boolean }).__stablePromptEditor === true)).toBe(true);
+  await expect
+    .poll(() =>
+      prompt.evaluate(
+        (editor) =>
+          (editor as HTMLElement & { __stablePromptEditor?: boolean }).__stablePromptEditor ===
+          true,
+      ),
+    )
+    .toBe(true);
   await expect.poll(() => prompt.evaluate(readContentEditableCaretOffset)).toBe(3);
 
   await prompt.fill("");
@@ -1153,7 +1404,8 @@ test("node prompt editor keeps the clicked insertion point while typing", async 
   await expect(picker).toBeHidden();
   const tokenInsertionPoint = await prompt.evaluate((editor) => {
     const text = editor.lastChild;
-    if (!text || text.nodeType !== Node.TEXT_NODE) throw new Error("Expected text after the reference token");
+    if (!text || text.nodeType !== Node.TEXT_NODE)
+      throw new Error("Expected text after the reference token");
     const range = document.createRange();
     range.setStart(text, 3);
     range.collapse(true);
@@ -1168,7 +1420,9 @@ test("node prompt editor keeps the clicked insertion point while typing", async 
   await expect.poll(() => prompt.evaluate(readContentEditableCaretOffset)).toBe(9);
 });
 
-test("linked materials stay direct-only and can be disconnected from the thumbnail", async ({ page }) => {
+test("linked materials stay direct-only and can be disconnected from the thumbnail", async ({
+  page,
+}) => {
   const now = Date.now();
   const projectId = "direct-only-reference-project";
   const upstreamVideoId = "indirect-video-reference";
@@ -1193,7 +1447,7 @@ test("linked materials stay direct-only and can be disconnected from the thumbna
     nodes: [
       {
         id: upstreamVideoId,
-        type: "kachang",
+        type: "weftcanvas",
         position: { x: 80, y: 120 },
         data: {
           kind: "video",
@@ -1221,7 +1475,7 @@ test("linked materials stay direct-only and can be disconnected from the thumbna
       },
       {
         id: directImageId,
-        type: "kachang",
+        type: "weftcanvas",
         position: { x: 390, y: 120 },
         data: {
           kind: "image",
@@ -1249,7 +1503,7 @@ test("linked materials stay direct-only and can be disconnected from the thumbna
       },
       {
         id: targetId,
-        type: "kachang",
+        type: "weftcanvas",
         position: { x: 720, y: 120 },
         selected: true,
         data: {
@@ -1280,32 +1534,43 @@ test("linked materials stay direct-only and can be disconnected from the thumbna
     createdAt: now,
     updatedAt: now,
   };
-  await page.addInitScript((seed) => {
-    localStorage.clear();
-    localStorage.setItem(`kachang-canvas:project-data:v1:${encodeURIComponent(seed.project.id)}`, JSON.stringify(seed.project));
-    localStorage.setItem("kachang-canvas:projects:v1", JSON.stringify({
-      version: 1,
-      projects: [{
-        id: seed.project.id,
-        name: seed.project.name,
-        createdAt: seed.project.createdAt,
-        updatedAt: seed.project.updatedAt,
-        nodeCount: seed.project.nodes.length,
-      }],
-    }));
-    localStorage.setItem("kachang-canvas:active-project:v1", seed.project.id);
-  }, { project });
+  await page.addInitScript(
+    (seed) => {
+      localStorage.clear();
+      localStorage.setItem(
+        `weftcanvas:project-data:v1:${encodeURIComponent(seed.project.id)}`,
+        JSON.stringify(seed.project),
+      );
+      localStorage.setItem(
+        "weftcanvas:projects:v1",
+        JSON.stringify({
+          version: 1,
+          projects: [
+            {
+              id: seed.project.id,
+              name: seed.project.name,
+              createdAt: seed.project.createdAt,
+              updatedAt: seed.project.updatedAt,
+              nodeCount: seed.project.nodes.length,
+            },
+          ],
+        }),
+      );
+      localStorage.setItem("weftcanvas:active-project:v1", seed.project.id);
+    },
+    { project },
+  );
 
   await openCanvas(page);
   const referenceRail = page.getByLabel("已连接素材");
   await expect(referenceRail).toBeVisible();
-  const chips = referenceRail.locator(".kc-node-reference-chip");
+  const chips = referenceRail.locator(".wc-node-reference-chip");
   await expect(chips).toHaveCount(1);
   await expect(chips.first()).toContainText("直接图片素材");
   await expect(referenceRail).not.toContainText("间接视频素材");
   await expect(page.locator(".react-flow__edge")).toHaveCount(2);
 
-  const unlink = chips.first().locator(".kc-node-reference-remove");
+  const unlink = chips.first().locator(".wc-node-reference-remove");
   await expect(unlink).toHaveAttribute("aria-label", "取消素材链接 直接图片素材");
   await expect(unlink).toHaveCSS("opacity", "0");
   await expect(unlink).toHaveCSS("pointer-events", "none");
@@ -1320,7 +1585,9 @@ test("linked materials stay direct-only and can be disconnected from the thumbna
   expect(unlinkBox).not.toBeNull();
   expect(unlinkBox!.width).toBe(18);
   expect(unlinkBox!.height).toBe(18);
-  expect(Math.abs(unlinkBox!.x + unlinkBox!.width - chipBox!.x - chipBox!.width)).toBeLessThanOrEqual(4);
+  expect(
+    Math.abs(unlinkBox!.x + unlinkBox!.width - chipBox!.x - chipBox!.width),
+  ).toBeLessThanOrEqual(4);
   expect(unlinkBox!.y - chipBox!.y).toBeLessThanOrEqual(4);
   await unlink.click();
 
@@ -1328,24 +1595,28 @@ test("linked materials stay direct-only and can be disconnected from the thumbna
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
   await expect(page.locator('.react-flow__edge[data-id="direct-image-edge"]')).toHaveCount(0);
   await expect(page.locator('.react-flow__edge[data-id="indirect-video-edge"]')).toHaveCount(1);
-  await expect(page.locator(".react-flow__node-kachang")).toHaveCount(3);
+  await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(3);
   await expect(page.getByLabel("视频节点提示词")).toHaveText("让画面动起来");
 
   await page.keyboard.press("Control+z");
   await expect(page.locator(".react-flow__edge")).toHaveCount(2);
   await expect(page.locator('.react-flow__edge[data-id="direct-image-edge"]')).toHaveCount(1);
   await expect(page.getByLabel("已连接素材")).toBeVisible();
-  await expect(page.getByLabel("视频节点提示词").locator("[data-reference-token]"))
-    .toHaveAttribute("data-reference-node-id", directImageId);
+  await expect(page.getByLabel("视频节点提示词").locator("[data-reference-token]")).toHaveAttribute(
+    "data-reference-node-id",
+    directImageId,
+  );
 });
 
 test("node prompt composer stays operable at horizontal viewport edges", async ({ page }) => {
   await cleanProject(page);
   await openCanvas(page);
   const viewportWidth = page.viewportSize()!.width;
-  const textNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="text"])');
-  const dragStrip = textNode.locator(".kc-node-drag-strip");
-  const promptShell = page.locator(".kc-node-prompt-shell");
+  const textNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="text"])',
+  );
+  const dragStrip = textNode.locator(".wc-node-drag-strip");
+  const promptShell = page.locator(".wc-node-prompt-shell");
 
   const dragNodeTo = async (x: number) => {
     const stripBox = await dragStrip.boundingBox();
@@ -1359,22 +1630,28 @@ test("node prompt composer stays operable at horizontal viewport edges", async (
 
   await dragNodeTo(viewportWidth - 70);
   await expect(promptShell).toBeVisible();
-  await expect.poll(async () => {
-    const box = await promptShell.boundingBox();
-    return viewportWidth - (box!.x + box!.width);
-  }).toBeGreaterThanOrEqual(11);
+  await expect
+    .poll(async () => {
+      const box = await promptShell.boundingBox();
+      return viewportWidth - (box!.x + box!.width);
+    })
+    .toBeGreaterThanOrEqual(11);
 
   await dragNodeTo(70);
   await expect.poll(async () => (await promptShell.boundingBox())!.x).toBeGreaterThanOrEqual(11);
 });
 
-test("node prompt composer hides during node movement and returns below it after release", async ({ page }) => {
+test("node prompt composer hides during node movement and returns below it after release", async ({
+  page,
+}) => {
   await cleanProject(page);
   await openCanvas(page);
   const viewportHeight = page.viewportSize()!.height;
-  const textNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="text"])');
-  const dragStrip = textNode.locator(".kc-node-drag-strip");
-  const promptShell = page.locator(".kc-node-prompt-shell");
+  const textNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="text"])',
+  );
+  const dragStrip = textNode.locator(".wc-node-drag-strip");
+  const promptShell = page.locator(".wc-node-prompt-shell");
 
   const dragNodeTo = async (y: number) => {
     const stripBox = await dragStrip.boundingBox();
@@ -1388,15 +1665,18 @@ test("node prompt composer hides during node movement and returns below it after
     await page.mouse.up();
     await expect(promptShell).toBeVisible();
   };
-  const readVerticalGap = () => page.evaluate(() => {
-    const node = document.querySelector<HTMLElement>('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="text"])');
-    const overlay = document.querySelector<HTMLElement>(".kc-node-prompt-shell");
-    if (!node || !overlay) return null;
-    return {
-      gap: overlay.getBoundingClientRect().top - node.getBoundingClientRect().bottom,
-      placement: overlay.dataset.placement,
-    };
-  });
+  const readVerticalGap = () =>
+    page.evaluate(() => {
+      const node = document.querySelector<HTMLElement>(
+        '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="text"])',
+      );
+      const overlay = document.querySelector<HTMLElement>(".wc-node-prompt-shell");
+      if (!node || !overlay) return null;
+      return {
+        gap: overlay.getBoundingClientRect().top - node.getBoundingClientRect().bottom,
+        placement: overlay.dataset.placement,
+      };
+    });
 
   await dragNodeTo(viewportHeight - 200);
   await expect.poll(readVerticalGap).toMatchObject({ placement: "below" });
@@ -1407,41 +1687,55 @@ test("node prompt composer hides during node movement and returns below it after
   await expect.poll(async () => (await readVerticalGap())!.gap).toBeGreaterThanOrEqual(13);
 });
 
-test("node prompt keeps twenty inline reference tokens bounded with a scrollable picker", async ({ page }, testInfo) => {
+test("node prompt keeps twenty inline reference tokens bounded with a scrollable picker", async ({
+  page,
+}, testInfo) => {
   const now = Date.now();
-  await page.route("**/api/v1/model-catalog", (route) => route.fulfill({
-    json: {
-      ok: true,
-      data: {
-        version: "reference-catalog",
-        capabilityVersion: "reference-capability",
-        pricingVersion: "reference-pricing",
-        fetchedAt: new Date(now).toISOString(),
-        expiresAt: new Date(now + 60_000).toISOString(),
-        quoteAvailable: true,
-        models: [{
-          id: "video-reference-model",
-          label: "四图视频模型",
-          description: "最多四张参考图",
-          modality: "video",
-          operation: "video.generate",
-          order: 1,
-          input: { textRequired: true, images: { min: 0, max: 4, multiple: true } },
-          output: { type: "video", minCount: 1, maxCount: 1 },
-          parameters: [{ name: "prompt", label: "提示内容", type: "string", required: true, mutuallyExclusiveWith: [] }],
-          pricing: {
-            mode: "fixed",
-            unit: "request",
-            currency: "CNY",
-            creditsPerYuan: 100,
-            baseCreditMicros: 1_000_000,
-            baseYuanMicros: 10_000,
-            tiers: [],
-          },
-        }],
+  await page.route("**/api/v1/model-catalog", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        data: {
+          version: "reference-catalog",
+          capabilityVersion: "reference-capability",
+          pricingVersion: "reference-pricing",
+          fetchedAt: new Date(now).toISOString(),
+          expiresAt: new Date(now + 60_000).toISOString(),
+          quoteAvailable: true,
+          models: [
+            {
+              id: "video-reference-model",
+              label: "四图视频模型",
+              description: "最多四张参考图",
+              modality: "video",
+              operation: "video.generate",
+              order: 1,
+              input: { textRequired: true, images: { min: 0, max: 4, multiple: true } },
+              output: { type: "video", minCount: 1, maxCount: 1 },
+              parameters: [
+                {
+                  name: "prompt",
+                  label: "提示内容",
+                  type: "string",
+                  required: true,
+                  mutuallyExclusiveWith: [],
+                },
+              ],
+              pricing: {
+                mode: "fixed",
+                unit: "request",
+                currency: "CNY",
+                creditsPerYuan: 100,
+                baseCreditMicros: 1_000_000,
+                baseYuanMicros: 10_000,
+                tiers: [],
+              },
+            },
+          ],
+        },
       },
-    },
-  }));
+    }),
+  );
   const projectId = "dense-reference-project";
   const referenceNodeIds = Array.from({ length: 20 }, (_, index) => `reference-${index + 1}`);
   const generation = {
@@ -1458,7 +1752,7 @@ test("node prompt keeps twenty inline reference tokens bounded with a scrollable
   };
   const imageNodes = referenceNodeIds.map((id, index) => ({
     id,
-    type: "kachang",
+    type: "weftcanvas",
     position: { x: 60 + (index % 5) * 230, y: 40 + Math.floor(index / 5) * 190 },
     data: {
       kind: "image",
@@ -1493,7 +1787,7 @@ test("node prompt keeps twenty inline reference tokens bounded with a scrollable
       ...imageNodes,
       {
         id: targetId,
-        type: "kachang",
+        type: "weftcanvas",
         position: { x: 720, y: 420 },
         selected: true,
         data: {
@@ -1511,21 +1805,47 @@ test("node prompt keeps twenty inline reference tokens bounded with a scrollable
         },
       },
     ],
-    edges: imageNodes.map((node, index) => ({ id: `reference-edge-${index + 1}`, source: node.id, target: targetId })),
+    edges: imageNodes.map((node, index) => ({
+      id: `reference-edge-${index + 1}`,
+      source: node.id,
+      target: targetId,
+    })),
     groups: [],
     viewport: { x: 40, y: 100, zoom: 0.72 },
     createdAt: now,
     updatedAt: now,
   };
-  await page.addInitScript((seed) => {
-    localStorage.clear();
-    localStorage.setItem(`kachang-canvas:project-data:v1:${encodeURIComponent(seed.project.id)}`, JSON.stringify(seed.project));
-    localStorage.setItem("kachang-canvas:projects:v1", JSON.stringify({ version: 1, projects: [{ id: seed.project.id, name: seed.project.name, createdAt: seed.project.createdAt, updatedAt: seed.project.updatedAt, nodeCount: seed.project.nodes.length }] }));
-    localStorage.setItem("kachang-canvas:active-project:v1", seed.project.id);
-  }, { project });
+  await page.addInitScript(
+    (seed) => {
+      localStorage.clear();
+      localStorage.setItem(
+        `weftcanvas:project-data:v1:${encodeURIComponent(seed.project.id)}`,
+        JSON.stringify(seed.project),
+      );
+      localStorage.setItem(
+        "weftcanvas:projects:v1",
+        JSON.stringify({
+          version: 1,
+          projects: [
+            {
+              id: seed.project.id,
+              name: seed.project.name,
+              createdAt: seed.project.createdAt,
+              updatedAt: seed.project.updatedAt,
+              nodeCount: seed.project.nodes.length,
+            },
+          ],
+        }),
+      );
+      localStorage.setItem("weftcanvas:active-project:v1", seed.project.id);
+    },
+    { project },
+  );
 
   await openCanvas(page);
-  const target = page.locator(`.react-flow__node-kachang:has(.kc-node-wrap[data-kc-node-id="${targetId}"])`);
+  const target = page.locator(
+    `.react-flow__node-weftcanvas:has(.wc-node-wrap[data-wc-node-id="${targetId}"])`,
+  );
   await expect(target).toBeVisible();
 
   const referenceRail = page.getByLabel("已连接素材");
@@ -1539,7 +1859,7 @@ test("node prompt keeps twenty inline reference tokens bounded with a scrollable
   }));
   expect(promptMetrics.height).toBeLessThanOrEqual(248);
   expect(promptMetrics.scrollWidth).toBeLessThanOrEqual(promptMetrics.clientWidth + 1);
-  const railTrack = referenceRail.locator(".kc-node-reference-chips-track");
+  const railTrack = referenceRail.locator(".wc-node-reference-chips-track");
   const railMetrics = await railTrack.evaluate((element) => ({
     height: element.getBoundingClientRect().height,
     clientWidth: element.clientWidth,
@@ -1551,7 +1871,9 @@ test("node prompt keeps twenty inline reference tokens bounded with a scrollable
   const inlineSettings = page.getByLabel("视频节点创作设置");
   await inlineSettings.hover();
   await expect(inlineSettings.getByLabel("模型")).toContainText("四图视频模型");
-  await expect(inlineSettings.getByRole("alert")).toContainText("图片素材已选择 20 个，当前模型最多支持 4 个");
+  await expect(inlineSettings.getByRole("alert")).toContainText(
+    "图片素材已选择 20 个，当前模型最多支持 4 个",
+  );
   await expect(inlineSettings.getByRole("button", { name: "生成", exact: true })).toBeDisabled();
 
   await page.screenshot({ path: testInfo.outputPath("reference-rail-twenty.png") });
@@ -1562,10 +1884,10 @@ test("node prompt keeps twenty inline reference tokens bounded with a scrollable
   const pickerBox = await picker.boundingBox();
   expect(pickerBox).not.toBeNull();
   expect(pickerBox!.height).toBeLessThanOrEqual(280);
-  const optionsBox = await picker.locator(".kc-node-reference-options").boundingBox();
+  const optionsBox = await picker.locator(".wc-node-reference-options").boundingBox();
   expect(optionsBox).not.toBeNull();
   expect(optionsBox!.height).toBeLessThanOrEqual(240);
-  const options = picker.locator(".kc-node-reference-options");
+  const options = picker.locator(".wc-node-reference-options");
   await options.hover();
   await page.mouse.wheel(0, 900);
   await expect.poll(() => options.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
@@ -1578,15 +1900,17 @@ test("node prompt keeps twenty inline reference tokens bounded with a scrollable
 test("media upload rejects disguised error payloads", async ({ page }) => {
   await cleanProject(page);
   await openCanvas(page);
-  const imageNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="image"])');
+  const imageNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="image"])',
+  );
   await imageNode.locator('input[type="file"]').setInputFiles({
     name: "result.png",
     mimeType: "image/png",
     buffer: Buffer.from(JSON.stringify({ error: { message: "生成结果不可用" } })),
   });
-  await expect(page.locator(".kc-toast")).toContainText("生成结果不可用");
+  await expect(page.locator(".wc-toast")).toContainText("生成结果不可用");
   await expect(imageNode.locator("img")).toHaveCount(0);
-  await expect(imageNode.locator(".kc-media-empty")).toBeVisible();
+  await expect(imageNode.locator(".wc-media-empty")).toBeVisible();
 });
 
 test("video nodes capture the current frame into a connected image node", async ({ page }) => {
@@ -1595,13 +1919,15 @@ test("video nodes capture the current frame into a connected image node", async 
   const canvasToolbar = page.getByRole("navigation", { name: "创建工具" });
   await canvasToolbar.getByRole("button", { name: "添加视频节点" }).click();
 
-  const nodes = page.locator(".react-flow__node-kachang");
-  const videoNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="video"])').last();
+  const nodes = page.locator(".react-flow__node-weftcanvas");
+  const videoNode = page
+    .locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="video"])')
+    .last();
   await videoNode.locator('input[type="file"]').setInputFiles(videoFixture);
-  await expect(videoNode.locator(".kc-video-playback")).toBeVisible();
-  await expect(videoNode.locator(".kc-node-media-frame")).toHaveClass(/is-measured/);
+  await expect(videoNode.locator(".wc-video-playback")).toBeVisible();
+  await expect(videoNode.locator(".wc-node-media-frame")).toHaveClass(/is-measured/);
   await expect(videoNode.getByLabel("视频进度")).toBeVisible();
-  await expect(videoNode.locator(".kc-node-video-player > video")).toHaveCSS("object-fit", "cover");
+  await expect(videoNode.locator(".wc-node-video-player > video")).toHaveCSS("object-fit", "cover");
   const duration = await videoNode.locator("video").evaluate((video) => video.duration);
   expect(duration).toBeGreaterThan(0);
   await videoNode.getByLabel("视频进度").evaluate((range, next) => {
@@ -1610,14 +1936,20 @@ test("video nodes capture the current frame into a connected image node", async 
     input.dispatchEvent(new Event("input", { bubbles: true }));
     input.dispatchEvent(new Event("change", { bubbles: true }));
   }, duration / 2);
-  await expect.poll(() => videoNode.locator("video").evaluate((video) => video.currentTime)).toBeGreaterThan(0);
+  await expect
+    .poll(() => videoNode.locator("video").evaluate((video) => video.currentTime))
+    .toBeGreaterThan(0);
 
   await videoNode.hover();
-  const nodeToolbar = page.locator(".kc-node-action-toolbar");
+  const nodeToolbar = page.locator(".wc-node-action-toolbar");
   await nodeToolbar.getByLabel("截取当前帧").click();
-  await expect(page.locator(".kc-toast").filter({ hasText: "当前画面已生成图片节点" })).toBeVisible();
+  await expect(
+    page.locator(".wc-toast").filter({ hasText: "当前画面已生成图片节点" }),
+  ).toBeVisible();
   await expect(nodes).toHaveCount(5);
-  await expect(page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="image"]) img')).toHaveCount(1);
+  await expect(
+    page.locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="image"]) img'),
+  ).toHaveCount(1);
   await expect(page.locator(".react-flow__edge")).toHaveCount(3);
 
   await page.keyboard.press("Control+Z");
@@ -1628,47 +1960,66 @@ test("video nodes capture the current frame into a connected image node", async 
 test("audio nodes upload, drag from the waveform, and persist", async ({ page }) => {
   await cleanProject(page);
   await openCanvas(page);
-  await page.getByRole("navigation", { name: "创建工具" }).getByRole("button", { name: "添加音频节点" }).click();
-  const audioNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="audio"])');
+  await page
+    .getByRole("navigation", { name: "创建工具" })
+    .getByRole("button", { name: "添加音频节点" })
+    .click();
+  const audioNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="audio"])',
+  );
   await audioNode.locator('input[type="file"]').setInputFiles(audioFixture);
   await expect(audioNode.locator("audio")).toBeVisible();
 
   const before = await audioNode.boundingBox();
-  const waveform = await audioNode.locator(".kc-audio-wave").boundingBox();
+  const waveform = await audioNode.locator(".wc-audio-wave").boundingBox();
   expect(before).not.toBeNull();
   expect(waveform).not.toBeNull();
   await page.mouse.move(waveform!.x + waveform!.width / 2, waveform!.y + waveform!.height / 2);
   await page.mouse.down();
-  await page.mouse.move(waveform!.x + waveform!.width / 2 + 92, waveform!.y + waveform!.height / 2 + 30, { steps: 8 });
+  await page.mouse.move(
+    waveform!.x + waveform!.width / 2 + 92,
+    waveform!.y + waveform!.height / 2 + 30,
+    { steps: 8 },
+  );
   await page.mouse.up();
   const after = await audioNode.boundingBox();
   expect(after!.x - before!.x).toBeGreaterThan(60);
 
   await audioNode.hover();
-  const nodeToolbar = page.locator(".kc-node-action-toolbar");
+  const nodeToolbar = page.locator(".wc-node-action-toolbar");
   await expect(nodeToolbar.getByLabel("下载音频")).toBeVisible();
   await expect(nodeToolbar.getByLabel("替换音频")).toBeVisible();
 
   await page.waitForTimeout(460);
   await page.reload();
-  await expect(page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="audio"]) audio')).toBeVisible();
+  await expect(
+    page.locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="audio"]) audio'),
+  ).toBeVisible();
 });
 
-test("empty media nodes drag without click upload and keep explicit upload available", async ({ page }) => {
+test("empty media nodes drag without click upload and keep explicit upload available", async ({
+  page,
+}) => {
   await cleanProject(page);
   await openCanvas(page);
-  const imageNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="image"])');
-  const emptyMedia = imageNode.locator(".kc-media-empty");
+  const imageNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="image"])',
+  );
+  const emptyMedia = imageNode.locator(".wc-media-empty");
   const before = await imageNode.boundingBox();
   const target = await emptyMedia.boundingBox();
   expect(before).not.toBeNull();
   expect(target).not.toBeNull();
 
   let chooserCount = 0;
-  page.on("filechooser", () => { chooserCount += 1; });
+  page.on("filechooser", () => {
+    chooserCount += 1;
+  });
   await page.mouse.move(target!.x + target!.width / 2, target!.y + target!.height / 2);
   await page.mouse.down();
-  await page.mouse.move(target!.x + target!.width / 2 + 110, target!.y + target!.height / 2 + 40, { steps: 10 });
+  await page.mouse.move(target!.x + target!.width / 2 + 110, target!.y + target!.height / 2 + 40, {
+    steps: 10,
+  });
   await page.mouse.up();
 
   const after = await imageNode.boundingBox();
@@ -1682,42 +2033,50 @@ test("empty media nodes drag without click upload and keep explicit upload avail
 
   const canvasToolbar = page.getByRole("navigation", { name: "创建工具" });
   await canvasToolbar.getByRole("button", { name: "添加视频节点" }).click();
-  const videoNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="video"])');
-  await expect(videoNode.locator(".kc-media-empty svg")).toBeVisible();
-  await expect(videoNode.locator(".kc-media-empty span")).toBeHidden();
-  await videoNode.locator(".kc-media-empty").click();
+  const videoNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="video"])',
+  );
+  await expect(videoNode.locator(".wc-media-empty svg")).toBeVisible();
+  await expect(videoNode.locator(".wc-media-empty span")).toBeHidden();
+  await videoNode.locator(".wc-media-empty").click();
   await page.waitForTimeout(120);
   expect(chooserCount).toBe(0);
 
   await canvasToolbar.getByRole("button", { name: "添加音频节点" }).click();
-  const audioNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="audio"])');
-  await audioNode.locator(".kc-media-empty").click();
+  const audioNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="audio"])',
+  );
+  await audioNode.locator(".wc-media-empty").click();
   await page.waitForTimeout(120);
   expect(chooserCount).toBe(0);
-  await audioNode.locator(".kc-node-drag-strip").click();
-  await expect(page.locator(".kc-node-prompt-composer")).toHaveCount(0);
+  await audioNode.locator(".wc-node-drag-strip").click();
+  await expect(page.locator(".wc-node-prompt-composer")).toHaveCount(0);
 
   await imageNode.hover();
   const chooser = page.waitForEvent("filechooser");
-  await page.locator(".kc-node-action-toolbar").getByLabel("上传图片").click();
+  await page.locator(".wc-node-action-toolbar").getByLabel("上传图片").click();
   await chooser;
 });
 
 test("node groups persist, move together, and remain undoable", async ({ page }) => {
   await cleanProject(page);
   await openCanvas(page);
-  const configNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="config"])');
-  const textNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="text"])');
+  const configNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="config"])',
+  );
+  const textNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="text"])',
+  );
 
-  await configNode.locator(".kc-node-drag-strip").click();
+  await configNode.locator(".wc-node-drag-strip").click();
   await page.keyboard.down("Control");
-  await textNode.locator(".kc-node-drag-strip").click();
+  await textNode.locator(".wc-node-drag-strip").click();
   await page.keyboard.up("Control");
 
-  const groupButton = page.locator(".kc-selection-toolbar").getByLabel("组合选中节点");
+  const groupButton = page.locator(".wc-selection-toolbar").getByLabel("组合选中节点");
   await expect(groupButton).toBeEnabled();
   await groupButton.click();
-  const frame = page.locator(".kc-group-frame");
+  const frame = page.locator(".wc-group-frame");
   await expect(frame).toHaveCount(1);
 
   await page.keyboard.press("Control+Z");
@@ -1727,21 +2086,23 @@ test("node groups persist, move together, and remain undoable", async ({ page })
 
   const configBefore = await configNode.boundingBox();
   const textBefore = await textNode.boundingBox();
-  const header = frame.locator(".kc-group-frame-header");
+  const header = frame.locator(".wc-group-frame-header");
   const headerBox = await header.boundingBox();
   expect(configBefore).not.toBeNull();
   expect(textBefore).not.toBeNull();
   expect(headerBox).not.toBeNull();
   await page.mouse.move(headerBox!.x + 80, headerBox!.y + headerBox!.height / 2);
   await page.mouse.down();
-  await page.mouse.move(headerBox!.x + 180, headerBox!.y + headerBox!.height / 2 + 54, { steps: 9 });
+  await page.mouse.move(headerBox!.x + 180, headerBox!.y + headerBox!.height / 2 + 54, {
+    steps: 9,
+  });
   await page.mouse.up();
   const configAfter = await configNode.boundingBox();
   const textAfter = await textNode.boundingBox();
   expect(configAfter!.x - configBefore!.x).toBeGreaterThan(70);
   expect(textAfter!.x - textBefore!.x).toBeGreaterThan(70);
 
-  const groupToolbar = page.locator(".kc-group-toolbar");
+  const groupToolbar = page.locator(".wc-group-toolbar");
   await expect(groupToolbar).toBeVisible();
   await groupToolbar.getByTitle("重命名组合").click();
   const nameInput = groupToolbar.getByLabel("组合名称");
@@ -1751,31 +2112,33 @@ test("node groups persist, move together, and remain undoable", async ({ page })
 
   await page.waitForTimeout(460);
   await page.reload();
-  await expect(page.locator(".kc-group-frame-header")).toContainText("第一幕");
-  await page.locator(".kc-group-frame-header").hover();
-  await page.locator(".kc-group-toolbar").getByLabel("解散组合").click();
-  await expect(page.locator(".kc-group-frame")).toHaveCount(0);
+  await expect(page.locator(".wc-group-frame-header")).toContainText("第一幕");
+  await page.locator(".wc-group-frame-header").hover();
+  await page.locator(".wc-group-toolbar").getByLabel("解散组合").click();
+  await expect(page.locator(".wc-group-frame")).toHaveCount(0);
 });
 
-test("group members drag independently and join or leave through the frozen frame", async ({ page }, testInfo) => {
+test("group members drag independently and join or leave through the frozen frame", async ({
+  page,
+}, testInfo) => {
   await cleanProject(page);
   await openCanvas(page);
-  const nodes = page.locator(".react-flow__node-kachang");
+  const nodes = page.locator(".react-flow__node-weftcanvas");
   const first = nodes.nth(0);
   const second = nodes.nth(1);
   const third = nodes.nth(2);
 
-  await first.locator(".kc-node-drag-strip").click();
+  await first.locator(".wc-node-drag-strip").click();
   await page.keyboard.down("Control");
-  await second.locator(".kc-node-drag-strip").click();
+  await second.locator(".wc-node-drag-strip").click();
   await page.keyboard.up("Control");
-  await page.locator(".kc-selection-toolbar").getByLabel("组合选中节点").click();
+  await page.locator(".wc-selection-toolbar").getByLabel("组合选中节点").click();
   await page.keyboard.press("Escape");
 
-  const frame = page.locator(".kc-group-frame");
+  const frame = page.locator(".wc-group-frame");
   const frameBeforeJoin = await frame.boundingBox();
   const thirdBeforeJoin = await third.boundingBox();
-  const thirdJoinStrip = await third.locator(".kc-node-drag-strip").boundingBox();
+  const thirdJoinStrip = await third.locator(".wc-node-drag-strip").boundingBox();
   expect(frameBeforeJoin).not.toBeNull();
   expect(thirdBeforeJoin).not.toBeNull();
   expect(thirdJoinStrip).not.toBeNull();
@@ -1798,25 +2161,32 @@ test("group members drag independently and join or leave through the frozen fram
   expect(frameDuringJoin!.x).toBeCloseTo(frameBeforeJoin!.x, 0);
   expect(frameDuringJoin!.width).toBeCloseTo(frameBeforeJoin!.width, 0);
   await page.mouse.up();
-  await expect(frame.locator(".kc-group-frame-header small")).toHaveText("3");
+  await expect(frame.locator(".wc-group-frame-header small")).toHaveText("3");
   await page.screenshot({ path: testInfo.outputPath("group-member-joined.png") });
 
   const secondBefore = await second.boundingBox();
-  const firstStrip = await first.locator(".kc-node-drag-strip").boundingBox();
+  const firstStrip = await first.locator(".wc-node-drag-strip").boundingBox();
   expect(secondBefore).not.toBeNull();
   expect(firstStrip).not.toBeNull();
-  await page.mouse.move(firstStrip!.x + firstStrip!.width / 2, firstStrip!.y + firstStrip!.height / 2);
+  await page.mouse.move(
+    firstStrip!.x + firstStrip!.width / 2,
+    firstStrip!.y + firstStrip!.height / 2,
+  );
   await page.mouse.down();
-  await page.mouse.move(firstStrip!.x + firstStrip!.width / 2 + 28, firstStrip!.y + firstStrip!.height / 2 + 18, { steps: 7 });
+  await page.mouse.move(
+    firstStrip!.x + firstStrip!.width / 2 + 28,
+    firstStrip!.y + firstStrip!.height / 2 + 18,
+    { steps: 7 },
+  );
   await page.mouse.up();
   const secondAfterIndependentDrag = await second.boundingBox();
   expect(secondAfterIndependentDrag!.x).toBeCloseTo(secondBefore!.x, 0);
   expect(secondAfterIndependentDrag!.y).toBeCloseTo(secondBefore!.y, 0);
-  await expect(frame.locator(".kc-group-frame-header small")).toHaveText("3");
+  await expect(frame.locator(".wc-group-frame-header small")).toHaveText("3");
 
   const frameBeforeLeave = await frame.boundingBox();
   const thirdBeforeLeave = await third.boundingBox();
-  const thirdLeaveStrip = await third.locator(".kc-node-drag-strip").boundingBox();
+  const thirdLeaveStrip = await third.locator(".wc-node-drag-strip").boundingBox();
   expect(frameBeforeLeave).not.toBeNull();
   expect(thirdBeforeLeave).not.toBeNull();
   expect(thirdLeaveStrip).not.toBeNull();
@@ -1834,45 +2204,57 @@ test("group members drag independently and join or leave through the frozen fram
   };
   await page.mouse.move(leavePointer.x, leavePointer.y);
   await page.mouse.down();
-  await page.mouse.move(leavePointer.x + leaveDelta.x, leavePointer.y + leaveDelta.y, { steps: 10 });
+  await page.mouse.move(leavePointer.x + leaveDelta.x, leavePointer.y + leaveDelta.y, {
+    steps: 10,
+  });
   await page.mouse.up();
-  await expect(frame.locator(".kc-group-frame-header small")).toHaveText("2");
+  await expect(frame.locator(".wc-group-frame-header small")).toHaveText("2");
   await page.waitForTimeout(460);
   await page.reload();
-  await expect(page.locator(".kc-group-frame-header small")).toHaveText("2");
+  await expect(page.locator(".wc-group-frame-header small")).toHaveText("2");
 });
 
-test("group borders resize all members as one undoable persistent transform", async ({ page }, testInfo) => {
+test("group borders resize all members as one undoable persistent transform", async ({
+  page,
+}, testInfo) => {
   await cleanProject(page);
   await openCanvas(page);
-  const nodes = page.locator(".react-flow__node-kachang");
-  await nodes.nth(0).locator(".kc-node-drag-strip").click();
+  const nodes = page.locator(".react-flow__node-weftcanvas");
+  await nodes.nth(0).locator(".wc-node-drag-strip").click();
   await page.keyboard.down("Control");
-  await nodes.nth(1).locator(".kc-node-drag-strip").click();
+  await nodes.nth(1).locator(".wc-node-drag-strip").click();
   await page.keyboard.up("Control");
-  await page.locator(".kc-selection-toolbar").getByLabel("组合选中节点").click();
+  await page.locator(".wc-selection-toolbar").getByLabel("组合选中节点").click();
 
-  const frame = page.locator(".kc-group-frame");
+  const frame = page.locator(".wc-group-frame");
   const before = await frame.boundingBox();
-  const rightHandle = frame.locator('[data-kc-group-resize="right"]');
+  const rightHandle = frame.locator('[data-wc-group-resize="right"]');
   const handle = await rightHandle.boundingBox();
   expect(before).not.toBeNull();
   expect(handle).not.toBeNull();
   await page.mouse.move(handle!.x + handle!.width / 2, handle!.y + handle!.height / 2);
   await page.mouse.down();
-  await page.mouse.move(handle!.x + handle!.width / 2 + 120, handle!.y + handle!.height / 2, { steps: 10 });
+  await page.mouse.move(handle!.x + handle!.width / 2 + 120, handle!.y + handle!.height / 2, {
+    steps: 10,
+  });
   await page.mouse.up();
 
   const resized = await frame.boundingBox();
   expect(resized!.width - before!.width).toBeGreaterThan(70);
   await page.screenshot({ path: testInfo.outputPath("group-border-resized.png") });
   await page.keyboard.press("Control+Z");
-  await expect.poll(async () => (await frame.boundingBox())?.width ?? 0).toBeCloseTo(before!.width, 0);
+  await expect
+    .poll(async () => (await frame.boundingBox())?.width ?? 0)
+    .toBeCloseTo(before!.width, 0);
   await page.keyboard.press("Control+Y");
-  await expect.poll(async () => (await frame.boundingBox())?.width ?? 0).toBeCloseTo(resized!.width, 0);
+  await expect
+    .poll(async () => (await frame.boundingBox())?.width ?? 0)
+    .toBeCloseTo(resized!.width, 0);
   await page.waitForTimeout(460);
   await page.reload();
-  await expect.poll(async () => (await page.locator(".kc-group-frame").boundingBox())?.width ?? 0).toBeCloseTo(resized!.width, 0);
+  await expect
+    .poll(async () => (await page.locator(".wc-group-frame").boundingBox())?.width ?? 0)
+    .toBeCloseTo(resized!.width, 0);
 });
 
 test("desktop layout has no document overflow", async ({ page }) => {
@@ -1893,9 +2275,9 @@ test("compact desktop keeps creation, editing, and view controls separate", asyn
   await cleanProject(page);
   await openCanvas(page);
 
-  const creation = await page.locator(".kc-create-rail").boundingBox();
-  const editing = await page.locator(".kc-edit-dock").boundingBox();
-  const zoom = await page.locator(".kc-zoom-control").boundingBox();
+  const creation = await page.locator(".wc-create-rail").boundingBox();
+  const editing = await page.locator(".wc-edit-dock").boundingBox();
+  const zoom = await page.locator(".wc-zoom-control").boundingBox();
   expect(creation).not.toBeNull();
   expect(editing).not.toBeNull();
   expect(zoom).not.toBeNull();

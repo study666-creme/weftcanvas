@@ -1,7 +1,4 @@
-import type {
-  IdentityCapabilities,
-  IdentitySession,
-} from "@kachang/contracts";
+import type { IdentityCapabilities, IdentitySession } from "@weftcanvas/contracts";
 
 export type IssuedIdentitySession = IdentitySession & {
   token: string;

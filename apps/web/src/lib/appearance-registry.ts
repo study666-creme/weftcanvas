@@ -51,7 +51,10 @@ function emitChange() {
 }
 
 /** 注册一个外观档位；同槽位同 id 重复注册直接报错。返回卸载函数。 */
-export function registerAppearanceOption(slot: AppearanceSlot, option: AppearanceOption): () => void {
+export function registerAppearanceOption(
+  slot: AppearanceSlot,
+  option: AppearanceOption,
+): () => void {
   let bucket = slots.get(slot);
   if (!bucket) {
     bucket = new Map();

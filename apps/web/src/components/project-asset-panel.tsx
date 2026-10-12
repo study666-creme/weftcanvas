@@ -1,4 +1,4 @@
-import type { CanvasMedia } from "@kachang/contracts";
+import type { CanvasMedia } from "@weftcanvas/contracts";
 import {
   Boxes,
   Check,
@@ -17,7 +17,16 @@ import {
   Type,
   X,
 } from "lucide-react";
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from "react";
+import {
+  memo,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+} from "react";
 import { createPortal } from "react-dom";
 
 import {
@@ -31,7 +40,11 @@ import { readMedia } from "../lib/media-store";
 import { useDismissOnOutsideClick } from "../hooks/use-dismiss-on-outside-click";
 import { useMediaThumbUrl, useMediaUrl } from "../hooks/use-media-url";
 import { useCanvasStore } from "../state/canvas-store";
-import { useProjectAssetStore, type ProjectAssetCategoryFilter, type ProjectAssetKindFilter } from "../state/project-asset-store";
+import {
+  useProjectAssetStore,
+  type ProjectAssetCategoryFilter,
+  type ProjectAssetKindFilter,
+} from "../state/project-asset-store";
 import { useToastStore } from "../state/toast-store";
 import type { InsertableAsset } from "../lib/insertable-asset";
 
@@ -112,11 +125,29 @@ export const ProjectAssetPanel = memo(function ProjectAssetPanel({
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      if (menu) { setMenu(null); return; }
-      if (editingCategoryId) { setEditingCategoryId(null); return; }
-      if (creatingCategory) { setCreatingCategory(false); setNewCategoryDraft(""); return; }
-      if (editingItemId) { setEditingItemId(null); return; }
-      if (promptEditorOpen) { setPromptEditorOpen(false); setPromptDraft(""); setPromptNameDraft(""); return; }
+      if (menu) {
+        setMenu(null);
+        return;
+      }
+      if (editingCategoryId) {
+        setEditingCategoryId(null);
+        return;
+      }
+      if (creatingCategory) {
+        setCreatingCategory(false);
+        setNewCategoryDraft("");
+        return;
+      }
+      if (editingItemId) {
+        setEditingItemId(null);
+        return;
+      }
+      if (promptEditorOpen) {
+        setPromptEditorOpen(false);
+        setPromptDraft("");
+        setPromptNameDraft("");
+        return;
+      }
       setOpen(false);
     };
     window.addEventListener("keydown", onKeyDown);
@@ -128,7 +159,8 @@ export const ProjectAssetPanel = memo(function ProjectAssetPanel({
     let uncategorized = 0;
     const byKind = new Map<ProjectAssetKind, number>();
     for (const item of items) {
-      if (item.categoryId) byCategory.set(item.categoryId, (byCategory.get(item.categoryId) ?? 0) + 1);
+      if (item.categoryId)
+        byCategory.set(item.categoryId, (byCategory.get(item.categoryId) ?? 0) + 1);
       else uncategorized += 1;
       byKind.set(item.kind, (byKind.get(item.kind) ?? 0) + 1);
     }
@@ -139,26 +171,39 @@ export const ProjectAssetPanel = memo(function ProjectAssetPanel({
     const needle = query.trim().toLocaleLowerCase();
     return items.filter((item) => {
       if (categoryFilter === "uncategorized" && item.categoryId) return false;
-      if (categoryFilter !== "all" && categoryFilter !== "uncategorized" && item.categoryId !== categoryFilter) return false;
+      if (
+        categoryFilter !== "all" &&
+        categoryFilter !== "uncategorized" &&
+        item.categoryId !== categoryFilter
+      )
+        return false;
       if (kindFilter !== "all" && item.kind !== kindFilter) return false;
-      if (needle && !`${item.name}\n${item.prompt}`.toLocaleLowerCase().includes(needle)) return false;
+      if (needle && !`${item.name}\n${item.prompt}`.toLocaleLowerCase().includes(needle))
+        return false;
       return true;
     });
   }, [categoryFilter, items, kindFilter, query]);
 
   if (!open) return null;
 
-  const categoryOf = (item: ProjectAssetItem) => categories.find((category) => category.id === item.categoryId) ?? null;
+  const categoryOf = (item: ProjectAssetItem) =>
+    categories.find((category) => category.id === item.categoryId) ?? null;
 
   const insertItem = async (item: ProjectAssetItem) => {
     setMenu(null);
     if (item.kind === "prompt") {
-      if (!item.prompt) { showToast("这条提示词是空的", "error"); return; }
+      if (!item.prompt) {
+        showToast("这条提示词是空的", "error");
+        return;
+      }
       onInsert({ kind: "text", body: item.prompt, media: null, extraMedia: [] });
       showToast("已加入画布", "success");
       return;
     }
-    if (!item.media) { showToast("资产内容暂时不可用", "error"); return; }
+    if (!item.media) {
+      showToast("资产内容暂时不可用", "error");
+      return;
+    }
     if (item.media.source === "local" && !(await readMedia(item.media.id))) {
       showToast("资产文件已不在本机", "error");
       return;
@@ -207,52 +252,79 @@ export const ProjectAssetPanel = memo(function ProjectAssetPanel({
 
   const emptyHint = (() => {
     if (query.trim() || kindFilter !== "all") return "没有匹配的资产";
-    if (categoryFilter === "all") return status === "loading" ? "正在读取项目资产" : "在画布里生成或导入的资产会自动归位（图片/视频/音频各一堆），在这里分拣取用";
+    if (categoryFilter === "all")
+      return status === "loading"
+        ? "正在读取项目资产"
+        : "在画布里生成或导入的资产会自动归位（图片/视频/音频各一堆），在这里分拣取用";
     if (categoryFilter === "uncategorized") return "还没有未分类的资产";
     if (isProjectAssetInboxCategory(categoryFilter)) {
       const inbox = PROJECT_ASSET_SYSTEM_CATEGORIES.find((item) => item.id === categoryFilter);
       return `画布里生成或导入的${inbox?.name.replace("资产", "") ?? "资产"}会自动堆到这里，用「⋯」菜单分拣进你自己建的文件夹`;
     }
     const category = categories.find((item) => item.id === categoryFilter);
-    return category?.id === "pcat:prompt" ? "把常用提示词存到这里，随取随用" : `「${category?.name ?? ""}」还没有资产，从堆放区分拣或在画布里右键节点存入`;
+    return category?.id === "pcat:prompt"
+      ? "把常用提示词存到这里，随取随用"
+      : `「${category?.name ?? ""}」还没有资产，从堆放区分拣或在画布里右键节点存入`;
   })();
 
   return (
     <section
       ref={panelRef}
-      className="kc-workspace-assets"
+      className="wc-workspace-assets"
       role="dialog"
       aria-label="工作资产库"
-      data-kc-preserve-drawers
-      data-kc-block-canvas-shortcuts
+      data-wc-preserve-drawers
+      data-wc-block-canvas-shortcuts
     >
-      <header className="kc-workspace-assets-header">
-        <span className="kc-workspace-assets-mark" aria-hidden="true"><Boxes /></span>
-        <div className="kc-workspace-assets-titles">
+      <header className="wc-workspace-assets-header">
+        <span className="wc-workspace-assets-mark" aria-hidden="true">
+          <Boxes />
+        </span>
+        <div className="wc-workspace-assets-titles">
           <strong>工作资产库</strong>
-          <small title={`仅「${projectName}」这个画布项目可见，不会进入全站资产库`}>仅本画布项目 · {projectName}</small>
+          <small title={`仅「${projectName}」这个画布项目可见，不会进入全站资产库`}>
+            仅本画布项目 · {projectName}
+          </small>
         </div>
-        <button type="button" className="kc-workspace-assets-close" aria-label="收起工作资产库" title="收起" onClick={() => setOpen(false)}>
+        <button
+          type="button"
+          className="wc-workspace-assets-close"
+          aria-label="收起工作资产库"
+          title="收起"
+          onClick={() => setOpen(false)}
+        >
           <X aria-hidden="true" />
         </button>
       </header>
 
-      <div className="kc-workspace-assets-body">
-        <aside className="kc-workspace-assets-cats" aria-label="资产分类">
-          <button type="button" className={categoryFilter === "all" ? "is-active" : ""} onClick={() => setCategoryFilter("all")}>
-            <FolderOpen aria-hidden="true" /><span>全部</span><small>{items.length}</small>
+      <div className="wc-workspace-assets-body">
+        <aside className="wc-workspace-assets-cats" aria-label="资产分类">
+          <button
+            type="button"
+            className={categoryFilter === "all" ? "is-active" : ""}
+            onClick={() => setCategoryFilter("all")}
+          >
+            <FolderOpen aria-hidden="true" />
+            <span>全部</span>
+            <small>{items.length}</small>
           </button>
-          <button type="button" className={categoryFilter === "uncategorized" ? "is-active" : ""} onClick={() => setCategoryFilter("uncategorized")}>
-            <Folder aria-hidden="true" /><span>未分类</span><small>{counts.uncategorized}</small>
+          <button
+            type="button"
+            className={categoryFilter === "uncategorized" ? "is-active" : ""}
+            onClick={() => setCategoryFilter("uncategorized")}
+          >
+            <Folder aria-hidden="true" />
+            <span>未分类</span>
+            <small>{counts.uncategorized}</small>
           </button>
-          <div className="kc-workspace-assets-cat-list">
+          <div className="wc-workspace-assets-cat-list">
             {categories.map((category) => {
               // 图片/视频堆放区不可删；默认分类与自建文件夹同权（重命名/删除）。
               const manageable = !isProjectAssetInboxCategory(category.id);
               return (
-                <div className="kc-workspace-assets-cat-row" key={category.id}>
+                <div className="wc-workspace-assets-cat-row" key={category.id}>
                   {editingCategoryId === category.id ? (
-                    <form className="kc-workspace-assets-cat-edit" onSubmit={submitCategoryRename}>
+                    <form className="wc-workspace-assets-cat-edit" onSubmit={submitCategoryRename}>
                       <input
                         ref={categoryInputRef}
                         value={categoryDraft}
@@ -270,21 +342,31 @@ export const ProjectAssetPanel = memo(function ProjectAssetPanel({
                       <button
                         type="button"
                         className={categoryFilter === category.id ? "is-active" : ""}
-                        title={manageable ? category.name : `${category.name} · 画布里生成的${category.name.replace("资产", "")}会自动堆进这里`}
+                        title={
+                          manageable
+                            ? category.name
+                            : `${category.name} · 画布里生成的${category.name.replace("资产", "")}会自动堆进这里`
+                        }
                         onClick={() => setCategoryFilter(category.id)}
                       >
-                        <Folder aria-hidden="true" /><span>{category.name}</span>
+                        <Folder aria-hidden="true" />
+                        <span>{category.name}</span>
                         <small>{counts.byCategory.get(category.id) ?? 0}</small>
                       </button>
                       {manageable ? (
                         <button
                           type="button"
-                          className="kc-workspace-assets-cat-more"
+                          className="wc-workspace-assets-cat-more"
                           aria-label={`${category.name} 的更多操作`}
                           title="更多操作"
                           onClick={(event) => {
                             const rect = event.currentTarget.getBoundingClientRect();
-                            setMenu({ type: "category", x: rect.left, y: rect.bottom + 6, category });
+                            setMenu({
+                              type: "category",
+                              x: rect.left,
+                              y: rect.bottom + 6,
+                              category,
+                            });
                           }}
                         >
                           <MoreHorizontal aria-hidden="true" />
@@ -297,7 +379,10 @@ export const ProjectAssetPanel = memo(function ProjectAssetPanel({
             })}
           </div>
           {creatingCategory ? (
-            <form className="kc-workspace-assets-cat-edit" onSubmit={(event) => void submitNewCategory(event)}>
+            <form
+              className="wc-workspace-assets-cat-edit"
+              onSubmit={(event) => void submitNewCategory(event)}
+            >
               <input
                 ref={newCategoryInputRef}
                 value={newCategoryDraft}
@@ -305,30 +390,45 @@ export const ProjectAssetPanel = memo(function ProjectAssetPanel({
                 maxLength={24}
                 aria-label="新建文件夹"
                 onChange={(event) => setNewCategoryDraft(event.target.value)}
-                onBlur={() => { setCreatingCategory(false); setNewCategoryDraft(""); }}
+                onBlur={() => {
+                  setCreatingCategory(false);
+                  setNewCategoryDraft("");
+                }}
                 onKeyDown={(event) => {
-                  if (event.key === "Escape") { setCreatingCategory(false); setNewCategoryDraft(""); }
+                  if (event.key === "Escape") {
+                    setCreatingCategory(false);
+                    setNewCategoryDraft("");
+                  }
                 }}
               />
             </form>
           ) : (
             <button
               type="button"
-              className="kc-workspace-assets-cat-add"
-              onClick={() => { setCreatingCategory(true); setNewCategoryDraft(""); }}
+              className="wc-workspace-assets-cat-add"
+              onClick={() => {
+                setCreatingCategory(true);
+                setNewCategoryDraft("");
+              }}
             >
-              <FolderPlus aria-hidden="true" /><span>新建文件夹</span>
+              <FolderPlus aria-hidden="true" />
+              <span>新建文件夹</span>
             </button>
           )}
         </aside>
 
-        <div className="kc-workspace-assets-main">
-          <div className="kc-workspace-assets-toolbar">
-            <label className="kc-workspace-assets-search">
+        <div className="wc-workspace-assets-main">
+          <div className="wc-workspace-assets-toolbar">
+            <label className="wc-workspace-assets-search">
               <Search aria-hidden="true" />
-              <input aria-label="搜索项目资产" placeholder="搜索资产" value={query} onChange={(event) => setQuery(event.target.value)} />
+              <input
+                aria-label="搜索项目资产"
+                placeholder="搜索资产"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
             </label>
-            <div className="kc-workspace-assets-kinds" role="group" aria-label="资产类型">
+            <div className="wc-workspace-assets-kinds" role="group" aria-label="资产类型">
               {KIND_FILTERS.map((kind) => (
                 <button
                   type="button"
@@ -343,17 +443,22 @@ export const ProjectAssetPanel = memo(function ProjectAssetPanel({
             </div>
             <button
               type="button"
-              className="kc-workspace-assets-add-prompt"
+              className="wc-workspace-assets-add-prompt"
               aria-label="新增提示词资产"
               title="新增提示词"
-              onClick={() => { setPromptEditorOpen(true); setPromptDraft(""); setPromptNameDraft(""); }}
+              onClick={() => {
+                setPromptEditorOpen(true);
+                setPromptDraft("");
+                setPromptNameDraft("");
+              }}
             >
-              <Type aria-hidden="true" /><span>提示词</span>
+              <Type aria-hidden="true" />
+              <span>提示词</span>
             </button>
           </div>
 
           {promptEditorOpen ? (
-            <div className="kc-workspace-assets-prompt-editor">
+            <div className="wc-workspace-assets-prompt-editor">
               <textarea
                 ref={promptInputRef}
                 value={promptDraft}
@@ -362,7 +467,10 @@ export const ProjectAssetPanel = memo(function ProjectAssetPanel({
                 aria-label="提示词内容"
                 onChange={(event) => setPromptDraft(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); void submitPrompt(); }
+                  if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                    event.preventDefault();
+                    void submitPrompt();
+                  }
                 }}
               />
               <footer>
@@ -373,33 +481,61 @@ export const ProjectAssetPanel = memo(function ProjectAssetPanel({
                   aria-label="提示词名称"
                   onChange={(event) => setPromptNameDraft(event.target.value)}
                 />
-                <span className="kc-workspace-assets-prompt-target">
+                <span className="wc-workspace-assets-prompt-target">
                   存入 {categoryLabel(categoryFilter, categories)}
                 </span>
-                <button type="button" onClick={() => { setPromptEditorOpen(false); setPromptDraft(""); setPromptNameDraft(""); }}>取消</button>
-                <button type="button" className="is-primary" disabled={!promptDraft.trim() || savingPrompt} onClick={() => void submitPrompt()}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPromptEditorOpen(false);
+                    setPromptDraft("");
+                    setPromptNameDraft("");
+                  }}
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  className="is-primary"
+                  disabled={!promptDraft.trim() || savingPrompt}
+                  onClick={() => void submitPrompt()}
+                >
                   保存
                 </button>
               </footer>
             </div>
           ) : null}
 
-          <div className="kc-workspace-assets-grid-wrap">
+          <div className="wc-workspace-assets-grid-wrap">
             {!filtered.length ? (
-              <div className="kc-workspace-assets-empty">
-                <span aria-hidden="true">{kindFilter === "prompt" || categoryFilter === "pcat:prompt" ? <Type /> : <Boxes />}</span>
+              <div className="wc-workspace-assets-empty">
+                <span aria-hidden="true">
+                  {kindFilter === "prompt" || categoryFilter === "pcat:prompt" ? (
+                    <Type />
+                  ) : (
+                    <Boxes />
+                  )}
+                </span>
                 <p>{emptyHint}</p>
                 {promptEditorOpen ? null : (
-                  <button type="button" onClick={() => { setPromptEditorOpen(true); setPromptDraft(""); setPromptNameDraft(""); }}>
-                    <Plus aria-hidden="true" />新增提示词
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPromptEditorOpen(true);
+                      setPromptDraft("");
+                      setPromptNameDraft("");
+                    }}
+                  >
+                    <Plus aria-hidden="true" />
+                    新增提示词
                   </button>
                 )}
               </div>
             ) : (
-              <div className="kc-workspace-assets-grid">
+              <div className="wc-workspace-assets-grid">
                 {filtered.map((item, index) => (
                   <article
-                    className="kc-workspace-asset-card"
+                    className="wc-workspace-asset-card"
                     key={item.id}
                     style={{ ["--stagger-i" as string]: Math.min(index, 12) }}
                     tabIndex={0}
@@ -411,13 +547,13 @@ export const ProjectAssetPanel = memo(function ProjectAssetPanel({
                       void insertItem(item);
                     }}
                   >
-                    <div className="kc-workspace-asset-preview">
+                    <div className="wc-workspace-asset-preview">
                       <AssetPreview item={item} />
                     </div>
                     {editingItemId === item.id ? (
                       <input
                         ref={itemInputRef}
-                        className="kc-workspace-asset-rename"
+                        className="wc-workspace-asset-rename"
                         value={itemDraft}
                         maxLength={64}
                         aria-label="资产名称"
@@ -430,24 +566,27 @@ export const ProjectAssetPanel = memo(function ProjectAssetPanel({
                         onClick={(event) => event.stopPropagation()}
                       />
                     ) : (
-                      <div className="kc-workspace-asset-meta">
+                      <div className="wc-workspace-asset-meta">
                         <strong title={item.name}>{item.name}</strong>
                         <small>{categoryOf(item)?.name ?? kindLabel(item.kind)}</small>
                       </div>
                     )}
-                    <div className="kc-workspace-asset-actions">
+                    <div className="wc-workspace-asset-actions">
                       <button
                         type="button"
-                        className="kc-workspace-asset-insert"
+                        className="wc-workspace-asset-insert"
                         aria-label={`将 ${item.name} 加入画布`}
                         title="加入画布（双击卡片同效）"
-                        onClick={(event) => { event.stopPropagation(); void insertItem(item); }}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void insertItem(item);
+                        }}
                       >
                         <Plus aria-hidden="true" />
                       </button>
                       <button
                         type="button"
-                        className="kc-workspace-asset-more"
+                        className="wc-workspace-asset-more"
                         aria-label={`${item.name} 的更多操作`}
                         title="更多操作"
                         onClick={(event) => {
@@ -473,15 +612,24 @@ export const ProjectAssetPanel = memo(function ProjectAssetPanel({
           categories={categories}
           onClose={() => setMenu(null)}
           onInsert={(item) => void insertItem(item)}
-          onMove={(item, categoryId) => { setMenu(null); void moveItem(item.id, categoryId); }}
+          onMove={(item, categoryId) => {
+            setMenu(null);
+            void moveItem(item.id, categoryId);
+          }}
           onRenameItem={beginItemRename}
-          onDeleteItem={(item) => { setMenu(null); void removeItem(item.id); }}
+          onDeleteItem={(item) => {
+            setMenu(null);
+            void removeItem(item.id);
+          }}
           onRenameCategory={(category) => {
             setMenu(null);
             setCategoryDraft(category.name);
             setEditingCategoryId(category.id);
           }}
-          onDeleteCategory={(category) => { setMenu(null); void removeCategory(category.id); }}
+          onDeleteCategory={(category) => {
+            setMenu(null);
+            void removeCategory(category.id);
+          }}
         />
       ) : null}
     </section>
@@ -510,13 +658,17 @@ function PanelMenu({
   onDeleteCategory: (category: ProjectAssetCategory) => void;
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState<CSSProperties>(() => clampMenuPosition(menu.x, menu.y, 210, 220));
+  const [position, setPosition] = useState<CSSProperties>(() =>
+    clampMenuPosition(menu.x, menu.y, 210, 220),
+  );
 
   useLayoutEffect(() => {
     const element = menuRef.current;
     if (!element) return;
     const next = clampMenuPosition(menu.x, menu.y, element.offsetWidth, element.offsetHeight);
-    setPosition((current) => (current.left === next.left && current.top === next.top ? current : next));
+    setPosition((current) =>
+      current.left === next.left && current.top === next.top ? current : next,
+    );
   }, [menu.x, menu.y]);
 
   useEffect(() => {
@@ -542,18 +694,21 @@ function PanelMenu({
     return createPortal(
       <div
         ref={menuRef}
-        className="kc-context-menu kc-workspace-assets-menu"
+        className="wc-context-menu wc-workspace-assets-menu"
         role="menu"
         aria-label={`${item.name} 资产操作`}
-        data-kc-preserve-drawers
-        data-kc-block-canvas-shortcuts
+        data-wc-preserve-drawers
+        data-wc-block-canvas-shortcuts
         style={position}
         onContextMenu={(event) => event.preventDefault()}
         onPointerDown={(event) => event.stopPropagation()}
       >
-        <button role="menuitem" type="button" onClick={() => onInsert(item)}><Plus aria-hidden="true" />加入画布</button>
-        <span className="kc-context-menu-divider" aria-hidden="true" />
-        <span className="kc-resource-context-heading">移动到</span>
+        <button role="menuitem" type="button" onClick={() => onInsert(item)}>
+          <Plus aria-hidden="true" />
+          加入画布
+        </button>
+        <span className="wc-context-menu-divider" aria-hidden="true" />
+        <span className="wc-resource-context-heading">移动到</span>
         <button
           role="menuitemradio"
           type="button"
@@ -561,7 +716,9 @@ function PanelMenu({
           className={!item.categoryId ? "is-current" : undefined}
           onClick={() => onMove(item, null)}
         >
-          <FolderOpen aria-hidden="true" /><span>未分类</span>{!item.categoryId ? <Check aria-hidden="true" /> : null}
+          <FolderOpen aria-hidden="true" />
+          <span>未分类</span>
+          {!item.categoryId ? <Check aria-hidden="true" /> : null}
         </button>
         {categories.map((category) => {
           const current = item.categoryId === category.id;
@@ -574,13 +731,33 @@ function PanelMenu({
               className={current ? "is-current" : undefined}
               onClick={() => onMove(item, category.id)}
             >
-              <Folder aria-hidden="true" /><span>{category.name}</span>{current ? <Check aria-hidden="true" /> : null}
+              <Folder aria-hidden="true" />
+              <span>{category.name}</span>
+              {current ? <Check aria-hidden="true" /> : null}
             </button>
           );
         })}
-        <span className="kc-context-menu-divider" aria-hidden="true" />
-        <button role="menuitem" type="button" onClick={() => { onClose(); onRenameItem(item); }}><Pencil aria-hidden="true" />重命名</button>
-        <button role="menuitem" type="button" className="is-danger" onClick={() => onDeleteItem(item)}><Trash2 aria-hidden="true" />删除</button>
+        <span className="wc-context-menu-divider" aria-hidden="true" />
+        <button
+          role="menuitem"
+          type="button"
+          onClick={() => {
+            onClose();
+            onRenameItem(item);
+          }}
+        >
+          <Pencil aria-hidden="true" />
+          重命名
+        </button>
+        <button
+          role="menuitem"
+          type="button"
+          className="is-danger"
+          onClick={() => onDeleteItem(item)}
+        >
+          <Trash2 aria-hidden="true" />
+          删除
+        </button>
       </div>,
       document.body,
     );
@@ -590,18 +767,29 @@ function PanelMenu({
   return createPortal(
     <div
       ref={menuRef}
-      className="kc-context-menu kc-workspace-assets-menu"
+      className="wc-context-menu wc-workspace-assets-menu"
       role="menu"
       aria-label={`${category.name} 文件夹操作`}
-      data-kc-preserve-drawers
-      data-kc-block-canvas-shortcuts
+      data-wc-preserve-drawers
+      data-wc-block-canvas-shortcuts
       style={position}
       onContextMenu={(event) => event.preventDefault()}
       onPointerDown={(event) => event.stopPropagation()}
     >
-      <button role="menuitem" type="button" onClick={() => onRenameCategory(category)}><Pencil aria-hidden="true" />重命名</button>
-      <button role="menuitem" type="button" className="is-danger" onClick={() => onDeleteCategory(category)}><Trash2 aria-hidden="true" />删除文件夹</button>
-      <span className="kc-resource-context-note">文件夹内资产将移至未分类</span>
+      <button role="menuitem" type="button" onClick={() => onRenameCategory(category)}>
+        <Pencil aria-hidden="true" />
+        重命名
+      </button>
+      <button
+        role="menuitem"
+        type="button"
+        className="is-danger"
+        onClick={() => onDeleteCategory(category)}
+      >
+        <Trash2 aria-hidden="true" />
+        删除文件夹
+      </button>
+      <span className="wc-resource-context-note">文件夹内资产将移至未分类</span>
     </div>,
     document.body,
   );
@@ -610,7 +798,7 @@ function PanelMenu({
 function AssetPreview({ item }: { item: ProjectAssetItem }) {
   if (item.kind === "prompt") {
     return (
-      <div className="kc-workspace-asset-preview-text">
+      <div className="wc-workspace-asset-preview-text">
         <Type aria-hidden="true" />
         <p>{item.prompt.slice(0, 64)}</p>
       </div>
@@ -619,22 +807,41 @@ function AssetPreview({ item }: { item: ProjectAssetItem }) {
   return <MediaPreview media={item.media} kind={item.kind} />;
 }
 
-function MediaPreview({ media, kind }: { media: CanvasMedia | null; kind: Exclude<ProjectAssetKind, "prompt"> }) {
+function MediaPreview({
+  media,
+  kind,
+}: {
+  media: CanvasMedia | null;
+  kind: Exclude<ProjectAssetKind, "prompt">;
+}) {
   const thumb = useMediaThumbUrl(kind === "image" ? media : null);
   const video = useMediaUrl(kind === "video" ? media : null);
-  if (!media) return <div className="kc-workspace-asset-preview-placeholder" aria-hidden="true"><FileText /></div>;
+  if (!media)
+    return (
+      <div className="wc-workspace-asset-preview-placeholder" aria-hidden="true">
+        <FileText />
+      </div>
+    );
   if (kind === "image") {
-    return thumb.url && !thumb.missing
-      ? <img src={thumb.url} alt="" loading="lazy" />
-      : <div className="kc-workspace-asset-preview-placeholder" aria-hidden="true"><ImageIcon /></div>;
+    return thumb.url && !thumb.missing ? (
+      <img src={thumb.url} alt="" loading="lazy" />
+    ) : (
+      <div className="wc-workspace-asset-preview-placeholder" aria-hidden="true">
+        <ImageIcon />
+      </div>
+    );
   }
   if (kind === "video") {
-    return video.url && !video.missing
-      ? <video src={video.url} muted preload="metadata" tabIndex={-1} />
-      : <div className="kc-workspace-asset-preview-placeholder" aria-hidden="true"><Film /></div>;
+    return video.url && !video.missing ? (
+      <video src={video.url} muted preload="metadata" tabIndex={-1} />
+    ) : (
+      <div className="wc-workspace-asset-preview-placeholder" aria-hidden="true">
+        <Film />
+      </div>
+    );
   }
   return (
-    <div className="kc-workspace-asset-preview-placeholder is-audio" aria-hidden="true">
+    <div className="wc-workspace-asset-preview-placeholder is-audio" aria-hidden="true">
       <Music2 />
       <span>{formatAudioDuration(media.durationMs)}</span>
     </div>

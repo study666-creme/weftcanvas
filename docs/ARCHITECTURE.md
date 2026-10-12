@@ -86,7 +86,7 @@ Generated media is rendered from the protected same-origin media route.
 - Native identity, wallet, and generation adapters are allowed only in
   isolated development, tests, or an explicitly self-hosted deployment. They
   are not a fallback for hosted production.
-- No Kachang credential, private model mapping, or provider response is shipped
+- No Weftcanvas credential, private model mapping, or provider response is shipped
   to the browser.
 - Catalog snapshots containing private routing ids remain in ignored server
   storage. Browser responses are reconstructed from reviewed public contracts.
@@ -104,10 +104,10 @@ Generated media is rendered from the protected same-origin media route.
 
 ## Deployment profiles
 
-| Profile | Identity and credits | Generation | Intended use |
-| --- | --- | --- | --- |
-| Official hosted | Prompt Hub, one shared ledger | Canvas API -> Prompt Hub -> provider | 托管站点域名（部署侧配置） |
-| Isolated native | Canvas-local adapters | Native worker/provider adapter | Development, tests, explicit self-hosting |
+| Profile         | Identity and credits          | Generation                           | Intended use                              |
+| --------------- | ----------------------------- | ------------------------------------ | ----------------------------------------- |
+| Official hosted | Prompt Hub, one shared ledger | Canvas API -> Prompt Hub -> provider | 托管站点域名（部署侧配置）                |
+| Isolated native | Canvas-local adapters         | Native worker/provider adapter       | Development, tests, explicit self-hosting |
 
 Selecting the isolated profile is an explicit deployment decision. The hosted
 profile must fail closed when Prompt Hub credentials or connectivity required

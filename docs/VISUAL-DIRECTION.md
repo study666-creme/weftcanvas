@@ -1,14 +1,14 @@
 # Visual Direction: Dark Creative Instrument
 
-Product name: Kachang Canvas / 卡藏画布
+Product name: Weftcanvas / 纬线画布
 
-The visual direction follows the established Kachang Canvas product language:
+The visual direction follows the established Weftcanvas product language:
 a full-screen graphite workspace, compact floating tools, clear node geometry,
 and tactile feedback without ornamental effects.
 
 ## Reference boundary
 
-The current Kachang Canvas screenshot and the owner's written interaction
+The current Weftcanvas screenshot and the owner's written interaction
 specifications are the primary product reference. They describe proportions,
 hierarchy, and behavior only. No legacy source, CSS, assets, or Git history is
 copied into this repository.

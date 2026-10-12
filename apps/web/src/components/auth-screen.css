@@ -5,7 +5,7 @@
    2026-09-06 light-theme flip would otherwise turn titles near-black on the
    dark backdrop. */
 
-.kc-auth-screen {
+.wc-auth-screen {
   position: fixed;
   inset: 0;
   z-index: 260;
@@ -26,15 +26,19 @@
     radial-gradient(90% 80% at 12% 86%, #161b1a 0%, transparent 55%),
     linear-gradient(180deg, #050607 0%, #020304 100%);
   color: var(--entry-text, #f2f4f1);
-  animation: kc-auth-in 420ms ease both;
+  animation: wc-auth-in 420ms ease both;
 }
 
-@keyframes kc-auth-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+@keyframes wc-auth-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
-.kc-auth-film {
+.wc-auth-film {
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -48,17 +52,22 @@
   pointer-events: none;
 }
 
-.kc-auth-screen.is-film .kc-auth-film { opacity: 1; }
+.wc-auth-screen.is-film .wc-auth-film {
+  opacity: 1;
+}
 
 /* 换段过渡：旧段先把画面交出去，新段再淡入，避免同一元素换 src 时的黑场。
    旧段的 opacity 由 is-switching 拉到 0（新段还没 readyState>=2，因此
    is-film 还没生效），新段 ready 后移除 is-switching 即按 900ms 淡入。 */
-.kc-auth-film.is-switching { opacity: 0; transition: opacity 260ms ease; }
+.wc-auth-film.is-switching {
+  opacity: 0;
+  transition: opacity 260ms ease;
+}
 
 /* 代表帧海报层：视频 canplay 前的静态背景（当段抽帧的轻量 webp），
    登录页首屏不为黑。与视频层同几何，DOM 在前故垫在视频底下，
    自己先 900ms 渐显，视频就绪后再在其上淡入。 */
-.kc-auth-film-poster {
+.wc-auth-film-poster {
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -71,23 +80,37 @@
   transition: opacity 900ms ease;
 }
 
-.kc-auth-film-poster.is-loaded { opacity: 1; }
+.wc-auth-film-poster.is-loaded {
+  opacity: 1;
+}
 
 /* One soft veil, three blended gradients — readability without a split. */
-.kc-auth-veil {
+.wc-auth-veil {
   position: absolute;
   inset: 0;
   z-index: 1;
   pointer-events: none;
   background:
-    linear-gradient(90deg, transparent 34%, rgb(2 3 4 / 34%) 58%, rgb(2 3 4 / 72%) 82%, rgb(2 3 4 / 86%) 100%),
-    linear-gradient(180deg, rgb(2 3 4 / 30%) 0%, transparent 22%, transparent 78%, rgb(2 3 4 / 42%) 100%),
+    linear-gradient(
+      90deg,
+      transparent 34%,
+      rgb(2 3 4 / 34%) 58%,
+      rgb(2 3 4 / 72%) 82%,
+      rgb(2 3 4 / 86%) 100%
+    ),
+    linear-gradient(
+      180deg,
+      rgb(2 3 4 / 30%) 0%,
+      transparent 22%,
+      transparent 78%,
+      rgb(2 3 4 / 42%) 100%
+    ),
     radial-gradient(64% 72% at 14% 46%, rgb(2 3 4 / 22%) 0%, transparent 70%);
 }
 
 /* --- Brand ----------------------------------------------------------------- */
 
-.kc-auth-brand {
+.wc-auth-brand {
   position: absolute;
   z-index: 3;
   top: clamp(18px, 3vh, 30px);
@@ -97,7 +120,7 @@
   gap: 10px;
 }
 
-.kc-auth-brand-mark {
+.wc-auth-brand-mark {
   display: grid;
   width: 34px;
   height: 34px;
@@ -108,35 +131,35 @@
   box-shadow: 0 7px 18px rgb(0 0 0 / 28%);
 }
 
-.kc-auth-brand-mark img {
+.wc-auth-brand-mark img {
   width: 30px;
   height: 30px;
   object-fit: contain;
 }
 
-.kc-auth-brand-copy {
+.wc-auth-brand-copy {
   display: flex;
   flex-direction: column;
   line-height: 1.18;
 }
 
-.kc-auth-brand-copy strong {
+.wc-auth-brand-copy strong {
   font-size: 13.5px;
   font-weight: 640;
-  letter-spacing: .01em;
+  letter-spacing: 0.01em;
 }
 
-.kc-auth-brand-copy small {
+.wc-auth-brand-copy small {
   font-size: 9.5px;
   font-weight: 560;
-  letter-spacing: .14em;
+  letter-spacing: 0.14em;
   color: var(--entry-faint, #6b716c);
   text-transform: uppercase;
 }
 
 /* --- Dismiss ---------------------------------------------------------------- */
 
-.kc-auth-dismiss {
+.wc-auth-dismiss {
   position: absolute;
   z-index: 3;
   top: clamp(18px, 3vh, 30px);
@@ -152,12 +175,18 @@
   font-size: 11.5px;
   font-weight: 560;
   cursor: pointer;
-  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+  transition:
+    color 140ms ease,
+    border-color 140ms ease,
+    background 140ms ease;
 }
 
-.kc-auth-dismiss svg { width: 13px; height: 13px; }
+.wc-auth-dismiss svg {
+  width: 13px;
+  height: 13px;
+}
 
-.kc-auth-dismiss:hover {
+.wc-auth-dismiss:hover {
   border-color: var(--entry-border-strong, rgb(232 238 232 / 22%));
   color: var(--entry-text, #f2f4f1);
   background: rgb(255 255 255 / 9%);
@@ -165,7 +194,7 @@
 
 /* --- Scene caption (chapter indicator, film-credit mood) --------------------- */
 
-.kc-auth-scene {
+.wc-auth-scene {
   position: absolute;
   z-index: 2;
   bottom: clamp(20px, 4vh, 36px);
@@ -175,41 +204,49 @@
   gap: 14px;
 }
 
-.kc-auth-scene-label {
+.wc-auth-scene-label {
   font-size: 11px;
   font-weight: 560;
-  letter-spacing: .42em;
+  letter-spacing: 0.42em;
   color: rgb(242 244 241 / 62%);
-  animation: kc-auth-scene-in 900ms ease both;
+  animation: wc-auth-scene-in 900ms ease both;
 }
 
-@keyframes kc-auth-scene-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes wc-auth-scene-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.kc-auth-scene-dots {
+.wc-auth-scene-dots {
   display: inline-flex;
   align-items: center;
   gap: 7px;
 }
 
-.kc-auth-scene-dots i {
+.wc-auth-scene-dots i {
   width: 4px;
   height: 4px;
   border-radius: 50%;
   background: rgb(242 244 241 / 22%);
-  transition: background 300ms ease, box-shadow 300ms ease;
+  transition:
+    background 300ms ease,
+    box-shadow 300ms ease;
 }
 
-.kc-auth-scene-dots i.is-active {
+.wc-auth-scene-dots i.is-active {
   background: #dfd7c5;
   box-shadow: 0 0 8px rgb(244 215 159 / 45%);
 }
 
 /* --- Auth panel --------------------------------------------------------------- */
 
-.kc-auth-panel {
+.wc-auth-panel {
   position: relative;
   z-index: 2;
   grid-column: 2;
@@ -223,35 +260,35 @@
   scrollbar-color: rgb(242 244 241 / 16%) transparent;
 }
 
-.kc-auth-intro {
+.wc-auth-intro {
   display: flex;
   flex-direction: column;
   gap: 6px;
   margin-bottom: 22px;
 }
 
-.kc-auth-intro > span {
+.wc-auth-intro > span {
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: .26em;
-  color: var(--entry-jade, var(--kc-accent, #a8b89a));
+  letter-spacing: 0.26em;
+  color: var(--entry-jade, var(--wc-accent, #a8b89a));
 }
 
-.kc-auth-intro > strong {
+.wc-auth-intro > strong {
   font-size: 26px;
   font-weight: 680;
   line-height: 1.22;
-  letter-spacing: -.01em;
+  letter-spacing: -0.01em;
 }
 
-.kc-auth-intro > p {
+.wc-auth-intro > p {
   margin: 0;
   font-size: 12.5px;
   line-height: 1.55;
   color: var(--entry-muted, #a6aca6);
 }
 
-.kc-auth-tabs {
+.wc-auth-tabs {
   display: inline-flex;
   width: max-content;
   padding: 3px;
@@ -264,7 +301,7 @@
 
 /* 本地开发测试账号一行：只有 API 装配了 dev 测试通道（capabilities.devTestAccount）
    才渲染，线上不存在这个入口。安静的次级行，不与主提交键抢视觉。 */
-.kc-auth-dev-account {
+.wc-auth-dev-account {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -277,14 +314,14 @@
   font-size: 11.5px;
 }
 
-.kc-auth-dev-account > svg {
+.wc-auth-dev-account > svg {
   flex: 0 0 auto;
   width: 13px;
   height: 13px;
   color: #d8cfb8;
 }
 
-.kc-auth-dev-account > span {
+.wc-auth-dev-account > span {
   min-width: 0;
   flex: 1 1 auto;
   overflow: hidden;
@@ -292,7 +329,7 @@
   white-space: nowrap;
 }
 
-.kc-auth-dev-account > button {
+.wc-auth-dev-account > button {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -305,14 +342,24 @@
   font-size: 11.5px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 140ms ease, color 140ms ease;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
 }
 
-.kc-auth-dev-account > button:hover:not(:disabled) { background: rgb(255 255 255 / 13%); }
-.kc-auth-dev-account > button:disabled { cursor: default; opacity: .55; }
-.kc-auth-dev-account > button svg { width: 12px; height: 12px; }
+.wc-auth-dev-account > button:hover:not(:disabled) {
+  background: rgb(255 255 255 / 13%);
+}
+.wc-auth-dev-account > button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.wc-auth-dev-account > button svg {
+  width: 12px;
+  height: 12px;
+}
 
-.kc-auth-tabs > button {
+.wc-auth-tabs > button {
   padding: 7px 22px;
   border: 0;
   border-radius: 8px;
@@ -321,36 +368,40 @@
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: color 140ms ease, background 140ms ease;
+  transition:
+    color 140ms ease,
+    background 140ms ease;
 }
 
-.kc-auth-tabs > button:hover { color: var(--entry-text, #f2f4f1); }
+.wc-auth-tabs > button:hover {
+  color: var(--entry-text, #f2f4f1);
+}
 
-.kc-auth-tabs > button[aria-selected="true"] {
+.wc-auth-tabs > button[aria-selected="true"] {
   color: var(--entry-text, #f2f4f1);
   background: rgb(255 255 255 / 10%);
 }
 
-.kc-auth-form {
+.wc-auth-form {
   display: flex;
   flex-direction: column;
   gap: 13px;
 }
 
-.kc-auth-form > label {
+.wc-auth-form > label {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.kc-auth-form > label > span {
+.wc-auth-form > label > span {
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: .06em;
+  letter-spacing: 0.06em;
   color: var(--entry-muted, #a6aca6);
 }
 
-.kc-auth-input-shell {
+.wc-auth-input-shell {
   display: flex;
   height: 44px;
   align-items: center;
@@ -360,23 +411,28 @@
   border-radius: 11px;
   background: rgb(10 12 12 / 68%);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 6%);
-  transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease;
 }
 
-.kc-auth-input-shell:focus-within {
+.wc-auth-input-shell:focus-within {
   border-color: rgb(255 255 255 / 30%);
   background: rgb(10 12 12 / 80%);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 9%), 0 0 0 3px rgb(255 255 255 / 5%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 9%),
+    0 0 0 3px rgb(255 255 255 / 5%);
 }
 
-.kc-auth-input-shell > svg {
+.wc-auth-input-shell > svg {
   width: 15px;
   height: 15px;
   flex: 0 0 auto;
   color: var(--entry-muted, #a6aca6);
 }
 
-.kc-auth-input-shell > input {
+.wc-auth-input-shell > input {
   flex: 1;
   min-width: 0;
   border: 0;
@@ -386,26 +442,28 @@
   font-size: 13.5px;
 }
 
-.kc-auth-input-shell > input::placeholder { color: var(--entry-faint, #6b716c); }
+.wc-auth-input-shell > input::placeholder {
+  color: var(--entry-faint, #6b716c);
+}
 
 /*
  * 浏览器自动填充（autofill）不能沿用全局规则：ui-polish.css 用的是主题令牌
- * （--kc-text / --kc-surface-muted），而登录页是**钉死的深色页**。白天模式下
+ * （--wc-text / --wc-surface-muted），而登录页是**钉死的深色页**。白天模式下
  * 那两个令牌翻成"深字 + 浅底"，Chrome 往里画的就是一个亮白方块 + 深字，
  * 与深色登录页直接打架——这就是"输入框还是浏览器原始框"的来源。
  * 这里就地钉死深底浅字（含 hover/focus 三个状态，Chrome 会给每个状态各画一次）。
  * 过渡时长用 9999s 是标准技巧：让 Chrome 那层内阴影"永远处于过渡中"而不显形。
  */
-.kc-auth-input-shell > input:-webkit-autofill,
-.kc-auth-input-shell > input:-webkit-autofill:hover,
-.kc-auth-input-shell > input:-webkit-autofill:focus {
+.wc-auth-input-shell > input:-webkit-autofill,
+.wc-auth-input-shell > input:-webkit-autofill:hover,
+.wc-auth-input-shell > input:-webkit-autofill:focus {
   -webkit-text-fill-color: var(--entry-text, #f2f4f1);
   caret-color: var(--entry-text, #f2f4f1);
   box-shadow: 0 0 0 1000px rgb(10 12 12 / 88%) inset;
   transition: background-color 9999s ease-out;
 }
 
-.kc-auth-password-toggle {
+.wc-auth-password-toggle {
   display: grid;
   width: 26px;
   height: 26px;
@@ -415,17 +473,22 @@
   color: var(--entry-faint, #6b716c);
   background: transparent;
   cursor: pointer;
-  transition: color 140ms ease, background 140ms ease;
+  transition:
+    color 140ms ease,
+    background 140ms ease;
 }
 
-.kc-auth-password-toggle svg { width: 14px; height: 14px; }
+.wc-auth-password-toggle svg {
+  width: 14px;
+  height: 14px;
+}
 
-.kc-auth-password-toggle:hover {
+.wc-auth-password-toggle:hover {
   color: var(--entry-text, #f2f4f1);
   background: rgb(255 255 255 / 8%);
 }
 
-.kc-auth-verification {
+.wc-auth-verification {
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -438,12 +501,17 @@
   line-height: 1.5;
 }
 
-.kc-auth-verification > svg { width: 14px; height: 14px; flex: 0 0 auto; margin-top: 2px; }
+.wc-auth-verification > svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
 
 /* Remember-credentials checkbox: same glass-and-ink language as the submit
    button — off state is a quiet glass square, checked state is the bright
    ivory fill with a deep ink check (no yellow accent). */
-.kc-auth-remember {
+.wc-auth-remember {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -452,7 +520,7 @@
   user-select: none;
 }
 
-.kc-auth-remember > input {
+.wc-auth-remember > input {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -460,7 +528,7 @@
   pointer-events: none;
 }
 
-.kc-auth-remember-box {
+.wc-auth-remember-box {
   display: grid;
   width: 18px;
   height: 18px;
@@ -469,62 +537,68 @@
   border: 1px solid rgb(255 255 255 / 24%);
   border-radius: 6px;
   background:
-    linear-gradient(180deg, rgb(255 255 255 / 7%), rgb(255 255 255 / 3%)),
-    rgb(10 12 12 / 40%);
+    linear-gradient(180deg, rgb(255 255 255 / 7%), rgb(255 255 255 / 3%)), rgb(10 12 12 / 40%);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%);
   color: transparent;
-  transition: border-color 160ms ease, background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
 }
 
-.kc-auth-remember-box svg {
+.wc-auth-remember-box svg {
   width: 11px;
   height: 11px;
   stroke-width: 3.2;
 }
 
-.kc-auth-remember:hover .kc-auth-remember-box {
+.wc-auth-remember:hover .wc-auth-remember-box {
   border-color: rgb(255 255 255 / 42%);
   background:
-    linear-gradient(180deg, rgb(255 255 255 / 10%), rgb(255 255 255 / 4%)),
-    rgb(10 12 12 / 40%);
+    linear-gradient(180deg, rgb(255 255 255 / 10%), rgb(255 255 255 / 4%)), rgb(10 12 12 / 40%);
 }
 
-.kc-auth-remember > input:checked + .kc-auth-remember-box {
+.wc-auth-remember > input:checked + .wc-auth-remember-box {
   border-color: rgb(244 246 242 / 90%);
   background: linear-gradient(180deg, #ffffff 0%, #eef0ec 100%);
   color: #191b19;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 90%), 0 2px 10px rgb(0 0 0 / 30%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 90%),
+    0 2px 10px rgb(0 0 0 / 30%);
 }
 
-.kc-auth-remember > input:focus-visible + .kc-auth-remember-box {
+.wc-auth-remember > input:focus-visible + .wc-auth-remember-box {
   border-color: rgb(255 255 255 / 60%);
   box-shadow: 0 0 0 3px rgb(255 255 255 / 12%);
 }
 
-.kc-auth-remember-text {
+.wc-auth-remember-text {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   font-size: 11.5px;
-  letter-spacing: .015em;
+  letter-spacing: 0.015em;
   color: var(--entry-muted, #a6aca6);
   transition: color 140ms ease;
 }
 
-.kc-auth-remember-text svg {
+.wc-auth-remember-text svg {
   width: 12px;
   height: 12px;
-  opacity: .55;
+  opacity: 0.55;
   transition: opacity 140ms ease;
 }
 
-.kc-auth-remember:hover .kc-auth-remember-text {
+.wc-auth-remember:hover .wc-auth-remember-text {
   color: var(--entry-text, #f2f4f1);
 }
 
-.kc-auth-remember:hover .kc-auth-remember-text svg { opacity: .8; }
+.wc-auth-remember:hover .wc-auth-remember-text svg {
+  opacity: 0.8;
+}
 
-.kc-auth-error {
+.wc-auth-error {
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -537,9 +611,14 @@
   line-height: 1.5;
 }
 
-.kc-auth-error > svg { width: 14px; height: 14px; flex: 0 0 auto; margin-top: 2px; }
+.wc-auth-error > svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
 
-.kc-auth-submit {
+.wc-auth-submit {
   display: flex;
   height: 47px;
   align-items: center;
@@ -553,17 +632,46 @@
   font-size: 13.5px;
   font-weight: 670;
   cursor: pointer;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 80%), 0 10px 28px rgb(0 0 0 / 34%);
-  transition: opacity 120ms ease, transform 90ms ease, background 140ms ease;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 80%),
+    0 10px 28px rgb(0 0 0 / 34%);
+  transition:
+    opacity 120ms ease,
+    transform 90ms ease,
+    background 140ms ease;
 }
 
-.kc-auth-submit:hover:not(:disabled) { opacity: .9; background: #ffffff; }
-.kc-auth-submit:active:not(:disabled) { transform: scale(.985); }
-.kc-auth-submit:disabled { opacity: .38; cursor: default; }
-.kc-auth-submit svg { width: 16px; height: 16px; }
+.wc-auth-submit:hover:not(:disabled) {
+  opacity: 0.9;
+  background: #ffffff;
+}
+.wc-auth-submit:active:not(:disabled) {
+  transform: scale(0.985);
+}
+.wc-auth-submit:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+.wc-auth-submit svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* 游客访问：与登录按钮同权重的描边变体（mandatory 首屏）。 */
+.wc-auth-submit.wc-auth-submit--guest {
+  width: 100%;
+  color: #f2f4f0;
+  background: rgb(242 244 238 / 6%);
+  border-color: rgb(242 244 238 / 26%);
+  box-shadow: none;
+}
+.wc-auth-submit.wc-auth-submit--guest:hover:not(:disabled) {
+  opacity: 1;
+  background: rgb(242 244 238 / 12%);
+}
 
 /* Password-reset / external links: quiet text buttons, no underline clutter. */
-.kc-auth-external {
+.wc-auth-external {
   display: flex;
   flex-direction: column;
   gap: 7px;
@@ -571,9 +679,12 @@
   color: var(--entry-muted, #a6aca6);
 }
 
-.kc-auth-external div { display: flex; gap: 18px; }
+.wc-auth-external div {
+  display: flex;
+  gap: 18px;
+}
 
-.kc-auth-link {
+.wc-auth-link {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -585,24 +696,28 @@
   transition: color 140ms ease;
 }
 
-.kc-auth-link:hover { color: var(--entry-text, #f2f4f1); }
+.wc-auth-link:hover {
+  color: var(--entry-text, #f2f4f1);
+}
 
-.kc-auth-link svg {
+.wc-auth-link svg {
   width: 10px;
   height: 10px;
-  opacity: .55;
+  opacity: 0.55;
   transition: opacity 140ms ease;
 }
 
-.kc-auth-link:hover svg { opacity: .9; }
+.wc-auth-link:hover svg {
+  opacity: 0.9;
+}
 
-.kc-auth-note {
+.wc-auth-note {
   margin: 0;
   font-size: 11.5px;
   color: var(--entry-muted, #a6aca6);
 }
 
-.kc-auth-retry {
+.wc-auth-retry {
   align-self: flex-start;
   padding: 0;
   border: 0;
@@ -612,22 +727,29 @@
   cursor: pointer;
 }
 
-.kc-auth-retry:hover { color: var(--entry-text, #f2f4f1); }
+.wc-auth-retry:hover {
+  color: var(--entry-text, #f2f4f1);
+}
 
 /* --- Narrow viewport: form centers, veil becomes a vertical fade -------------- */
 
 @media (max-width: 860px) {
-  .kc-auth-screen {
+  .wc-auth-screen {
     grid-template-columns: 1fr;
     justify-items: center;
   }
 
-  .kc-auth-veil {
-    background:
-      linear-gradient(180deg, rgb(2 3 4 / 26%) 0%, transparent 26%, rgb(2 3 4 / 52%) 62%, rgb(2 3 4 / 86%) 100%);
+  .wc-auth-veil {
+    background: linear-gradient(
+      180deg,
+      rgb(2 3 4 / 26%) 0%,
+      transparent 26%,
+      rgb(2 3 4 / 52%) 62%,
+      rgb(2 3 4 / 86%) 100%
+    );
   }
 
-  .kc-auth-panel {
+  .wc-auth-panel {
     grid-column: 1;
     grid-row: 1;
     width: min(430px, calc(100vw - 36px));
@@ -637,24 +759,20 @@
     padding-top: 0;
   }
 
-  .kc-auth-scene { display: none; }
+  .wc-auth-scene {
+    display: none;
+  }
 }
 
 @media (max-width: 480px) {
-  .kc-auth-intro > strong { font-size: 22px; }
+  .wc-auth-intro > strong {
+    font-size: 22px;
+  }
 }
 
-/* --- Start gate (「开启创作」) ---------------------------------------------- */
+/* --- Guest access link (「游客访问」，mandatory 首屏登录页下方) ---------------- */
 
-.kc-auth-start {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.kc-auth-start .kc-auth-intro { margin-bottom: 10px; }
-
-.kc-auth-start-login {
+.wc-auth-start-login {
   align-self: flex-start;
   padding: 2px 0;
   border: 0;
@@ -665,22 +783,31 @@
   transition: color 140ms ease;
 }
 
-.kc-auth-start-login:hover { color: #f2f4f0; }
+.wc-auth-start-login:hover {
+  color: #f2f4f0;
+}
 
 /* Reduced motion: skip the entrance and scene animations, keep the film. */
 @media (prefers-reduced-motion: reduce) {
-  .kc-auth-screen,
-  .kc-auth-scene-label { animation: none; }
-  .kc-auth-film { transition: none; opacity: 1; }
-  .kc-auth-film-poster { transition: none; }
+  .wc-auth-screen,
+  .wc-auth-scene-label {
+    animation: none;
+  }
+  .wc-auth-film {
+    transition: none;
+    opacity: 1;
+  }
+  .wc-auth-film-poster {
+    transition: none;
+  }
 }
 
 /* While the immersive auth screen is up, freeze every decorative animation on
    the covered page so the GPU only serves the film layer. */
-body:has(.kc-auth-screen) .kc-app .kc-entry-hero-stars,
-body:has(.kc-auth-screen) .kc-app .kc-entry-hero-glow,
-body:has(.kc-auth-screen) .kc-app .kc-entry-hero-media,
-body:has(.kc-auth-screen) .kc-app canvas,
-body:has(.kc-auth-screen) .kc-app .kc-workspace {
+body:has(.wc-auth-screen) .wc-app .wc-entry-hero-stars,
+body:has(.wc-auth-screen) .wc-app .wc-entry-hero-glow,
+body:has(.wc-auth-screen) .wc-app .wc-entry-hero-media,
+body:has(.wc-auth-screen) .wc-app canvas,
+body:has(.wc-auth-screen) .wc-app .wc-workspace {
   animation-play-state: paused !important;
 }

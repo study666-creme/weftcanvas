@@ -5,10 +5,14 @@ import { S3MediaObjectStore } from "./s3-object-store.js";
 import type { MediaObjectStore } from "./types.js";
 import { supportsMediaStoreMaintenance } from "./types.js";
 
-export function createMediaObjectStore(environment: NodeJS.ProcessEnv = process.env): MediaObjectStore {
+export function createMediaObjectStore(
+  environment: NodeJS.ProcessEnv = process.env,
+): MediaObjectStore {
   const driver = environment.MEDIA_STORAGE_DRIVER?.trim().toLowerCase() || "filesystem";
   if (driver === "filesystem") {
-    return new FilesystemMediaObjectStore(resolve(environment.MEDIA_STORAGE_PATH || ".data/media-objects"));
+    return new FilesystemMediaObjectStore(
+      resolve(environment.MEDIA_STORAGE_PATH || ".data/media-objects"),
+    );
   }
   if (driver !== "s3") throw new Error("MEDIA_STORAGE_DRIVER must be filesystem or s3");
   return new S3MediaObjectStore({
@@ -23,10 +27,20 @@ export function createMediaObjectStore(environment: NodeJS.ProcessEnv = process.
     temporaryDirectory: optional(environment, "S3_TEMP_PATH"),
     uploadTtlSeconds: optionalInteger(environment, "S3_UPLOAD_TTL_SECONDS", 60, 60 * 60),
     downloadTtlSeconds: optionalInteger(environment, "S3_DOWNLOAD_TTL_SECONDS", 30, 60 * 60),
-    maxMaterializedBytes: optionalInteger(environment, "S3_MAX_MATERIALIZED_BYTES", 1, Number.MAX_SAFE_INTEGER),
+    maxMaterializedBytes: optionalInteger(
+      environment,
+      "S3_MAX_MATERIALIZED_BYTES",
+      1,
+      Number.MAX_SAFE_INTEGER,
+    ),
     // 存储成片不可达时快速失败：故障期间避免每个请求各等满一次连接超时。
     // 阈值设得足够高即等于关闭该行为。
-    transportFailureThreshold: optionalInteger(environment, "S3_TRANSPORT_FAILURE_THRESHOLD", 1, 100),
+    transportFailureThreshold: optionalInteger(
+      environment,
+      "S3_TRANSPORT_FAILURE_THRESHOLD",
+      1,
+      100,
+    ),
     transportFailureCooldownMs: optionalSeconds(
       environment,
       "S3_TRANSPORT_FAILURE_COOLDOWN_SECONDS",
@@ -36,7 +50,10 @@ export function createMediaObjectStore(environment: NodeJS.ProcessEnv = process.
   });
 }
 
-export async function maintainMediaObjectStore(store: MediaObjectStore, olderThanMs = 24 * 60 * 60_000) {
+export async function maintainMediaObjectStore(
+  store: MediaObjectStore,
+  olderThanMs = 24 * 60 * 60_000,
+) {
   if (!supportsMediaStoreMaintenance(store)) return 0;
   return store.cleanupTemporaryFiles(olderThanMs);
 }

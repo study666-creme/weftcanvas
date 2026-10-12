@@ -1,4 +1,4 @@
-import type { CanvasMedia } from "@kachang/contracts";
+import type { CanvasMedia } from "@weftcanvas/contracts";
 
 import { deleteServerMedia } from "./api-client";
 import { removeMedia } from "./media-store";

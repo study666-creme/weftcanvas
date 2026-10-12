@@ -1,4 +1,4 @@
-import type { CanvasNodeKind } from "@kachang/contracts";
+import type { CanvasNodeKind } from "@weftcanvas/contracts";
 
 import { listCreatableNodes } from "./node-registry";
 import "./builtin-nodes";
@@ -16,7 +16,7 @@ export { CLIP_EDITOR_AVAILABLE } from "./builtin-nodes";
 
 /**
  * 插件本地开发装载路径（docs/PLUGIN-ROADMAP.md §6 P3）：构建时以
- * VITE_PLUGIN_DEV=1 打开。打开后暴露 window.__kachangPluginHost 调试钩子
+ * VITE_PLUGIN_DEV=1 打开。打开后暴露 window.__weftcanvasPluginHost 调试钩子
  * （装/卸演练用）；正式装载仍只走随包 chunk，不做 URL 远程加载。
  */
 export const PLUGIN_DEV = import.meta.env.VITE_PLUGIN_DEV === "1";

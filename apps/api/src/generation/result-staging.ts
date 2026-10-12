@@ -12,7 +12,10 @@ const providerUsageSchema = z.object({
 const stagedImageSourceSchema = z.discriminatedUnion("source", [
   z.object({
     source: z.literal("url"),
-    url: z.string().url().refine((value) => value.startsWith("https://") || value.startsWith("http://")),
+    url: z
+      .string()
+      .url()
+      .refine((value) => value.startsWith("https://") || value.startsWith("http://")),
     revisedPrompt: z.string().optional(),
   }),
   z.object({
@@ -37,7 +40,11 @@ export const stagedGenerationResultSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("video"),
     taskId: z.string().min(1),
-    url: z.string().url().max(4096).refine((value) => value.startsWith("https://") || value.startsWith("http://")),
+    url: z
+      .string()
+      .url()
+      .max(4096)
+      .refine((value) => value.startsWith("https://") || value.startsWith("http://")),
   }),
 ]);
 export type StagedGenerationResult = z.infer<typeof stagedGenerationResultSchema>;
@@ -81,7 +88,8 @@ export class JsonGenerationResultStagingStore implements GenerationResultStaging
       createdAt: new Date(this.now()).toISOString(),
     });
     const serialized = JSON.stringify(record);
-    if (Buffer.byteLength(serialized) > this.maxRecordBytes) throw new Error("Staged generation result is too large");
+    if (Buffer.byteLength(serialized) > this.maxRecordBytes)
+      throw new Error("Staged generation result is too large");
     await mkdir(this.directory, { recursive: true });
     const target = this.filePath(id);
     const temporary = `${target}.${process.pid}.tmp`;
@@ -99,7 +107,8 @@ export class JsonGenerationResultStagingStore implements GenerationResultStaging
     const id = parseReference(reference);
     const target = this.filePath(id);
     const metadata = await stat(target);
-    if (metadata.size > this.maxRecordBytes) throw new Error("Staged generation result is too large");
+    if (metadata.size > this.maxRecordBytes)
+      throw new Error("Staged generation result is too large");
     return stagedGenerationRecordSchema.parse(JSON.parse(await readFile(target, "utf8")));
   }
 

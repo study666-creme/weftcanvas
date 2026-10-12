@@ -4,16 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#111212" />
-    <link rel="icon" type="image/png" href="/kachang-logo-ui.png" />
-    <link rel="apple-touch-icon" href="/kachang-logo-ui.png" />
-    <title>卡藏画布</title>
+    <link rel="icon" type="image/png" href="/weftcanvas-logo-ui.png" />
+    <link rel="apple-touch-icon" href="/weftcanvas-logo-ui.png" />
+    <title>纬线画布</title>
     <script>
       // 与 src/lib/theme-schedule.ts 同一套规则：默认按时间自动（08:00 白天 /
       // 19:00 黑夜），用户手动切换过（manual）则粘住自选主题，不跟日程。
       // 引导脚本先行计算，避免 React 挂载前的闪色。
       try {
-        const mode = localStorage.getItem("kachang-canvas:theme-mode");
-        const stored = localStorage.getItem("kachang-canvas:theme");
+        const mode = localStorage.getItem("weftcanvas:theme-mode");
+        const stored = localStorage.getItem("weftcanvas:theme");
         let theme = "dark";
         if (mode === "manual" && (stored === "dark" || stored === "light")) {
           theme = stored;
@@ -53,12 +53,14 @@
       body {
         overflow: hidden;
         background: inherit;
-        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC",
+          "Microsoft YaHei", sans-serif;
         letter-spacing: 0;
       }
 
-      .kc-bootstrap-screen,
-      .kc-startup-error {
+      .wc-bootstrap-screen,
+      .wc-startup-error {
         position: fixed;
         inset: 0;
         box-sizing: border-box;
@@ -69,25 +71,25 @@
         background: #141515;
       }
 
-      html[data-theme="light"] :is(.kc-bootstrap-screen, .kc-startup-error) {
+      html[data-theme="light"] :is(.wc-bootstrap-screen, .wc-startup-error) {
         --bs-ink: #202422;
         color: #202422;
         background: #e7e8e5;
       }
 
-      .kc-bootstrap-screen {
+      .wc-bootstrap-screen {
         grid-template-rows: auto 1fr auto;
         padding: 40px 56px 36px;
       }
 
-      .kc-bootstrap-brand {
+      .wc-bootstrap-brand {
         display: inline-flex;
         width: fit-content;
         align-items: center;
         gap: 10px;
       }
 
-      .kc-bootstrap-mark {
+      .wc-bootstrap-mark {
         display: grid;
         width: 30px;
         height: 30px;
@@ -99,36 +101,36 @@
         background: color-mix(in srgb, var(--bs-ink) 5%, transparent);
       }
 
-      .kc-bootstrap-mark img {
+      .wc-bootstrap-mark img {
         display: block;
         width: 100%;
         height: 100%;
         object-fit: cover;
       }
 
-      .kc-bootstrap-brand > span:last-child,
-      .kc-bootstrap-status > span:last-child {
+      .wc-bootstrap-brand > span:last-child,
+      .wc-bootstrap-status > span:last-child {
         display: grid;
         gap: 3px;
       }
 
-      .kc-bootstrap-brand strong,
-      .kc-bootstrap-status strong {
+      .wc-bootstrap-brand strong,
+      .wc-bootstrap-status strong {
         font-size: 12px;
         font-weight: 600;
         line-height: 1.2;
       }
 
-      .kc-bootstrap-brand small,
-      .kc-bootstrap-status small,
-      .kc-bootstrap-meta,
-      .kc-bootstrap-eyebrow {
+      .wc-bootstrap-brand small,
+      .wc-bootstrap-status small,
+      .wc-bootstrap-meta,
+      .wc-bootstrap-eyebrow {
         color: #858c88;
         font-size: 10px;
         line-height: 1.35;
       }
 
-      .kc-bootstrap-content {
+      .wc-bootstrap-content {
         display: grid;
         width: min(560px, 100%);
         margin: auto;
@@ -137,29 +139,30 @@
         text-align: center;
       }
 
-      .kc-bootstrap-eyebrow {
+      .wc-bootstrap-eyebrow {
         color: color-mix(in srgb, var(--bs-ink) 46%, transparent);
-        font-family: ui-monospace, "Cascadia Mono", "JetBrains Mono", "SF Mono", Consolas, monospace;
-        letter-spacing: .3em;
+        font-family:
+          ui-monospace, "Cascadia Mono", "JetBrains Mono", "SF Mono", Consolas, monospace;
+        letter-spacing: 0.3em;
         text-transform: uppercase;
       }
 
-      .kc-bootstrap-title-row {
+      .wc-bootstrap-title-row {
         display: flex;
         align-items: baseline;
         justify-content: center;
         gap: 18px;
       }
 
-      .kc-bootstrap-title-row h1 {
+      .wc-bootstrap-title-row h1 {
         margin: 0;
         font-size: clamp(30px, 4.6vw, 46px);
         font-weight: 280;
-        letter-spacing: .12em;
+        letter-spacing: 0.12em;
         line-height: 1.15;
       }
 
-      .kc-bootstrap-progress {
+      .wc-bootstrap-progress {
         position: relative;
         width: min(420px, 100%);
         height: 1px;
@@ -167,15 +170,15 @@
         background: color-mix(in srgb, var(--bs-ink) 12%, transparent);
       }
 
-      .kc-bootstrap-progress::after {
+      .wc-bootstrap-progress::after {
         position: absolute;
         inset: 0;
         content: "";
         background: linear-gradient(90deg, transparent, var(--bs-ink), transparent);
-        animation: kc-bootstrap-sweep 1.4s ease-in-out infinite;
+        animation: wc-bootstrap-sweep 1.4s ease-in-out infinite;
       }
 
-      .kc-bootstrap-status {
+      .wc-bootstrap-status {
         display: flex;
         min-height: 32px;
         align-items: center;
@@ -183,55 +186,56 @@
         gap: 10px;
       }
 
-      .kc-bootstrap-status::before {
+      .wc-bootstrap-status::before {
         width: 6px;
         height: 6px;
         flex: 0 0 6px;
         border-radius: 50%;
         background: color-mix(in srgb, var(--bs-ink) 70%, transparent);
         content: "";
-        animation: kc-bootstrap-pulse 900ms ease-in-out infinite alternate;
+        animation: wc-bootstrap-pulse 900ms ease-in-out infinite alternate;
       }
 
-      .kc-bootstrap-meta {
+      .wc-bootstrap-meta {
         display: flex;
         justify-content: center;
         gap: 10px;
         color: color-mix(in srgb, var(--bs-ink) 34%, transparent);
-        font-family: ui-monospace, "Cascadia Mono", "JetBrains Mono", "SF Mono", Consolas, monospace;
+        font-family:
+          ui-monospace, "Cascadia Mono", "JetBrains Mono", "SF Mono", Consolas, monospace;
         font-size: 9px;
-        letter-spacing: .18em;
+        letter-spacing: 0.18em;
         text-transform: uppercase;
       }
 
-      .kc-startup-error {
+      .wc-startup-error {
         place-items: center;
         padding: 24px;
       }
 
-      .kc-startup-error > div {
+      .wc-startup-error > div {
         display: grid;
         width: min(420px, 100%);
         gap: 12px;
       }
 
-      .kc-startup-error h1,
-      .kc-startup-error p {
+      .wc-startup-error h1,
+      .wc-startup-error p {
         margin: 0;
       }
 
-      .kc-startup-error h1 {
+      .wc-startup-error h1 {
         font-size: 22px;
         font-weight: 600;
       }
 
-      .kc-startup-error p {
+      .wc-startup-error p {
         color: #858c88;
         font-size: 12px;
         line-height: 1.6;
       }
 
-      .kc-startup-error button {
+      .wc-startup-error button {
         width: fit-content;
         min-height: 36px;
         padding: 0 14px;
@@ -243,44 +247,67 @@
         cursor: pointer;
       }
 
-      @keyframes kc-bootstrap-sweep {
-        from { transform: translateX(-100%); }
-        to { transform: translateX(100%); }
+      @keyframes wc-bootstrap-sweep {
+        from {
+          transform: translateX(-100%);
+        }
+        to {
+          transform: translateX(100%);
+        }
       }
 
-      @keyframes kc-bootstrap-pulse {
-        from { opacity: .45; }
-        to { opacity: 1; }
+      @keyframes wc-bootstrap-pulse {
+        from {
+          opacity: 0.45;
+        }
+        to {
+          opacity: 1;
+        }
       }
 
       @media (max-width: 760px) {
-        .kc-bootstrap-screen { padding: 24px 22px 26px; }
-        .kc-bootstrap-content { margin-bottom: 14vh; }
-        .kc-bootstrap-title-row h1 { font-size: 24px; }
+        .wc-bootstrap-screen {
+          padding: 24px 22px 26px;
+        }
+        .wc-bootstrap-content {
+          margin-bottom: 14vh;
+        }
+        .wc-bootstrap-title-row h1 {
+          font-size: 24px;
+        }
       }
 
       @media (prefers-reduced-motion: reduce) {
-        .kc-bootstrap-progress::after,
-        .kc-bootstrap-status::before { animation: none; }
+        .wc-bootstrap-progress::after,
+        .wc-bootstrap-status::before {
+          animation: none;
+        }
       }
     </style>
   </head>
   <body>
     <div id="root">
-      <section class="kc-bootstrap-screen" role="status" aria-label="正在打开卡藏画布" aria-busy="true">
-        <header class="kc-bootstrap-brand">
-          <span class="kc-bootstrap-mark"><img src="/kachang-logo-ui.webp" alt="" aria-hidden="true" /></span>
-          <span><strong>卡藏画布</strong><small>Kachang Canvas</small></span>
+      <section
+        class="wc-bootstrap-screen"
+        role="status"
+        aria-label="正在打开纬线画布"
+        aria-busy="true"
+      >
+        <header class="wc-bootstrap-brand">
+          <span class="wc-bootstrap-mark"
+            ><img src="/weftcanvas-logo-ui.webp" alt="" aria-hidden="true"
+          /></span>
+          <span><strong>纬线画布</strong><small>Weftcanvas</small></span>
         </header>
-        <div class="kc-bootstrap-content">
-          <span class="kc-bootstrap-eyebrow">工作区 / 启动画布</span>
-          <div class="kc-bootstrap-title-row"><h1>正在打开画布</h1></div>
-          <div class="kc-bootstrap-progress" role="progressbar" aria-label="画布启动进度"></div>
-          <div class="kc-bootstrap-status">
+        <div class="wc-bootstrap-content">
+          <span class="wc-bootstrap-eyebrow">工作区 / 启动画布</span>
+          <div class="wc-bootstrap-title-row"><h1>正在打开画布</h1></div>
+          <div class="wc-bootstrap-progress" role="progressbar" aria-label="画布启动进度"></div>
+          <div class="wc-bootstrap-status">
             <span><strong>载入画布运行时</strong><small>正在准备本地项目与创作能力</small></span>
           </div>
         </div>
-        <footer class="kc-bootstrap-meta"><span>本地工作区</span><span>正在连接</span></footer>
+        <footer class="wc-bootstrap-meta"><span>本地工作区</span><span>正在连接</span></footer>
       </section>
     </div>
     <script type="module" src="/src/main.tsx"></script>

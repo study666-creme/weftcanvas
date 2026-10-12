@@ -1,4 +1,4 @@
-import type { ModelModality, ModelParameter, PublicModel } from "@kachang/contracts";
+import type { ModelModality, ModelParameter, PublicModel } from "@weftcanvas/contracts";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -25,7 +25,15 @@ describe("generation parameter groups", () => {
 
     expect(names(groups.quickParameters)).toEqual(["aspect_ratio", "resolution", "quality"]);
     expect(names(groups.moreParameters)).toEqual(["seed", "mask"]);
-    expect(names(model.parameters)).toEqual(["prompt", "model", "quality", "seed", "resolution", "aspect_ratio", "mask"]);
+    expect(names(model.parameters)).toEqual([
+      "prompt",
+      "model",
+      "quality",
+      "seed",
+      "resolution",
+      "aspect_ratio",
+      "mask",
+    ]);
   });
 
   it.each([
@@ -48,7 +56,10 @@ describe("generation parameter groups", () => {
       more: [],
     },
   ])("applies $modality parameter priority", ({ modality, parameters, quick, more }) => {
-    const model = createModel(modality, parameters.map((name) => parameter(name)));
+    const model = createModel(
+      modality,
+      parameters.map((name) => parameter(name)),
+    );
 
     const groups = partitionGenerationParameters(model);
 
@@ -73,7 +84,10 @@ describe("generation parameter groups", () => {
   });
 
   it("always keeps unrecognized parameters in more settings", () => {
-    const model = createModel("image", [parameter("seed", "integer"), parameter("enhance", "boolean")]);
+    const model = createModel("image", [
+      parameter("seed", "integer"),
+      parameter("enhance", "boolean"),
+    ]);
 
     expect(partitionGenerationParameters(model)).toEqual({
       quickParameters: [],
@@ -86,7 +100,10 @@ describe("generation parameter groups", () => {
       parameter("resolution", "string", { default: "1k", options: ["1k", "2k", "4k"] }),
       parameter("size", "string", { label: "像素尺寸或兼容比例", options: ["1k", "2k", "4k"] }),
       parameter("aspect_ratio", "string", { default: "auto", options: ["auto", "16:9"] }),
-      parameter("aspectRatio", "string", { label: "画面比例（兼容别名）", options: ["auto", "16:9"] }),
+      parameter("aspectRatio", "string", {
+        label: "画面比例（兼容别名）",
+        options: ["auto", "16:9"],
+      }),
       parameter("ratio", "string", { label: "画面比例（兼容别名）", options: ["auto", "16:9"] }),
       parameter("quality", "string", { default: "standard", options: ["low", "standard", "high"] }),
     ]);
@@ -230,13 +247,19 @@ describe("generation parameter groups", () => {
     model.input.images = { min: 0, max: 9, multiple: true };
 
     const groups = partitionGenerationParameters(model);
-    expect(names(groups.quickParameters)).toEqual(["duration_seconds", "aspect_ratio", "resolution"]);
+    expect(names(groups.quickParameters)).toEqual([
+      "duration_seconds",
+      "aspect_ratio",
+      "resolution",
+    ]);
     expect(groups.moreParameters).toEqual([]);
     expect(defaultModelParameters(model)).toEqual({ duration_seconds: 4, aspect_ratio: "16:9" });
-    expect(composeModelParameters(model, "人物自然转身", {
-      duration_seconds: 15,
-      aspect_ratio: "9:16",
-    })).toEqual({
+    expect(
+      composeModelParameters(model, "人物自然转身", {
+        duration_seconds: 15,
+        aspect_ratio: "9:16",
+      }),
+    ).toEqual({
       model: "S-2.0-9图版",
       prompt: "人物自然转身",
       duration_seconds: 15,
@@ -262,11 +285,27 @@ function compatibilityVideoModel(): PublicModel {
       parameter("model", "string", { label: "模型", required: true, fixed: id }),
       parameter("prompt", "string", { label: "提示词", required: true }),
       parameter("seconds", "integer", { label: "时长（秒）", required: true, min: 4, max: 15 }),
-      parameter("size", "string", { label: "画面尺寸", required: true, options: ["1280x720", "720x1280"] }),
-      parameter("aspect_ratio", "string", { label: "画面比例", required: true, options: ["16:9", "9:16"] }),
+      parameter("size", "string", {
+        label: "画面尺寸",
+        required: true,
+        options: ["1280x720", "720x1280"],
+      }),
+      parameter("aspect_ratio", "string", {
+        label: "画面比例",
+        required: true,
+        options: ["16:9", "9:16"],
+      }),
       parameter("duration", "integer", { label: "时长兼容字段（秒）", min: 4, max: 15 }),
-      parameter("resolution", "string", { label: "画面尺寸兼容字段", default: "720p", options: ["720p"] }),
-      parameter("ratio", "string", { label: "画面比例兼容字段", default: "16:9", options: ["16:9", "9:16"] }),
+      parameter("resolution", "string", {
+        label: "画面尺寸兼容字段",
+        default: "720p",
+        options: ["720p"],
+      }),
+      parameter("ratio", "string", {
+        label: "画面比例兼容字段",
+        default: "16:9",
+        options: ["16:9", "9:16"],
+      }),
       parameter("n", "integer", { label: "生成数量", fixed: 1 }),
       parameter("async", "boolean", { label: "异步任务", fixed: true }),
     ],
@@ -294,7 +333,12 @@ function createModel(modality: ModelModality, parameters: ModelParameter[]): Pub
     parameters,
     pricing: {
       mode: "fixed",
-      unit: modality === "video" || modality === "audio" ? "second" : modality === "text" ? "token" : "image",
+      unit:
+        modality === "video" || modality === "audio"
+          ? "second"
+          : modality === "text"
+            ? "token"
+            : "image",
       currency: "CNY",
       creditsPerYuan: 100,
       baseCreditMicros: 1_000_000,

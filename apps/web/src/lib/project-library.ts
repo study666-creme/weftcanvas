@@ -1,5 +1,5 @@
-import { createId } from "@kachang/canvas-core";
-import { canvasProjectSchema, type CanvasProject } from "@kachang/contracts";
+import { createId } from "@weftcanvas/canvas-core";
+import { canvasProjectSchema, type CanvasProject } from "@weftcanvas/contracts";
 
 import {
   ACTIVE_PROJECT_STORAGE_KEY,
@@ -11,8 +11,8 @@ import {
 export { ACTIVE_PROJECT_STORAGE_KEY, PROJECT_LIBRARY_INDEX_KEY } from "./project-summary-storage";
 export type { ProjectSummary } from "./project-summary-storage";
 
-export const LEGACY_PROJECT_STORAGE_KEY = "kachang-canvas:project:v1";
-const PROJECT_KEY_PREFIX = "kachang-canvas:project-data:v1:";
+export const LEGACY_PROJECT_STORAGE_KEY = "weftcanvas:project:v1";
+const PROJECT_KEY_PREFIX = "weftcanvas:project-data:v1:";
 
 /**
  * Imported project files are bounded before parsing. Ordinary authored
@@ -22,10 +22,12 @@ const PROJECT_KEY_PREFIX = "kachang-canvas:project-data:v1:";
 export const PROJECT_IMPORT_MAX_BYTES = 4 * 1024 * 1024;
 
 export type ProjectImportOutcome =
-  | { ok: true; project: CanvasProject }
-  | { ok: false; reason: "too-large" | "parse" | "invalid" };
+  { ok: true; project: CanvasProject } | { ok: false; reason: "too-large" | "parse" | "invalid" };
 
-export function parseProjectImportText(text: string, maxBytes = PROJECT_IMPORT_MAX_BYTES): ProjectImportOutcome {
+export function parseProjectImportText(
+  text: string,
+  maxBytes = PROJECT_IMPORT_MAX_BYTES,
+): ProjectImportOutcome {
   if (typeof text !== "string" || text.length > maxBytes) return { ok: false, reason: "too-large" };
   let value: unknown;
   try {
@@ -53,9 +55,10 @@ export function loadProjectLibrary(storage: StorageLike = localStorage) {
   const summaries = sortSummaries(projects.map(projectSummary));
   persistIndex(storage, summaries);
   const requestedActiveId = storage.getItem(ACTIVE_PROJECT_STORAGE_KEY);
-  const activeProject = projects.find((project) => project.id === requestedActiveId)
-    ?? projects.find((project) => project.id === summaries[0]?.id)
-    ?? null;
+  const activeProject =
+    projects.find((project) => project.id === requestedActiveId) ??
+    projects.find((project) => project.id === summaries[0]?.id) ??
+    null;
   if (activeProject) storage.setItem(ACTIVE_PROJECT_STORAGE_KEY, activeProject.id);
   return { projects: summaries, activeProject };
 }
@@ -68,7 +71,11 @@ export function readAllProjects(storage: StorageLike = localStorage) {
   return readIndexedProjects(storage);
 }
 
-export function writeProject(project: CanvasProject, storage: StorageLike = localStorage, makeActive = true) {
+export function writeProject(
+  project: CanvasProject,
+  storage: StorageLike = localStorage,
+  makeActive = true,
+) {
   storage.setItem(projectStorageKey(project.id), JSON.stringify(project));
   const summaries = readProjectSummaryIndex(storage).filter((item) => item.id !== project.id);
   persistIndex(storage, sortSummaries([...summaries, projectSummary(project)]));
@@ -80,7 +87,8 @@ export function removeProject(projectId: string, storage: StorageLike = localSto
   storage.removeItem(projectStorageKey(projectId));
   const next = readProjectSummaryIndex(storage).filter((item) => item.id !== projectId);
   persistIndex(storage, next);
-  if (storage.getItem(ACTIVE_PROJECT_STORAGE_KEY) === projectId) storage.removeItem(ACTIVE_PROJECT_STORAGE_KEY);
+  if (storage.getItem(ACTIVE_PROJECT_STORAGE_KEY) === projectId)
+    storage.removeItem(ACTIVE_PROJECT_STORAGE_KEY);
   return next;
 }
 
@@ -111,7 +119,11 @@ export function collectProjectMediaIds(projects: CanvasProject[]) {
   return ids;
 }
 
-export function duplicateProjectSnapshot(project: CanvasProject, name: string, now = Date.now()): CanvasProject {
+export function duplicateProjectSnapshot(
+  project: CanvasProject,
+  name: string,
+  now = Date.now(),
+): CanvasProject {
   const nodeIds = new Map(project.nodes.map((node) => [node.id, createId("node")]));
   return canvasProjectSchema.parse({
     ...structuredClone(project),
@@ -127,7 +139,9 @@ export function duplicateProjectSnapshot(project: CanvasProject, name: string, n
         progress: null,
         generation: {
           ...structuredClone(node.data.generation),
-          referenceNodeIds: node.data.generation.referenceNodeIds.flatMap((id) => nodeIds.get(id) ?? []),
+          referenceNodeIds: node.data.generation.referenceNodeIds.flatMap(
+            (id) => nodeIds.get(id) ?? [],
+          ),
           jobId: null,
           jobVersion: null,
           jobCreatedAt: null,
@@ -141,17 +155,23 @@ export function duplicateProjectSnapshot(project: CanvasProject, name: string, n
     edges: project.edges.flatMap((edge) => {
       const source = nodeIds.get(edge.source);
       const target = nodeIds.get(edge.target);
-      return source && target ? [{ ...structuredClone(edge), id: createId("edge"), source, target, selected: false }] : [];
+      return source && target
+        ? [{ ...structuredClone(edge), id: createId("edge"), source, target, selected: false }]
+        : [];
     }),
     groups: project.groups.flatMap((group) => {
       const groupNodeIds = group.nodeIds.flatMap((id) => nodeIds.get(id) ?? []);
-      return groupNodeIds.length >= 2 ? [{
-        ...structuredClone(group),
-        id: createId("group"),
-        nodeIds: groupNodeIds,
-        createdAt: now,
-        updatedAt: now,
-      }] : [];
+      return groupNodeIds.length >= 2
+        ? [
+            {
+              ...structuredClone(group),
+              id: createId("group"),
+              nodeIds: groupNodeIds,
+              createdAt: now,
+              updatedAt: now,
+            },
+          ]
+        : [];
     }),
     createdAt: now,
     updatedAt: now,
@@ -174,7 +194,8 @@ function readIndexedProjects(storage: StorageLike) {
   const ids = new Set(readProjectSummaryIndex(storage).map((item) => item.id));
   for (let index = 0; index < storage.length; index += 1) {
     const key = storage.key(index);
-    if (key?.startsWith(PROJECT_KEY_PREFIX)) ids.add(decodeURIComponent(key.slice(PROJECT_KEY_PREFIX.length)));
+    if (key?.startsWith(PROJECT_KEY_PREFIX))
+      ids.add(decodeURIComponent(key.slice(PROJECT_KEY_PREFIX.length)));
   }
   return [...ids].flatMap((id) => {
     const project = readProject(id, storage);
@@ -183,7 +204,10 @@ function readIndexedProjects(storage: StorageLike) {
 }
 
 function persistIndex(storage: StorageLike, projects: ProjectSummary[]) {
-  storage.setItem(PROJECT_LIBRARY_INDEX_KEY, JSON.stringify({ version: 1, projects: sortSummaries(projects) }));
+  storage.setItem(
+    PROJECT_LIBRARY_INDEX_KEY,
+    JSON.stringify({ version: 1, projects: sortSummaries(projects) }),
+  );
 }
 
 function parseProject(raw: string | null) {
@@ -206,7 +230,12 @@ function projectSummary(project: CanvasProject): ProjectSummary {
 }
 
 function sortSummaries(projects: ProjectSummary[]) {
-  return [...projects].sort((left, right) => right.updatedAt - left.updatedAt || right.createdAt - left.createdAt || left.name.localeCompare(right.name, "zh-CN"));
+  return [...projects].sort(
+    (left, right) =>
+      right.updatedAt - left.updatedAt ||
+      right.createdAt - left.createdAt ||
+      left.name.localeCompare(right.name, "zh-CN"),
+  );
 }
 
 function projectStorageKey(projectId: string) {

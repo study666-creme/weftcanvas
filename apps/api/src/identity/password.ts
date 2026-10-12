@@ -31,15 +31,21 @@ export class ScryptPasswordHasher implements IdentityPasswordHasher {
 
 function derive(password: string, salt: Buffer) {
   return new Promise<Buffer>((resolve, reject) => {
-    nodeScrypt(password, salt, KEY_LENGTH, {
-      N: SCRYPT_N,
-      r: SCRYPT_R,
-      p: SCRYPT_P,
-      maxmem: MAX_MEMORY,
-    }, (error, derivedKey) => {
-      if (error) reject(error);
-      else resolve(derivedKey);
-    });
+    nodeScrypt(
+      password,
+      salt,
+      KEY_LENGTH,
+      {
+        N: SCRYPT_N,
+        r: SCRYPT_R,
+        p: SCRYPT_P,
+        maxmem: MAX_MEMORY,
+      },
+      (error, derivedKey) => {
+        if (error) reject(error);
+        else resolve(derivedKey);
+      },
+    );
   });
 }
 
@@ -49,11 +55,12 @@ function encode(salt: string, digest: string) {
 
 function parse(value: string) {
   const [algorithm, n, r, p, encodedSalt, encodedDigest, extra] = value.split("$");
-  const valid = algorithm === "scrypt"
-    && n === String(SCRYPT_N)
-    && r === String(SCRYPT_R)
-    && p === String(SCRYPT_P)
-    && !extra;
+  const valid =
+    algorithm === "scrypt" &&
+    n === String(SCRYPT_N) &&
+    r === String(SCRYPT_R) &&
+    p === String(SCRYPT_P) &&
+    !extra;
   if (!valid || !encodedSalt || !encodedDigest) return null;
   try {
     const salt = Buffer.from(encodedSalt, "base64url");

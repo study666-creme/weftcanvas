@@ -1,4 +1,4 @@
-import type { CloudResource, CloudResourceUsage } from "@kachang/contracts";
+import type { CloudResource, CloudResourceUsage } from "@weftcanvas/contracts";
 import { create } from "zustand";
 
 import { cleanupCloudResources, listCloudResources, mediaContentPath } from "../lib/api-client";
@@ -114,7 +114,11 @@ export const useCloudResourceStore = create<CloudResourceState>((set, get) => ({
       return;
     }
 
-    set({ busy: true, error: null, progress: saveLocally ? { total: targets.length, done: 0 } : null });
+    set({
+      busy: true,
+      error: null,
+      progress: saveLocally ? { total: targets.length, done: 0 } : null,
+    });
     try {
       if (saveLocally) {
         const failures: string[] = [];
@@ -137,15 +141,19 @@ export const useCloudResourceStore = create<CloudResourceState>((set, get) => ({
       const result = await cleanupCloudResources({ mediaIds: targets.map((item) => item.id) });
       if (currentOwnerId() !== ownerId) return;
       const freedLabel = formatBytes(result.freedBytes);
-      const skippedReferenced = result.skipped.filter((entry) => entry.reason === "referenced").length;
-      useToastStore.getState().show(
-        skippedReferenced
-          ? `已清理 ${result.deleted.length} 个云端资源（${freedLabel}），${skippedReferenced} 个仍被项目引用已跳过`
-          : result.deleted.length
-            ? `已清理 ${result.deleted.length} 个云端资源，释放 ${freedLabel}`
-            : "没有可清理的云端资源",
-        "success",
-      );
+      const skippedReferenced = result.skipped.filter(
+        (entry) => entry.reason === "referenced",
+      ).length;
+      useToastStore
+        .getState()
+        .show(
+          skippedReferenced
+            ? `已清理 ${result.deleted.length} 个云端资源（${freedLabel}），${skippedReferenced} 个仍被项目引用已跳过`
+            : result.deleted.length
+              ? `已清理 ${result.deleted.length} 个云端资源，释放 ${freedLabel}`
+              : "没有可清理的云端资源",
+          "success",
+        );
       const removed = new Set(result.deleted.map((item) => item.id));
       set((state) => ({
         items: state.items.filter((item) => !removed.has(item.id)),
@@ -165,25 +173,25 @@ export const useCloudResourceStore = create<CloudResourceState>((set, get) => ({
     }
   },
 
-  reset: () => set({
-    open: false,
-    loading: false,
-    busy: false,
-    items: [],
-    usage: null,
-    error: null,
-    selected: {},
-    progress: null,
-  }),
+  reset: () =>
+    set({
+      open: false,
+      loading: false,
+      busy: false,
+      items: [],
+      usage: null,
+      error: null,
+      selected: {},
+      progress: null,
+    }),
 }));
 
 /** 供 cloud-project-media 在同步前判断是否跳过素材上传。 */
 async function saveResourceLocally(item: CloudResource) {
   const projectId = item.projectIds[0];
-  const response = await fetch(
-    mediaContentPath(item.id, projectId, { download: true }),
-    { credentials: "include" },
-  );
+  const response = await fetch(mediaContentPath(item.id, projectId, { download: true }), {
+    credentials: "include",
+  });
   if (!response.ok) throw new Error("下载失败");
   const blob = await response.blob();
   const file = new File([blob], fileName(item), { type: item.mimeType || blob.type });
@@ -193,7 +201,8 @@ async function saveResourceLocally(item: CloudResource) {
 
 function fileName(item: CloudResource) {
   const extension = extensionForMime(item.mimeType);
-  const base = (item.name || item.id).replace(/[\\/:*?"<>|\u0000-\u001f]+/g, "_").slice(0, 120) || item.id;
+  const base =
+    (item.name || item.id).replace(/[\\/:*?"<>|\u0000-\u001f]+/g, "_").slice(0, 120) || item.id;
   return extension && !base.toLowerCase().endsWith(extension) ? `${base}.${extension}` : base;
 }
 
@@ -224,7 +233,7 @@ function pruneSelection(selected: Record<string, true>, items: CloudResource[]) 
 
 function currentOwnerId() {
   const identity = useIdentityStore.getState();
-  return identity.status === "authenticated" ? identity.session?.user.id ?? null : null;
+  return identity.status === "authenticated" ? (identity.session?.user.id ?? null) : null;
 }
 
 export function formatBytes(bytes: number) {

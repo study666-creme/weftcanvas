@@ -28,7 +28,11 @@ function listen(handler: (line: string) => string): Promise<{ server: Server; po
 }
 
 afterEach(async () => {
-  await Promise.all(servers.splice(0).map((server) => new Promise<void>((resolve) => server.close(() => resolve()))));
+  await Promise.all(
+    servers
+      .splice(0)
+      .map((server) => new Promise<void>((resolve) => server.close(() => resolve()))),
+  );
 });
 
 describe("parseEndpoint", () => {
@@ -46,7 +50,11 @@ describe("BlenderBridgeClient", () => {
     const { port } = await listen((line) => {
       const request = JSON.parse(line) as { id: string; method: string; params: { code: string } };
       expect(request.method).toBe("run_python");
-      return JSON.stringify({ id: request.id, ok: true, result: { stdout: "hello\n", value: { objects: 3 } } });
+      return JSON.stringify({
+        id: request.id,
+        ok: true,
+        result: { stdout: "hello\n", value: { objects: 3 } },
+      });
     });
     const client = new BlenderBridgeClient(`127.0.0.1:${port}`, 5_000);
     await expect(client.runPython("print('hello')")).resolves.toEqual({
@@ -59,7 +67,11 @@ describe("BlenderBridgeClient", () => {
   it("surfaces a Blender-side error", async () => {
     const { port } = await listen((line) => {
       const request = JSON.parse(line) as { id: string };
-      return JSON.stringify({ id: request.id, ok: false, error: "NameError: name 'bpyy' is not defined" });
+      return JSON.stringify({
+        id: request.id,
+        ok: false,
+        error: "NameError: name 'bpyy' is not defined",
+      });
     });
     const client = new BlenderBridgeClient(`127.0.0.1:${port}`, 5_000);
     await expect(client.runPython("bpyy")).resolves.toEqual({
@@ -84,11 +96,15 @@ describe("BlenderBridgeClient", () => {
 describe("probeBlenderEndpoint", () => {
   it("reports reachable for a listening port and unavailable otherwise", async () => {
     const { port } = await listen(() => "");
-    await expect(probeBlenderEndpoint(`127.0.0.1:${port}`)).resolves.toMatchObject({ reachable: true });
+    await expect(probeBlenderEndpoint(`127.0.0.1:${port}`)).resolves.toMatchObject({
+      reachable: true,
+    });
     await expect(probeBlenderEndpoint("127.0.0.1:1")).resolves.toMatchObject({
       reachable: false,
       detail: "端口上没有 Blender 桥接在监听",
     });
-    await expect(probeBlenderEndpoint("not-an-address")).resolves.toMatchObject({ reachable: false });
+    await expect(probeBlenderEndpoint("not-an-address")).resolves.toMatchObject({
+      reachable: false,
+    });
   });
 });

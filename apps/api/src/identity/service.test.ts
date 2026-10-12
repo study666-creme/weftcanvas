@@ -42,10 +42,12 @@ describe("identity service", () => {
     const service = createService(store, [TOKEN_A, TOKEN_B]);
     await service.register({ email: "creator@example.com", password: "private-password" });
 
-    await expect(service.register({
-      email: "CREATOR@example.com",
-      password: "another-password",
-    })).rejects.toMatchObject({ code: "EMAIL_TAKEN" });
+    await expect(
+      service.register({
+        email: "CREATOR@example.com",
+        password: "another-password",
+      }),
+    ).rejects.toMatchObject({ code: "EMAIL_TAKEN" });
     expect(store.sessions).toHaveLength(1);
   });
 
@@ -54,16 +56,25 @@ describe("identity service", () => {
     const service = createService(store, [TOKEN_A, TOKEN_B]);
     await service.register({ email: "creator@example.com", password: "private-password" });
 
-    await expect(service.login({
-      email: "missing@example.com",
-      password: "private-password",
-    })).rejects.toEqual(expect.objectContaining<Partial<IdentityServiceError>>({ code: "INVALID_CREDENTIALS" }));
-    await expect(service.login({
-      email: "creator@example.com",
-      password: "wrong-password",
-    })).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
+    await expect(
+      service.login({
+        email: "missing@example.com",
+        password: "private-password",
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<IdentityServiceError>>({ code: "INVALID_CREDENTIALS" }),
+    );
+    await expect(
+      service.login({
+        email: "creator@example.com",
+        password: "wrong-password",
+      }),
+    ).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
 
-    const loggedIn = await service.login({ email: "creator@example.com", password: "private-password" });
+    const loggedIn = await service.login({
+      email: "creator@example.com",
+      password: "private-password",
+    });
     expect(loggedIn.token).toBe(TOKEN_B);
     expect(store.sessions).toHaveLength(2);
   });
@@ -118,14 +129,22 @@ class MemoryIdentityStore implements IdentityStore {
   }
 
   async createSession(session: IdentitySessionRecord) {
-    if (!this.user || this.user.id !== session.userId || this.user.status !== "active") return false;
+    if (!this.user || this.user.id !== session.userId || this.user.status !== "active")
+      return false;
     this.saveSession(session);
     return true;
   }
 
   async findActiveSession(tokenHash: string, now: string): Promise<ActiveIdentitySession | null> {
     const session = this.sessions.find((item) => item.tokenHash === tokenHash);
-    if (!session || session.revokedAt || session.expiresAt <= now || !this.user || this.user.status !== "active") return null;
+    if (
+      !session ||
+      session.revokedAt ||
+      session.expiresAt <= now ||
+      !this.user ||
+      this.user.status !== "active"
+    )
+      return null;
     return { user: structuredClone(this.user), session: structuredClone(session) };
   }
 

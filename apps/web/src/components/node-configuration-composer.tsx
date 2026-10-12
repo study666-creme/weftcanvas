@@ -1,4 +1,4 @@
-import type { CanvasNodeData } from "@kachang/contracts";
+import type { CanvasNodeData } from "@weftcanvas/contracts";
 import { memo, useRef } from "react";
 import { createPortal } from "react-dom";
 
@@ -10,14 +10,17 @@ type NodeConfigurationComposerProps = {
   data: CanvasNodeData;
 };
 
-export const NodeConfigurationComposer = memo(function NodeConfigurationComposer({ nodeId, data }: NodeConfigurationComposerProps) {
+export const NodeConfigurationComposer = memo(function NodeConfigurationComposer({
+  nodeId,
+  data,
+}: NodeConfigurationComposerProps) {
   const shellRef = useRef<HTMLDivElement>(null);
   useNodeOverlayPosition(nodeId, shellRef);
 
   return createPortal(
     <div
       ref={shellRef}
-      className="kc-node-config-shell nodrag nowheel nopan"
+      className="wc-node-config-shell nodrag nowheel nopan"
       data-node-configuration-composer
       onPointerDown={(event) => event.stopPropagation()}
     >

@@ -7,15 +7,15 @@ import { useUiPreferencesStore } from "../state/ui-preferences-store";
 type CursorMode = "default" | "link" | "drag" | "pan" | "text" | "native";
 
 const DRAG_TARGETS = [
-  "[data-kc-cursor='drag']",
-  ".kc-node-drag-strip",
-  ".kc-node-type-label",
-  ".kc-node-text-preview",
-  ".kc-media-empty--passive",
-  ".kc-node-media-frame",
-  ".kc-audio-wave",
-  ".kc-group-frame-header",
-  ".kc-director-canvas",
+  "[data-wc-cursor='drag']",
+  ".wc-node-drag-strip",
+  ".wc-node-type-label",
+  ".wc-node-text-preview",
+  ".wc-media-empty--passive",
+  ".wc-node-media-frame",
+  ".wc-audio-wave",
+  ".wc-group-frame-header",
+  ".wc-director-canvas",
   "input[type='range']",
   "[class*='cursor-grab']",
   "[class*='cursor-grabbing']",
@@ -41,10 +41,16 @@ const LINK_TARGETS = [
 
 function cursorModeFromTarget(target: EventTarget | null): CursorMode {
   if (!(target instanceof Element)) return "default";
-  if (target.closest("audio, [data-kc-native-cursor]")) return "native";
-  if (target.closest("input:not([type='range']):not([type='checkbox']):not([type='radio']), textarea, [contenteditable]:not([contenteditable='false']), [role='textbox']")) return "text";
+  if (target.closest("audio, [data-wc-native-cursor]")) return "native";
+  if (
+    target.closest(
+      "input:not([type='range']):not([type='checkbox']):not([type='radio']), textarea, [contenteditable]:not([contenteditable='false']), [role='textbox']",
+    )
+  )
+    return "text";
   const label = target.closest("label");
-  if (label?.querySelector("input:not(:disabled), select:not(:disabled), textarea:not(:disabled)")) return "link";
+  if (label?.querySelector("input:not(:disabled), select:not(:disabled), textarea:not(:disabled)"))
+    return "link";
   if (target.closest(LINK_TARGETS)) return "link";
   if (target.closest(DRAG_TARGETS)) return "drag";
   return "default";
@@ -87,13 +93,13 @@ export const AppCursor = memo(function AppCursor({ panActive }: { panActive: boo
     // 的那段时间屏幕上没有光标——观感就是"光标不见了/发黏"，这是自绘光标最
     // 容易被误判成卡顿的一处。
     const show = () => {
-      document.documentElement.classList.add("has-kc-cursor");
+      document.documentElement.classList.add("has-wc-cursor");
       if (visible) return;
       visible = true;
       root.classList.add("is-visible");
     };
     const hide = () => {
-      document.documentElement.classList.remove("has-kc-cursor");
+      document.documentElement.classList.remove("has-wc-cursor");
       if (!visible) return;
       visible = false;
       root.classList.remove("is-visible");
@@ -142,7 +148,8 @@ export const AppCursor = memo(function AppCursor({ panActive }: { panActive: boo
       if (!isFinePointerEvent(event)) return;
       queuePosition(event);
       if (lastTarget !== event.target) {
-        const nextInsideCanvas = event.target instanceof Element && Boolean(event.target.closest(".react-flow"));
+        const nextInsideCanvas =
+          event.target instanceof Element && Boolean(event.target.closest(".react-flow"));
         if (!pointerDown || nextInsideCanvas) pointerInsideCanvas = nextInsideCanvas;
         lastTarget = event.target;
         syncMode();
@@ -152,7 +159,8 @@ export const AppCursor = memo(function AppCursor({ panActive }: { panActive: boo
     const down = (event: PointerEvent) => {
       if (!isFinePointerEvent(event)) return;
       lastTarget = event.target;
-      pointerInsideCanvas = event.target instanceof Element && Boolean(event.target.closest(".react-flow"));
+      pointerInsideCanvas =
+        event.target instanceof Element && Boolean(event.target.closest(".react-flow"));
       pointerDown = true;
       root.classList.add("is-down");
       syncMode();
@@ -161,7 +169,9 @@ export const AppCursor = memo(function AppCursor({ panActive }: { panActive: boo
     const release = (event?: PointerEvent) => {
       if (event && !isFinePointerEvent(event)) return;
       if (event) lastTarget = event.target;
-      if (event) pointerInsideCanvas = event.target instanceof Element && Boolean(event.target.closest(".react-flow"));
+      if (event)
+        pointerInsideCanvas =
+          event.target instanceof Element && Boolean(event.target.closest(".react-flow"));
       pointerDown = false;
       root.classList.remove("is-down", "is-pan-grabbing");
       syncMode();
@@ -187,7 +197,7 @@ export const AppCursor = memo(function AppCursor({ panActive }: { panActive: boo
     return () => {
       syncModeRef.current = null;
       if (frame) window.cancelAnimationFrame(frame);
-      document.documentElement.classList.remove("has-kc-cursor");
+      document.documentElement.classList.remove("has-wc-cursor");
       if (supportsRawUpdate) window.removeEventListener("pointerrawupdate", rawMove);
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerdown", down);
@@ -201,16 +211,24 @@ export const AppCursor = memo(function AppCursor({ panActive }: { panActive: boo
   }, []);
 
   return createPortal(
-    <div ref={rootRef} className={`kc-app-cursor kc-app-cursor--${cursorStyle}`} data-testid="app-cursor" aria-hidden="true">
-      <div ref={pointerRef} className="kc-app-cursor-pointer">
-        <svg className="kc-app-cursor-arrow" viewBox="0 0 28 32" focusable="false">
-          <path className="kc-app-cursor-arrow-shell" d="M4.3 3.1 23.2 18.4l-8.1 1.1-4.4 8.8L4.3 3.1Z" />
-          <path className="kc-app-cursor-arrow-core" d="M6.9 8.1 18 17.1l-5.1.7-2.8 5.7L6.9 8.1Z" />
+    <div
+      ref={rootRef}
+      className={`wc-app-cursor wc-app-cursor--${cursorStyle}`}
+      data-testid="app-cursor"
+      aria-hidden="true"
+    >
+      <div ref={pointerRef} className="wc-app-cursor-pointer">
+        <svg className="wc-app-cursor-arrow" viewBox="0 0 28 32" focusable="false">
+          <path
+            className="wc-app-cursor-arrow-shell"
+            d="M4.3 3.1 23.2 18.4l-8.1 1.1-4.4 8.8L4.3 3.1Z"
+          />
+          <path className="wc-app-cursor-arrow-core" d="M6.9 8.1 18 17.1l-5.1.7-2.8 5.7L6.9 8.1Z" />
         </svg>
-        <Hand className="kc-app-cursor-hand kc-app-cursor-hand--classic" strokeWidth={1.9} />
-        <HandGrab className="kc-app-cursor-hand kc-app-cursor-hand--precision" strokeWidth={1.8} />
-        <span className="kc-app-cursor-textbar" />
-        <span className="kc-app-cursor-precision" />
+        <Hand className="wc-app-cursor-hand wc-app-cursor-hand--classic" strokeWidth={1.9} />
+        <HandGrab className="wc-app-cursor-hand wc-app-cursor-hand--precision" strokeWidth={1.8} />
+        <span className="wc-app-cursor-textbar" />
+        <span className="wc-app-cursor-precision" />
       </div>
     </div>,
     document.body,

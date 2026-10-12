@@ -37,19 +37,27 @@ describe.skipIf(!databaseUrl)("PostgreSQL generation reconciliation store", () =
     const audit = pendingAudit();
     const [first, second] = await Promise.all([store.begin(audit), store.begin(audit)]);
     expect([first.kind, second.kind].sort()).toEqual(["created", "existing"]);
-    expect(await store.markApplied(audit.id, "queued", "2026-07-16T00:00:01.000Z"))
-      .toMatchObject({ status: "applied", resultStatus: "queued" });
-    expect(await store.markApplied(audit.id, "running", "2026-07-16T00:00:02.000Z"))
-      .toMatchObject({ status: "applied", resultStatus: "queued" });
+    expect(await store.markApplied(audit.id, "queued", "2026-07-16T00:00:01.000Z")).toMatchObject({
+      status: "applied",
+      resultStatus: "queued",
+    });
+    expect(await store.markApplied(audit.id, "running", "2026-07-16T00:00:02.000Z")).toMatchObject({
+      status: "applied",
+      resultStatus: "queued",
+    });
   });
 
   it("persists rejected reconciliation with safe error fields", async () => {
     const audit = pendingAudit();
     await store.begin(audit);
-    const rejected = await store.markRejected(audit.id, {
-      code: "JOB_NOT_RECONCILABLE",
-      message: "当前任务不需要核对",
-    }, "2026-07-16T00:00:01.000Z");
+    const rejected = await store.markRejected(
+      audit.id,
+      {
+        code: "JOB_NOT_RECONCILABLE",
+        message: "当前任务不需要核对",
+      },
+      "2026-07-16T00:00:01.000Z",
+    );
     expect(rejected).toMatchObject({
       status: "rejected",
       resultStatus: null,

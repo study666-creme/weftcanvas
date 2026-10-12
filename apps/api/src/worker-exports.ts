@@ -1,4 +1,4 @@
-export { KachangGenerationProvider } from "./generation/kachang-provider.js";
+export { WeftcanvasGenerationProvider } from "./generation/weftcanvas-provider.js";
 export { MediaGenerationInputAuthorizer } from "./generation/input-authorizer.js";
 export { ValidatedGenerationArtifactStore } from "./generation/artifact-store.js";
 export { PostgresGenerationJobStore } from "./generation/postgres-store.js";

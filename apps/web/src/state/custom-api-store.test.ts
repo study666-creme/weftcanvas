@@ -1,4 +1,4 @@
-import type { ModelModality, PublicModel } from "@kachang/contracts";
+import type { ModelModality, PublicModel } from "@weftcanvas/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { CustomApiCatalog } from "../lib/custom-api";
@@ -12,10 +12,13 @@ afterEach(() => {
 describe("custom API profile migration", () => {
   it("migrates the previous single connection only after writing v2", async () => {
     const storage = memoryStorage();
-    storage.setItem("kachang-canvas:custom-api:v1", JSON.stringify({
-      baseUrl: "https://legacy.example",
-      apiKey: "legacy-key",
-    }));
+    storage.setItem(
+      "weftcanvas:custom-api:v1",
+      JSON.stringify({
+        baseUrl: "https://legacy.example",
+        apiKey: "legacy-key",
+      }),
+    );
     vi.stubGlobal("localStorage", storage);
 
     const module = await import("./custom-api-store");
@@ -27,8 +30,10 @@ describe("custom API profile migration", () => {
       name: "自有 API",
       connection: { baseUrl: "https://legacy.example", apiKey: "legacy-key" },
     });
-    expect(JSON.parse(storage.getItem(module.CUSTOM_API_STORAGE_KEY)!)).toMatchObject({ version: 2 });
-    expect(storage.getItem("kachang-canvas:custom-api:v1")).toBeNull();
+    expect(JSON.parse(storage.getItem(module.CUSTOM_API_STORAGE_KEY)!)).toMatchObject({
+      version: 2,
+    });
+    expect(storage.getItem("weftcanvas:custom-api:v1")).toBeNull();
   });
 });
 
@@ -61,7 +66,11 @@ describe("merged model visibility", () => {
     const module = await import("./custom-api-store");
     const audioProfile = profile("audio-profile", "音频 API", "voice-model", ["audio"]);
 
-    const [choice] = module.getCustomModelChoices({ profiles: [audioProfile], hiddenModelKeys: [] }, "audio", true);
+    const [choice] = module.getCustomModelChoices(
+      { profiles: [audioProfile], hiddenModelKeys: [] },
+      "audio",
+      true,
+    );
     expect(choice).toMatchObject({ rawModelId: "voice-model", executable: false });
     expect(choice?.unsupportedReason).toContain("音频");
   });
@@ -84,15 +93,28 @@ describe("merged model visibility", () => {
         { ...builtinModel("alias-b"), label: "别名 B" },
       ],
       routes: {
-        "alias-a": { sourceModelId: "shared-image", modality: "image", endpointPath: "/v1/images/generations", parameters: [] },
-        "alias-b": { sourceModelId: "shared-image", modality: "image", endpointPath: "/v1/images/generations", parameters: [] },
+        "alias-a": {
+          sourceModelId: "shared-image",
+          modality: "image",
+          endpointPath: "/v1/images/generations",
+          parameters: [],
+        },
+        "alias-b": {
+          sourceModelId: "shared-image",
+          modality: "image",
+          endpointPath: "/v1/images/generations",
+          parameters: [],
+        },
       },
       availableModelIds: ["shared-image"],
       capabilitySource: "rich",
       catalogWarning: null,
     };
 
-    const choices = module.getCustomModelChoices({ profiles: [aliased], hiddenModelKeys: [] }, "image");
+    const choices = module.getCustomModelChoices(
+      { profiles: [aliased], hiddenModelKeys: [] },
+      "image",
+    );
 
     expect(choices).toHaveLength(1);
     expect(choices[0]?.rawModelId).toBe("shared-image");
@@ -108,12 +130,14 @@ describe("merged model visibility", () => {
     store.setModelVisible("builtin-b", false);
 
     expect(module.useCustomApiStore.getState().hiddenModelKeys).toEqual(["builtin-a", "builtin-b"]);
-    expect(module.getMergedModels(
-      [builtinModel("builtin-a"), builtinModel("builtin-b")],
-      "image",
-      [],
-      module.useCustomApiStore.getState().hiddenModelKeys,
-    )).toEqual([]);
+    expect(
+      module.getMergedModels(
+        [builtinModel("builtin-a"), builtinModel("builtin-b")],
+        "image",
+        [],
+        module.useCustomApiStore.getState().hiddenModelKeys,
+      ),
+    ).toEqual([]);
   });
 });
 
@@ -165,11 +189,17 @@ function builtinModel(id: string): PublicModel {
 function memoryStorage(): Storage {
   const values = new Map<string, string>();
   return {
-    get length() { return values.size; },
+    get length() {
+      return values.size;
+    },
     clear: () => values.clear(),
     getItem: (key) => values.get(key) ?? null,
     key: (index) => [...values.keys()][index] ?? null,
-    removeItem: (key) => { values.delete(key); },
-    setItem: (key, value) => { values.set(key, String(value)); },
+    removeItem: (key) => {
+      values.delete(key);
+    },
+    setItem: (key, value) => {
+      values.set(key, String(value));
+    },
   };
 }

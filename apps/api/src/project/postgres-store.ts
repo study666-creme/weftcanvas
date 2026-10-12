@@ -3,7 +3,7 @@ import {
   cloudProjectSharedSummarySchema,
   cloudProjectSummarySchema,
   type CloudProjectEntitlements,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 import type { Pool, PoolClient } from "pg";
 
 import type {
@@ -124,14 +124,24 @@ export class PostgresCloudProjectStore implements CloudProjectStore {
         );
         if (existing.rowCount) return { kind: "exists" } as const;
 
-        const before = usageRecord((await client.query<UsageRow>(usageQuery(), [project.ownerId])).rows[0]);
-        if (before.projectCount >= entitlements.cloudProjectLimit) return { kind: "project_limit" } as const;
+        const before = usageRecord(
+          (await client.query<UsageRow>(usageQuery(), [project.ownerId])).rows[0],
+        );
+        if (before.projectCount >= entitlements.cloudProjectLimit)
+          return { kind: "project_limit" } as const;
 
         await insertProject(client, project);
         await insertOwnerMember(client, project);
         await insertRevision(client, project, checksum);
-        await pruneRevisions(client, project.ownerId, project.id, entitlements.revisionRetentionCount);
-        const finalUsage = usageRecord((await client.query<UsageRow>(usageQuery(), [project.ownerId])).rows[0]);
+        await pruneRevisions(
+          client,
+          project.ownerId,
+          project.id,
+          entitlements.revisionRetentionCount,
+        );
+        const finalUsage = usageRecord(
+          (await client.query<UsageRow>(usageQuery(), [project.ownerId])).rows[0],
+        );
         if (finalUsage.projectStorageBytes > entitlements.projectStorageBytes) {
           throw new ProjectStorageLimitRollback();
         }
@@ -174,7 +184,9 @@ export class PostgresCloudProjectStore implements CloudProjectStore {
           return { kind: "revision_conflict", revision: current.revision } as const;
         }
 
-        const before = usageRecord((await client.query<UsageRow>(usageQuery(), [input.project.ownerId])).rows[0]);
+        const before = usageRecord(
+          (await client.query<UsageRow>(usageQuery(), [input.project.ownerId])).rows[0],
+        );
         const revision = current.revision + 1;
         const project = { ...input.project, revision };
         await client.query(
@@ -196,12 +208,29 @@ export class PostgresCloudProjectStore implements CloudProjectStore {
           ],
         );
 
-        if (input.checkpoint || await checkpointDue(client, project.ownerId, project.id, project.updatedAt, this.options.checkpointIntervalMs)) {
+        if (
+          input.checkpoint ||
+          (await checkpointDue(
+            client,
+            project.ownerId,
+            project.id,
+            project.updatedAt,
+            this.options.checkpointIntervalMs,
+          ))
+        ) {
           await insertRevision(client, project, input.checksum);
         }
-        await pruneRevisions(client, project.ownerId, project.id, input.entitlements.revisionRetentionCount);
-        const finalUsage = usageRecord((await client.query<UsageRow>(usageQuery(), [input.project.ownerId])).rows[0]);
-        const remainsOverLimit = finalUsage.projectStorageBytes > input.entitlements.projectStorageBytes;
+        await pruneRevisions(
+          client,
+          project.ownerId,
+          project.id,
+          input.entitlements.revisionRetentionCount,
+        );
+        const finalUsage = usageRecord(
+          (await client.query<UsageRow>(usageQuery(), [input.project.ownerId])).rows[0],
+        );
+        const remainsOverLimit =
+          finalUsage.projectStorageBytes > input.entitlements.projectStorageBytes;
         if (remainsOverLimit && finalUsage.projectStorageBytes >= before.projectStorageBytes) {
           throw new ProjectStorageLimitRollback();
         }
@@ -213,7 +242,11 @@ export class PostgresCloudProjectStore implements CloudProjectStore {
     }
   }
 
-  async delete(ownerId: string, projectId: string, baseRevision: number): Promise<DeleteCloudProjectStoreResult> {
+  async delete(
+    ownerId: string,
+    projectId: string,
+    baseRevision: number,
+  ): Promise<DeleteCloudProjectStoreResult> {
     return withTransaction(this.pool, async (client) => {
       await lockOwner(client, ownerId);
       const locked = await client.query<{ current_revision: string | number }>(
@@ -226,10 +259,10 @@ export class PostgresCloudProjectStore implements CloudProjectStore {
       if (!locked.rows[0]) return { kind: "not_found" };
       const revision = safeInteger(locked.rows[0].current_revision, "project revision");
       if (revision !== baseRevision) return { kind: "revision_conflict", revision };
-      await client.query(
-        "DELETE FROM canvas_cloud_projects WHERE owner_id = $1 AND id = $2",
-        [ownerId, projectId],
-      );
+      await client.query("DELETE FROM canvas_cloud_projects WHERE owner_id = $1 AND id = $2", [
+        ownerId,
+        projectId,
+      ]);
       return { kind: "deleted" };
     });
   }
@@ -370,10 +403,17 @@ async function checkpointDue(
     [ownerId, projectId],
   );
   if (!latest.rows[0]) return true;
-  return Date.parse(updatedAt) - Date.parse(dateIso(latest.rows[0].created_at)) >= checkpointIntervalMs;
+  return (
+    Date.parse(updatedAt) - Date.parse(dateIso(latest.rows[0].created_at)) >= checkpointIntervalMs
+  );
 }
 
-async function pruneRevisions(client: PoolClient, ownerId: string, projectId: string, retentionCount: number) {
+async function pruneRevisions(
+  client: PoolClient,
+  ownerId: string,
+  projectId: string,
+  retentionCount: number,
+) {
   await client.query(
     `DELETE FROM canvas_cloud_project_revisions
      WHERE owner_id = $1 AND project_id = $2

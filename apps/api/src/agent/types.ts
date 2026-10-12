@@ -11,7 +11,7 @@ import type {
   AgentProposalDraft,
   AgentRun,
   AgentRunError,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 
 export type AgentConversationRecord = AgentConversation & {
   ownerId: string;
@@ -39,15 +39,30 @@ export type CompleteAgentRunInput = {
 
 export interface AgentStore {
   createConversation(conversation: AgentConversationRecord): Promise<void>;
-  listConversations(ownerId: string, projectId: string, limit: number): Promise<AgentConversation[]>;
+  listConversations(
+    ownerId: string,
+    projectId: string,
+    limit: number,
+  ): Promise<AgentConversation[]>;
   getConversation(ownerId: string, conversationId: string): Promise<AgentConversationRecord | null>;
   getDetail(ownerId: string, conversationId: string): Promise<AgentConversationDetail | null>;
   getRun(ownerId: string, runId: string): Promise<AgentRunRecord | null>;
   getRunContext(ownerId: string, runId: string): Promise<AgentCanvasContext | null>;
   createRun(input: CreateAgentRunInput): Promise<{ run: AgentRunRecord; created: boolean }>;
   markRunning(ownerId: string, runId: string, startedAt: string): Promise<boolean>;
-  completeRun(ownerId: string, runId: string, message: AgentMessage, result: CompleteAgentRunInput, completedAt: string): Promise<boolean>;
-  failRun(ownerId: string, runId: string, error: AgentRunError, completedAt: string): Promise<boolean>;
+  completeRun(
+    ownerId: string,
+    runId: string,
+    message: AgentMessage,
+    result: CompleteAgentRunInput,
+    completedAt: string,
+  ): Promise<boolean>;
+  failRun(
+    ownerId: string,
+    runId: string,
+    error: AgentRunError,
+    completedAt: string,
+  ): Promise<boolean>;
   cancelRun(ownerId: string, runId: string, completedAt: string): Promise<boolean>;
   confirmProposal(ownerId: string, runId: string): Promise<boolean>;
   dismissProposal(ownerId: string, runId: string): Promise<boolean>;
@@ -68,7 +83,10 @@ export type AgentExecutionRequest = {
 
 export interface AgentExecutor {
   getModels(): Promise<AgentModelCatalog>;
-  execute(value: AgentExecutionRequest, signal: AbortSignal): Promise<{
+  execute(
+    value: AgentExecutionRequest,
+    signal: AbortSignal,
+  ): Promise<{
     content: string;
     actions: AgentAction[];
     executionMode: AgentExecutionMode;

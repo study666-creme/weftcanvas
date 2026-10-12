@@ -24,8 +24,8 @@ const INTERACTIVE_SELECTOR = [
   ".react-flow__node",
   ".react-flow__edge",
   ".react-flow__handle",
-  ".kc-clip",
-  ".kc-clip-asset-row",
+  ".wc-clip",
+  ".wc-clip-asset-row",
 ].join(",");
 
 const RING_DURATION_MS = 320;
@@ -57,14 +57,16 @@ export function PointerFeedback() {
     };
 
     const over = (event: PointerEvent) => {
-      const target = event.target instanceof Element ? event.target.closest(INTERACTIVE_SELECTOR) : null;
+      const target =
+        event.target instanceof Element ? event.target.closest(INTERACTIVE_SELECTOR) : null;
       if (!target || target === lastTarget) return;
       lastTarget = target;
       pulse(event.clientX, event.clientY, "is-enter");
     };
 
     const down = (event: PointerEvent) => {
-      const target = event.target instanceof Element ? event.target.closest(INTERACTIVE_SELECTOR) : null;
+      const target =
+        event.target instanceof Element ? event.target.closest(INTERACTIVE_SELECTOR) : null;
       if (!target) return;
       pulse(event.clientX, event.clientY, "is-press");
     };
@@ -85,8 +87,8 @@ export function PointerFeedback() {
   }, []);
 
   return (
-    <span ref={ringRef} className="kc-pointer-pulse" data-testid="pointer-pulse" aria-hidden="true">
-      <span className="kc-pointer-pulse-ring" />
+    <span ref={ringRef} className="wc-pointer-pulse" data-testid="pointer-pulse" aria-hidden="true">
+      <span className="wc-pointer-pulse-ring" />
     </span>
   );
 }

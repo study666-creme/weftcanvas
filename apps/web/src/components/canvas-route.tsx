@@ -1,11 +1,15 @@
 import { ReactFlowProvider } from "@xyflow/react";
 import { useEffect } from "react";
+import "@xyflow/react/dist/style.css";
 
 import type { ThemeMode } from "../App";
 import type { CanvasBootIdentityStatus } from "../lib/canvas-boot";
 import { selectProject, useCanvasStore } from "../state/canvas-store";
 import { useCloudProjectStore } from "../state/cloud-project-store";
 import { useGenerationStore } from "../state/generation-store";
+// 画布专属样式（节点/主题/光标/特效/资源/xyflow 基础样式）随本路由懒加载，
+// 登录首屏与游客入口不再下载。
+import "../workbench-styles.css";
 import { CanvasEntryLoader } from "./canvas-entry-loader";
 import { CanvasWorkspace } from "./canvas-workspace";
 import { CustomApiDialogHost } from "./custom-api-dialog-host";
@@ -93,13 +97,23 @@ export function CanvasRoute({
 
   return (
     <ReactFlowProvider>
-      <CanvasWorkspace theme={theme} onToggleTheme={onToggleTheme} booting={booting} onReady={onWorkspaceReady} />
+      <CanvasWorkspace
+        theme={theme}
+        onToggleTheme={onToggleTheme}
+        booting={booting}
+        onReady={onWorkspaceReady}
+      />
       {booting ? (
         <CanvasEntryLoader
           projectName={projectName}
           workspaceReady={workspaceReady}
           identityStatus={identityStatus}
-          catalogStatuses={[catalogTextStatus, catalogImageStatus, catalogVideoStatus, catalogAudioStatus]}
+          catalogStatuses={[
+            catalogTextStatus,
+            catalogImageStatus,
+            catalogVideoStatus,
+            catalogAudioStatus,
+          ]}
           onFinished={onBootFinished}
         />
       ) : null}

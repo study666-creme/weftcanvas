@@ -1,6 +1,4 @@
-import type { Connection } from "@xyflow/react";
-
-import type { KachangNode } from "../types";
+import type { WeftcanvasNode } from "../types";
 import { getNodeDefinition, type NodeConnectionContext } from "./node-registry";
 
 /**
@@ -15,7 +13,7 @@ export function connectionPolicyAllows(
     sourceHandle: string | null | undefined;
     targetHandle: string | null | undefined;
   },
-  nodes: readonly KachangNode[],
+  nodes: readonly WeftcanvasNode[],
 ): boolean {
   const sourceNode = nodes.find((node) => node.id === connection.sourceId);
   const targetNode = nodes.find((node) => node.id === connection.targetId);

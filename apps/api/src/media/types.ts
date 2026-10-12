@@ -3,7 +3,7 @@ import {
   publicMediaErrorSchema,
   type MediaKind,
   type PublicMedia,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 import type { Readable } from "node:stream";
 import { z } from "zod";
 
@@ -20,8 +20,14 @@ export const mediaRecordSchema = z.object({
   detectedMimeType: z.string().min(1).nullable(),
   expectedSize: z.number().int().positive(),
   size: z.number().int().nonnegative().nullable(),
-  expectedSha256: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
-  sha256: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
+  expectedSha256: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .nullable(),
+  sha256: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .nullable(),
   width: z.number().int().positive().nullable(),
   height: z.number().int().positive().nullable(),
   durationMs: z.number().int().positive().nullable(),
@@ -47,28 +53,41 @@ export type CreateMediaResult =
   | { kind: "intent_limit"; currentRecords: number; limit: number };
 
 export type DeleteOwnedMediaResult =
-  | { kind: "deleted"; media: MediaRecord }
-  | { kind: "bound" }
-  | { kind: "missing" };
+  { kind: "deleted"; media: MediaRecord } | { kind: "bound" } | { kind: "missing" };
 
-export const mediaStorageQuotaSchema = z.object({
-  maxStorageBytes: z.number().int().nonnegative(),
-  evaluatedAt: z.string().datetime({ offset: true }),
-  staleUploadingBefore: z.string().datetime({ offset: true }),
-}).refine(
-  (value) => Date.parse(value.staleUploadingBefore) <= Date.parse(value.evaluatedAt),
-  { message: "staleUploadingBefore must not be later than evaluatedAt" },
-);
+export const mediaStorageQuotaSchema = z
+  .object({
+    maxStorageBytes: z.number().int().nonnegative(),
+    evaluatedAt: z.string().datetime({ offset: true }),
+    staleUploadingBefore: z.string().datetime({ offset: true }),
+  })
+  .refine((value) => Date.parse(value.staleUploadingBefore) <= Date.parse(value.evaluatedAt), {
+    message: "staleUploadingBefore must not be later than evaluatedAt",
+  });
 export type MediaStorageQuota = z.infer<typeof mediaStorageQuotaSchema>;
 
 export interface MediaMetadataStore {
   findByIdempotency(ownerId: string, idempotencyKey: string): Promise<MediaRecord | null>;
   getById(id: string): Promise<MediaRecord | null>;
-  getByAccessScope(id: string, ownerId: string, projectId: string | null): Promise<MediaRecord | null>;
+  getByAccessScope(
+    id: string,
+    ownerId: string,
+    projectId: string | null,
+  ): Promise<MediaRecord | null>;
   create(media: MediaRecord, quota?: MediaStorageQuota): Promise<CreateMediaResult>;
   deleteOwned(id: string, ownerId: string): Promise<DeleteOwnedMediaResult>;
-  claimUpload(id: string, ownerId: string, expectedRevision: number, updatedAt: string): Promise<MediaRecord | null>;
-  resetUpload(id: string, ownerId: string, expectedRevision: number, updatedAt: string): Promise<MediaRecord | null>;
+  claimUpload(
+    id: string,
+    ownerId: string,
+    expectedRevision: number,
+    updatedAt: string,
+  ): Promise<MediaRecord | null>;
+  resetUpload(
+    id: string,
+    ownerId: string,
+    expectedRevision: number,
+    updatedAt: string,
+  ): Promise<MediaRecord | null>;
   markReady(media: MediaRecord, expectedRevision: number): Promise<MediaRecord | null>;
   markFailed(media: MediaRecord, expectedRevision: number): Promise<MediaRecord | null>;
 }
@@ -92,7 +111,11 @@ export interface MediaObjectStore {
     options: { expectedSize: number; maxBytes: number; contentType?: string },
   ): Promise<MediaObjectWriteResult>;
   withLocalFile<T>(key: string, action: (path: string) => Promise<T>): Promise<T>;
-  open(key: string, range?: { start: number; end: number }, signal?: AbortSignal): Promise<MediaObjectRead>;
+  open(
+    key: string,
+    range?: { start: number; end: number },
+    signal?: AbortSignal,
+  ): Promise<MediaObjectRead>;
   remove(key: string): Promise<void>;
 }
 
@@ -159,7 +182,10 @@ export interface MultipartMediaObjectStore extends DirectMediaObjectStore {
     providerUploadId: string,
     options: { partNumber: number; contentLength: number; expiresAt: string },
   ): Promise<MediaObjectUploadInstruction>;
-  listMultipartUploadParts(key: string, providerUploadId: string): Promise<MediaMultipartObjectPart[]>;
+  listMultipartUploadParts(
+    key: string,
+    providerUploadId: string,
+  ): Promise<MediaMultipartObjectPart[]>;
   completeMultipartUpload(
     key: string,
     providerUploadId: string,
@@ -169,28 +195,40 @@ export interface MultipartMediaObjectStore extends DirectMediaObjectStore {
   headPendingMultipartUpload(key: string): Promise<MediaPendingMultipartObject>;
 }
 
-export function supportsDirectMediaAccess(store: MediaObjectStore): store is DirectMediaObjectStore {
+export function supportsDirectMediaAccess(
+  store: MediaObjectStore,
+): store is DirectMediaObjectStore {
   const candidate = store as Partial<DirectMediaObjectStore>;
-  return typeof candidate.createUploadInstruction === "function"
-    && typeof candidate.createDownloadInstruction === "function"
-    && typeof candidate.withPendingUploadFile === "function"
-    && typeof candidate.promotePendingUpload === "function"
-    && typeof candidate.removePendingUpload === "function";
+  return (
+    typeof candidate.createUploadInstruction === "function" &&
+    typeof candidate.createDownloadInstruction === "function" &&
+    typeof candidate.withPendingUploadFile === "function" &&
+    typeof candidate.promotePendingUpload === "function" &&
+    typeof candidate.removePendingUpload === "function"
+  );
 }
 
-export function supportsMultipartMediaAccess(store: MediaObjectStore): store is MultipartMediaObjectStore {
+export function supportsMultipartMediaAccess(
+  store: MediaObjectStore,
+): store is MultipartMediaObjectStore {
   if (!supportsDirectMediaAccess(store)) return false;
   const candidate = store as Partial<MultipartMediaObjectStore>;
-  return typeof candidate.createMultipartUpload === "function"
-    && typeof candidate.createMultipartPartUploadInstruction === "function"
-    && typeof candidate.listMultipartUploadParts === "function"
-    && typeof candidate.completeMultipartUpload === "function"
-    && typeof candidate.abortMultipartUpload === "function"
-    && typeof candidate.headPendingMultipartUpload === "function";
+  return (
+    typeof candidate.createMultipartUpload === "function" &&
+    typeof candidate.createMultipartPartUploadInstruction === "function" &&
+    typeof candidate.listMultipartUploadParts === "function" &&
+    typeof candidate.completeMultipartUpload === "function" &&
+    typeof candidate.abortMultipartUpload === "function" &&
+    typeof candidate.headPendingMultipartUpload === "function"
+  );
 }
 
-export function supportsMediaStoreMaintenance(store: MediaObjectStore): store is MaintainableMediaObjectStore {
-  return typeof (store as Partial<MaintainableMediaObjectStore>).cleanupTemporaryFiles === "function";
+export function supportsMediaStoreMaintenance(
+  store: MediaObjectStore,
+): store is MaintainableMediaObjectStore {
+  return (
+    typeof (store as Partial<MaintainableMediaObjectStore>).cleanupTemporaryFiles === "function"
+  );
 }
 
 export type InspectedMedia = {
@@ -233,7 +271,10 @@ export class MediaObjectWriteError extends Error {
 }
 
 export class MediaInspectionError extends Error {
-  constructor(readonly code: string, message: string) {
+  constructor(
+    readonly code: string,
+    message: string,
+  ) {
     super(message);
     this.name = "MediaInspectionError";
   }

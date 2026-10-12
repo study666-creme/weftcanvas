@@ -4,7 +4,11 @@ import { fileURLToPath } from "node:url";
 import { createAgentApp } from "./app.js";
 import { CanvasControlQueue } from "./canvas-control.js";
 import { AgentConnectorRegistry } from "./connectors/registry.js";
-import { defaultProvisionContext, provisionBlender, provisionCodex } from "./connectors/provision.js";
+import {
+  defaultProvisionContext,
+  provisionBlender,
+  provisionCodex,
+} from "./connectors/provision.js";
 import { createRemoteBlenderTool, RemoteBlenderRunner } from "./connectors/remote-blender.js";
 import { MemoryConnectorSettingsStore } from "./connectors/settings.js";
 import { createKnowledgeRetriever } from "./knowledge.js";
@@ -46,12 +50,13 @@ const connectors = new AgentConnectorRegistry(
         agentToken: token,
         assets: {
           mcpScript: fileURLToPath(new URL("../mcp/canvas-mcp.mjs", import.meta.url)),
-          blenderAddon: fileURLToPath(new URL("../blender/kachang_bridge.py", import.meta.url)),
+          blenderAddon: fileURLToPath(new URL("../blender/weftcanvas_bridge.py", import.meta.url)),
         },
       });
       return {
         codex: (command: string) => provisionCodex(context, command),
-        blender: (address: string, launch: boolean) => provisionBlender(context, { launch, address }),
+        blender: (address: string, launch: boolean) =>
+          provisionBlender(context, { launch, address }),
       };
     })(),
   },

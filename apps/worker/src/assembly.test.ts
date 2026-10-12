@@ -4,7 +4,7 @@ import { join } from "node:path";
 import {
   GenerationWorkerRuntime,
   MediaMultipartWorkerRuntime,
-} from "@kachang/canvas-api/worker";
+} from "@weftcanvas/canvas-api/worker";
 import type { Pool } from "pg";
 import { describe, expect, it } from "vitest";
 
@@ -36,8 +36,8 @@ const mediaEnvironment: Record<string, string> = {
 
 const generationEnvironment: Record<string, string> = {
   ...mediaEnvironment,
-  KACHANG_API_KEY: "test-generation-key",
-  KACHANG_API_BASE_URL: "https://gateway.example.com",
+  WEFTCANVAS_API_KEY: "test-generation-key",
+  WEFTCANVAS_API_BASE_URL: "https://gateway.example.com",
   GENERATION_MEDIA_HOSTS: "host.invalid",
   GENERATION_STAGING_PATH: join(tmpdir(), "canvas-worker-test-generation-results"),
   GENERATION_DOWNLOAD_PATH: join(tmpdir(), "canvas-worker-test-generation-downloads"),
@@ -71,7 +71,7 @@ describe("buildMediaMultipartRuntime", () => {
   it("ignores an otherwise-invalid generation configuration", () => {
     const env = {
       ...mediaEnvironment,
-      KACHANG_API_KEY: "",
+      WEFTCANVAS_API_KEY: "",
       GENERATION_MEDIA_HOSTS: "",
     };
     const run = buildMediaMultipartRuntime(mediaDeps(env));
@@ -82,12 +82,18 @@ describe("buildMediaMultipartRuntime", () => {
 
 describe("buildGenerationRuntime", () => {
   it("still requires generation configuration", () => {
-    expect(() => buildGenerationRuntime(mediaDeps({}))).toThrow(/KACHANG_API_KEY is required/);
-    expect(() => buildGenerationRuntime(mediaDeps({ KACHANG_API_KEY: "key" }))).toThrow(/GENERATION_MEDIA_HOSTS/);
-    expect(() => buildGenerationRuntime(mediaDeps({
-      KACHANG_API_KEY: "key",
-      GENERATION_MEDIA_HOSTS: "",
-    }))).toThrow(/GENERATION_MEDIA_HOSTS must list trusted result hostnames/);
+    expect(() => buildGenerationRuntime(mediaDeps({}))).toThrow(/WEFTCANVAS_API_KEY is required/);
+    expect(() => buildGenerationRuntime(mediaDeps({ WEFTCANVAS_API_KEY: "key" }))).toThrow(
+      /GENERATION_MEDIA_HOSTS/,
+    );
+    expect(() =>
+      buildGenerationRuntime(
+        mediaDeps({
+          WEFTCANVAS_API_KEY: "key",
+          GENERATION_MEDIA_HOSTS: "",
+        }),
+      ),
+    ).toThrow(/GENERATION_MEDIA_HOSTS must list trusted result hostnames/);
   });
 
   it("constructs the generation runtime when configuration is present", () => {
@@ -115,7 +121,8 @@ describe("buildWorkerRuntime", () => {
 
 describe("cleanupGeneratedDownloads", () => {
   it("tolerates a missing directory", async () => {
-    await expect(cleanupGeneratedDownloads(join(tmpdir(), "canvas-worker-test-missing-downloads"), 60_000))
-      .resolves.toBe(0);
+    await expect(
+      cleanupGeneratedDownloads(join(tmpdir(), "canvas-worker-test-missing-downloads"), 60_000),
+    ).resolves.toBe(0);
   });
 });

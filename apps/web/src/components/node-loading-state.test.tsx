@@ -12,37 +12,42 @@ describe("node loading state", () => {
     expect(markup).toContain('data-loading-activity="generation"');
     expect(markup).toContain('data-generation-stage="queued"');
     expect(markup).toContain('aria-label="');
-    expect(markup).toContain("--kc-generation-progress:12%");
-    expect(markup).toContain("--kc-generation-progress-scale:0.12");
-    expect(markup).toContain("--kc-video-generation-field-opacity:0.68");
-    expect(markup).toContain("--kc-video-generation-sweep-opacity:0.86");
-    expect(markup).toContain("--kc-video-generation-glint-opacity:0.72");
-    expect(markup).toContain("kc-node-loading--cinematic");
-    expect(markup).toContain("kc-video-generation-scene");
-    expect(markup).toContain("kc-video-generation-field");
-    expect(markup).toContain("kc-video-generation-sweep");
-    expect(markup).toContain("kc-video-generation-glint");
-    expect(markup).toContain("kc-video-generation-scan");
-    expect(markup).toContain("kc-video-generation-rail");
-    expect(markup).not.toContain("kc-cinematic-generation-stage");
-    expect(markup).not.toContain("kc-cinematic-generation-label");
-    expect(markup).not.toContain("kc-cinematic-generation-progress");
-    expect(markup).not.toContain("kc-node-loading-content");
-    expect(markup).not.toContain("kc-node-loading-label");
-    expect(markup).not.toContain("kc-node-loading-value");
-    expect(markup).not.toContain("kc-node-loading-track");
+    expect(markup).toContain("--wc-generation-progress:12%");
+    expect(markup).toContain("--wc-generation-progress-scale:0.12");
+    expect(markup).toContain("--wc-video-generation-field-opacity:0.68");
+    expect(markup).toContain("--wc-video-generation-sweep-opacity:0.86");
+    expect(markup).toContain("--wc-video-generation-glint-opacity:0.72");
+    expect(markup).toContain("wc-node-loading--cinematic");
+    expect(markup).toContain("wc-video-generation-scene");
+    expect(markup).toContain("wc-video-generation-field");
+    expect(markup).toContain("wc-video-generation-sweep");
+    expect(markup).toContain("wc-video-generation-glint");
+    expect(markup).toContain("wc-video-generation-scan");
+    expect(markup).toContain("wc-video-generation-rail");
+    expect(markup).not.toContain("wc-cinematic-generation-stage");
+    expect(markup).not.toContain("wc-cinematic-generation-label");
+    expect(markup).not.toContain("wc-cinematic-generation-progress");
+    expect(markup).not.toContain("wc-node-loading-content");
+    expect(markup).not.toContain("wc-node-loading-label");
+    expect(markup).not.toContain("wc-node-loading-value");
+    expect(markup).not.toContain("wc-node-loading-track");
   });
 
   it("uses a moving rail while submission progress is unknown", () => {
     const markup = renderToStaticMarkup(
-      <NodeLoadingState variant="image" activity="generation" status="submission_unknown" progress={0} />,
+      <NodeLoadingState
+        variant="image"
+        activity="generation"
+        status="submission_unknown"
+        progress={0}
+      />,
     );
 
     expect(markup).toContain('data-generation-stage="submission_unknown"');
-    expect(markup).toContain("kc-video-generation-rail is-indeterminate");
-    expect(markup).toContain("kc-video-generation-scene");
-    expect(markup).not.toContain("kc-cinematic-generation-stage");
-    expect(markup).not.toContain("kc-cinematic-generation-progress");
+    expect(markup).toContain("wc-video-generation-rail is-indeterminate");
+    expect(markup).toContain("wc-video-generation-scene");
+    expect(markup).not.toContain("wc-cinematic-generation-stage");
+    expect(markup).not.toContain("wc-cinematic-generation-progress");
   });
 
   it("keeps submitting, queued, running, and submission_unknown visually distinct", () => {
@@ -56,7 +61,12 @@ describe("node loading state", () => {
       <NodeLoadingState variant="video" activity="generation" status="running" progress={50} />,
     );
     const unknown = renderToStaticMarkup(
-      <NodeLoadingState variant="video" activity="generation" status="submission_unknown" progress={0} />,
+      <NodeLoadingState
+        variant="video"
+        activity="generation"
+        status="submission_unknown"
+        progress={0}
+      />,
     );
 
     expect(submitting).toContain('data-generation-stage="submitting"');
@@ -79,45 +89,53 @@ describe("node loading state", () => {
     expect(markup).toContain('data-loading-activity="loading"');
     expect(markup).not.toContain("data-generation-stage");
     expect(markup).toContain('aria-label="Loading video"');
-    expect(markup).toContain("kc-node-loading-spinner");
-    expect(markup).toContain("kc-node-loading-track is-indeterminate");
-    expect(markup).not.toContain("kc-node-loading--cinematic");
-    expect(markup).not.toContain("kc-video-generation-scene");
-    expect(markup).not.toContain("kc-video-generation-rail");
+    expect(markup).toContain("wc-node-loading-spinner");
+    expect(markup).toContain("wc-node-loading-track is-indeterminate");
+    expect(markup).not.toContain("wc-node-loading--cinematic");
+    expect(markup).not.toContain("wc-video-generation-scene");
+    expect(markup).not.toContain("wc-video-generation-rail");
   });
 
   it("clamps media progress while retaining a visible material treatment", () => {
     const over = renderToStaticMarkup(<NodeLoadingState variant="video" progress={140} />);
     const under = renderToStaticMarkup(<NodeLoadingState variant="video" progress={-12} />);
-    const invalid = renderToStaticMarkup(<NodeLoadingState variant="video" progress={Number.NaN} />);
+    const invalid = renderToStaticMarkup(
+      <NodeLoadingState variant="video" progress={Number.NaN} />,
+    );
 
-    expect(over).toContain("--kc-generation-progress:100%");
-    expect(over).toContain("--kc-generation-progress-scale:1");
-    expect(under).toContain("--kc-generation-progress:0%");
-    expect(under).toContain("--kc-generation-progress-scale:0");
-    expect(under).toContain("kc-video-generation-rail is-indeterminate");
-    expect(invalid).toContain("--kc-generation-progress:36%");
-    expect(invalid).toContain("--kc-generation-progress-scale:0.36");
-    expect(invalid).toContain("kc-video-generation-field-opacity:0.68");
-    expect(invalid).toContain("kc-video-generation-sweep-opacity:0.86");
-    expect(invalid).toContain("kc-video-generation-glint-opacity:0.72");
-    expect(invalid).toContain("kc-video-generation-scene");
-    expect(invalid).toContain("kc-video-generation-rail is-indeterminate");
-    expect(invalid).not.toContain("kc-cinematic-generation-stage");
+    expect(over).toContain("--wc-generation-progress:100%");
+    expect(over).toContain("--wc-generation-progress-scale:1");
+    expect(under).toContain("--wc-generation-progress:0%");
+    expect(under).toContain("--wc-generation-progress-scale:0");
+    expect(under).toContain("wc-video-generation-rail is-indeterminate");
+    expect(invalid).toContain("--wc-generation-progress:36%");
+    expect(invalid).toContain("--wc-generation-progress-scale:0.36");
+    expect(invalid).toContain("wc-video-generation-field-opacity:0.68");
+    expect(invalid).toContain("wc-video-generation-sweep-opacity:0.86");
+    expect(invalid).toContain("wc-video-generation-glint-opacity:0.72");
+    expect(invalid).toContain("wc-video-generation-scene");
+    expect(invalid).toContain("wc-video-generation-rail is-indeterminate");
+    expect(invalid).not.toContain("wc-cinematic-generation-stage");
     expect(invalid).not.toContain("NaN");
   });
 
   it("shows an explicit stalled semantic for a frozen running job", () => {
     const markup = renderToStaticMarkup(
-      <NodeLoadingState variant="image" activity="generation" status="running" progress={48} stalled />,
+      <NodeLoadingState
+        variant="image"
+        activity="generation"
+        status="running"
+        progress={48}
+        stalled
+      />,
     );
 
     expect(markup).toContain('data-stalled="true"');
-    expect(markup).toContain("kc-node-loading--stalled");
+    expect(markup).toContain("wc-node-loading--stalled");
     expect(markup).toContain("生成长时间未推进");
     expect(markup).toContain("48%");
-    expect(markup).not.toContain("kc-video-generation-scene");
-    expect(markup).not.toContain("kc-node-loading--cinematic");
+    expect(markup).not.toContain("wc-video-generation-scene");
+    expect(markup).not.toContain("wc-node-loading--cinematic");
   });
 
   it("keeps the ordinary generating label when the same job is not stalled", () => {
@@ -126,33 +144,44 @@ describe("node loading state", () => {
     );
 
     expect(markup).not.toContain('data-stalled="true"');
-    expect(markup).not.toContain("kc-node-loading--stalled");
+    expect(markup).not.toContain("wc-node-loading--stalled");
     expect(markup).not.toContain("生成长时间未推进");
     expect(markup).toContain("正在生成图片");
   });
 
   it("shows an explicit temporarily-unavailable semantic when observation is exhausted", () => {
     const markup = renderToStaticMarkup(
-      <NodeLoadingState variant="image" activity="generation" status="running" progress={48} observationExhausted />,
+      <NodeLoadingState
+        variant="image"
+        activity="generation"
+        status="running"
+        progress={48}
+        observationExhausted
+      />,
     );
 
     expect(markup).toContain('data-observation-exhausted="true"');
-    expect(markup).toContain("kc-node-loading--observation-exhausted");
+    expect(markup).toContain("wc-node-loading--observation-exhausted");
     expect(markup).toContain("暂时无法更新");
     expect(markup).toContain("请稍后重试");
     // No infinite spinner: the indeterminate rail, spinner, and cinematic/beam
     // sweep are all suppressed; only the explicit truthful copy remains.
-    expect(markup).not.toContain("kc-node-loading-spinner");
-    expect(markup).not.toContain("kc-node-loading-track");
-    expect(markup).not.toContain("kc-node-loading-beam");
-    expect(markup).not.toContain("kc-video-generation-scene");
-    expect(markup).not.toContain("kc-node-loading--cinematic");
+    expect(markup).not.toContain("wc-node-loading-spinner");
+    expect(markup).not.toContain("wc-node-loading-track");
+    expect(markup).not.toContain("wc-node-loading-beam");
+    expect(markup).not.toContain("wc-video-generation-scene");
+    expect(markup).not.toContain("wc-node-loading--cinematic");
     expect(markup).toContain('aria-label="暂时无法更新，请稍后重试"');
   });
 
   it("keeps submission_unknown rendering a pending-confirmation semantic", () => {
     const markup = renderToStaticMarkup(
-      <NodeLoadingState variant="default" activity="generation" status="submission_unknown" progress={0} />,
+      <NodeLoadingState
+        variant="default"
+        activity="generation"
+        status="submission_unknown"
+        progress={0}
+      />,
     );
 
     expect(markup).toContain('data-generation-stage="submission_unknown"');
@@ -162,20 +191,26 @@ describe("node loading state", () => {
 
   it("keeps quiet as a centered truthful status for normal media generation", () => {
     const markup = renderToStaticMarkup(
-      <NodeLoadingState variant="image" activity="generation" status="running" progress={48} generationEffectStyle="quiet" />,
+      <NodeLoadingState
+        variant="image"
+        activity="generation"
+        status="running"
+        progress={48}
+        generationEffectStyle="quiet"
+      />,
     );
 
     expect(markup).toContain('data-generation-effect="quiet"');
-    expect(markup).toContain("kc-node-loading--quiet");
-    expect(markup).toContain("kc-quiet-generation-scene");
-    expect(markup).toContain("kc-quiet-generation-sweep");
-    expect(markup).toContain("kc-quiet-ring");
-    expect(markup).toContain("kc-node-loading-content");
+    expect(markup).toContain("wc-node-loading--quiet");
+    expect(markup).toContain("wc-quiet-generation-scene");
+    expect(markup).toContain("wc-quiet-generation-sweep");
+    expect(markup).toContain("wc-quiet-ring");
+    expect(markup).toContain("wc-node-loading-content");
     expect(markup).toContain("正在生成图片");
     expect(markup).toContain("48%");
-    expect(markup).not.toContain("kc-node-loading--cinematic");
-    expect(markup).not.toContain("kc-video-generation-scene");
-    expect(markup).not.toContain("kc-node-loading-spinner");
+    expect(markup).not.toContain("wc-node-loading--cinematic");
+    expect(markup).not.toContain("wc-video-generation-scene");
+    expect(markup).not.toContain("wc-node-loading-spinner");
     expect(markup).not.toContain('data-stalled="true"');
     expect(markup).not.toContain("生成长时间未推进");
     expect(markup).not.toContain("暂时无法更新");
@@ -184,19 +219,49 @@ describe("node loading state", () => {
 
   it("quiet keeps all truthful generation stages distinct", () => {
     const submitting = renderToStaticMarkup(
-      <NodeLoadingState variant="video" activity="generation" status="submitting" progress={0} generationEffectStyle="quiet" />,
+      <NodeLoadingState
+        variant="video"
+        activity="generation"
+        status="submitting"
+        progress={0}
+        generationEffectStyle="quiet"
+      />,
     );
     const confirming = renderToStaticMarkup(
-      <NodeLoadingState variant="video" activity="generation" status="submission_unknown" progress={0} generationEffectStyle="quiet" />,
+      <NodeLoadingState
+        variant="video"
+        activity="generation"
+        status="submission_unknown"
+        progress={0}
+        generationEffectStyle="quiet"
+      />,
     );
     const queued = renderToStaticMarkup(
-      <NodeLoadingState variant="image" activity="generation" status="queued" progress={12} generationEffectStyle="quiet" />,
+      <NodeLoadingState
+        variant="image"
+        activity="generation"
+        status="queued"
+        progress={12}
+        generationEffectStyle="quiet"
+      />,
     );
     const running = renderToStaticMarkup(
-      <NodeLoadingState variant="video" activity="generation" status="running" progress={42} generationEffectStyle="quiet" />,
+      <NodeLoadingState
+        variant="video"
+        activity="generation"
+        status="running"
+        progress={42}
+        generationEffectStyle="quiet"
+      />,
     );
     const validating = renderToStaticMarkup(
-      <NodeLoadingState variant="video" activity="generation" status="validating" progress={81} generationEffectStyle="quiet" />,
+      <NodeLoadingState
+        variant="video"
+        activity="generation"
+        status="validating"
+        progress={81}
+        generationEffectStyle="quiet"
+      />,
     );
 
     expect(submitting).toContain('data-generation-stage="submitting"');
@@ -212,65 +277,91 @@ describe("node loading state", () => {
     expect(validating).toContain('data-generation-stage="validating"');
     expect(validating).toContain("正在整理成片");
     for (const markup of [submitting, confirming, queued, running, validating]) {
-      expect(markup).toContain("kc-quiet-ring");
-      expect(markup).not.toContain("kc-node-loading--cinematic");
-      expect(markup).not.toContain("kc-video-generation-scene");
+      expect(markup).toContain("wc-quiet-ring");
+      expect(markup).not.toContain("wc-node-loading--cinematic");
+      expect(markup).not.toContain("wc-video-generation-scene");
     }
   });
 
   it("keeps beam, nebula, and water text-free cinematic for media generation", () => {
     for (const effect of ["beam", "nebula", "water"] as const) {
       const markup = renderToStaticMarkup(
-        <NodeLoadingState variant="image" activity="generation" status="running" progress={33} generationEffectStyle={effect} />,
+        <NodeLoadingState
+          variant="image"
+          activity="generation"
+          status="running"
+          progress={33}
+          generationEffectStyle={effect}
+        />,
       );
       expect(markup).toContain(`data-generation-effect="${effect}"`);
-      expect(markup).toContain("kc-node-loading--cinematic");
-      expect(markup).toContain("kc-video-generation-scene");
-      expect(markup).not.toContain("kc-node-loading-content");
-      expect(markup).not.toContain("kc-node-loading-label");
-      expect(markup).not.toContain("kc-node-loading-value");
-      expect(markup).not.toContain("kc-quiet-ring");
-      expect(markup).not.toContain("kc-quiet-generation-scene");
+      expect(markup).toContain("wc-node-loading--cinematic");
+      expect(markup).toContain("wc-video-generation-scene");
+      expect(markup).not.toContain("wc-node-loading-content");
+      expect(markup).not.toContain("wc-node-loading-label");
+      expect(markup).not.toContain("wc-node-loading-value");
+      expect(markup).not.toContain("wc-quiet-ring");
+      expect(markup).not.toContain("wc-quiet-generation-scene");
     }
   });
 
   it("stalled overrides quiet and retains its truthful copy", () => {
     const markup = renderToStaticMarkup(
-      <NodeLoadingState variant="image" activity="generation" status="running" progress={48} stalled generationEffectStyle="quiet" />,
+      <NodeLoadingState
+        variant="image"
+        activity="generation"
+        status="running"
+        progress={48}
+        stalled
+        generationEffectStyle="quiet"
+      />,
     );
 
     expect(markup).toContain('data-stalled="true"');
-    expect(markup).toContain("kc-node-loading--stalled");
+    expect(markup).toContain("wc-node-loading--stalled");
     expect(markup).toContain("生成长时间未推进");
     expect(markup).toContain("48%");
-    expect(markup).not.toContain("kc-node-loading--quiet");
-    expect(markup).not.toContain("kc-quiet-generation-scene");
-    expect(markup).not.toContain("kc-quiet-ring");
+    expect(markup).not.toContain("wc-node-loading--quiet");
+    expect(markup).not.toContain("wc-quiet-generation-scene");
+    expect(markup).not.toContain("wc-quiet-ring");
   });
 
   it("observation exhaustion overrides quiet and retains its truthful copy", () => {
     const markup = renderToStaticMarkup(
-      <NodeLoadingState variant="image" activity="generation" status="running" progress={48} observationExhausted generationEffectStyle="quiet" />,
+      <NodeLoadingState
+        variant="image"
+        activity="generation"
+        status="running"
+        progress={48}
+        observationExhausted
+        generationEffectStyle="quiet"
+      />,
     );
 
     expect(markup).toContain('data-observation-exhausted="true"');
-    expect(markup).toContain("kc-node-loading--observation-exhausted");
+    expect(markup).toContain("wc-node-loading--observation-exhausted");
     expect(markup).toContain("暂时无法更新");
     expect(markup).toContain("请稍后重试");
-    expect(markup).not.toContain("kc-node-loading--quiet");
-    expect(markup).not.toContain("kc-quiet-generation-scene");
-    expect(markup).not.toContain("kc-quiet-ring");
-    expect(markup).not.toContain("kc-node-loading-spinner");
-    expect(markup).not.toContain("kc-node-loading-track");
+    expect(markup).not.toContain("wc-node-loading--quiet");
+    expect(markup).not.toContain("wc-quiet-generation-scene");
+    expect(markup).not.toContain("wc-quiet-ring");
+    expect(markup).not.toContain("wc-node-loading-spinner");
+    expect(markup).not.toContain("wc-node-loading-track");
     expect(markup).toContain('aria-label="暂时无法更新，请稍后重试"');
   });
 
   it("quiet uses an indeterminate thin rail when progress is unknown", () => {
     const markup = renderToStaticMarkup(
-      <NodeLoadingState variant="video" activity="generation" status="running" progress={0} generationEffectStyle="quiet" />,
+      <NodeLoadingState
+        variant="video"
+        activity="generation"
+        status="running"
+        progress={0}
+        generationEffectStyle="quiet"
+      />,
     );
 
-    expect(markup).toContain("kc-node-loading-track is-indeterminate");
+    expect(markup).toContain("wc-node-loading-track is-indeterminate");
     expect(markup).toContain("正在生成视频");
     expect(markup).toContain("0%");
   });

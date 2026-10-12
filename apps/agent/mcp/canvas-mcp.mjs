@@ -1,22 +1,25 @@
 #!/usr/bin/env node
 /**
- * 卡藏画布 MCP 桥接（stdio）。
+ * 纬线画布 MCP 桥接（stdio）。
  *
  * Codex 用 MCP 启动这个进程，它把 MCP 工具调用转成 Canvas Agent 运行时的
  * 画布指令，等浏览器执行完再返回回执。这里不做任何画布写入，也不持有画布状态。
  *
  * 环境变量：
- *   KACHANG_AGENT_URL         Agent 运行时地址，默认 http://127.0.0.1:8790
- *   KACHANG_AGENT_TOKEN       与 AGENT_RUNTIME_TOKEN 相同的令牌（必填）
- *   KACHANG_CANVAS_PROJECT_ID 可选：固定操作的画布项目；省略时用浏览器当前打开的画布
+ *   WEFTCANVAS_AGENT_URL         Agent 运行时地址，默认 http://127.0.0.1:8790
+ *   WEFTCANVAS_AGENT_TOKEN       与 AGENT_RUNTIME_TOKEN 相同的令牌（必填）
+ *   WEFTCANVAS_CANVAS_PROJECT_ID 可选：固定操作的画布项目；省略时用浏览器当前打开的画布
  */
 
-const AGENT_URL = (process.env.KACHANG_AGENT_URL?.trim() || "http://127.0.0.1:8790").replace(/\/+$/, "");
-const AGENT_TOKEN = process.env.KACHANG_AGENT_TOKEN?.trim() || "";
-const FIXED_PROJECT_ID = process.env.KACHANG_CANVAS_PROJECT_ID?.trim() || "";
+const AGENT_URL = (process.env.WEFTCANVAS_AGENT_URL?.trim() || "http://127.0.0.1:8790").replace(
+  /\/+$/,
+  "",
+);
+const AGENT_TOKEN = process.env.WEFTCANVAS_AGENT_TOKEN?.trim() || "";
+const FIXED_PROJECT_ID = process.env.WEFTCANVAS_CANVAS_PROJECT_ID?.trim() || "";
 
 const PROTOCOL_VERSION = "2024-11-05";
-const SERVER_INFO = { name: "kachang-canvas", version: "1.0.0" };
+const SERVER_INFO = { name: "weftcanvas", version: "1.0.0" };
 
 const projectIdProperty = {
   type: "string",
@@ -26,7 +29,8 @@ const projectIdProperty = {
 const TOOLS = [
   {
     name: "canvas_read",
-    description: "读取浏览器当前打开画布的有界摘要（项目、节点 id、正文、连线）。改动画布前先调用它拿到真实节点 id。",
+    description:
+      "读取浏览器当前打开画布的有界摘要（项目、节点 id、正文、连线）。改动画布前先调用它拿到真实节点 id。",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     build: () => null,
   },
@@ -45,13 +49,15 @@ const TOOLS = [
       required: ["kind"],
       additionalProperties: false,
     },
-    build: (args, context) => [{
-      type: "canvas_add_node",
-      clientId: context.nextClientId(),
-      kind: args.kind,
-      ...(typeof args.body === "string" ? { body: args.body } : {}),
-      ...(position(args) ? { position: position(args) } : {}),
-    }],
+    build: (args, context) => [
+      {
+        type: "canvas_add_node",
+        clientId: context.nextClientId(),
+        kind: args.kind,
+        ...(typeof args.body === "string" ? { body: args.body } : {}),
+        ...(position(args) ? { position: position(args) } : {}),
+      },
+    ],
   },
   {
     name: "canvas_update_node",
@@ -68,12 +74,14 @@ const TOOLS = [
       required: ["nodeId"],
       additionalProperties: false,
     },
-    build: (args) => [{
-      type: "canvas_update_node",
-      nodeId: args.nodeId,
-      ...(typeof args.body === "string" ? { body: args.body } : {}),
-      ...(position(args) ? { position: position(args) } : {}),
-    }],
+    build: (args) => [
+      {
+        type: "canvas_update_node",
+        nodeId: args.nodeId,
+        ...(typeof args.body === "string" ? { body: args.body } : {}),
+        ...(position(args) ? { position: position(args) } : {}),
+      },
+    ],
   },
   {
     name: "canvas_connect_nodes",
@@ -88,11 +96,13 @@ const TOOLS = [
       required: ["sourceNodeId", "targetNodeId"],
       additionalProperties: false,
     },
-    build: (args) => [{
-      type: "canvas_connect_nodes",
-      sourceNodeId: args.sourceNodeId,
-      targetNodeId: args.targetNodeId,
-    }],
+    build: (args) => [
+      {
+        type: "canvas_connect_nodes",
+        sourceNodeId: args.sourceNodeId,
+        targetNodeId: args.targetNodeId,
+      },
+    ],
   },
   {
     name: "canvas_select_nodes",
@@ -121,11 +131,13 @@ const TOOLS = [
       required: ["nodeIds"],
       additionalProperties: false,
     },
-    build: (args) => [{
-      type: "canvas_group_nodes",
-      nodeIds: args.nodeIds,
-      ...(typeof args.name === "string" ? { name: args.name } : {}),
-    }],
+    build: (args) => [
+      {
+        type: "canvas_group_nodes",
+        nodeIds: args.nodeIds,
+        ...(typeof args.name === "string" ? { name: args.name } : {}),
+      },
+    ],
   },
   {
     name: "canvas_set_viewport",
@@ -141,7 +153,9 @@ const TOOLS = [
       required: ["x", "y", "zoom"],
       additionalProperties: false,
     },
-    build: (args) => [{ type: "canvas_set_viewport", viewport: { x: args.x, y: args.y, zoom: args.zoom } }],
+    build: (args) => [
+      { type: "canvas_set_viewport", viewport: { x: args.x, y: args.y, zoom: args.zoom } },
+    ],
   },
 ];
 
@@ -175,7 +189,7 @@ function toolText(text, isError = false) {
 }
 
 async function agentRequest(path, init = {}) {
-  if (!AGENT_TOKEN) throw new Error("KACHANG_AGENT_TOKEN 未配置");
+  if (!AGENT_TOKEN) throw new Error("WEFTCANVAS_AGENT_TOKEN 未配置");
   const response = await fetch(`${AGENT_URL}${path}`, {
     ...init,
     headers: {
@@ -231,9 +245,10 @@ async function callTool(name, args) {
   if (!tool) return toolText(`未知工具 ${name}`, true);
   const actions = tool.build(args ?? {}, context);
   if (!actions || !actions.length) return toolText("没有生成任何画布操作", true);
-  const projectId = typeof args?.projectId === "string" && args.projectId.trim()
-    ? args.projectId.trim()
-    : FIXED_PROJECT_ID || undefined;
+  const projectId =
+    typeof args?.projectId === "string" && args.projectId.trim()
+      ? args.projectId.trim()
+      : FIXED_PROJECT_ID || undefined;
   try {
     const receipt = await agentRequest("/internal/v1/canvas-commands", {
       method: "POST",
@@ -243,13 +258,18 @@ async function callTool(name, args) {
         actions,
       }),
     });
-    const label = receipt.status === "applied"
-      ? `已应用 ${receipt.appliedActions} 项`
-      : receipt.status === "partial"
-        ? `部分应用：成功 ${receipt.appliedActions} 项，跳过 ${receipt.skippedActions.length} 项`
-        : "画布没有接受这组操作";
-    const skipped = (receipt.skippedActions ?? []).map((item) => `  - 第 ${item.index} 项：${item.reason}`).join("\n");
-    return toolText(`${label}${receipt.reason ? `（${receipt.reason}）` : ""}${skipped ? `\n${skipped}` : ""}`);
+    const label =
+      receipt.status === "applied"
+        ? `已应用 ${receipt.appliedActions} 项`
+        : receipt.status === "partial"
+          ? `部分应用：成功 ${receipt.appliedActions} 项，跳过 ${receipt.skippedActions.length} 项`
+          : "画布没有接受这组操作";
+    const skipped = (receipt.skippedActions ?? [])
+      .map((item) => `  - 第 ${item.index} 项：${item.reason}`)
+      .join("\n");
+    return toolText(
+      `${label}${receipt.reason ? `（${receipt.reason}）` : ""}${skipped ? `\n${skipped}` : ""}`,
+    );
   } catch (error) {
     return toolText(error instanceof Error ? error.message : "画布指令失败", true);
   }
@@ -262,7 +282,8 @@ async function handle(message) {
       protocolVersion: PROTOCOL_VERSION,
       capabilities: { tools: { listChanged: false } },
       serverInfo: SERVER_INFO,
-      instructions: "用 canvas_read 先读当前画布；改动画布前确认节点 id。所有写入都由浏览器执行，返回的回执才是真实结果。",
+      instructions:
+        "用 canvas_read 先读当前画布；改动画布前确认节点 id。所有写入都由浏览器执行，返回的回执才是真实结果。",
     });
     return;
   }
@@ -310,7 +331,8 @@ process.stdin.on("data", (chunk) => {
       try {
         const message = JSON.parse(line);
         void handle(message).catch((error) => {
-          if (message?.id !== undefined) failure(message.id, -32603, error instanceof Error ? error.message : "内部错误");
+          if (message?.id !== undefined)
+            failure(message.id, -32603, error instanceof Error ? error.message : "内部错误");
         });
       } catch {
         // 忽略无法解析的行：MCP 客户端偶尔会写入日志。

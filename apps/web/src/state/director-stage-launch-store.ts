@@ -1,7 +1,14 @@
-import { normalizeDirectorStagePacket, type AgentAction, type DirectorStagePacket } from "@kachang/contracts";
+import {
+  normalizeDirectorStagePacket,
+  type AgentAction,
+  type DirectorStagePacket,
+} from "@weftcanvas/contracts";
 import { create } from "zustand";
 
-import { createDirectorStagePacketFromText, type DirectorStageSourceMode } from "../lib/director-stage-source";
+import {
+  createDirectorStagePacketFromText,
+  type DirectorStageSourceMode,
+} from "../lib/director-stage-source";
 
 type DirectorStageLaunchState = {
   open: boolean;
@@ -16,9 +23,12 @@ type DirectorStageLaunchState = {
   close: () => void;
 };
 
-type DirectorAgentAction = Extract<AgentAction, {
-  type: "canvas_director_select_shot" | "canvas_director_update_entity";
-}>;
+type DirectorAgentAction = Extract<
+  AgentAction,
+  {
+    type: "canvas_director_select_shot" | "canvas_director_update_entity";
+  }
+>;
 
 export const useDirectorStageLaunchStore = create<DirectorStageLaunchState>((set, get) => ({
   open: false,
@@ -26,13 +36,14 @@ export const useDirectorStageLaunchStore = create<DirectorStageLaunchState>((set
   sourceNodeId: null,
   initialPacket: null,
   pendingAgentActions: [],
-  openStandalone: () => set({
-    open: true,
-    launchId: get().launchId + 1,
-    sourceNodeId: null,
-    initialPacket: null,
-    pendingAgentActions: [],
-  }),
+  openStandalone: () =>
+    set({
+      open: true,
+      launchId: get().launchId + 1,
+      sourceNodeId: null,
+      initialPacket: null,
+      pendingAgentActions: [],
+    }),
   openFromNode: (sourceNodeId, body) => {
     const source = createDirectorStagePacketFromText(body);
     set({
@@ -51,8 +62,13 @@ export const useDirectorStageLaunchStore = create<DirectorStageLaunchState>((set
     let packet: DirectorStagePacket | null = null;
     const pending: DirectorAgentAction[] = [];
     for (const action of directorActions) {
-      if (action.type === "canvas_director_load_packet") packet = normalizeDirectorStagePacket(action.packet);
-      else if (action.type === "canvas_director_select_shot" || action.type === "canvas_director_update_entity") pending.push(action);
+      if (action.type === "canvas_director_load_packet")
+        packet = normalizeDirectorStagePacket(action.packet);
+      else if (
+        action.type === "canvas_director_select_shot" ||
+        action.type === "canvas_director_update_entity"
+      )
+        pending.push(action);
     }
     const shouldRemount = Boolean(packet) || !state.open;
     set({
@@ -64,6 +80,7 @@ export const useDirectorStageLaunchStore = create<DirectorStageLaunchState>((set
     });
     return directorActions.length;
   },
-  completeAgentAction: () => set((state) => ({ pendingAgentActions: state.pendingAgentActions.slice(1) })),
+  completeAgentAction: () =>
+    set((state) => ({ pendingAgentActions: state.pendingAgentActions.slice(1) })),
   close: () => set({ open: false }),
 }));

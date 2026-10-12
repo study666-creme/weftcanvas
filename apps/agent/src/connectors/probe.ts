@@ -1,7 +1,10 @@
 import { spawn } from "node:child_process";
 import { connect } from "node:net";
 
-import { connectorEndpointRejectionReason, connectorHostRejectionReason } from "@kachang/contracts";
+import {
+  connectorEndpointRejectionReason,
+  connectorHostRejectionReason,
+} from "@weftcanvas/contracts";
 
 export type ProbeResult = {
   reachable: boolean;
@@ -36,7 +39,10 @@ export async function probeCodexCommand(
     let child;
     try {
       // Windows 上的 codex 通常是 .cmd，必须经 shell 解析。
-      child = spawn(command, ["--version"], { shell: process.platform === "win32", windowsHide: true });
+      child = spawn(command, ["--version"], {
+        shell: process.platform === "win32",
+        windowsHide: true,
+      });
     } catch {
       finish({ reachable: false, detail: `无法启动 ${command}` });
       return;
@@ -52,7 +58,9 @@ export async function probeCodexCommand(
     options.signal?.addEventListener("abort", abort, { once: true });
 
     let stdout = "";
-    child.stdout?.on("data", (chunk: Buffer) => { stdout += chunk.toString("utf8"); });
+    child.stdout?.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString("utf8");
+    });
     child.on("error", () => finish({ reachable: false, detail: `本机找不到 ${command}` }));
     child.on("close", (code) => {
       clearTimeout(timer);
@@ -105,9 +113,10 @@ export async function probeBlenderEndpoint(
       options.signal?.removeEventListener("abort", abort);
       finish({
         reachable: false,
-        detail: error.code === "ECONNREFUSED"
-          ? "端口上没有 Blender 桥接在监听"
-          : `无法连接 ${parsed.host}:${parsed.port}`,
+        detail:
+          error.code === "ECONNREFUSED"
+            ? "端口上没有 Blender 桥接在监听"
+            : `无法连接 ${parsed.host}:${parsed.port}`,
       });
     });
   });
@@ -127,6 +136,7 @@ export function parseEndpoint(endpoint: string): { host: string; port: number } 
 export function defaultProbes(): ConnectorProbes {
   return {
     codex: (command, signal) => probeCodexCommand(command, { ...(signal ? { signal } : {}) }),
-    blender: (endpoint, signal) => probeBlenderEndpoint(endpoint, { ...(signal ? { signal } : {}) }),
+    blender: (endpoint, signal) =>
+      probeBlenderEndpoint(endpoint, { ...(signal ? { signal } : {}) }),
   };
 }

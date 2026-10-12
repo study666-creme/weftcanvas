@@ -13,12 +13,11 @@ describe("face grid geometry", () => {
 
   it("builds stable ellipse and circle geometry", () => {
     expect(
-      buildFaceRegion(
-        { x: 20, y: 10, width: 40, height: 60 },
-        100,
-        100,
-        { facePadding: 0, circleScale: 1, rotationRadians: Math.PI / 8 },
-      ),
+      buildFaceRegion({ x: 20, y: 10, width: 40, height: 60 }, 100, 100, {
+        facePadding: 0,
+        circleScale: 1,
+        rotationRadians: Math.PI / 8,
+      }),
     ).toEqual({
       x: 20,
       y: 10,

@@ -4,13 +4,13 @@
 
 这套连接有两种落地形态，**取决于 Agent 运行时跑在哪里**：
 
-| 形态 | 运行时位置 | 适用场景 | 状态 |
-| --- | --- | --- | --- |
-| **本机运行时** | 用户自己的机器 | 本地开发、自托管（`pnpm dev:agent`） | 已实现（下面的数据流章节） |
-| **用户侧反向连接** | 服务端只做投递 | 托管站点的用户 | 已上线：Blender 与 Codex 两条通道都通 |
+| 形态               | 运行时位置     | 适用场景                             | 状态                                  |
+| ------------------ | -------------- | ------------------------------------ | ------------------------------------- |
+| **本机运行时**     | 用户自己的机器 | 本地开发、自托管（`pnpm dev:agent`） | 已实现（下面的数据流章节）            |
+| **用户侧反向连接** | 服务端只做投递 | 托管站点的用户                       | 已上线：Blender 与 Codex 两条通道都通 |
 
 **为什么托管站点必须用反向连接**：托管站点上 `AGENT_RUNTIME_URL` 指向的是**服务器**上的
-运行时（`kachang-canvas-agent.service`，监听 `127.0.0.1:8790`，不对公网暴露）。服务器上
+运行时（`weftcanvas-agent.service`，监听 `127.0.0.1:8790`，不对公网暴露）。服务器上
 既没有 Blender 也没有 Codex，也不该有——那是用户机器上的软件。浏览器和服务器都无法在用户
 电脑上执行进程，所以必须由**用户机器上的组件主动连出来**。
 
@@ -81,7 +81,7 @@ Agent 对话 → API → apps/agent /internal/v1/runs
                   blender_run_python 工具
                         │  TCP 一行 JSON
                         ▼
-         Blender 内的 kachang_bridge.py（127.0.0.1:9876）
+         Blender 内的 weftcanvas_bridge.py（127.0.0.1:9876）
 ```
 
 要点：
@@ -104,10 +104,10 @@ Agent 对话 → API → apps/agent /internal/v1/runs
 
 - 配置文件：`$CODEX_HOME/config.toml`，未设置时为 `~/.codex/config.toml`
   （Windows 是 `%USERPROFILE%\.codex\config.toml`）。
-- 只替换 `[mcp_servers.kachang-canvas]` 这一段，其它配置原样保留；写入前会把原文件
-  备份成 `config.toml.kachang-backup`。
+- 只替换 `[mcp_servers.weftcanvas]` 这一段，其它配置原样保留；写入前会把原文件
+  备份成 `config.toml.weftcanvas-backup`。
 - 写的是 `node <repo>/apps/agent/mcp/canvas-mcp.mjs`，并通过 env 传入
-  `KACHANG_AGENT_URL` 与 `KACHANG_AGENT_TOKEN`。
+  `WEFTCANVAS_AGENT_URL` 与 `WEFTCANVAS_AGENT_TOKEN`。
 
 Codex 只在启动时读取配置，所以面板会提示 **重启 Codex 后生效**。重启后让 Codex
 调用 `canvas_read` 确认能读到节点，再做修改。
@@ -116,33 +116,33 @@ Codex 只在启动时读取配置，所以面板会提示 **重启 Codex 后生�
 
 点「连接」后，运行时按顺序做三件事：
 
-1. 找到本机 Blender（`KACHANG_BLENDER_BIN` → PATH 上的 `blender` → 各平台默认安装路径）。
-2. 把 `kachang_bridge.py` 作为插件写进 Blender 的用户插件目录
+1. 找到本机 Blender（`WEFTCANVAS_BLENDER_BIN` → PATH 上的 `blender` → 各平台默认安装路径）。
+2. 把 `weftcanvas_bridge.py` 作为插件写进 Blender 的用户插件目录
    （Windows `%APPDATA%\Blender Foundation\Blender\<版本>\scripts\addons`；
    macOS `~/Library/Application Support/Blender/<版本>/scripts/addons`；
-   Linux `~/.config/blender/<版本>/scripts/addons`，可用 `KACHANG_BLENDER_ADDONS_DIR` 覆盖）。
+   Linux `~/.config/blender/<版本>/scripts/addons`，可用 `WEFTCANVAS_BLENDER_ADDONS_DIR` 覆盖）。
    插件里已经写进面板里配置的 `host:port`，用户不用再去 Blender 面板改。
 3. 用一次 `blender --background --python-expr` 启用插件并保存偏好（内容没变时跳过这步），
    然后启动 Blender。插件带"随 Blender 自动启动"开关，之后每次打开 Blender 桥接都会自己起来。
 
-没有找到 Blender 时不会假装成功，面板会直接说明并给出设置 `KACHANG_BLENDER_BIN` 的办法。
+没有找到 Blender 时不会假装成功，面板会直接说明并给出设置 `WEFTCANVAS_BLENDER_BIN` 的办法。
 
 ### 手动方式（可选）
 
 不想让运行时改本机配置时，仍然可以手动接入：把上面的 MCP 配置自己写进 Codex，
-或在 Blender 的 Preferences → Add-ons 里安装 `apps/agent/blender/kachang_bridge.py`
+或在 Blender 的 Preferences → Add-ons 里安装 `apps/agent/blender/weftcanvas_bridge.py`
 （也可以在 Scripting 工作区直接 Run Script 临时启动一次）。
 
 ## 状态语义
 
 面板上的状态都是真实探测结果，不伪造：
 
-| 状态 | 含义 |
-| --- | --- |
-| 已关闭 | 连接未启用，运行时不会探测，也不会构建对应工具 |
-| 已连接 | 探测可达（Codex：命令可执行；Blender：端口可连接） |
+| 状态   | 含义                                                         |
+| ------ | ------------------------------------------------------------ |
+| 已关闭 | 连接未启用，运行时不会探测，也不会构建对应工具               |
+| 已连接 | 探测可达（Codex：命令可执行；Blender：端口可连接）           |
 | 未连上 | 已启用但探测失败；按钮下方的说明给出接入结果与可执行的下一步 |
-| 异常 | 保留位；当前探测失败统一显示「未连上」 |
+| 异常   | 保留位；当前探测失败统一显示「未连上」                       |
 
 ## 边界与非目标
 

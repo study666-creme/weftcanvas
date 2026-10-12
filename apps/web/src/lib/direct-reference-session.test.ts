@@ -87,10 +87,21 @@ describe("writeDirectReferenceSession", () => {
     });
     const stored = storage.getItem(DIRECT_REFERENCE_SESSION_KEY);
     expect(stored).toBeTruthy();
-    const parsed = JSON.parse(stored as string) as { schemaVersion: number; image: unknown[]; video: unknown[] };
+    const parsed = JSON.parse(stored as string) as {
+      schemaVersion: number;
+      image: unknown[];
+      video: unknown[];
+    };
     expect(parsed.schemaVersion).toBe(2);
     expect(parsed.image).toHaveLength(1);
-    expect(parsed.image[0]).toMatchObject({ id: "ref-1", kind: "image", name: "reference.png", serverId: "server-1", imagePurpose: null, durationMs: null });
+    expect(parsed.image[0]).toMatchObject({
+      id: "ref-1",
+      kind: "image",
+      name: "reference.png",
+      serverId: "server-1",
+      imagePurpose: null,
+      durationMs: null,
+    });
     expect(parsed.video).toEqual([]);
   });
 
@@ -122,7 +133,7 @@ describe("writeDirectReferenceSession", () => {
 
   it("clears the key when both modalities are empty", () => {
     const storage = installMemoryStorage();
-    storage.setItem(DIRECT_REFERENCE_SESSION_KEY, "{\"schemaVersion\":1,\"image\":[],\"video\":[]}");
+    storage.setItem(DIRECT_REFERENCE_SESSION_KEY, '{"schemaVersion":1,"image":[],"video":[]}');
     writeDirectReferenceSession({ image: [], video: [] });
     expect(storage.getItem(DIRECT_REFERENCE_SESSION_KEY)).toBeNull();
   });
@@ -136,28 +147,43 @@ describe("readDirectReferenceSession", () => {
     storage.setItem(DIRECT_REFERENCE_SESSION_KEY, "not-json");
     expect(readDirectReferenceSession()).toBeNull();
 
-    storage.setItem(DIRECT_REFERENCE_SESSION_KEY, "{\"schemaVersion\":99,\"image\":[],\"video\":[]}");
+    storage.setItem(DIRECT_REFERENCE_SESSION_KEY, '{"schemaVersion":99,"image":[],"video":[]}');
     expect(readDirectReferenceSession()).toBeNull();
 
-    storage.setItem(DIRECT_REFERENCE_SESSION_KEY, "\"a string\"");
+    storage.setItem(DIRECT_REFERENCE_SESSION_KEY, '"a string"');
     expect(readDirectReferenceSession()).toBeNull();
   });
 
   it("drops invalid entries and normalizes image purposes", () => {
     const storage = installMemoryStorage();
-    storage.setItem(DIRECT_REFERENCE_SESSION_KEY, JSON.stringify({
-      schemaVersion: 1,
-      image: [
-        { id: "ok", kind: "image", name: "a.png", serverId: "s-1", imagePurpose: "styleImages" },
-        { id: "bad-kind", kind: "sticker", name: "b.png", serverId: "s-2", imagePurpose: null },
-        { id: "bad-purpose", kind: "image", name: "c.png", serverId: "s-3", imagePurpose: "gallery" },
-        { id: "missing-server", kind: "image", name: "d.png", serverId: "", imagePurpose: null },
-        { id: "video-purpose", kind: "video", name: "e.mp4", serverId: "s-5", imagePurpose: "images" },
-        null,
-        "garbage",
-      ],
-      video: [],
-    }));
+    storage.setItem(
+      DIRECT_REFERENCE_SESSION_KEY,
+      JSON.stringify({
+        schemaVersion: 1,
+        image: [
+          { id: "ok", kind: "image", name: "a.png", serverId: "s-1", imagePurpose: "styleImages" },
+          { id: "bad-kind", kind: "sticker", name: "b.png", serverId: "s-2", imagePurpose: null },
+          {
+            id: "bad-purpose",
+            kind: "image",
+            name: "c.png",
+            serverId: "s-3",
+            imagePurpose: "gallery",
+          },
+          { id: "missing-server", kind: "image", name: "d.png", serverId: "", imagePurpose: null },
+          {
+            id: "video-purpose",
+            kind: "video",
+            name: "e.mp4",
+            serverId: "s-5",
+            imagePurpose: "images",
+          },
+          null,
+          "garbage",
+        ],
+        video: [],
+      }),
+    );
     const session = readDirectReferenceSession();
     expect(session).not.toBeNull();
     expect(session?.image.map((item) => item.id)).toEqual(["ok", "bad-purpose", "video-purpose"]);
@@ -169,11 +195,22 @@ describe("readDirectReferenceSession", () => {
 describe("restoreDirectReferenceSession", () => {
   it("rebuilds references with server preview paths, fresh upload keys, and ready status", () => {
     const storage = installMemoryStorage();
-    storage.setItem(DIRECT_REFERENCE_SESSION_KEY, JSON.stringify({
-      schemaVersion: 1,
-      image: [{ id: "ref-1", kind: "image", name: "reference.png", serverId: "server-1", imagePurpose: "elementImages" }],
-      video: [],
-    }));
+    storage.setItem(
+      DIRECT_REFERENCE_SESSION_KEY,
+      JSON.stringify({
+        schemaVersion: 1,
+        image: [
+          {
+            id: "ref-1",
+            kind: "image",
+            name: "reference.png",
+            serverId: "server-1",
+            imagePurpose: "elementImages",
+          },
+        ],
+        video: [],
+      }),
+    );
     const restored = restoreDirectReferenceSession();
     expect(restored.image).toHaveLength(1);
     const reference = restored.image[0]!;
@@ -197,14 +234,30 @@ describe("restoreDirectReferenceSession", () => {
     // 升级前写入的会话没有 durationMs：恢复不能失败，时长列为 null，由工作台
     // 补查一次素材元数据。
     const storage = installMemoryStorage();
-    storage.setItem(DIRECT_REFERENCE_SESSION_KEY, JSON.stringify({
-      schemaVersion: 1,
-      image: [],
-      video: [{ id: "ref-v", kind: "video", name: "clip.mp4", serverId: "server-v", imagePurpose: null }],
-    }));
+    storage.setItem(
+      DIRECT_REFERENCE_SESSION_KEY,
+      JSON.stringify({
+        schemaVersion: 1,
+        image: [],
+        video: [
+          {
+            id: "ref-v",
+            kind: "video",
+            name: "clip.mp4",
+            serverId: "server-v",
+            imagePurpose: null,
+          },
+        ],
+      }),
+    );
     const restored = restoreDirectReferenceSession();
     expect(restored.video).toHaveLength(1);
-    expect(restored.video[0]).toMatchObject({ id: "ref-v", serverId: "server-v", status: "ready", durationMs: null });
+    expect(restored.video[0]).toMatchObject({
+      id: "ref-v",
+      serverId: "server-v",
+      status: "ready",
+      durationMs: null,
+    });
   });
 });
 
@@ -228,11 +281,14 @@ describe("initialDirectReferenceSession", () => {
 
   it("clears the session when leaving the workbench", () => {
     const storage = installMemoryStorage();
-    storage.setItem(DIRECT_REFERENCE_SESSION_KEY, JSON.stringify({
-      schemaVersion: 1,
-      image: [{ id: "ref-1", kind: "image", name: "a.png", serverId: "s-1", imagePurpose: null }],
-      video: [],
-    }));
+    storage.setItem(
+      DIRECT_REFERENCE_SESSION_KEY,
+      JSON.stringify({
+        schemaVersion: 1,
+        image: [{ id: "ref-1", kind: "image", name: "a.png", serverId: "s-1", imagePurpose: null }],
+        video: [],
+      }),
+    );
     expect(initialDirectReferenceSession("/canvas")).toEqual({ image: [], video: [] });
     expect(storage.getItem(DIRECT_REFERENCE_SESSION_KEY)).toBeNull();
   });
@@ -273,7 +329,7 @@ describe("writeDirectDraftSession", () => {
 
   it("clears the key when both modalities are empty", () => {
     const storage = installMemoryStorage();
-    storage.setItem(DIRECT_DRAFT_SESSION_KEY, "{\"schemaVersion\":1,\"image\":null,\"video\":null}");
+    storage.setItem(DIRECT_DRAFT_SESSION_KEY, '{"schemaVersion":1,"image":null,"video":null}');
     writeDirectDraftSession({ image: null, video: null });
     expect(storage.getItem(DIRECT_DRAFT_SESSION_KEY)).toBeNull();
   });
@@ -285,37 +341,54 @@ describe("readDirectDraftSession", () => {
     expect(readDirectDraftSession()).toBeNull();
     storage.setItem(DIRECT_DRAFT_SESSION_KEY, "not-json");
     expect(readDirectDraftSession()).toBeNull();
-    storage.setItem(DIRECT_DRAFT_SESSION_KEY, "{\"schemaVersion\":99,\"image\":null,\"video\":null}");
+    storage.setItem(DIRECT_DRAFT_SESSION_KEY, '{"schemaVersion":99,"image":null,"video":null}');
     expect(readDirectDraftSession()).toBeNull();
   });
 
   it("normalizes parameter values and clamps quantity and tokens", () => {
     const storage = installMemoryStorage();
-    storage.setItem(DIRECT_DRAFT_SESSION_KEY, JSON.stringify({
-      schemaVersion: 1,
-      image: {
-        prompt: "x".repeat(5_000),
-        modelId: "home-image",
-        parameters: { ok: "yes", num: 2, bool: true, nested: { a: 1 }, big: "y".repeat(5_000) },
-        quantity: 500,
-        maxOutputTokens: 999_999,
-      },
-      video: null,
-    }));
+    storage.setItem(
+      DIRECT_DRAFT_SESSION_KEY,
+      JSON.stringify({
+        schemaVersion: 1,
+        image: {
+          prompt: "x".repeat(5_000),
+          modelId: "home-image",
+          parameters: { ok: "yes", num: 2, bool: true, nested: { a: 1 }, big: "y".repeat(5_000) },
+          quantity: 500,
+          maxOutputTokens: 999_999,
+        },
+        video: null,
+      }),
+    );
     const session = readDirectDraftSession();
     expect(session?.image?.prompt).toHaveLength(4_000);
-    expect(session?.image?.parameters).toEqual({ ok: "yes", num: 2, bool: true, big: "y".repeat(2_000) });
+    expect(session?.image?.parameters).toEqual({
+      ok: "yes",
+      num: 2,
+      bool: true,
+      big: "y".repeat(2_000),
+    });
     expect(session?.image?.quantity).toBe(99);
     expect(session?.image?.maxOutputTokens).toBe(32_768);
   });
 
   it("drops empty drafts (no prompt and no model)", () => {
     const storage = installMemoryStorage();
-    storage.setItem(DIRECT_DRAFT_SESSION_KEY, JSON.stringify({
-      schemaVersion: 1,
-      image: { prompt: "", modelId: "", parameters: {}, quantity: 1, maxOutputTokens: null },
-      video: { prompt: "hint", modelId: "home-video", parameters: {}, quantity: 1, maxOutputTokens: null },
-    }));
+    storage.setItem(
+      DIRECT_DRAFT_SESSION_KEY,
+      JSON.stringify({
+        schemaVersion: 1,
+        image: { prompt: "", modelId: "", parameters: {}, quantity: 1, maxOutputTokens: null },
+        video: {
+          prompt: "hint",
+          modelId: "home-video",
+          parameters: {},
+          quantity: 1,
+          maxOutputTokens: null,
+        },
+      }),
+    );
     const session = readDirectDraftSession();
     expect(session?.image).toBeNull();
     expect(session?.video?.prompt).toBe("hint");
@@ -358,11 +431,14 @@ describe("initialDirectDraftSession", () => {
 
   it("clears the draft session when leaving the workbench", () => {
     const storage = installMemoryStorage();
-    storage.setItem(DIRECT_DRAFT_SESSION_KEY, JSON.stringify({
-      schemaVersion: 1,
-      image: { prompt: "p", modelId: "m", parameters: {}, quantity: 1, maxOutputTokens: 1_024 },
-      video: null,
-    }));
+    storage.setItem(
+      DIRECT_DRAFT_SESSION_KEY,
+      JSON.stringify({
+        schemaVersion: 1,
+        image: { prompt: "p", modelId: "m", parameters: {}, quantity: 1, maxOutputTokens: 1_024 },
+        video: null,
+      }),
+    );
     const session = initialDirectDraftSession("/canvas");
     expect(session?.image).toBeNull();
     expect(session?.video).toBeNull();

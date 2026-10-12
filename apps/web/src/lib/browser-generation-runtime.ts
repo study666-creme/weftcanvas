@@ -42,7 +42,7 @@ export function isBrowserSubmissionInFlight(nodeId: string) {
  * on a settled node, a definitive server failure is received, or the user
  * explicitly abandons it).
  */
-const PENDING_SUBMISSION_STORAGE_KEY = "kachang-canvas:pending-generation-requests:v1";
+const PENDING_SUBMISSION_STORAGE_KEY = "weftcanvas:pending-generation-requests:v1";
 
 /**
  * Defensive bound on the durable identity map. Identities are released when
@@ -72,9 +72,11 @@ function isSafePendingKey(key: string) {
 }
 
 function isSafePendingScopedKey(scopedKey: string) {
-  return scopedKey.length > 0
-    && scopedKey.length <= PENDING_SUBMISSION_MAX_SCOPED_KEY_LENGTH
-    && !PENDING_SUBMISSION_CONTROL_CHARACTER.test(scopedKey);
+  return (
+    scopedKey.length > 0 &&
+    scopedKey.length <= PENDING_SUBMISSION_MAX_SCOPED_KEY_LENGTH &&
+    !PENDING_SUBMISSION_CONTROL_CHARACTER.test(scopedKey)
+  );
 }
 
 function pendingSubmissionMap() {
@@ -100,10 +102,13 @@ function pendingSubmissionMap() {
         const record = value as Record<string, unknown>;
         if (typeof record.key !== "string" || !isSafePendingKey(record.key)) continue;
         const createdAt = record.createdAt;
-        if (typeof createdAt !== "number"
-          || !Number.isFinite(createdAt)
-          || createdAt < 0
-          || createdAt > now + PENDING_SUBMISSION_MAX_CREATED_AT_SKEW_MS) continue;
+        if (
+          typeof createdAt !== "number" ||
+          !Number.isFinite(createdAt) ||
+          createdAt < 0 ||
+          createdAt > now + PENDING_SUBMISSION_MAX_CREATED_AT_SKEW_MS
+        )
+          continue;
         entries.set(scopedKey, { key: record.key, createdAt });
       }
     }
@@ -118,11 +123,16 @@ function writePendingSubmissionMap(entries: Map<string, PendingBrowserSubmission
   try {
     if (typeof localStorage === "undefined") return;
     if (entries.size > PENDING_SUBMISSION_MAX_ENTRIES) {
-      const ordered = [...entries.entries()].sort((left, right) => left[1].createdAt - right[1].createdAt);
+      const ordered = [...entries.entries()].sort(
+        (left, right) => left[1].createdAt - right[1].createdAt,
+      );
       const excess = ordered.length - PENDING_SUBMISSION_MAX_ENTRIES;
       for (let index = 0; index < excess; index += 1) entries.delete(ordered[index]![0]);
     }
-    localStorage.setItem(PENDING_SUBMISSION_STORAGE_KEY, JSON.stringify(Object.fromEntries(entries)));
+    localStorage.setItem(
+      PENDING_SUBMISSION_STORAGE_KEY,
+      JSON.stringify(Object.fromEntries(entries)),
+    );
   } catch {
     // The in-memory map still carries the identity for this session.
   }
@@ -144,7 +154,10 @@ export function releaseBrowserSubmissionIdentity(projectId: string, nodeId: stri
   writePendingSubmissionMap(entries);
 }
 
-export function browserSubmissionIdentity(projectId: string, nodeId: string): PendingBrowserSubmissionIdentity | null {
+export function browserSubmissionIdentity(
+  projectId: string,
+  nodeId: string,
+): PendingBrowserSubmissionIdentity | null {
   return pendingSubmissionMap().get(pendingSubmissionScopedKey(projectId, nodeId)) ?? null;
 }
 

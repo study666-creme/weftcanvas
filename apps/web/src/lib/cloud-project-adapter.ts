@@ -3,7 +3,7 @@ import {
   canvasProjectSchema,
   type CanvasDocument,
   type CanvasProject,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 
 export function projectToCanvasDocument(value: CanvasProject): CanvasDocument {
   const project = canvasProjectSchema.parse(value);
@@ -46,7 +46,7 @@ export function canvasDocumentToProject(value: CanvasDocument): CanvasProject {
     name: document.title,
     nodes: document.nodes.map((node) => ({
       id: node.id,
-      type: "kachang",
+      type: "weftcanvas",
       position: node.position,
       ...(node.size ? { width: node.size.width, height: node.size.height } : {}),
       data: {

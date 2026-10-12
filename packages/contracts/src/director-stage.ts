@@ -93,7 +93,8 @@ export function directorStageActionLabel(value: string) {
 export function normalizeDirectorStagePacket(value: unknown): DirectorStagePacket {
   const packet = record(value);
   const rawSlots = Array.isArray(packet.slots) ? packet.slots : [];
-  if (rawSlots.length > DIRECTOR_STAGE_MAX_PACKET_SLOTS) throw new Error(`单个分镜包最多支持 ${DIRECTOR_STAGE_MAX_PACKET_SLOTS} 个镜头`);
+  if (rawSlots.length > DIRECTOR_STAGE_MAX_PACKET_SLOTS)
+    throw new Error(`单个分镜包最多支持 ${DIRECTOR_STAGE_MAX_PACKET_SLOTS} 个镜头`);
   if (!rawSlots.length) throw new Error("导演台分镜包至少需要一个镜头槽位");
 
   const usedIds = new Set<string>();
@@ -131,19 +132,47 @@ export function normalizeDirectorStagePacket(value: unknown): DirectorStagePacke
 export function createDirectorStageStarterPacket(): DirectorStagePacket {
   return normalizeDirectorStagePacket({
     global_visual_contract: "中性预演空间，低饱和布景，保持清晰空间关系。",
-    slots: [{
-      shot_id: "shot-01",
-      unit_id: "U01",
-      duration_max: 8,
-      dramatic_function: "建立人物与空间关系",
-      beat: "两名角色形成对峙关系",
-      camera: { shot_size: "全景", angle: "平视", movement: "固定", x: 0, y: 1.6, z: 5.8, fov: 38 },
-      subjects: [
-        { id: "actor-a", label: "角色 A", x: -1.25, y: 0, z: 0.25, rotation_y: 18, scale: 1, action: "面向对方" },
-        { id: "actor-b", label: "角色 B", x: 1.25, y: 0, z: -0.2, rotation_y: -18, scale: 1, action: "保持对峙" },
-      ],
-      props: [{ id: "table", label: "桌子", x: 0, y: 0, z: -0.55, rotation_y: 0, scale: 1 }],
-    }],
+    slots: [
+      {
+        shot_id: "shot-01",
+        unit_id: "U01",
+        duration_max: 8,
+        dramatic_function: "建立人物与空间关系",
+        beat: "两名角色形成对峙关系",
+        camera: {
+          shot_size: "全景",
+          angle: "平视",
+          movement: "固定",
+          x: 0,
+          y: 1.6,
+          z: 5.8,
+          fov: 38,
+        },
+        subjects: [
+          {
+            id: "actor-a",
+            label: "角色 A",
+            x: -1.25,
+            y: 0,
+            z: 0.25,
+            rotation_y: 18,
+            scale: 1,
+            action: "面向对方",
+          },
+          {
+            id: "actor-b",
+            label: "角色 B",
+            x: 1.25,
+            y: 0,
+            z: -0.2,
+            rotation_y: -18,
+            scale: 1,
+            action: "保持对峙",
+          },
+        ],
+        props: [{ id: "table", label: "桌子", x: 0, y: 0, z: -0.55, rotation_y: 0, scale: 1 }],
+      },
+    ],
   });
 }
 
@@ -215,7 +244,9 @@ function normalizeContinuity(value: unknown): Record<string, string[]> {
 }
 
 function record(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 function text(value: unknown) {

@@ -18,7 +18,11 @@ function formatPlaybackClock(seconds: number) {
  * 视觉、松手才提交 seek，避免网络音频被连续拖动打出密集 Range 请求。
  * <audio> 元素隐藏，仅作解码与播放载体。
  */
-export function MiniAudioPlayer({ src, label, onPlayingChange }: {
+export function MiniAudioPlayer({
+  src,
+  label,
+  onPlayingChange,
+}: {
   src: string;
   label: string;
   onPlayingChange?: (playing: boolean) => void;
@@ -29,10 +33,13 @@ export function MiniAudioPlayer({ src, label, onPlayingChange }: {
   const [currentTime, setCurrentTime] = useState(0);
   const [dragValue, setDragValue] = useState<number | null>(null);
 
-  const syncPlaying = useCallback((next: boolean) => {
-    setPlaying(next);
-    onPlayingChange?.(next);
-  }, [onPlayingChange]);
+  const syncPlaying = useCallback(
+    (next: boolean) => {
+      setPlaying(next);
+      onPlayingChange?.(next);
+    },
+    [onPlayingChange],
+  );
 
   useEffect(() => {
     if (!audioRef) return;
@@ -82,11 +89,11 @@ export function MiniAudioPlayer({ src, label, onPlayingChange }: {
   const progress = duration > 0 ? Math.min(100, (shown / duration) * 100) : 0;
 
   return (
-    <div className="kc-mini-player nodrag nowheel">
+    <div className="wc-mini-player nodrag nowheel">
       <audio ref={setAudioRef} src={src} preload="metadata" aria-label={label} />
       <button
         type="button"
-        className="kc-mini-player-toggle"
+        className="wc-mini-player-toggle"
         aria-label={playing ? "暂停" : "播放"}
         title={playing ? "暂停" : "播放"}
         onClick={toggle}
@@ -94,7 +101,7 @@ export function MiniAudioPlayer({ src, label, onPlayingChange }: {
         {playing ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}
       </button>
       <input
-        className="kc-mini-player-seek"
+        className="wc-mini-player-seek"
         type="range"
         min={0}
         max={duration || 0}
@@ -102,7 +109,7 @@ export function MiniAudioPlayer({ src, label, onPlayingChange }: {
         value={shown}
         disabled={!duration}
         aria-label="播放进度"
-        style={{ "--kc-progress": `${progress}%` } as CSSProperties}
+        style={{ "--wc-progress": `${progress}%` } as CSSProperties}
         onChange={(event) => setDragValue(Number(event.target.value))}
         onPointerUp={() => {
           if (dragValue !== null) {
@@ -117,7 +124,9 @@ export function MiniAudioPlayer({ src, label, onPlayingChange }: {
           }
         }}
       />
-      <span className="kc-mini-player-time">{formatPlaybackClock(shown)} / {formatPlaybackClock(duration)}</span>
+      <span className="wc-mini-player-time">
+        {formatPlaybackClock(shown)} / {formatPlaybackClock(duration)}
+      </span>
     </div>
   );
 }

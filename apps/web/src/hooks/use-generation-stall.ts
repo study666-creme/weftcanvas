@@ -12,12 +12,14 @@ export const GENERATION_STALL_THRESHOLD_MS = 3 * 60_000;
 export const GENERATION_STALL_RECHECK_MS = 15_000;
 
 export function isAdvancingGenerationStatus(status: string | null | undefined) {
-  return status === "reserved"
-    || status === "submitting"
-    || status === "queued"
-    || status === "running"
-    || status === "validating"
-    || status === "submission_unknown";
+  return (
+    status === "reserved" ||
+    status === "submitting" ||
+    status === "queued" ||
+    status === "running" ||
+    status === "validating" ||
+    status === "submission_unknown"
+  );
 }
 
 export function isGenerationStalled(options: {
@@ -26,8 +28,11 @@ export function isGenerationStalled(options: {
   now: number;
   thresholdMs?: number;
 }) {
-  return isAdvancingGenerationStatus(options.status)
-    && options.now - options.lastProgressChangeAt >= (options.thresholdMs ?? GENERATION_STALL_THRESHOLD_MS);
+  return (
+    isAdvancingGenerationStatus(options.status) &&
+    options.now - options.lastProgressChangeAt >=
+      (options.thresholdMs ?? GENERATION_STALL_THRESHOLD_MS)
+  );
 }
 
 export function useGenerationStall(options: {

@@ -1,6 +1,6 @@
-import type { KachangEdge } from "../types";
+import type { WeftcanvasEdge } from "../types";
 
-export function indexIncomingNodeIds(edges: readonly KachangEdge[]) {
+export function indexIncomingNodeIds(edges: readonly WeftcanvasEdge[]) {
   const incoming = new Map<string, string[]>();
   for (const edge of edges) {
     const sources = incoming.get(edge.target);

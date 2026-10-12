@@ -1,7 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { registerAppearanceOption, useAppearanceOptions, type AppearanceSlot } from "../lib/appearance-registry";
+import {
+  registerAppearanceOption,
+  useAppearanceOptions,
+  type AppearanceSlot,
+} from "../lib/appearance-registry";
 import "../lib/builtin-appearance";
 
 /**
@@ -11,7 +15,13 @@ import "../lib/builtin-appearance";
  */
 function OptionProbe({ slot }: { slot: AppearanceSlot }) {
   const options = useAppearanceOptions(slot);
-  return <div>{options.map((option) => <span key={option.id}>{option.label}</span>)}</div>;
+  return (
+    <div>
+      {options.map((option) => (
+        <span key={option.id}>{option.label}</span>
+      ))}
+    </div>
+  );
 }
 
 describe("appearance registry feeds the settings groups", () => {
@@ -31,7 +41,10 @@ describe("appearance registry feeds the settings groups", () => {
   });
 
   it("shows a registered pack and drops it after unregister", () => {
-    const unregister = registerAppearanceOption("edgePathStyle", { id: "amber-edge", label: "琥珀" });
+    const unregister = registerAppearanceOption("edgePathStyle", {
+      id: "amber-edge",
+      label: "琥珀",
+    });
     const withPack = renderToStaticMarkup(<OptionProbe slot="edgePathStyle" />);
     expect(withPack).toContain("琥珀");
     unregister();

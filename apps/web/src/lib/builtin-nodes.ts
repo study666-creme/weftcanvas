@@ -1,4 +1,4 @@
-import { canvasNodeLabels } from "@kachang/contracts";
+import { canvasNodeLabels } from "@weftcanvas/contracts";
 import { FileText, Image, Music2, Scissors, SlidersHorizontal, Video } from "lucide-react";
 
 import {
@@ -42,7 +42,10 @@ const builtinDefinitions: NodeDefinition[] = [
     label: () => canvasNodeLabels.text,
     icon: FileText,
     accent: "jade",
-    createDraft: (ctx) => ({ kind: "text", ...plainDraftDimensions({ width: 308, height: 176 }, ctx) }),
+    createDraft: (ctx) => ({
+      kind: "text",
+      ...plainDraftDimensions({ width: 308, height: 176 }, ctx),
+    }),
   },
   mediaDefinition("image", Image, "blue", { width: 340, height: 214 }),
   mediaDefinition("video", Video, "blue", { width: 340, height: 192 }),
@@ -51,7 +54,10 @@ const builtinDefinitions: NodeDefinition[] = [
     label: () => canvasNodeLabels.audio,
     icon: Music2,
     accent: "jade",
-    createDraft: (ctx) => ({ kind: "audio", ...plainDraftDimensions({ width: 340, height: 164 }, ctx) }),
+    createDraft: (ctx) => ({
+      kind: "audio",
+      ...plainDraftDimensions({ width: 340, height: 164 }, ctx),
+    }),
   },
   {
     kind: "config",

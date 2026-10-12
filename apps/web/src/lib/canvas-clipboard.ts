@@ -1,15 +1,15 @@
-import { CANVAS_SCHEMA_VERSION, canvasProjectSchema } from "@kachang/contracts";
+import { CANVAS_SCHEMA_VERSION, canvasProjectSchema } from "@weftcanvas/contracts";
 
-import type { GraphSnapshot, KachangEdge, KachangNode } from "../types";
+import type { GraphSnapshot, WeftcanvasEdge, WeftcanvasNode } from "../types";
 
-export const KACHANG_CANVAS_CLIPBOARD_MIME = "application/x-kachang-canvas-selection";
-export const KACHANG_CANVAS_CLIPBOARD_TEXT = "Kachang Canvas selection";
+export const WEFTCANVAS_CANVAS_CLIPBOARD_MIME = "application/x-weftcanvas-selection";
+export const WEFTCANVAS_CANVAS_CLIPBOARD_TEXT = "Weftcanvas selection";
 
 const MAX_CLIPBOARD_BYTES = 2_000_000;
 
 export function serializeCanvasClipboard(snapshot: GraphSnapshot) {
   return JSON.stringify({
-    kind: "kachang-canvas-selection",
+    kind: "weftcanvas-selection",
     version: CANVAS_SCHEMA_VERSION,
     nodes: snapshot.nodes,
     edges: snapshot.edges,
@@ -23,7 +23,8 @@ export function parseCanvasClipboard(value: string): GraphSnapshot | null {
     const payload = JSON.parse(value) as unknown;
     if (!payload || typeof payload !== "object") return null;
     const candidate = payload as Record<string, unknown>;
-    if (candidate.kind !== "kachang-canvas-selection" || candidate.version !== CANVAS_SCHEMA_VERSION) return null;
+    if (candidate.kind !== "weftcanvas-selection" || candidate.version !== CANVAS_SCHEMA_VERSION)
+      return null;
     const now = Date.now();
     const parsed = canvasProjectSchema.safeParse({
       schemaVersion: CANVAS_SCHEMA_VERSION,
@@ -38,10 +39,13 @@ export function parseCanvasClipboard(value: string): GraphSnapshot | null {
     });
     if (!parsed.success || !parsed.data.nodes.length) return null;
     const ids = new Set(parsed.data.nodes.map((node) => node.id));
-    const nodes = parsed.data.nodes.map((node) => ({ ...node, type: "kachang" as const })) as KachangNode[];
+    const nodes = parsed.data.nodes.map((node) => ({
+      ...node,
+      type: "weftcanvas" as const,
+    })) as WeftcanvasNode[];
     const edges = parsed.data.edges
       .filter((edge) => ids.has(edge.source) && ids.has(edge.target))
-      .map((edge) => ({ ...edge, type: "kachang" })) as KachangEdge[];
+      .map((edge) => ({ ...edge, type: "weftcanvas" })) as WeftcanvasEdge[];
     const groups = parsed.data.groups.filter((group) => group.nodeIds.every((id) => ids.has(id)));
     return { nodes, edges, groups };
   } catch {

@@ -31,28 +31,34 @@ describe("node configuration", () => {
   });
 
   it("treats a historical null configuration as an image configuration", () => {
-    const config = createCanvasNode("config", { x: 0, y: 0 }, {
-      config: null,
-      generation: {
-        modelId: "legacy-image-model",
-        parameters: {},
-        referenceImagePurposes: {},
-        maxOutputTokens: null,
-        referenceMode: "auto",
-        referenceNodeIds: [],
-        jobId: null,
-        jobVersion: null,
-        jobCreatedAt: null,
-        jobStatus: null,
-        error: null,
+    const config = createCanvasNode(
+      "config",
+      { x: 0, y: 0 },
+      {
+        config: null,
+        generation: {
+          modelId: "legacy-image-model",
+          parameters: {},
+          referenceImagePurposes: {},
+          maxOutputTokens: null,
+          referenceMode: "auto",
+          referenceNodeIds: [],
+          jobId: null,
+          jobVersion: null,
+          jobCreatedAt: null,
+          jobStatus: null,
+          error: null,
+        },
       },
-    });
+    );
     const image = createCanvasNode("image", { x: 400, y: 0 });
     const edge = createCanvasEdge(config.id, image.id);
 
     expect(findConfigurationSource(image.id, [config, image], [edge])?.id).toBe(config.id);
     const synced = syncConfigurationTargets([config, image], [edge], config.id);
-    expect(synced.find((node) => node.id === image.id)?.data.generation.modelId).toBe("legacy-image-model");
+    expect(synced.find((node) => node.id === image.id)?.data.generation.modelId).toBe(
+      "legacy-image-model",
+    );
   });
 
   it("lets the latest matching configuration own a shared target", () => {
@@ -65,22 +71,26 @@ describe("node configuration", () => {
   });
 
   it("copies reusable settings without overwriting target job state", () => {
-    const config = createCanvasNode("config", { x: 0, y: 0 }, {
-      config: { modality: "image" },
-      generation: {
-        modelId: "image-model",
-        parameters: { aspect_ratio: "16:9" },
-        referenceImagePurposes: {},
-        maxOutputTokens: null,
-        referenceMode: "auto",
-        referenceNodeIds: [],
-        jobId: null,
-        jobVersion: null,
-        jobCreatedAt: null,
-        jobStatus: null,
-        error: null,
+    const config = createCanvasNode(
+      "config",
+      { x: 0, y: 0 },
+      {
+        config: { modality: "image" },
+        generation: {
+          modelId: "image-model",
+          parameters: { aspect_ratio: "16:9" },
+          referenceImagePurposes: {},
+          maxOutputTokens: null,
+          referenceMode: "auto",
+          referenceNodeIds: [],
+          jobId: null,
+          jobVersion: null,
+          jobCreatedAt: null,
+          jobStatus: null,
+          error: null,
+        },
       },
-    });
+    );
     const image = createCanvasNode("image", { x: 400, y: 0 });
     image.data.generation.jobId = "existing-job";
     image.data.generation.referenceNodeIds = ["reference-1"];

@@ -9,7 +9,14 @@ import {
   Shuffle,
   X,
 } from "lucide-react";
-import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type WheelEvent } from "react";
+import {
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type PointerEvent,
+  type WheelEvent,
+} from "react";
 import { createPortal } from "react-dom";
 
 import type { FaceGridManualSelection } from "../lib/face-grid";
@@ -87,7 +94,11 @@ function normalizeSettings(value: FaceGridSettings): FaceGridSettings {
   };
 }
 
-function statusText(status: FaceGridDetectionStatus, faceCount: number | null, manualSelection: FaceGridManualSelection | null) {
+function statusText(
+  status: FaceGridDetectionStatus,
+  faceCount: number | null,
+  manualSelection: FaceGridManualSelection | null,
+) {
   if (manualSelection) return "已手动选择人脸";
   if (status === "detecting") return "正在检测人脸";
   if (status === "error") return "检测失败";
@@ -152,18 +163,23 @@ export function FaceGridPanel({
   if (!open || typeof document === "undefined") return null;
 
   const settings = normalizeSettings(value);
-  const detectedFaces = typeof faceCount === "number" && Number.isFinite(faceCount)
-    ? Math.max(0, Math.floor(faceCount))
-    : null;
+  const detectedFaces =
+    typeof faceCount === "number" && Number.isFinite(faceCount)
+      ? Math.max(0, Math.floor(faceCount))
+      : null;
   const detecting = status === "detecting";
   const busy = detecting || applying;
   const canDetect = Boolean(sourceUrl) && !disabled && !busy;
   const canManualSelect = Boolean(sourceUrl) && !disabled && !busy;
-  const readyToApply = status === "ready" && detectedFaces !== null && detectedFaces > 0 && Boolean(previewUrl);
+  const readyToApply =
+    status === "ready" && detectedFaces !== null && detectedFaces > 0 && Boolean(previewUrl);
   const statusLabel = statusText(status, detectedFaces, manualSelection);
   const activeSelection = manualDraft || manualSelection;
 
-  const updateSetting = <Key extends keyof FaceGridSettings>(key: Key, next: FaceGridSettings[Key]) => {
+  const updateSetting = <Key extends keyof FaceGridSettings>(
+    key: Key,
+    next: FaceGridSettings[Key],
+  ) => {
     onChange({ ...settings, [key]: next });
   };
 
@@ -231,7 +247,7 @@ export function FaceGridPanel({
   const previewSource = manualMode ? sourceUrl : previewUrl || sourceUrl;
   const panel = (
     <section
-      className="kc-face-grid-panel nodrag nowheel"
+      className="wc-face-grid-panel nodrag nowheel"
       data-face-grid-panel
       role="dialog"
       aria-label="人脸网格设置"
@@ -242,62 +258,96 @@ export function FaceGridPanel({
       onWheel={isolateWheel}
       onKeyDown={handleKeyDown}
     >
-      <header className="kc-face-grid-header">
-        <span className="kc-face-grid-title-mark" aria-hidden="true"><ScanFace /></span>
-        <span className="kc-face-grid-title">
+      <header className="wc-face-grid-header">
+        <span className="wc-face-grid-title-mark" aria-hidden="true">
+          <ScanFace />
+        </span>
+        <span className="wc-face-grid-title">
           <strong>人脸网格</strong>
           <small title={sourceName}>图像分析 · {sourceName}</small>
         </span>
-        <span className={`kc-face-grid-status is-${status}`} role="status" aria-live="polite">
-          {detecting ? <LoaderCircle className="is-spinning" aria-hidden="true" /> : status === "error" ? <AlertCircle aria-hidden="true" /> : status === "ready" ? <Check aria-hidden="true" /> : <span aria-hidden="true" />}
+        <span className={`wc-face-grid-status is-${status}`} role="status" aria-live="polite">
+          {detecting ? (
+            <LoaderCircle className="is-spinning" aria-hidden="true" />
+          ) : status === "error" ? (
+            <AlertCircle aria-hidden="true" />
+          ) : status === "ready" ? (
+            <Check aria-hidden="true" />
+          ) : (
+            <span aria-hidden="true" />
+          )}
           {statusLabel}
         </span>
       </header>
 
-      <div className={`kc-face-grid-preview is-${status} ${manualMode ? "is-manual" : ""}`}>
+      <div className={`wc-face-grid-preview is-${status} ${manualMode ? "is-manual" : ""}`}>
         {previewSource ? (
           <div
-            className="kc-face-grid-preview-media"
+            className="wc-face-grid-preview-media"
             onPointerDown={beginManualDrag}
             onPointerMove={moveManualDrag}
             onPointerUp={finishManualDrag}
             onPointerCancel={cancelManualDrag}
           >
             <img src={previewSource} alt={previewAlt || sourceName} draggable={false} />
-            {activeSelection ? <span className="kc-face-grid-manual-box" style={selectionStyle(activeSelection)} aria-hidden="true" /> : null}
+            {activeSelection ? (
+              <span
+                className="wc-face-grid-manual-box"
+                style={selectionStyle(activeSelection)}
+                aria-hidden="true"
+              />
+            ) : null}
           </div>
         ) : null}
         {!previewSource ? (
-          <div className="kc-face-grid-preview-empty">
-            {detecting ? <LoaderCircle className="is-spinning" aria-hidden="true" /> : status === "error" ? <AlertCircle aria-hidden="true" /> : <ScanFace aria-hidden="true" />}
-            <span>{detecting ? "正在分析图像" : status === "error" ? "没有可用预览" : status === "ready" ? "正在等待预览" : "尚未检测"}</span>
+          <div className="wc-face-grid-preview-empty">
+            {detecting ? (
+              <LoaderCircle className="is-spinning" aria-hidden="true" />
+            ) : status === "error" ? (
+              <AlertCircle aria-hidden="true" />
+            ) : (
+              <ScanFace aria-hidden="true" />
+            )}
+            <span>
+              {detecting
+                ? "正在分析图像"
+                : status === "error"
+                  ? "没有可用预览"
+                  : status === "ready"
+                    ? "正在等待预览"
+                    : "尚未检测"}
+            </span>
           </div>
         ) : null}
         {previewSource && detecting ? (
-          <div className="kc-face-grid-preview-progress" role="status">
+          <div className="wc-face-grid-preview-progress" role="status">
             <LoaderCircle className="is-spinning" aria-hidden="true" />
             <span>正在重新检测</span>
           </div>
         ) : null}
-        {manualMode ? <span className="kc-face-grid-manual-hint">拖拽框住人脸区域</span> : null}
+        {manualMode ? <span className="wc-face-grid-manual-hint">拖拽框住人脸区域</span> : null}
         {status === "ready" && detectedFaces !== null ? (
-          <span className={`kc-face-grid-count ${detectedFaces === 0 ? "is-empty" : ""}`}>
+          <span className={`wc-face-grid-count ${detectedFaces === 0 ? "is-empty" : ""}`}>
             <ScanFace aria-hidden="true" />
-            {manualSelection ? "手动人脸" : detectedFaces > 0 ? `${detectedFaces} 张人脸` : "未发现人脸"}
+            {manualSelection
+              ? "手动人脸"
+              : detectedFaces > 0
+                ? `${detectedFaces} 张人脸`
+                : "未发现人脸"}
           </span>
         ) : null}
       </div>
 
       {status === "error" ? (
-        <div className="kc-face-grid-error" role="alert">
+        <div className="wc-face-grid-error" role="alert">
           <AlertCircle aria-hidden="true" />
           <span>{error?.trim() || "人脸检测没有完成，请检查图片后重试，也可以手动框选人脸"}</span>
         </div>
       ) : null}
 
-      <div className="kc-face-grid-detect-row">
+      <div className="wc-face-grid-detect-row">
         <button
-          className="kc-face-grid-detect"
+          className="wc-face-grid-detect"
           type="button"
           disabled={!canDetect}
           title={!sourceUrl && !busy ? "提供图片后才能开始检测" : undefined}
@@ -307,11 +357,15 @@ export function FaceGridPanel({
             void onDetect();
           }}
         >
-          {detecting ? <LoaderCircle className="is-spinning" aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}
+          {detecting ? (
+            <LoaderCircle className="is-spinning" aria-hidden="true" />
+          ) : (
+            <RefreshCw aria-hidden="true" />
+          )}
           <span>{detecting ? "正在检测" : status === "idle" ? "检测人脸" : "重新检测"}</span>
         </button>
         <button
-          className={`kc-face-grid-manual ${manualMode ? "is-active" : ""}`}
+          className={`wc-face-grid-manual ${manualMode ? "is-active" : ""}`}
           type="button"
           disabled={!canManualSelect}
           title={!sourceUrl && !busy ? "提供图片后才能手动选择" : undefined}
@@ -325,9 +379,9 @@ export function FaceGridPanel({
         </button>
       </div>
 
-      <fieldset className="kc-face-grid-fieldset" disabled={disabled || busy}>
+      <fieldset className="wc-face-grid-fieldset" disabled={disabled || busy}>
         <legend>处理模式</legend>
-        <div className="kc-face-grid-segmented">
+        <div className="wc-face-grid-segmented">
           <button
             type="button"
             className={settings.mode === "grid" ? "is-active" : ""}
@@ -335,7 +389,10 @@ export function FaceGridPanel({
             onClick={() => updateSetting("mode", "grid")}
           >
             <Grid3X3 aria-hidden="true" />
-            <span><strong>网格</strong><small>保留原图结构</small></span>
+            <span>
+              <strong>网格</strong>
+              <small>保留原图结构</small>
+            </span>
           </button>
           <button
             type="button"
@@ -344,16 +401,22 @@ export function FaceGridPanel({
             onClick={() => updateSetting("mode", "recompose")}
           >
             <Shuffle aria-hidden="true" />
-            <span><strong>人脸重组</strong><small>按人脸重新排列</small></span>
+            <span>
+              <strong>人脸重组</strong>
+              <small>按人脸重新排列</small>
+            </span>
           </button>
         </div>
       </fieldset>
 
-      <fieldset className="kc-face-grid-fieldset kc-face-grid-appearance" disabled={disabled || busy}>
+      <fieldset
+        className="wc-face-grid-fieldset wc-face-grid-appearance"
+        disabled={disabled || busy}
+      >
         <legend>网格样式</legend>
-        <div className="kc-face-grid-color-row">
+        <div className="wc-face-grid-color-row">
           <span>颜色</span>
-          <div className="kc-face-grid-swatches" role="group" aria-label="网格颜色">
+          <div className="wc-face-grid-swatches" role="group" aria-label="网格颜色">
             {COLOR_PRESETS.map((color) => (
               <button
                 key={color}
@@ -365,7 +428,7 @@ export function FaceGridPanel({
                 onClick={() => updateSetting("color", color)}
               />
             ))}
-            <label className="kc-face-grid-color-custom" title="自定义颜色">
+            <label className="wc-face-grid-color-custom" title="自定义颜色">
               <span aria-hidden="true" />
               <input
                 type="color"
@@ -377,8 +440,11 @@ export function FaceGridPanel({
           </div>
         </div>
 
-        <label className="kc-face-grid-range">
-          <span><span>线宽</span><output>{settings.lineWidth.toFixed(1)} 像素</output></span>
+        <label className="wc-face-grid-range">
+          <span>
+            <span>线宽</span>
+            <output>{settings.lineWidth.toFixed(1)} 像素</output>
+          </span>
           <input
             type="range"
             min={LINE_WIDTH_MIN}
@@ -390,8 +456,11 @@ export function FaceGridPanel({
           />
         </label>
 
-        <label className="kc-face-grid-range">
-          <span><span>透明度</span><output>{Math.round(settings.opacity * 100)}%</output></span>
+        <label className="wc-face-grid-range">
+          <span>
+            <span>透明度</span>
+            <output>{Math.round(settings.opacity * 100)}%</output>
+          </span>
           <input
             type="range"
             min={OPACITY_MIN}
@@ -404,7 +473,7 @@ export function FaceGridPanel({
         </label>
       </fieldset>
 
-      <footer className="kc-face-grid-footer">
+      <footer className="wc-face-grid-footer">
         <button type="button" disabled={busy} onClick={onClose}>
           <X aria-hidden="true" />
           <span>取消</span>
@@ -416,7 +485,11 @@ export function FaceGridPanel({
           title={!readyToApply && !busy ? "检测完成并取得预览后才能应用" : undefined}
           onClick={() => void onApply(settings)}
         >
-          {applying ? <LoaderCircle className="is-spinning" aria-hidden="true" /> : <Check aria-hidden="true" />}
+          {applying ? (
+            <LoaderCircle className="is-spinning" aria-hidden="true" />
+          ) : (
+            <Check aria-hidden="true" />
+          )}
           <span>{applying ? "正在应用" : "应用到画布"}</span>
         </button>
       </footer>
@@ -428,5 +501,5 @@ export function FaceGridPanel({
 
 function rangeProgressStyle(value: number, min: number, max: number) {
   const progress = max > min ? Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100)) : 0;
-  return { "--kc-range-progress": `${progress}%` } as CSSProperties;
+  return { "--wc-range-progress": `${progress}%` } as CSSProperties;
 }

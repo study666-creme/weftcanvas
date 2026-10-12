@@ -49,14 +49,12 @@ import {
   type GenerationJobSubmission,
   type GenerationQuoteRequest,
   type AgentCanvasContext,
-  type AgentConnector,
   type AgentConnectorId,
   type AgentConnectorUpdateRequest,
   type AgentMessageCreateRequest,
   type AgentConversationCreateRequest,
   type AgentExecutionReceiptCreateRequest,
   type AgentProposalConfirmRequest,
-  type CanvasControlCommand,
   type CanvasControlReceiptRequest,
   type CloudProjectCreateRequest,
   type CloudProjectInvitation,
@@ -73,7 +71,7 @@ import {
   type PublicMedia,
   type WalletCheckoutRequest,
   type WalletRedeemRequest,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 
 type Parser<T> = { parse(value: unknown): T };
 
@@ -133,11 +131,19 @@ export async function fetchIdentityState() {
 }
 
 export async function loginIdentity(value: IdentityLoginRequest) {
-  return requestWithTransientRetry("/api/v1/auth/login", identitySessionResponseSchema, jsonRequest("POST", value));
+  return requestWithTransientRetry(
+    "/api/v1/auth/login",
+    identitySessionResponseSchema,
+    jsonRequest("POST", value),
+  );
 }
 
 export async function registerIdentity(value: IdentityRegisterRequest) {
-  return request("/api/v1/auth/register", identityRegistrationResponseSchema, jsonRequest("POST", value));
+  return request(
+    "/api/v1/auth/register",
+    identityRegistrationResponseSchema,
+    jsonRequest("POST", value),
+  );
 }
 
 export async function logoutIdentity() {
@@ -166,7 +172,11 @@ export async function createCloudProject(value: CloudProjectCreateRequest) {
   return response.data;
 }
 
-export async function saveCloudProject(projectId: string, value: CloudProjectSaveRequest, projectOwnerId?: string) {
+export async function saveCloudProject(
+  projectId: string,
+  value: CloudProjectSaveRequest,
+  projectOwnerId?: string,
+) {
   const response = await request(
     cloudProjectPath(projectId, projectOwnerId),
     cloudProjectResponseSchema,
@@ -209,7 +219,10 @@ export async function cleanupCloudResources(value: CloudResourceCleanupRequest) 
   return response.data;
 }
 
-export async function listCloudProjectMembers(projectId: string, projectOwnerId?: string): Promise<{
+export async function listCloudProjectMembers(
+  projectId: string,
+  projectOwnerId?: string,
+): Promise<{
   members: CloudProjectMember[];
   invitations: CloudProjectInvitation[];
   seatUsage?: { limit: number; used: number } | null;
@@ -227,7 +240,10 @@ function cloudProjectPath(projectId: string, projectOwnerId?: string, suffix = "
   return `${path}?ownerId=${encodeURIComponent(projectOwnerId)}`;
 }
 
-export async function inviteCloudProjectMember(projectId: string, inviteeId: string): Promise<CloudProjectInvitation> {
+export async function inviteCloudProjectMember(
+  projectId: string,
+  inviteeId: string,
+): Promise<CloudProjectInvitation> {
   const response = await request(
     `/api/v1/cloud-projects/${encodeURIComponent(projectId)}/members/invitations`,
     cloudProjectInvitationResponseSchema,
@@ -260,7 +276,9 @@ export async function listCloudProjectInvitations(): Promise<CloudProjectInvitat
   return response.data.invitations;
 }
 
-export async function acceptCloudProjectInvitation(invitationId: string): Promise<CloudProjectMember> {
+export async function acceptCloudProjectInvitation(
+  invitationId: string,
+): Promise<CloudProjectMember> {
   const response = await request(
     `/api/v1/cloud-project-invitations/${encodeURIComponent(invitationId)}/accept`,
     cloudProjectMemberResponseSchema,
@@ -323,23 +341,37 @@ export async function recordCanvasNodeCreated() {
 }
 
 export async function createWalletCheckout(value: WalletCheckoutRequest) {
-  const response = await request("/api/v1/wallet/checkout", walletCheckoutResponseSchema, jsonRequest("POST", value));
+  const response = await request(
+    "/api/v1/wallet/checkout",
+    walletCheckoutResponseSchema,
+    jsonRequest("POST", value),
+  );
   return response.data;
 }
 
 export async function fetchWalletOrder(orderNo: string) {
-  const response = await request(`/api/v1/wallet/orders/${encodeURIComponent(orderNo)}`, walletOrderResponseSchema);
+  const response = await request(
+    `/api/v1/wallet/orders/${encodeURIComponent(orderNo)}`,
+    walletOrderResponseSchema,
+  );
   return response.data;
 }
 
 export async function redeemWalletCode(value: WalletRedeemRequest) {
-  const response = await request("/api/v1/wallet/redeem", walletRedeemResponseSchema, jsonRequest("POST", value));
+  const response = await request(
+    "/api/v1/wallet/redeem",
+    walletRedeemResponseSchema,
+    jsonRequest("POST", value),
+  );
   return response.data;
 }
 
 export async function listAgentConversations(projectId: string, limit = 30) {
   const query = new URLSearchParams({ projectId, limit: String(limit) });
-  const response = await request(`/api/v1/agent/conversations?${query}`, agentConversationListResponseSchema);
+  const response = await request(
+    `/api/v1/agent/conversations?${query}`,
+    agentConversationListResponseSchema,
+  );
   return response.data;
 }
 
@@ -350,7 +382,11 @@ export async function fetchAgentModels(force = false) {
 }
 
 export async function createAgentConversation(value: AgentConversationCreateRequest) {
-  const response = await request("/api/v1/agent/conversations", agentConversationResponseSchema, jsonRequest("POST", value));
+  const response = await request(
+    "/api/v1/agent/conversations",
+    agentConversationResponseSchema,
+    jsonRequest("POST", value),
+  );
   return response.data;
 }
 
@@ -380,7 +416,11 @@ export async function cancelAgentRun(conversationId: string, runId: string) {
   return response.data;
 }
 
-export async function confirmAgentProposal(conversationId: string, runId: string, value: AgentProposalConfirmRequest) {
+export async function confirmAgentProposal(
+  conversationId: string,
+  runId: string,
+  value: AgentProposalConfirmRequest,
+) {
   const response = await request(
     `/api/v1/agent/conversations/${encodeURIComponent(conversationId)}/runs/${encodeURIComponent(runId)}/proposal/confirm`,
     agentConversationDetailResponseSchema,
@@ -413,12 +453,19 @@ export async function recordAgentExecutionReceipt(
 
 /** 本机连接（Codex / Blender）状态与开关。 */
 export async function fetchAgentConnectors(force = false) {
-  const path = force ? `/api/v1/agent/connectors?refresh=${Date.now()}` : "/api/v1/agent/connectors";
-  const response = await request(path, agentConnectorListResponseSchema, { signal: AbortSignal.timeout(12_000) });
+  const path = force
+    ? `/api/v1/agent/connectors?refresh=${Date.now()}`
+    : "/api/v1/agent/connectors";
+  const response = await request(path, agentConnectorListResponseSchema, {
+    signal: AbortSignal.timeout(12_000),
+  });
   return response.data;
 }
 
-export async function updateAgentConnector(id: AgentConnectorId, value: AgentConnectorUpdateRequest) {
+export async function updateAgentConnector(
+  id: AgentConnectorId,
+  value: AgentConnectorUpdateRequest,
+) {
   const response = await request(
     `/api/v1/agent/connectors/${encodeURIComponent(id)}`,
     agentConnectorResponseSchema,
@@ -431,7 +478,10 @@ export async function updateAgentConnector(id: AgentConnectorId, value: AgentCon
  * 一键接入：运行时自己写 Codex 配置 / 安装 Blender 插件 / 启动 Blender。
  * 可能要几十秒（Blender 后台启用一次），所以超时给得比较宽。
  */
-export async function connectAgentConnector(id: AgentConnectorId, options: { launch?: boolean } = {}) {
+export async function connectAgentConnector(
+  id: AgentConnectorId,
+  options: { launch?: boolean } = {},
+) {
   const response = await request(
     `/api/v1/agent/connectors/${encodeURIComponent(id)}/connect`,
     agentConnectorResponseSchema,
@@ -467,9 +517,13 @@ export async function sendCanvasControlReceipt(value: CanvasControlReceiptReques
  * 生成的明文令牌只返回一次，面板需要立刻展示给用户复制。
  */
 export async function fetchConnectorClients() {
-  const response = await request("/api/v1/agent/connectors/clients", connectorClientListResponseSchema, {
-    signal: AbortSignal.timeout(12_000),
-  });
+  const response = await request(
+    "/api/v1/agent/connectors/clients",
+    connectorClientListResponseSchema,
+    {
+      signal: AbortSignal.timeout(12_000),
+    },
+  );
   return response.data;
 }
 
@@ -498,11 +552,10 @@ export async function runConnectorTask(value: {
   params: Record<string, unknown>;
   waitMs?: number;
 }) {
-  const response = await request(
-    "/api/v1/agent/connectors/tasks",
-    externalTaskRunResponseSchema,
-    { ...jsonRequest("POST", value), signal: AbortSignal.timeout(90_000) },
-  );
+  const response = await request("/api/v1/agent/connectors/tasks", externalTaskRunResponseSchema, {
+    ...jsonRequest("POST", value),
+    signal: AbortSignal.timeout(90_000),
+  });
   return response.data;
 }
 
@@ -511,7 +564,10 @@ export async function fetchModelCatalog(modality?: ModelModality, force = false)
   if (modality) params.set("modality", modality);
   if (force) params.set("refresh", "1");
   const query = params.toString() ? `?${params.toString()}` : "";
-  const response = await requestWithTransientRetry(`/api/v1/model-catalog${query}`, modelCatalogResponseSchema);
+  const response = await requestWithTransientRetry(
+    `/api/v1/model-catalog${query}`,
+    modelCatalogResponseSchema,
+  );
   return response.data;
 }
 
@@ -537,7 +593,8 @@ export async function submitGenerationJob(value: GenerationJobSubmission) {
       // A dropped response does not prove the server rejected the request. All
       // attempts reuse the same idempotency key, so a recovered connection
       // returns the one durable task without another upstream debit.
-      if (!isTransientRequestError(error) || attempt === GENERATION_SUBMIT_RETRY_DELAYS_MS.length) throw error;
+      if (!isTransientRequestError(error) || attempt === GENERATION_SUBMIT_RETRY_DELAYS_MS.length)
+        throw error;
       await delay(GENERATION_SUBMIT_RETRY_DELAYS_MS[attempt] ?? 0);
     }
   }
@@ -594,12 +651,19 @@ export async function reconcileGenerationJob(key: string): Promise<PublicGenerat
 
 export async function listGenerationJobs(projectId: string, limit = 50) {
   const query = new URLSearchParams({ projectId, limit: String(limit) });
-  const response = await request(`/api/v1/generation-jobs?${query}`, generationJobListResponseSchema);
+  const response = await request(
+    `/api/v1/generation-jobs?${query}`,
+    generationJobListResponseSchema,
+  );
   return response.data;
 }
 
 export async function createMediaUpload(value: MediaUploadRequest) {
-  const response = await request("/api/v1/media/uploads", mediaUploadIntentResponseSchema, jsonRequest("POST", value));
+  const response = await request(
+    "/api/v1/media/uploads",
+    mediaUploadIntentResponseSchema,
+    jsonRequest("POST", value),
+  );
   return response.data;
 }
 
@@ -610,7 +674,11 @@ export async function fetchMediaMetadata(mediaId: string, projectId?: string) {
   return response.data;
 }
 
-export async function createProviderMediaReference(mediaId: string, kind: MediaKind, projectId?: string) {
+export async function createProviderMediaReference(
+  mediaId: string,
+  kind: MediaKind,
+  projectId?: string,
+) {
   const response = await request(
     `/api/v1/media/${encodeURIComponent(mediaId)}/provider-reference`,
     providerMediaReferenceResponseSchema,
@@ -696,7 +764,8 @@ async function completeMediaUpload(completeUrl: string) {
       const completed = await request(completeUrl, mediaResponseSchema, { method: "POST" });
       return completed.data;
     } catch (error) {
-      if (!isRetryableMediaCompletion(error) || attempt >= MEDIA_COMPLETE_RETRY_DELAYS_MS.length) throw error;
+      if (!isRetryableMediaCompletion(error) || attempt >= MEDIA_COMPLETE_RETRY_DELAYS_MS.length)
+        throw error;
       await delay(MEDIA_COMPLETE_RETRY_DELAYS_MS[attempt] ?? 0);
     }
   }
@@ -714,13 +783,22 @@ function isRetryableMediaCompletion(error: unknown) {
 // and upload bounded batches instead of retaining every signed URL in memory.
 async function uploadMultipartMediaBlob(
   media: PublicMedia,
-  instruction: Extract<NonNullable<Awaited<ReturnType<typeof createMediaUpload>>["upload"]>, { strategy: "multipart" }>,
+  instruction: Extract<
+    NonNullable<Awaited<ReturnType<typeof createMediaUpload>>["upload"]>,
+    { strategy: "multipart" }
+  >,
   blob: Blob,
 ) {
   try {
-    for (let firstPart = 1; firstPart <= instruction.partCount; firstPart += MEDIA_MULTIPART_MAX_SIGNED_PARTS) {
+    for (
+      let firstPart = 1;
+      firstPart <= instruction.partCount;
+      firstPart += MEDIA_MULTIPART_MAX_SIGNED_PARTS
+    ) {
       const partNumbers = Array.from(
-        { length: Math.min(MEDIA_MULTIPART_MAX_SIGNED_PARTS, instruction.partCount - firstPart + 1) },
+        {
+          length: Math.min(MEDIA_MULTIPART_MAX_SIGNED_PARTS, instruction.partCount - firstPart + 1),
+        },
         (_, index) => firstPart + index,
       );
       const signed = await request(
@@ -728,12 +806,26 @@ async function uploadMultipartMediaBlob(
         mediaMultipartPartInstructionsResponseSchema,
         jsonRequest("POST", { partNumbers }),
       );
-      if (signed.data.sessionId !== instruction.sessionId || signed.data.parts.length !== partNumbers.length) {
-        throw new CanvasApiError(0, "MEDIA_MULTIPART_INVALID_INSTRUCTIONS", "素材服务返回了不完整的分片上传指令");
+      if (
+        signed.data.sessionId !== instruction.sessionId ||
+        signed.data.parts.length !== partNumbers.length
+      ) {
+        throw new CanvasApiError(
+          0,
+          "MEDIA_MULTIPART_INVALID_INSTRUCTIONS",
+          "素材服务返回了不完整的分片上传指令",
+        );
       }
       const expectedParts = new Set(partNumbers);
-      if (signed.data.parts.some((part) => !expectedParts.delete(part.partNumber)) || expectedParts.size) {
-        throw new CanvasApiError(0, "MEDIA_MULTIPART_INVALID_INSTRUCTIONS", "素材服务返回了不匹配的分片上传指令");
+      if (
+        signed.data.parts.some((part) => !expectedParts.delete(part.partNumber)) ||
+        expectedParts.size
+      ) {
+        throw new CanvasApiError(
+          0,
+          "MEDIA_MULTIPART_INVALID_INSTRUCTIONS",
+          "素材服务返回了不匹配的分片上传指令",
+        );
       }
       await uploadMultipartPartBatch(signed.data.parts, blob, instruction.partSize);
     }
@@ -757,28 +849,45 @@ async function uploadMultipartPartBatch(
 ) {
   let nextPartIndex = 0;
   const workerCount = Math.min(MULTIPART_UPLOAD_CONCURRENCY, parts.length);
-  await Promise.all(Array.from({ length: workerCount }, async () => {
-    while (nextPartIndex < parts.length) {
-      const part = parts[nextPartIndex];
-      nextPartIndex += 1;
-      if (!part) return;
-      const start = (part.partNumber - 1) * partSize;
-      const response = await uploadBlobToTarget(part.url, part.method, part.headers, blob.slice(start, start + partSize));
-      if (!response.ok) throw await responseError(response);
-    }
-  }));
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (nextPartIndex < parts.length) {
+        const part = parts[nextPartIndex];
+        nextPartIndex += 1;
+        if (!part) return;
+        const start = (part.partNumber - 1) * partSize;
+        const response = await uploadBlobToTarget(
+          part.url,
+          part.method,
+          part.headers,
+          blob.slice(start, start + partSize),
+        );
+        if (!response.ok) throw await responseError(response);
+      }
+    }),
+  );
 }
 
-async function uploadBlobToTarget(url: string, method: "PUT", headers: Record<string, string>, body: Blob) {
-  const target = new URL(url, typeof window === "undefined" ? "http://canvas.local" : window.location.href);
+async function uploadBlobToTarget(
+  url: string,
+  method: "PUT",
+  headers: Record<string, string>,
+  body: Blob,
+) {
+  const target = new URL(
+    url,
+    typeof window === "undefined" ? "http://canvas.local" : window.location.href,
+  );
   try {
     return await fetch(target, {
       method,
       headers,
       body,
-      credentials: target.origin === (typeof window === "undefined" ? "http://canvas.local" : window.location.origin)
-        ? "include"
-        : "omit",
+      credentials:
+        target.origin ===
+        (typeof window === "undefined" ? "http://canvas.local" : window.location.origin)
+          ? "include"
+          : "omit",
     });
   } catch {
     throw new CanvasApiError(0, "MEDIA_UPLOAD_INTERRUPTED", "素材上传连接中断，请重试");
@@ -796,10 +905,18 @@ async function reconcileMultipartMedia(
 
   while (state.media.status !== "ready") {
     if (state.phase === "failed" || state.phase === "aborted" || state.media.status === "failed") {
-      throw new CanvasApiError(409, state.media.error?.code ?? "MEDIA_MULTIPART_FAILED", state.media.error?.message ?? "素材分片上传未完成");
+      throw new CanvasApiError(
+        409,
+        state.media.error?.code ?? "MEDIA_MULTIPART_FAILED",
+        state.media.error?.message ?? "素材分片上传未完成",
+      );
     }
     if (Date.now() >= deadline) {
-      throw new CanvasApiError(504, "MEDIA_MULTIPART_PROCESSING_TIMEOUT", "素材上传已完成，服务端校验超时，请稍后重试");
+      throw new CanvasApiError(
+        504,
+        "MEDIA_MULTIPART_PROCESSING_TIMEOUT",
+        "素材上传已完成，服务端校验超时，请稍后重试",
+      );
     }
     await delay(delayMs);
     delayMs = Math.min(3_000, Math.round(delayMs * 1.5));
@@ -884,8 +1001,8 @@ export function subscribeGenerationJob(
       noProgressSince ??= Date.now();
       noProgressDeliveries += 1;
       if (
-        Date.now() - noProgressSince >= observationStagnationWindowMs(job.status)
-        || noProgressDeliveries >= OBSERVATION_STAGNATION_MAX_DELIVERIES
+        Date.now() - noProgressSince >= observationStagnationWindowMs(job.status) ||
+        noProgressDeliveries >= OBSERVATION_STAGNATION_MAX_DELIVERIES
       ) {
         handlers.onObservationExhausted?.();
         stop();
@@ -944,7 +1061,8 @@ export function subscribeGenerationJob(
       const job = await fetchGenerationJob(jobId);
       pollDelay = 2_000;
       deliver(job);
-      if (active) schedulePoll(job.status === "submission_unknown" ? unknownPollDelay() : pollDelay);
+      if (active)
+        schedulePoll(job.status === "submission_unknown" ? unknownPollDelay() : pollDelay);
     } catch (cause) {
       if (cause instanceof CanvasApiError && cause.status === 401) {
         handlers.onSessionExpired?.();
@@ -953,10 +1071,14 @@ export function subscribeGenerationJob(
       }
       recordTransportFailure();
       if (!active) return;
-      const retryAfter = cause instanceof CanvasApiError && cause.retryAfterSeconds !== null
-        ? cause.retryAfterSeconds * 1_000
-        : 0;
-      pollDelay = Math.max(retryAfter, Math.min(OBSERVATION_MAX_BACKOFF_MS, Math.round(pollDelay * 1.6)));
+      const retryAfter =
+        cause instanceof CanvasApiError && cause.retryAfterSeconds !== null
+          ? cause.retryAfterSeconds * 1_000
+          : 0;
+      pollDelay = Math.max(
+        retryAfter,
+        Math.min(OBSERVATION_MAX_BACKOFF_MS, Math.round(pollDelay * 1.6)),
+      );
       schedulePoll(pollDelay);
     }
   };
@@ -968,20 +1090,25 @@ export function subscribeGenerationJob(
     schedulePoll(0);
   };
 
-  const unknownPollDelay = () => unknownSince !== null && Date.now() - unknownSince >= unknownFastRetryWindow
-    ? unknownSlowRetryInterval
-    : unknownFastRetryInterval;
+  const unknownPollDelay = () =>
+    unknownSince !== null && Date.now() - unknownSince >= unknownFastRetryWindow
+      ? unknownSlowRetryInterval
+      : unknownFastRetryInterval;
 
   const startEvents = () => {
     if (typeof EventSource === "undefined") {
       startPolling();
       return;
     }
-    source = new EventSource(`/api/v1/generation-jobs/${encodeURIComponent(jobId)}/events`, { withCredentials: true });
+    source = new EventSource(`/api/v1/generation-jobs/${encodeURIComponent(jobId)}/events`, {
+      withCredentials: true,
+    });
     source.onopen = armEventWatchdog;
     source.addEventListener("job", (event) => {
       try {
-        const payload = generationJobEventSchema.parse(JSON.parse((event as MessageEvent<string>).data));
+        const payload = generationJobEventSchema.parse(
+          JSON.parse((event as MessageEvent<string>).data),
+        );
         eventFailures = 0;
         deliver(payload.job);
         if (active && payload.job.status === "submission_unknown") startPolling();
@@ -1020,12 +1147,21 @@ function isFinalJob(job: PublicGenerationJob) {
 }
 
 function isTransientRequestError(error: unknown) {
-  return error instanceof CanvasApiError
-    && (error.code === "NETWORK_UNAVAILABLE" || error.status === 408 || error.status === 425
-      || error.status === 429 || error.status >= 500);
+  return (
+    error instanceof CanvasApiError &&
+    (error.code === "NETWORK_UNAVAILABLE" ||
+      error.status === 408 ||
+      error.status === 425 ||
+      error.status === 429 ||
+      error.status >= 500)
+  );
 }
 
-async function requestWithTransientRetry<T>(path: string, schema: Parser<T>, init: RequestInit = {}) {
+async function requestWithTransientRetry<T>(
+  path: string,
+  schema: Parser<T>,
+  init: RequestInit = {},
+) {
   for (let attempt = 0; attempt <= TRANSIENT_REQUEST_RETRY_DELAYS_MS.length; attempt += 1) {
     try {
       return await request(path, schema, {
@@ -1033,7 +1169,8 @@ async function requestWithTransientRetry<T>(path: string, schema: Parser<T>, ini
         signal: AbortSignal.timeout(TRANSIENT_REQUEST_TIMEOUT_MS),
       });
     } catch (error) {
-      if (!isTransientRequestError(error) || attempt === TRANSIENT_REQUEST_RETRY_DELAYS_MS.length) throw error;
+      if (!isTransientRequestError(error) || attempt === TRANSIENT_REQUEST_RETRY_DELAYS_MS.length)
+        throw error;
       await delay(TRANSIENT_REQUEST_RETRY_DELAYS_MS[attempt] ?? 0);
     }
   }
@@ -1093,6 +1230,8 @@ async function responseError(response: Response) {
     code,
     message,
     retryAfter !== null && Number.isFinite(retryAfter) && retryAfter >= 0 ? retryAfter : null,
-    currentRevision !== null && Number.isSafeInteger(currentRevision) && currentRevision > 0 ? currentRevision : null,
+    currentRevision !== null && Number.isSafeInteger(currentRevision) && currentRevision > 0
+      ? currentRevision
+      : null,
   );
 }

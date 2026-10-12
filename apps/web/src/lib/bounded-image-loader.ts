@@ -42,8 +42,7 @@ type AttemptOutcome =
   | { kind: "permanent" };
 
 type LoadAttemptResult =
-  | { outcome: FetchedOutcome; failure: null }
-  | { outcome: null; failure: ImageLoadFailure | null };
+  { outcome: FetchedOutcome; failure: null } | { outcome: null; failure: ImageLoadFailure | null };
 
 class DecodeFailureError extends Error {
   constructor(message: string) {
@@ -111,7 +110,9 @@ export type BoundedImageLoaderOptions = {
   revokeObjectUrl?: (url: string) => void;
 };
 
-export function createBoundedImageLoader(options: BoundedImageLoaderOptions = {}): BoundedImageLoader {
+export function createBoundedImageLoader(
+  options: BoundedImageLoaderOptions = {},
+): BoundedImageLoader {
   return new BoundedImageLoader(options);
 }
 
@@ -156,7 +157,11 @@ export class BoundedImageLoader {
 
   acquire(
     url: string,
-    options: { priority?: ImageLoadPriority; credentials?: RequestCredentials; preferNative?: boolean } = {},
+    options: {
+      priority?: ImageLoadPriority;
+      credentials?: RequestCredentials;
+      preferNative?: boolean;
+    } = {},
   ): Promise<ImageLoadOutcome> {
     return this.acquireDetailed(url, options).then((result) => result.asset);
   }
@@ -167,7 +172,11 @@ export class BoundedImageLoader {
    */
   acquireDetailed(
     url: string,
-    options: { priority?: ImageLoadPriority; credentials?: RequestCredentials; preferNative?: boolean } = {},
+    options: {
+      priority?: ImageLoadPriority;
+      credentials?: RequestCredentials;
+      preferNative?: boolean;
+    } = {},
   ): Promise<ImageLoadResult> {
     if (!url) return Promise.resolve({ asset: null, failure: null });
     const priority = options.priority ?? "normal";
@@ -211,7 +220,9 @@ export class BoundedImageLoader {
     }
 
     let settle!: (result: ImageLoadResult) => void;
-    const promise = new Promise<ImageLoadResult>((resolve) => { settle = resolve; });
+    const promise = new Promise<ImageLoadResult>((resolve) => {
+      settle = resolve;
+    });
     const entry: RequestEntry = {
       key: url,
       priority,
@@ -302,7 +313,11 @@ export class BoundedImageLoader {
   private indexOfHighestOverflowPriority(): number {
     let best = 0;
     for (let index = 1; index < this.overflow.length; index += 1) {
-      if (PRIORITY_ORDER[this.overflow[index]!.priority] < PRIORITY_ORDER[this.overflow[best]!.priority]) best = index;
+      if (
+        PRIORITY_ORDER[this.overflow[index]!.priority] <
+        PRIORITY_ORDER[this.overflow[best]!.priority]
+      )
+        best = index;
     }
     return best;
   }
@@ -310,7 +325,8 @@ export class BoundedImageLoader {
   private pickNextIndex(): number {
     let best = 0;
     for (let index = 1; index < this.queue.length; index += 1) {
-      if (PRIORITY_ORDER[this.queue[index]!.priority] < PRIORITY_ORDER[this.queue[best]!.priority]) best = index;
+      if (PRIORITY_ORDER[this.queue[index]!.priority] < PRIORITY_ORDER[this.queue[best]!.priority])
+        best = index;
     }
     return best;
   }
@@ -327,7 +343,8 @@ export class BoundedImageLoader {
   private indexOfLowestPriority(): number {
     let worst = 0;
     for (let index = 1; index < this.queue.length; index += 1) {
-      if (PRIORITY_ORDER[this.queue[index]!.priority] > PRIORITY_ORDER[this.queue[worst]!.priority]) worst = index;
+      if (PRIORITY_ORDER[this.queue[index]!.priority] > PRIORITY_ORDER[this.queue[worst]!.priority])
+        worst = index;
     }
     return worst;
   }
@@ -342,7 +359,13 @@ export class BoundedImageLoader {
     }
     const outcome = result.outcome;
     if (outcome.kind === "fetched") {
-      const hydrated = this.hydrate(entry.key, outcome.blob, outcome.dimensions.width, outcome.dimensions.height, entry.refs);
+      const hydrated = this.hydrate(
+        entry.key,
+        outcome.blob,
+        outcome.dimensions.width,
+        outcome.dimensions.height,
+        entry.refs,
+      );
       entry.settle({ asset: assetFromEntry(hydrated, false), failure: null });
       return;
     }
@@ -390,7 +413,8 @@ export class BoundedImageLoader {
     for (let attempt = 0; ; attempt += 1) {
       if (signal.aborted) return { outcome: null, failure: null };
       const outcome = await this.attemptOnce(entry, attempt, signal);
-      if (outcome.kind === "fetched" || outcome.kind === "native") return { outcome, failure: null };
+      if (outcome.kind === "fetched" || outcome.kind === "native")
+        return { outcome, failure: null };
       if (signal.aborted) return { outcome: null, failure: null };
       if (outcome.kind === "permanent") return { outcome: null, failure: "permanent" };
       if (attempt >= this.maxRetries) return { outcome: null, failure: "transient" };
@@ -399,7 +423,11 @@ export class BoundedImageLoader {
     }
   }
 
-  private async attemptOnce(entry: RequestEntry, attempt: number, signal: AbortSignal): Promise<AttemptOutcome> {
+  private async attemptOnce(
+    entry: RequestEntry,
+    attempt: number,
+    signal: AbortSignal,
+  ): Promise<AttemptOutcome> {
     const attemptController = new AbortController();
     const onAbort = () => attemptController.abort();
     signal.addEventListener("abort", onAbort, { once: true });
@@ -444,8 +472,14 @@ export class BoundedImageLoader {
   private async fetchAndDecode(
     entry: RequestEntry,
     attemptSignal: AbortSignal,
-  ): Promise<{ kind: "fetched"; blob: Blob; dimensions: DecodedDimensions } | { kind: "status"; status: number }> {
-    const response = await this.fetchFn(entry.key, { signal: attemptSignal, credentials: entry.credentials });
+  ): Promise<
+    | { kind: "fetched"; blob: Blob; dimensions: DecodedDimensions }
+    | { kind: "status"; status: number }
+  > {
+    const response = await this.fetchFn(entry.key, {
+      signal: attemptSignal,
+      credentials: entry.credentials,
+    });
     if (attemptSignal.aborted) throw new Error("aborted");
     if (!response.ok) return { kind: "status", status: response.status };
     const blob = await response.blob();
@@ -459,7 +493,13 @@ export class BoundedImageLoader {
     return { kind: "fetched", blob, dimensions };
   }
 
-  private hydrate(key: string, blob: Blob, width: number, height: number, refs: number): ObjectUrlEntry {
+  private hydrate(
+    key: string,
+    blob: Blob,
+    width: number,
+    height: number,
+    refs: number,
+  ): ObjectUrlEntry {
     const objectUrl = this.createObjectUrl(blob);
     const entry: ObjectUrlEntry = { key, objectUrl, blob, width, height, refs, revokeTimer: null };
     this.objectUrls.set(key, entry);
@@ -501,7 +541,11 @@ export const boundedImageLoader = createBoundedImageLoader();
 
 export function acquireBoundedImage(
   url: string,
-  options: { priority?: ImageLoadPriority; credentials?: RequestCredentials; preferNative?: boolean } = {},
+  options: {
+    priority?: ImageLoadPriority;
+    credentials?: RequestCredentials;
+    preferNative?: boolean;
+  } = {},
 ): Promise<ImageLoadOutcome> {
   return boundedImageLoader.acquire(url, options);
 }
@@ -509,7 +553,11 @@ export function acquireBoundedImage(
 /** 同 `acquireBoundedImage`，但返回带失败原因的结果，供自愈式重试使用。 */
 export function acquireBoundedImageDetailed(
   url: string,
-  options: { priority?: ImageLoadPriority; credentials?: RequestCredentials; preferNative?: boolean } = {},
+  options: {
+    priority?: ImageLoadPriority;
+    credentials?: RequestCredentials;
+    preferNative?: boolean;
+  } = {},
 ): Promise<ImageLoadResult> {
   return boundedImageLoader.acquireDetailed(url, options);
 }
@@ -523,7 +571,13 @@ export function clearBoundedImageCache(): void {
 }
 
 function assetFromEntry(entry: ObjectUrlEntry, fromMemory: boolean): LoadedImageAsset {
-  return { url: entry.objectUrl, blob: entry.blob, width: entry.width, height: entry.height, fromMemory };
+  return {
+    url: entry.objectUrl,
+    blob: entry.blob,
+    width: entry.width,
+    height: entry.height,
+    fromMemory,
+  };
 }
 
 function removePendingEntry(entries: RequestEntry[], target: RequestEntry): void {
@@ -542,7 +596,11 @@ function isRetryableStatus(status: number): boolean {
  * late rejection after the race already settled can never become an unhandled
  * rejection, and the timer is always cleared.
  */
-function raceWithTimeout<T>(promise: Promise<T>, timeoutMs: number, onTimeout: () => void): Promise<T> {
+function raceWithTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  onTimeout: () => void,
+): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   return new Promise<T>((resolve, reject) => {
     promise.then(resolve, reject);

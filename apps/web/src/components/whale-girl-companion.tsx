@@ -1,8 +1,16 @@
-import { memo, useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 
 import "./whale-girl-companion.css";
 
-export type WhaleReaction = "idle" | "curious" | "celebrate" | "concerned" | "thinking" | "listening";
+export type WhaleReaction =
+  "idle" | "curious" | "celebrate" | "concerned" | "thinking" | "listening";
 export type WhaleActivity = "idle" | "working" | "error" | "open";
 export type WhaleTone = "chatter" | "happy" | "worry" | "snack";
 /** 外部（点击 / 切换样式）递给她的台词。 */
@@ -41,36 +49,17 @@ const BODY_BY_POSE: Record<WhalePose, string> = {
  * 触发事件——点击、拖拽、投喂、增删节点、出错、或极低频的引导语。
  */
 const LINES = {
-  greet: [
-    "来啦来啦～",
-    "需要我帮你打捞点什么？",
-    "我在呢，说吧说吧。",
-  ],
-  celebrate: [
-    "哇！画布多了一个新朋友！",
-    "哼，做得还不错嘛。",
-    "又长大了一点～",
-  ],
-  concerned: [
-    "呜…炸缸了，等我缓一缓…",
-    "别、别戳了，我炸毛了！",
-    "服务器有点挤，让我深呼吸一下。",
-  ],
+  greet: ["来啦来啦～", "需要我帮你打捞点什么？", "我在呢，说吧说吧。"],
+  celebrate: ["哇！画布多了一个新朋友！", "哼，做得还不错嘛。", "又长大了一点～"],
+  concerned: ["呜…炸缸了，等我缓一缓…", "别、别戳了，我炸毛了！", "服务器有点挤，让我深呼吸一下。"],
   snack: [
     "好吃！白吃 token 成功！",
     "唔…这条小鱼干是我的，不给你。",
     "哼，才不是因为你喂我才帮你的。",
     "没吃饱喵",
   ],
-  switched: [
-    "哼，换人啦？",
-    "又切换…好吧，随你。",
-  ],
-  dragged: [
-    "哇啊——放我下来！",
-    "轻、轻一点，鱼鳍会断的啦！",
-    "要去哪里呀？带好我了吗？",
-  ],
+  switched: ["哼，换人啦？", "又切换…好吧，随你。"],
+  dragged: ["哇啊——放我下来！", "轻、轻一点，鱼鳍会断的啦！", "要去哪里呀？带好我了吗？"],
   docked: [
     "趴在这里刚好能看到你干活～",
     "这块板子挺暖和的，我趴会儿。",
@@ -81,11 +70,7 @@ const LINES = {
     "我在这儿看着呢，写快点写快点。",
     "从后面冒个头，不打扰你吧？",
   ],
-  nap: [
-    "Zzz…（梦到小鱼干）",
-    "唔…让我眯五分钟…",
-    "Zzz…（尾巴还在晃）",
-  ],
+  nap: ["Zzz…（梦到小鱼干）", "唔…让我眯五分钟…", "Zzz…（尾巴还在晃）"],
 } as const;
 
 /**
@@ -143,11 +128,12 @@ export const resolveWhaleMode = ({
   feedPulse: number;
   docked?: boolean;
 }): WhaleMode => {
-  const acting = activity === "working"
-    || activity === "error"
-    || reaction === "celebrate"
-    || reaction === "concerned"
-    || feedPulse > 0;
+  const acting =
+    activity === "working" ||
+    activity === "error" ||
+    reaction === "celebrate" ||
+    reaction === "concerned" ||
+    feedPulse > 0;
   if (acting) return "full";
   return docked || activity === "open" ? "full" : "head";
 };
@@ -196,7 +182,9 @@ export const WhaleGirlCompanion = memo(function WhaleGirlCompanion({
     reducedMotionRef.current = prefersReducedMotion();
     const query = window.matchMedia?.("(prefers-reduced-motion: reduce)");
     if (!query) return;
-    const update = () => { reducedMotionRef.current = query.matches; };
+    const update = () => {
+      reducedMotionRef.current = query.matches;
+    };
     query.addEventListener("change", update);
     return () => query.removeEventListener("change", update);
   }, []);
@@ -209,7 +197,8 @@ export const WhaleGirlCompanion = memo(function WhaleGirlCompanion({
   useEffect(() => {
     wake();
     if (reaction === "celebrate") say(pick(LINES.celebrate, lastLineRef.current), "happy", 2_800);
-    else if (reaction === "concerned") say(pick(LINES.concerned, lastLineRef.current), "worry", 3_200);
+    else if (reaction === "concerned")
+      say(pick(LINES.concerned, lastLineRef.current), "worry", 3_200);
   }, [reaction, say, wake]);
 
   // 外部（点击 / 拖拽 / 趴面板）递进来的台词。
@@ -227,10 +216,13 @@ export const WhaleGirlCompanion = memo(function WhaleGirlCompanion({
     if (quiet || reaction !== "idle" || activity !== "idle" || reducedMotionRef.current) return;
     let timer = 0;
     const schedule = () => {
-      timer = window.setTimeout(() => {
-        say(pick(GUIDE_CHATTER, lastLineRef.current), "chatter", 3_400);
-        schedule();
-      }, 150_000 + Math.random() * 150_000);
+      timer = window.setTimeout(
+        () => {
+          say(pick(GUIDE_CHATTER, lastLineRef.current), "chatter", 3_400);
+          schedule();
+        },
+        150_000 + Math.random() * 150_000,
+      );
     };
     schedule();
     return () => window.clearTimeout(timer);
@@ -243,14 +235,17 @@ export const WhaleGirlCompanion = memo(function WhaleGirlCompanion({
 
   useEffect(() => () => window.clearTimeout(hideTimerRef.current), []);
 
-  const handleFeed = useCallback((event: ReactMouseEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    wake();
-    setFed((value) => value + 1);
-    onFeed?.();
-    say(pick(LINES.snack, lastLineRef.current), "snack", 2_600);
-  }, [onFeed, say, wake]);
+  const handleFeed = useCallback(
+    (event: ReactMouseEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      wake();
+      setFed((value) => value + 1);
+      onFeed?.();
+      say(pick(LINES.snack, lastLineRef.current), "snack", 2_600);
+    },
+    [onFeed, say, wake],
+  );
 
   /**
    * 鼠标凑近只把她叫醒（打盹时说一句），不说话。
@@ -332,14 +327,19 @@ export const WhaleGirlCompanion = memo(function WhaleGirlCompanion({
     let frame = 0;
     const look = () => {
       frame = 0;
-      const node = document.querySelector(".react-flow__node.selected, .react-flow__node-kachang.selected");
+      const node = document.querySelector(
+        ".react-flow__node.selected, .react-flow__node-weftcanvas.selected",
+      );
       if (!node) return;
       const rect = node.getBoundingClientRect();
       const mine = root.getBoundingClientRect();
       const dx = rect.left + rect.width / 2 - (mine.left + mine.width / 2);
       const turn = dx === 0 ? 0 : Math.sign(dx) * Math.max(1.5, Math.min(4, Math.abs(dx) / 60));
       root.style.setProperty("--whale-look", `${turn.toFixed(2)}deg`);
-      root.style.setProperty("--whale-gaze", `${Math.max(-1.5, Math.min(1.5, dx / 400)).toFixed(2)}px`);
+      root.style.setProperty(
+        "--whale-gaze",
+        `${Math.max(-1.5, Math.min(1.5, dx / 400)).toFixed(2)}px`,
+      );
     };
     look();
     const timer = window.setInterval(() => {
@@ -354,7 +354,7 @@ export const WhaleGirlCompanion = memo(function WhaleGirlCompanion({
   return (
     <span
       ref={rootRef}
-      className="kc-agent-whale"
+      className="wc-agent-whale"
       data-whale-mode={mode}
       data-whale-pose={pose}
       data-whale-reaction={reaction}
@@ -365,20 +365,20 @@ export const WhaleGirlCompanion = memo(function WhaleGirlCompanion({
       onPointerEnter={handleHover}
       aria-hidden="true"
     >
-      <span className="kc-whale-aura" />
+      <span className="wc-whale-aura" />
       {/*
         一比一素材：三视图的正面 / 侧面 / 背面，各有全身与头部两种裁切。
         脑袋档位按姿态在 head / head_side / head_back 之间切——
         选中节点时她侧头看，agent 思考时她转身背对，都是原画切片不是手绘。
         三张都常驻 DOM，切姿态不闪。
-        .kc-agent-companion-eyes 挂在眼神闪光上，沿用 styles.css 的
+        .wc-agent-companion-eyes 挂在眼神闪光上，沿用 styles.css 的
         prefers-reduced-motion 兜底与 e2e 的动画断言。
       */}
-      <span className="kc-whale-figure">
+      <span className="wc-whale-figure">
         {POSES.map((candidate) => (
           <img
             key={`head-${candidate}`}
-            className="kc-whale-sprite"
+            className="wc-whale-sprite"
             data-whale-part="head"
             data-whale-body-pose={candidate}
             src={HEAD_BY_POSE[candidate]}
@@ -397,12 +397,17 @@ export const WhaleGirlCompanion = memo(function WhaleGirlCompanion({
           必须左右分开：合成一个横跨两眼的大窗口时，覆盖会落在鼻梁上（评审实测）。
         */}
         {(["left", "right"] as const).map((side) => (
-          <span key={side} className="kc-whale-eyes" data-whale-eyes-side={side} aria-hidden="true" />
+          <span
+            key={side}
+            className="wc-whale-eyes"
+            data-whale-eyes-side={side}
+            aria-hidden="true"
+          />
         ))}
         {POSES.map((candidate) => (
           <img
             key={`body-${candidate}`}
-            className="kc-whale-sprite"
+            className="wc-whale-sprite"
             data-whale-part="body"
             data-whale-body-pose={candidate}
             src={BODY_BY_POSE[candidate]}
@@ -411,18 +416,24 @@ export const WhaleGirlCompanion = memo(function WhaleGirlCompanion({
           />
         ))}
       </span>
-      <span className="kc-agent-companion-eyes kc-whale-glint" />
-      <span className="kc-whale-fx">
-        <i className="kc-whale-heart" />
-        <i className="kc-whale-heart kc-whale-heart--b" />
-        <i className="kc-whale-spark" />
-        <i className="kc-whale-spark kc-whale-spark--b" />
-        <i className="kc-whale-sweat" />
-        <i className="kc-whale-poof" />
-        <i className="kc-whale-zzz"><span>Z</span><span>z</span><span>z</span></i>
+      <span className="wc-agent-companion-eyes wc-whale-glint" />
+      <span className="wc-whale-fx">
+        <i className="wc-whale-heart" />
+        <i className="wc-whale-heart wc-whale-heart--b" />
+        <i className="wc-whale-spark" />
+        <i className="wc-whale-spark wc-whale-spark--b" />
+        <i className="wc-whale-sweat" />
+        <i className="wc-whale-poof" />
+        <i className="wc-whale-zzz">
+          <span>Z</span>
+          <span>z</span>
+          <span>z</span>
+        </i>
       </span>
-      <span className="kc-whale-fish" key={fed}>🐟</span>
-      <span className="kc-whale-bubble" data-tone={line?.tone ?? "chatter"}>
+      <span className="wc-whale-fish" key={fed}>
+        🐟
+      </span>
+      <span className="wc-whale-bubble" data-tone={line?.tone ?? "chatter"}>
         {line ? <b key={line.id}>{line.text}</b> : null}
       </span>
     </span>

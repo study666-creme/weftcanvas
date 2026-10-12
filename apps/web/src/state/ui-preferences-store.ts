@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import type { ModelModality } from "@kachang/contracts";
+import type { ModelModality } from "@weftcanvas/contracts";
 
 import { isRegisteredAppearanceValue, type AppearanceSlot } from "../lib/appearance-registry";
 // 内置档位必须先于本模块的 normalize 注册（read 在模块求值期执行）。
@@ -65,8 +65,7 @@ export type CompanionDock =
  *   这样面板变宽变窄、窗口缩放时她都贴在同一条边上。
  */
 export type CompanionAnchor =
-  | { kind: "free"; x: number; y: number }
-  | { kind: "dock"; dock: CompanionDock; x: number };
+  { kind: "free"; x: number; y: number } | { kind: "dock"; dock: CompanionDock; x: number };
 
 export const COMPANION_DOCKS: readonly CompanionDock[] = [
   "edit-dock",
@@ -87,9 +86,17 @@ export function normalizeCompanionAnchor(value: unknown): CompanionAnchor | null
     return { kind: "free", x: candidate.x, y: candidate.y };
   }
   if (candidate.kind === "dock") {
-    if (typeof candidate.dock !== "string" || !COMPANION_DOCKS.includes(candidate.dock as CompanionDock)) return null;
+    if (
+      typeof candidate.dock !== "string" ||
+      !COMPANION_DOCKS.includes(candidate.dock as CompanionDock)
+    )
+      return null;
     if (typeof candidate.x !== "number" || !Number.isFinite(candidate.x)) return null;
-    return { kind: "dock", dock: candidate.dock as CompanionDock, x: Math.min(0.94, Math.max(0.06, candidate.x)) };
+    return {
+      kind: "dock",
+      dock: candidate.dock as CompanionDock,
+      x: Math.min(0.94, Math.max(0.06, candidate.x)),
+    };
   }
   return null;
 }
@@ -101,7 +108,7 @@ export type LastMediaGenerationSettings = {
   maxOutputTokens: number | null;
 };
 
-const STORAGE_KEY = "kachang-canvas:ui-preferences:v1";
+const STORAGE_KEY = "weftcanvas:ui-preferences:v1";
 
 type UiPreferencesState = {
   nodePortStyle: NodePortStyle;
@@ -154,19 +161,29 @@ export const useUiPreferencesStore = create<UiPreferencesState>((set) => ({
   ...initialPreferences,
   setNodePortStyle: (nodePortStyle) => set((state) => persistPreferences(state, { nodePortStyle })),
   setColorScheme: (colorScheme) => set((state) => persistPreferences(state, { colorScheme })),
-  setChromeVisualStyle: (chromeVisualStyle) => set((state) => persistPreferences(state, { chromeVisualStyle })),
-  setCanvasVisualStyle: (canvasVisualStyle) => set((state) => persistPreferences(state, { canvasVisualStyle })),
-  setCanvasBackgroundStyle: (canvasBackgroundStyle) => set((state) => persistPreferences(state, { canvasBackgroundStyle })),
-  setGenerationEffectStyle: (generationEffectStyle) => set((state) => persistPreferences(state, { generationEffectStyle })),
+  setChromeVisualStyle: (chromeVisualStyle) =>
+    set((state) => persistPreferences(state, { chromeVisualStyle })),
+  setCanvasVisualStyle: (canvasVisualStyle) =>
+    set((state) => persistPreferences(state, { canvasVisualStyle })),
+  setCanvasBackgroundStyle: (canvasBackgroundStyle) =>
+    set((state) => persistPreferences(state, { canvasBackgroundStyle })),
+  setGenerationEffectStyle: (generationEffectStyle) =>
+    set((state) => persistPreferences(state, { generationEffectStyle })),
   setEdgePathStyle: (edgePathStyle) => set((state) => persistPreferences(state, { edgePathStyle })),
   setEdgeFlowStyle: (edgeFlowStyle) => set((state) => persistPreferences(state, { edgeFlowStyle })),
-  setCompanionStyle: (companionStyle) => set((state) => persistPreferences(state, { companionStyle })),
-  setCompanionAnchor: (companionAnchor) => set((state) => persistPreferences(state, { companionAnchor })),
+  setCompanionStyle: (companionStyle) =>
+    set((state) => persistPreferences(state, { companionStyle })),
+  setCompanionAnchor: (companionAnchor) =>
+    set((state) => persistPreferences(state, { companionAnchor })),
   setCursorStyle: (cursorStyle) => set((state) => persistPreferences(state, { cursorStyle })),
-  setDefaultNodeAspectRatio: (defaultNodeAspectRatio) => set((state) => persistPreferences(state, { defaultNodeAspectRatio })),
-  setLastMediaGeneration: (modality, settings) => set((state) => persistPreferences(state, {
-    lastMediaGeneration: { ...state.lastMediaGeneration, [modality]: settings },
-  })),
+  setDefaultNodeAspectRatio: (defaultNodeAspectRatio) =>
+    set((state) => persistPreferences(state, { defaultNodeAspectRatio })),
+  setLastMediaGeneration: (modality, settings) =>
+    set((state) =>
+      persistPreferences(state, {
+        lastMediaGeneration: { ...state.lastMediaGeneration, [modality]: settings },
+      }),
+    ),
 }));
 
 function readUiPreferences(): StoredUiPreferences {
@@ -187,26 +204,46 @@ function readUiPreferences(): StoredUiPreferences {
       defaultNodeAspectRatio?: unknown;
       lastMediaGeneration?: unknown;
     } | null;
-    const canvasVisualStyle = normalizeStyleOption("canvasVisualStyle", stored?.canvasVisualStyle, "airy");
+    const canvasVisualStyle = normalizeStyleOption(
+      "canvasVisualStyle",
+      stored?.canvasVisualStyle,
+      "airy",
+    );
     const legacyChromeFallback = isRegisteredAppearanceValue("chromeVisualStyle", canvasVisualStyle)
-      ? canvasVisualStyle as StyleOptionId
-      : "airy" as StyleOptionId;
+      ? (canvasVisualStyle as StyleOptionId)
+      : ("airy" as StyleOptionId);
     return {
       nodePortStyle: normalizeStyleOption("nodePortStyle", stored?.nodePortStyle, "classic"),
-      colorScheme: stored?.colorScheme === "ink" || stored?.colorScheme === "onyx" ? stored.colorScheme : "graphite",
+      colorScheme:
+        stored?.colorScheme === "ink" || stored?.colorScheme === "onyx"
+          ? stored.colorScheme
+          : "graphite",
       canvasVisualStyle,
       // Older v1 records used one preset for nodes and chrome. Copy it once so
       // the upgrade has no visual jump, then persist both controls separately.
-      chromeVisualStyle: normalizeStyleOption("chromeVisualStyle", stored?.chromeVisualStyle, legacyChromeFallback),
-      canvasBackgroundStyle: normalizeStyleOption("canvasBackgroundStyle", stored?.canvasBackgroundStyle, "layered-grid"),
-      generationEffectStyle: normalizeStyleOption("generationEffectStyle", stored?.generationEffectStyle, "beam"),
+      chromeVisualStyle: normalizeStyleOption(
+        "chromeVisualStyle",
+        stored?.chromeVisualStyle,
+        legacyChromeFallback,
+      ),
+      canvasBackgroundStyle: normalizeStyleOption(
+        "canvasBackgroundStyle",
+        stored?.canvasBackgroundStyle,
+        "layered-grid",
+      ),
+      generationEffectStyle: normalizeStyleOption(
+        "generationEffectStyle",
+        stored?.generationEffectStyle,
+        "beam",
+      ),
       edgePathStyle: normalizeStyleOption("edgePathStyle", stored?.edgePathStyle, "taut"),
       edgeFlowStyle: normalizeStyleOption("edgeFlowStyle", stored?.edgeFlowStyle, "stream"),
-      companionStyle: stored?.companionStyle === "robot"
-        ? "robot"
-        : stored?.companionStyle === "bear"
-          ? "bear"
-          : "whale",
+      companionStyle:
+        stored?.companionStyle === "robot"
+          ? "robot"
+          : stored?.companionStyle === "bear"
+            ? "bear"
+            : "whale",
       // 默认「质感」：自绘光标接回画布后它就是最像"产品角色"的一档；
       // 存过的用户偏好原样保留（只认 "precision" 这个显式值）。
       cursorStyle: normalizeStyleOption("cursorStyle", stored?.cursorStyle, "classic"),
@@ -256,12 +293,15 @@ function persistPreferences(state: UiPreferencesState, change: Partial<StoredUiP
   return preferences;
 }
 
-function normalizeLastMediaGeneration(value: unknown): Partial<Record<ModelModality, LastMediaGenerationSettings>> {
+function normalizeLastMediaGeneration(
+  value: unknown,
+): Partial<Record<ModelModality, LastMediaGenerationSettings>> {
   if (!value || typeof value !== "object") return {};
   const entries = Object.entries(value as Record<string, unknown>);
   const normalized: Partial<Record<ModelModality, LastMediaGenerationSettings>> = {};
   for (const [modality, settings] of entries) {
-    if (modality !== "text" && modality !== "image" && modality !== "video" && modality !== "audio") continue;
+    if (modality !== "text" && modality !== "image" && modality !== "video" && modality !== "audio")
+      continue;
     if (!settings || typeof settings !== "object") continue;
     const candidate = settings as Partial<LastMediaGenerationSettings>;
     if (typeof candidate.modelId !== "string" || !candidate.modelId) continue;
@@ -269,7 +309,8 @@ function normalizeLastMediaGeneration(value: unknown): Partial<Record<ModelModal
     normalized[modality] = {
       modelId: candidate.modelId,
       parameters: candidate.parameters as Record<string, unknown>,
-      maxOutputTokens: typeof candidate.maxOutputTokens === "number" ? candidate.maxOutputTokens : null,
+      maxOutputTokens:
+        typeof candidate.maxOutputTokens === "number" ? candidate.maxOutputTokens : null,
     };
   }
   return normalized;
@@ -279,7 +320,11 @@ function normalizeLastMediaGeneration(value: unknown): Partial<Record<ModelModal
  * 外观档位的注册表化 normalize：只有当前注册表里存在的值才被接受，
  * 未知/历史存量值回落默认（cosmos、灵境等下线档即由此消失）。
  */
-function normalizeStyleOption(slot: AppearanceSlot, value: unknown, fallback: StyleOptionId): StyleOptionId {
+function normalizeStyleOption(
+  slot: AppearanceSlot,
+  value: unknown,
+  fallback: StyleOptionId,
+): StyleOptionId {
   return isRegisteredAppearanceValue(slot, value) ? (value as StyleOptionId) : fallback;
 }
 

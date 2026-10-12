@@ -29,10 +29,12 @@ describe("collaboration seat messaging", () => {
   });
 
   it("keeps API messages for other known failures and fallbacks for unknown errors", () => {
-    expect(collaborationApiMessage(
-      new CanvasApiError(403, "COLLABORATION_PRO_REQUIRED", "需要专业会员"),
-      "邀请发送失败",
-    )).toBe("需要专业会员");
+    expect(
+      collaborationApiMessage(
+        new CanvasApiError(403, "COLLABORATION_PRO_REQUIRED", "需要专业会员"),
+        "邀请发送失败",
+      ),
+    ).toBe("需要专业会员");
     expect(collaborationApiMessage(new Error("network"), "邀请发送失败")).toBe("邀请发送失败");
   });
 });

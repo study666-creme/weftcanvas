@@ -1,6 +1,15 @@
 import { CopyPlus, Group, Plus, Trash2, Ungroup, X } from "lucide-react";
 import { useStore, useViewport } from "@xyflow/react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 
 import { setCanvasConnectionDragging } from "../lib/canvas-connection-state";
 import { nodeDefaultDimensions } from "../lib/node-factory";
@@ -99,7 +108,11 @@ type SelectionConnectionDrag = {
   targetElement: HTMLElement | null;
 };
 
-const CanvasSelectionPorts = memo(function CanvasSelectionPorts({ selection }: { selection: SelectionSummary }) {
+const CanvasSelectionPorts = memo(function CanvasSelectionPorts({
+  selection,
+}: {
+  selection: SelectionSummary;
+}) {
   const viewport = useViewport();
   const connectSelectionToNode = useCanvasStore((state) => state.connectSelectionToNode);
   const selectedNodeIds = useMemo(() => new Set(selection.nodeIds), [selection.nodeIds]);
@@ -114,99 +127,123 @@ const CanvasSelectionPorts = memo(function CanvasSelectionPorts({ selection }: {
     dragRef.current?.targetElement?.classList.remove("is-selection-connection-target");
   }, []);
 
-  const stop = useCallback((commit: boolean) => {
-    const current = dragRef.current;
-    if (!current) return;
-    gestureCleanupRef.current?.();
-    gestureCleanupRef.current = null;
-    clearTarget();
-    if (commit && current.targetNodeId) connectSelectionToNode(current.targetNodeId, current.direction);
-    dragRef.current = null;
-    setDrag(null);
-    setCanvasConnectionDragging(false);
-  }, [clearTarget, connectSelectionToNode]);
+  const stop = useCallback(
+    (commit: boolean) => {
+      const current = dragRef.current;
+      if (!current) return;
+      gestureCleanupRef.current?.();
+      gestureCleanupRef.current = null;
+      clearTarget();
+      if (commit && current.targetNodeId)
+        connectSelectionToNode(current.targetNodeId, current.direction);
+      dragRef.current = null;
+      setDrag(null);
+      setCanvasConnectionDragging(false);
+    },
+    [clearTarget, connectSelectionToNode],
+  );
 
   useEffect(() => () => stop(false), [stop]);
 
-  const start = useCallback((event: ReactPointerEvent<HTMLButtonElement>, direction: "outgoing" | "incoming") => {
-    if (event.pointerType === "mouse" && event.button !== 0) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const rect = event.currentTarget.getBoundingClientRect();
-    const next: SelectionConnectionDrag = {
-      pointerId: event.pointerId,
-      direction,
-      startX: rect.left + rect.width / 2,
-      startY: rect.top + rect.height / 2,
-      currentX: event.clientX,
-      currentY: event.clientY,
-      targetNodeId: null,
-      targetElement: null,
-    };
-    dragRef.current = next;
-    setDrag(next);
-    setCanvasConnectionDragging(true);
+  const start = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>, direction: "outgoing" | "incoming") => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = event.currentTarget.getBoundingClientRect();
+      const next: SelectionConnectionDrag = {
+        pointerId: event.pointerId,
+        direction,
+        startX: rect.left + rect.width / 2,
+        startY: rect.top + rect.height / 2,
+        currentX: event.clientX,
+        currentY: event.clientY,
+        targetNodeId: null,
+        targetElement: null,
+      };
+      dragRef.current = next;
+      setDrag(next);
+      setCanvasConnectionDragging(true);
 
-    const updateTarget = (clientX: number, clientY: number) => {
-      const current = dragRef.current;
-      if (!current || current.pointerId !== event.pointerId) return;
-      clearTarget();
-      const element = document.elementsFromPoint(clientX, clientY)
-        .find((candidate): candidate is HTMLElement => candidate instanceof HTMLElement && candidate.matches(".react-flow__node-kachang[data-id]"));
-      const nodeId = element?.dataset.id ?? null;
-      const validTarget = nodeId && !selectedNodeIds.has(nodeId) ? nodeId : null;
-      if (validTarget && element) element.classList.add("is-selection-connection-target");
-      const updated = { ...current, currentX: clientX, currentY: clientY, targetNodeId: validTarget, targetElement: validTarget ? element ?? null : null };
-      dragRef.current = updated;
-      setDrag(updated);
-    };
-    const move = (moveEvent: globalThis.PointerEvent) => {
-      const current = dragRef.current;
-      if (!current || current.pointerId !== moveEvent.pointerId) return;
-      updateTarget(moveEvent.clientX, moveEvent.clientY);
-    };
-    const end = (endEvent: globalThis.PointerEvent) => {
-      if (dragRef.current?.pointerId !== endEvent.pointerId) return;
-      updateTarget(endEvent.clientX, endEvent.clientY);
-      stop(true);
-    };
-    const cancel = (cancelEvent: globalThis.PointerEvent) => {
-      if (dragRef.current?.pointerId !== cancelEvent.pointerId) return;
-      stop(false);
-    };
-    window.addEventListener("pointermove", move, true);
-    window.addEventListener("pointerup", end, true);
-    window.addEventListener("pointercancel", cancel, true);
-    gestureCleanupRef.current = () => {
-      window.removeEventListener("pointermove", move, true);
-      window.removeEventListener("pointerup", end, true);
-      window.removeEventListener("pointercancel", cancel, true);
-    };
-  }, [clearTarget, selectedNodeIds, stop]);
+      const updateTarget = (clientX: number, clientY: number) => {
+        const current = dragRef.current;
+        if (!current || current.pointerId !== event.pointerId) return;
+        clearTarget();
+        const element = document
+          .elementsFromPoint(clientX, clientY)
+          .find(
+            (candidate): candidate is HTMLElement =>
+              candidate instanceof HTMLElement &&
+              candidate.matches(".react-flow__node-weftcanvas[data-id]"),
+          );
+        const nodeId = element?.dataset.id ?? null;
+        const validTarget = nodeId && !selectedNodeIds.has(nodeId) ? nodeId : null;
+        if (validTarget && element) element.classList.add("is-selection-connection-target");
+        const updated = {
+          ...current,
+          currentX: clientX,
+          currentY: clientY,
+          targetNodeId: validTarget,
+          targetElement: validTarget ? (element ?? null) : null,
+        };
+        dragRef.current = updated;
+        setDrag(updated);
+      };
+      const move = (moveEvent: globalThis.PointerEvent) => {
+        const current = dragRef.current;
+        if (!current || current.pointerId !== moveEvent.pointerId) return;
+        updateTarget(moveEvent.clientX, moveEvent.clientY);
+      };
+      const end = (endEvent: globalThis.PointerEvent) => {
+        if (dragRef.current?.pointerId !== endEvent.pointerId) return;
+        updateTarget(endEvent.clientX, endEvent.clientY);
+        stop(true);
+      };
+      const cancel = (cancelEvent: globalThis.PointerEvent) => {
+        if (dragRef.current?.pointerId !== cancelEvent.pointerId) return;
+        stop(false);
+      };
+      window.addEventListener("pointermove", move, true);
+      window.addEventListener("pointerup", end, true);
+      window.addEventListener("pointercancel", cancel, true);
+      gestureCleanupRef.current = () => {
+        window.removeEventListener("pointermove", move, true);
+        window.removeEventListener("pointerup", end, true);
+        window.removeEventListener("pointercancel", cancel, true);
+      };
+    },
+    [clearTarget, selectedNodeIds, stop],
+  );
 
   return (
     <>
       {drag ? (
-        <svg className="kc-selection-connection-preview" aria-hidden="true">
-          <path d={`M ${drag.startX} ${drag.startY} C ${(drag.startX + drag.currentX) / 2} ${drag.startY}, ${(drag.startX + drag.currentX) / 2} ${drag.currentY}, ${drag.currentX} ${drag.currentY}`} />
+        <svg className="wc-selection-connection-preview" aria-hidden="true">
+          <path
+            d={`M ${drag.startX} ${drag.startY} C ${(drag.startX + drag.currentX) / 2} ${drag.startY}, ${(drag.startX + drag.currentX) / 2} ${drag.currentY}, ${drag.currentX} ${drag.currentY}`}
+          />
         </svg>
       ) : null}
       <button
         type="button"
-        className="kc-selection-port kc-selection-port--left nodrag nopan nowheel"
+        className="wc-selection-port wc-selection-port--left nodrag nopan nowheel"
         style={{ left, top: centerY }}
         aria-label="将目标节点连接到全部选中节点"
         title="拖动并连接到全部选中节点"
         onPointerDown={(event) => start(event, "incoming")}
-      ><Plus aria-hidden="true" /></button>
+      >
+        <Plus aria-hidden="true" />
+      </button>
       <button
         type="button"
-        className="kc-selection-port kc-selection-port--right nodrag nopan nowheel"
+        className="wc-selection-port wc-selection-port--right nodrag nopan nowheel"
         style={{ left: right, top: centerY }}
         aria-label="将全部选中节点连接到目标节点"
         title="拖动全部选中节点连接到目标节点"
         onPointerDown={(event) => start(event, "outgoing")}
-      ><Plus aria-hidden="true" /></button>
+      >
+        <Plus aria-hidden="true" />
+      </button>
     </>
   );
 });
@@ -236,27 +273,39 @@ const CanvasSelectionToolbarSurface = memo(function CanvasSelectionToolbarSurfac
 
   return (
     <div
-      className="kc-selection-toolbar nodrag nopan nowheel"
+      className="wc-selection-toolbar nodrag nopan nowheel"
       role="toolbar"
       aria-label={`已选择 ${selection.count} 个节点`}
       style={{ left, top } as CSSProperties}
-      data-kc-block-canvas-shortcuts
+      data-wc-block-canvas-shortcuts
       onPointerDown={(event) => event.stopPropagation()}
     >
-      <span className="kc-selection-toolbar-count">{selection.count}</span>
+      <span className="wc-selection-toolbar-count">{selection.count}</span>
       {selection.canUngroup ? (
         <button type="button" aria-label="解散选中组合" title="解组" onClick={onUngroup}>
           <Ungroup aria-hidden="true" />
         </button>
       ) : (
-        <button type="button" aria-label="组合选中节点" title="组合" disabled={!selection.canGroup} onClick={onGroup}>
+        <button
+          type="button"
+          aria-label="组合选中节点"
+          title="组合"
+          disabled={!selection.canGroup}
+          onClick={onGroup}
+        >
           <Group aria-hidden="true" />
         </button>
       )}
       <button type="button" aria-label="创建选中节点副本" title="创建副本" onClick={onDuplicate}>
         <CopyPlus aria-hidden="true" />
       </button>
-      <button type="button" className="is-danger" aria-label="删除选中节点" title="删除" onClick={onDelete}>
+      <button
+        type="button"
+        className="is-danger"
+        aria-label="删除选中节点"
+        title="删除"
+        onClick={onDelete}
+      >
         <Trash2 aria-hidden="true" />
       </button>
       <button type="button" aria-label="取消选择" title="取消选择" onClick={onClear}>

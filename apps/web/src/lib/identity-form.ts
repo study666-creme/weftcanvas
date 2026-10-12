@@ -2,13 +2,12 @@ import {
   DEV_TEST_ACCOUNT_EMAIL,
   identityEmailSchema,
   identityPasswordSchema,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 
 export type IdentityFormMode = "login" | "register";
 
 export type IdentityFormCheck =
-  | { ok: true; email: string; displayName: string }
-  | { ok: false; message: string };
+  { ok: true; email: string; displayName: string } | { ok: false; message: string };
 
 const DISPLAY_NAME_PATTERN = /^[\p{Script=Han}A-Za-z0-9_-]{2,20}$/u;
 

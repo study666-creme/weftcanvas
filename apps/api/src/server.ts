@@ -13,7 +13,7 @@ import { MemoryAgentStore } from "./agent/memory-store.js";
 import { PostgresAgentStore } from "./agent/postgres-store.js";
 import { AgentService, type AgentBilling } from "./agent/service.js";
 import { buildAgentTextModels, createStationTextPricingLookup } from "./agent/text-models.js";
-import { KachangCatalogAdapter } from "./catalog/adapter.js";
+import { WeftcanvasCatalogAdapter } from "./catalog/adapter.js";
 import { JsonModelOverrideStore } from "./catalog/overrides.js";
 import { toPublicCatalogView } from "./catalog/public-view.js";
 import { GenerationQuoteService } from "./catalog/quote.js";
@@ -55,7 +55,7 @@ import { assembleProviderServices, resolveProviderPlan } from "./spi/assembly.js
 import type { GenerationProvider, HostedAccountProvider } from "./spi/types.js";
 
 const port = readPort(process.env.PORT, 8787);
-// Provider 装配第一步：解析 CANVAS_API_PROVIDER 与端点计划（kachang 私有
+// Provider 装配第一步：解析 CANVAS_API_PROVIDER 与端点计划（weftcanvas 私有
 // 模块如被点名会在此加载）。目录/报价必须先建，端点随计划先到。
 const providerPlan = await resolveProviderPlan(process.env);
 // The source already exposes its own latest validated catalog. Forcing its
@@ -69,15 +69,19 @@ const fileCatalogStore = new JsonCatalogSnapshotStore(snapshotPath);
 const store = pool
   ? new ResilientCatalogSnapshotStore([new PostgresCatalogSnapshotStore(pool), fileCatalogStore])
   : fileCatalogStore;
-const modelOverrides = new JsonModelOverrideStore(resolve(process.env.MODEL_OVERRIDES_PATH || ".data/model-overrides.json"));
-const catalog = new KachangCatalogAdapter({
+const modelOverrides = new JsonModelOverrideStore(
+  resolve(process.env.MODEL_OVERRIDES_PATH || ".data/model-overrides.json"),
+);
+const catalog = new WeftcanvasCatalogAdapter({
   sourceUrl,
   // 视频准入以**执行器目录**为准（托管模式下由私有 provider 提供端点）。
   // dev-test 模式没有默认端点：目录走纯快照模式或自托管端点。
   videoInventoryUrl: providerPlan.catalogVideoInventoryUrl,
   includeKnownModels: true,
   // 站点策展层（计价/品牌化规则）由私有 overlay 提供；dev-test 无 overlay。
-  ...(providerPlan.kachang ? { overlay: providerPlan.kachang.createCatalogOverlay(process.env) } : {}),
+  ...(providerPlan.weftcanvas
+    ? { overlay: providerPlan.weftcanvas.createCatalogOverlay(process.env) }
+    : {}),
   overrides: modelOverrides,
   store,
 });
@@ -86,38 +90,53 @@ const quotes = new GenerationQuoteService(catalog);
 void catalog.getCatalog().catch((error) => console.error("Catalog prewarm failed", error));
 // 会话 24 小时强制过期：每个账号每天必须重新登录一次（产品安全要求）。
 // 部署环境可用 SESSION_TTL_SECONDS 覆盖，但默认值不再是 30 天。
-const sessionTtlMs = readInteger(process.env.SESSION_TTL_SECONDS, 24 * 60 * 60, 3_600, 90 * 24 * 60 * 60) * 1_000;
-const nativeIdentity = pool ? new IdentityService(new PostgresIdentityStore(pool), {
-  sessionTtlMs,
-  initialCreditMicros: readInteger(process.env.REGISTRATION_CREDIT_MICROS, 0, 0, Number.MAX_SAFE_INTEGER),
-}) : undefined;
+const sessionTtlMs =
+  readInteger(process.env.SESSION_TTL_SECONDS, 24 * 60 * 60, 3_600, 90 * 24 * 60 * 60) * 1_000;
+const nativeIdentity = pool
+  ? new IdentityService(new PostgresIdentityStore(pool), {
+      sessionTtlMs,
+      initialCreditMicros: readInteger(
+        process.env.REGISTRATION_CREDIT_MICROS,
+        0,
+        0,
+        Number.MAX_SAFE_INTEGER,
+      ),
+    })
+  : undefined;
 const sessionSecret = identitySessionSecret(process.env.IDENTITY_SESSION_SECRET);
 const agentRuntimeUrl = process.env.AGENT_RUNTIME_URL?.trim();
 const agentRuntimeToken = process.env.AGENT_RUNTIME_TOKEN?.trim();
 if ((agentRuntimeUrl && !agentRuntimeToken) || (!agentRuntimeUrl && agentRuntimeToken)) {
   throw new Error("AGENT_RUNTIME_URL and AGENT_RUNTIME_TOKEN must be configured together");
 }
-const agentExecutor = agentRuntimeUrl && agentRuntimeToken
-  ? new HttpAgentExecutor(
-    agentRuntimeUrl,
-    agentRuntimeToken,
-    readInteger(process.env.AGENT_RUNTIME_TIMEOUT_MS, 5 * 60_000, 1_000, 30 * 60_000),
-  )
-  : undefined;
+const agentExecutor =
+  agentRuntimeUrl && agentRuntimeToken
+    ? new HttpAgentExecutor(
+        agentRuntimeUrl,
+        agentRuntimeToken,
+        readInteger(process.env.AGENT_RUNTIME_TIMEOUT_MS, 5 * 60_000, 1_000, 30 * 60_000),
+      )
+    : undefined;
 // 本机连接（Codex / Blender）由 Agent 运行时持有；浏览器通过 API 代理读写。
 // 运行时没配置时这些接口返回明确的"未配置"，而不是假装连接可用。
-const connectors = agentRuntimeUrl && agentRuntimeToken
-  ? new HttpAgentConnectorGateway(agentRuntimeUrl, agentRuntimeToken, {
-      timeoutMs: readInteger(process.env.AGENT_RUNTIME_TIMEOUT_MS, 5 * 60_000, 1_000, 30 * 60_000),
-    })
-  : undefined;
+const connectors =
+  agentRuntimeUrl && agentRuntimeToken
+    ? new HttpAgentConnectorGateway(agentRuntimeUrl, agentRuntimeToken, {
+        timeoutMs: readInteger(
+          process.env.AGENT_RUNTIME_TIMEOUT_MS,
+          5 * 60_000,
+          1_000,
+          30 * 60_000,
+        ),
+      })
+    : undefined;
 // Agent 只按轮次计费，因此选择器默认只放「有按次价」的文本模型：站点把按次价
 // 发布在公开价格表的 request 分组里（Gemini 全系都挂着按次价，但目录里写着
 // tiered_token，只看目录计费模式会把它们整线漏掉）。AGENT_INCLUDE_TOKEN_MODELS=true
 // 时放开全部文本模型（含纯按量）。
 const agentIncludeTokenModels = readBoolean(process.env.AGENT_INCLUDE_TOKEN_MODELS, false);
-// Agent 模型选择器的站点定价表：kachang 模式由私有装配给出端点；
-// dev-test 模式只认显式 KACHANG_PRICING_URL，没有配置就不查价（选择器
+// Agent 模型选择器的站点定价表：weftcanvas 模式由私有装配给出端点；
+// dev-test 模式只认显式 WEFTCANVAS_PRICING_URL，没有配置就不查价（选择器
 // 仍可用，只是没有站点价参考）。
 const stationTextPricing = providerPlan.stationPricingUrl
   ? createStationTextPricingLookup({ url: providerPlan.stationPricingUrl })
@@ -144,48 +163,48 @@ const agentOptions = {
 // 这些客户端跑在用户自己的机器上，服务器上不需要（也不该）装 Blender 或 Codex。
 // 同一实例既服务浏览器侧（配对/状态/派发），也用于把 Agent 的工具调用派发给对应用户。
 // 配对令牌默认 30 天过期：它等同"用户机器上的代码执行权限"，不该永久有效。
-const pairingTokenTtlMs = readInteger(process.env.PAIRING_TOKEN_TTL_DAYS, 30, 1, 365) * 24 * 60 * 60_000;
+const pairingTokenTtlMs =
+  readInteger(process.env.PAIRING_TOKEN_TTL_DAYS, 30, 1, 365) * 24 * 60 * 60_000;
 const externalConnectors = new ExternalConnectorService({ tokenTtlMs: pairingTokenTtlMs });
 const canvasCommands = new CanvasCommandBroker();
 const mediaObjects = pool ? createMediaObjectStore() : undefined;
 if (mediaObjects) {
-  await maintainMediaObjectStore(mediaObjects).catch((error) => console.error("Media temporary cleanup failed", error));
+  await maintainMediaObjectStore(mediaObjects).catch((error) =>
+    console.error("Media temporary cleanup failed", error),
+  );
 }
 const mediaMetadata = pool ? new PostgresMediaMetadataStore(pool) : undefined;
-const media = pool && mediaMetadata ? new MediaService(
-  mediaMetadata,
-  mediaObjects!,
-  new DefaultMediaInspector(),
-) : undefined;
-const cloudResourceService = mediaObjects && mediaMetadata
-  ? new CloudResourceService(mediaMetadata, mediaObjects)
-  : undefined;
-const multipartMedia = pool && media && mediaMetadata && mediaObjects && supportsMultipartMediaAccess(mediaObjects)
-  ? new MediaMultipartService(
-      new PostgresMediaMultipartUploadStore(pool),
-      mediaMetadata,
-      mediaObjects,
-      media,
-    )
-  : undefined;
+const media =
+  pool && mediaMetadata
+    ? new MediaService(mediaMetadata, mediaObjects!, new DefaultMediaInspector())
+    : undefined;
+const cloudResourceService =
+  mediaObjects && mediaMetadata ? new CloudResourceService(mediaMetadata, mediaObjects) : undefined;
+const multipartMedia =
+  pool && media && mediaMetadata && mediaObjects && supportsMultipartMediaAccess(mediaObjects)
+    ? new MediaMultipartService(
+        new PostgresMediaMultipartUploadStore(pool),
+        mediaMetadata,
+        mediaObjects,
+        media,
+      )
+    : undefined;
 const mediaPublicBaseUrl = process.env.MEDIA_PUBLIC_BASE_URL?.trim();
 const signedMedia = process.env.MEDIA_SIGNING_SECRET
   ? new SignedMediaAccess({
-    secret: process.env.MEDIA_SIGNING_SECRET,
-    ...(mediaPublicBaseUrl ? { baseUrl: mediaPublicBaseUrl } : {}),
-    allowInsecureLocalhost: process.env.NODE_ENV !== "production",
-  })
+      secret: process.env.MEDIA_SIGNING_SECRET,
+      ...(mediaPublicBaseUrl ? { baseUrl: mediaPublicBaseUrl } : {}),
+      allowInsecureLocalhost: process.env.NODE_ENV !== "production",
+    })
   : undefined;
-const nativeGeneration = pool && media ? new GenerationJobService(
-  quotes,
-  catalog,
-  new PostgresGenerationJobStore(pool),
-  {
-    inputAuthorizer: new MediaGenerationInputAuthorizer(media),
-    maxActiveJobs: readInteger(process.env.GENERATION_MAX_ACTIVE_JOBS, 100, 1, 1000),
-  },
-) : undefined;
-// Provider 装配第二步：身份/托管账号/生成服务按计划落位（kachang 私有模块
+const nativeGeneration =
+  pool && media
+    ? new GenerationJobService(quotes, catalog, new PostgresGenerationJobStore(pool), {
+        inputAuthorizer: new MediaGenerationInputAuthorizer(media),
+        maxActiveJobs: readInteger(process.env.GENERATION_MAX_ACTIVE_JOBS, 100, 1, 1000),
+      })
+    : undefined;
+// Provider 装配第二步：身份/托管账号/生成服务按计划落位（weftcanvas 私有模块
 // 在此接管托管实现；dev-test 直接用上面的原生服务）。
 const providerServices = await assembleProviderServices(providerPlan, {
   env: process.env,
@@ -227,11 +246,27 @@ const agentOptionsWithConnectors = {
   connectorClients: externalConnectors,
   ...(agentBilling ? { billing: agentBilling } : {}),
 };
-const agent = pool ? new AgentService(new PostgresAgentStore(pool), agentOptionsWithConnectors) : undefined;
-const anonymousAgent = new AgentService(new MemoryAgentStore({
-  retentionMs: readInteger(process.env.AGENT_ANONYMOUS_RETENTION_SECONDS, 24 * 60 * 60, 300, 7 * 24 * 60 * 60) * 1_000,
-  maxConversations: readInteger(process.env.AGENT_ANONYMOUS_MAX_CONVERSATIONS, 2_000, 10, 100_000),
-}), agentOptionsWithConnectors);
+const agent = pool
+  ? new AgentService(new PostgresAgentStore(pool), agentOptionsWithConnectors)
+  : undefined;
+const anonymousAgent = new AgentService(
+  new MemoryAgentStore({
+    retentionMs:
+      readInteger(
+        process.env.AGENT_ANONYMOUS_RETENTION_SECONDS,
+        24 * 60 * 60,
+        300,
+        7 * 24 * 60 * 60,
+      ) * 1_000,
+    maxConversations: readInteger(
+      process.env.AGENT_ANONYMOUS_MAX_CONVERSATIONS,
+      2_000,
+      10,
+      100_000,
+    ),
+  }),
+  agentOptionsWithConnectors,
+);
 const cloudProjectPolicy = readCloudProjectPolicy();
 const cloudProjectEntitlements = hostedAccount
   ? new MembershipCloudProjectEntitlementResolver(hostedAccount, cloudProjectPolicy, {
@@ -239,7 +274,9 @@ const cloudProjectEntitlements = hostedAccount
     })
   : new StaticCloudProjectEntitlementResolver(cloudProjectPolicy.free);
 const cloudProjectStore = pool ? new PostgresCloudProjectStore(pool) : undefined;
-const cloudProjectCollaborationStore = pool ? new PostgresCloudProjectCollaborationStore(pool) : undefined;
+const cloudProjectCollaborationStore = pool
+  ? new PostgresCloudProjectCollaborationStore(pool)
+  : undefined;
 const cloudProjects = pool
   ? new CloudProjectService(cloudProjectStore!, cloudProjectEntitlements, {
       access: cloudProjectCollaborationStore,
@@ -248,35 +285,50 @@ const cloudProjects = pool
       ...(mediaMetadata ? { storageGrace: mediaMetadata } : {}),
     })
   : undefined;
-const collaboration = cloudProjectCollaborationStore && pool
-  ? new CloudProjectCollaborationService(cloudProjectCollaborationStore, cloudProjectEntitlements, {
-      seatEntitlements: new PostgresCollaborationSeatEntitlementResolver(pool),
-    })
-  : undefined;
+const collaboration =
+  cloudProjectCollaborationStore && pool
+    ? new CloudProjectCollaborationService(
+        cloudProjectCollaborationStore,
+        cloudProjectEntitlements,
+        {
+          seatEntitlements: new PostgresCollaborationSeatEntitlementResolver(pool),
+        },
+      )
+    : undefined;
 // Hosted generation and reference uploads share the Prompt Hub account channel.
-const generationGuard = pool && generation ? new GenerationApiGuard(
-  new PostgresFixedWindowRateLimiter(pool),
-  {
-    // 0 = 不设上限（产品要求提交不限次数）；正数才启用对应窗口的限流。
-    submissionsPerMinute: readInteger(process.env.GENERATION_SUBMIT_PER_MINUTE, 10, 0, 10_000),
-    submissionsPerDay: readInteger(process.env.GENERATION_SUBMIT_PER_DAY, 100, 0, 1_000_000),
-    readsPerMinute: readInteger(process.env.GENERATION_READ_PER_MINUTE, 180, 1, 100_000),
-    streamStartsPerMinute: readInteger(process.env.GENERATION_STREAMS_PER_MINUTE, 30, 1, 10_000),
-    streamsPerOwner: readInteger(process.env.GENERATION_STREAMS_PER_USER, 3, 1, 100),
-    streamsGlobal: readInteger(process.env.GENERATION_STREAMS_GLOBAL, 200, 1, 100_000),
-  },
-) : undefined;
-const secureCookie = readBoolean(process.env.SESSION_COOKIE_SECURE, process.env.NODE_ENV === "production");
+const generationGuard =
+  pool && generation
+    ? new GenerationApiGuard(new PostgresFixedWindowRateLimiter(pool), {
+        // 0 = 不设上限（产品要求提交不限次数）；正数才启用对应窗口的限流。
+        submissionsPerMinute: readInteger(process.env.GENERATION_SUBMIT_PER_MINUTE, 10, 0, 10_000),
+        submissionsPerDay: readInteger(process.env.GENERATION_SUBMIT_PER_DAY, 100, 0, 1_000_000),
+        readsPerMinute: readInteger(process.env.GENERATION_READ_PER_MINUTE, 180, 1, 100_000),
+        streamStartsPerMinute: readInteger(
+          process.env.GENERATION_STREAMS_PER_MINUTE,
+          30,
+          1,
+          10_000,
+        ),
+        streamsPerOwner: readInteger(process.env.GENERATION_STREAMS_PER_USER, 3, 1, 100),
+        streamsGlobal: readInteger(process.env.GENERATION_STREAMS_GLOBAL, 200, 1, 100_000),
+      })
+    : undefined;
+const secureCookie = readBoolean(
+  process.env.SESSION_COOKIE_SECURE,
+  process.env.NODE_ENV === "production",
+);
 if (process.env.NODE_ENV === "production" && !secureCookie) {
   throw new Error("SESSION_COOKIE_SECURE must be true in production");
 }
-const cookieName = process.env.SESSION_COOKIE_NAME?.trim()
-  || (secureCookie ? "__Host-kachang_canvas_session" : "kachang_canvas_session");
+const cookieName =
+  process.env.SESSION_COOKIE_NAME?.trim() ||
+  (secureCookie ? "__Host-weftcanvas_session" : "weftcanvas_session");
 if (cookieName.startsWith("__Host-") && !secureCookie) {
   throw new Error("A __Host- session cookie requires SESSION_COOKIE_SECURE=true");
 }
-const anonymousAgentCookieName = process.env.AGENT_ANONYMOUS_COOKIE_NAME?.trim()
-  || (secureCookie ? "__Host-kachang_canvas_agent_guest" : "kachang_canvas_agent_guest");
+const anonymousAgentCookieName =
+  process.env.AGENT_ANONYMOUS_COOKIE_NAME?.trim() ||
+  (secureCookie ? "__Host-weftcanvas_agent_guest" : "weftcanvas_agent_guest");
 if (anonymousAgentCookieName.startsWith("__Host-") && !secureCookie) {
   throw new Error("A __Host- anonymous Agent cookie requires SESSION_COOKIE_SECURE=true");
 }
@@ -292,7 +344,12 @@ const app = createApiApp({
   anonymousAgent,
   anonymousAgentCookie: { name: anonymousAgentCookieName, secure: secureCookie },
   anonymousAgentLimits: {
-    conversationsPerMinute: readInteger(process.env.AGENT_ANONYMOUS_CONVERSATIONS_PER_MINUTE, 8, 1, 10_000),
+    conversationsPerMinute: readInteger(
+      process.env.AGENT_ANONYMOUS_CONVERSATIONS_PER_MINUTE,
+      8,
+      1,
+      10_000,
+    ),
     submissionsPerMinute: readInteger(process.env.AGENT_ANONYMOUS_SUBMIT_PER_MINUTE, 6, 1, 10_000),
     submissionsPerDay: readInteger(process.env.AGENT_ANONYMOUS_SUBMIT_PER_DAY, 60, 1, 1_000_000),
   },
@@ -318,35 +375,43 @@ const app = createApiApp({
   readiness,
   wallet: hostedAccount,
   membershipTasks: hostedAccount,
-  ...(media && mediaMetadata && pool ? {
-    // 每日存储清扫：宽限期到期的 owner 按最旧未绑定素材优先执行配额。
-    storageSweep: {
-      sweep: async () => {
-        const failures: Array<{ ownerId: string; error: string }> = [];
-        const overdue = await mediaMetadata.overdueStorageGrace();
-        let enforced = 0;
-        let evicted = 0;
-        for (const ownerId of overdue) {
-          try {
-            const resolved = "resolveForPrincipal" in cloudProjectEntitlements
-              ? await cloudProjectEntitlements.resolveForPrincipal(ownerId)
-              : { data: cloudProjectPolicy.free };
-            const { evicted: items } = await mediaMetadata.enforceQuotaAfterGrace(
-              ownerId,
-              resolved.data.mediaStorageBytes,
-            );
-            await media.releaseEvictedForSweep(items);
-            enforced += 1;
-            evicted += items.length;
-          } catch (error) {
-            failures.push({ ownerId, error: error instanceof Error ? error.message : String(error) });
-          }
-        }
-        return { scanned: overdue.length, enforced, evicted, failures };
-      },
-    },
-    ...(process.env.STORAGE_SWEEP_SECRET?.trim() ? { storageSweepSecret: process.env.STORAGE_SWEEP_SECRET.trim() } : {}),
-  } : {}),
+  ...(media && mediaMetadata && pool
+    ? {
+        // 每日存储清扫：宽限期到期的 owner 按最旧未绑定素材优先执行配额。
+        storageSweep: {
+          sweep: async () => {
+            const failures: Array<{ ownerId: string; error: string }> = [];
+            const overdue = await mediaMetadata.overdueStorageGrace();
+            let enforced = 0;
+            let evicted = 0;
+            for (const ownerId of overdue) {
+              try {
+                const resolved =
+                  "resolveForPrincipal" in cloudProjectEntitlements
+                    ? await cloudProjectEntitlements.resolveForPrincipal(ownerId)
+                    : { data: cloudProjectPolicy.free };
+                const { evicted: items } = await mediaMetadata.enforceQuotaAfterGrace(
+                  ownerId,
+                  resolved.data.mediaStorageBytes,
+                );
+                await media.releaseEvictedForSweep(items);
+                enforced += 1;
+                evicted += items.length;
+              } catch (error) {
+                failures.push({
+                  ownerId,
+                  error: error instanceof Error ? error.message : String(error),
+                });
+              }
+            }
+            return { scanned: overdue.length, enforced, evicted, failures };
+          },
+        },
+        ...(process.env.STORAGE_SWEEP_SECRET?.trim()
+          ? { storageSweepSecret: process.env.STORAGE_SWEEP_SECRET.trim() }
+          : {}),
+      }
+    : {}),
   generationStream: {
     pollIntervalMs: readInteger(process.env.GENERATION_SSE_POLL_MS, 1_000, 250, 30_000),
     heartbeatMs: readInteger(process.env.GENERATION_SSE_HEARTBEAT_MS, 15_000, 5_000, 60_000),
@@ -398,7 +463,8 @@ function readOrigins(value: string | undefined) {
   if (!value) return [];
   return value.split(",").map((origin) => {
     const normalized = new URL(origin.trim()).origin;
-    if (normalized !== origin.trim().replace(/\/$/, "")) throw new Error(`APP_ORIGINS contains an invalid origin: ${origin}`);
+    if (normalized !== origin.trim().replace(/\/$/, ""))
+      throw new Error(`APP_ORIGINS contains an invalid origin: ${origin}`);
     return normalized;
   });
 }
@@ -425,25 +491,125 @@ function identitySessionSecret(value: string | undefined) {
 
 function readCloudProjectPolicy() {
   const policy = defaultCloudProjectEntitlementPolicy();
-  policy.free.cloudProjectLimit = readInteger(process.env.CLOUD_PROJECT_FREE_LIMIT, policy.free.cloudProjectLimit, 0, 100_000);
-  policy.free.projectStorageBytes = readInteger(process.env.CLOUD_PROJECT_FREE_STORAGE_BYTES, policy.free.projectStorageBytes, 0, Number.MAX_SAFE_INTEGER);
-  policy.free.mediaStorageBytes = readInteger(process.env.CLOUD_MEDIA_FREE_STORAGE_BYTES, policy.free.mediaStorageBytes, 0, Number.MAX_SAFE_INTEGER);
-  policy.free.revisionRetentionCount = readInteger(process.env.CLOUD_PROJECT_FREE_REVISIONS, policy.free.revisionRetentionCount, 1, 1_000);
-  policy.lite.cloudProjectLimit = readInteger(process.env.CLOUD_PROJECT_LITE_LIMIT, policy.lite.cloudProjectLimit, 0, 100_000);
-  policy.lite.projectStorageBytes = readInteger(process.env.CLOUD_PROJECT_LITE_STORAGE_BYTES, policy.lite.projectStorageBytes, 0, Number.MAX_SAFE_INTEGER);
-  policy.lite.mediaStorageBytes = readInteger(process.env.CLOUD_MEDIA_LITE_STORAGE_BYTES, policy.lite.mediaStorageBytes, 0, Number.MAX_SAFE_INTEGER);
-  policy.lite.revisionRetentionCount = readInteger(process.env.CLOUD_PROJECT_LITE_REVISIONS, policy.lite.revisionRetentionCount, 1, 1_000);
-  policy.basic.cloudProjectLimit = readInteger(process.env.CLOUD_PROJECT_BASIC_LIMIT, policy.basic.cloudProjectLimit, 0, 100_000);
-  policy.basic.projectStorageBytes = readInteger(process.env.CLOUD_PROJECT_BASIC_STORAGE_BYTES, policy.basic.projectStorageBytes, 0, Number.MAX_SAFE_INTEGER);
-  policy.basic.mediaStorageBytes = readInteger(process.env.CLOUD_MEDIA_BASIC_STORAGE_BYTES, policy.basic.mediaStorageBytes, 0, Number.MAX_SAFE_INTEGER);
-  policy.basic.revisionRetentionCount = readInteger(process.env.CLOUD_PROJECT_BASIC_REVISIONS, policy.basic.revisionRetentionCount, 1, 1_000);
-  policy.standard.cloudProjectLimit = readInteger(process.env.CLOUD_PROJECT_STANDARD_LIMIT, policy.standard.cloudProjectLimit, 0, 100_000);
-  policy.standard.projectStorageBytes = readInteger(process.env.CLOUD_PROJECT_STANDARD_STORAGE_BYTES, policy.standard.projectStorageBytes, 0, Number.MAX_SAFE_INTEGER);
-  policy.standard.mediaStorageBytes = readInteger(process.env.CLOUD_MEDIA_STANDARD_STORAGE_BYTES, policy.standard.mediaStorageBytes, 0, Number.MAX_SAFE_INTEGER);
-  policy.standard.revisionRetentionCount = readInteger(process.env.CLOUD_PROJECT_STANDARD_REVISIONS, policy.standard.revisionRetentionCount, 1, 1_000);
-  policy.pro.cloudProjectLimit = readInteger(process.env.CLOUD_PROJECT_PRO_LIMIT, policy.pro.cloudProjectLimit, 0, 100_000);
-  policy.pro.projectStorageBytes = readInteger(process.env.CLOUD_PROJECT_PRO_STORAGE_BYTES, policy.pro.projectStorageBytes, 0, Number.MAX_SAFE_INTEGER);
-  policy.pro.mediaStorageBytes = readInteger(process.env.CLOUD_MEDIA_PRO_STORAGE_BYTES, policy.pro.mediaStorageBytes, 0, Number.MAX_SAFE_INTEGER);
-  policy.pro.revisionRetentionCount = readInteger(process.env.CLOUD_PROJECT_PRO_REVISIONS, policy.pro.revisionRetentionCount, 1, 1_000);
+  policy.free.cloudProjectLimit = readInteger(
+    process.env.CLOUD_PROJECT_FREE_LIMIT,
+    policy.free.cloudProjectLimit,
+    0,
+    100_000,
+  );
+  policy.free.projectStorageBytes = readInteger(
+    process.env.CLOUD_PROJECT_FREE_STORAGE_BYTES,
+    policy.free.projectStorageBytes,
+    0,
+    Number.MAX_SAFE_INTEGER,
+  );
+  policy.free.mediaStorageBytes = readInteger(
+    process.env.CLOUD_MEDIA_FREE_STORAGE_BYTES,
+    policy.free.mediaStorageBytes,
+    0,
+    Number.MAX_SAFE_INTEGER,
+  );
+  policy.free.revisionRetentionCount = readInteger(
+    process.env.CLOUD_PROJECT_FREE_REVISIONS,
+    policy.free.revisionRetentionCount,
+    1,
+    1_000,
+  );
+  policy.lite.cloudProjectLimit = readInteger(
+    process.env.CLOUD_PROJECT_LITE_LIMIT,
+    policy.lite.cloudProjectLimit,
+    0,
+    100_000,
+  );
+  policy.lite.projectStorageBytes = readInteger(
+    process.env.CLOUD_PROJECT_LITE_STORAGE_BYTES,
+    policy.lite.projectStorageBytes,
+    0,
+    Number.MAX_SAFE_INTEGER,
+  );
+  policy.lite.mediaStorageBytes = readInteger(
+    process.env.CLOUD_MEDIA_LITE_STORAGE_BYTES,
+    policy.lite.mediaStorageBytes,
+    0,
+    Number.MAX_SAFE_INTEGER,
+  );
+  policy.lite.revisionRetentionCount = readInteger(
+    process.env.CLOUD_PROJECT_LITE_REVISIONS,
+    policy.lite.revisionRetentionCount,
+    1,
+    1_000,
+  );
+  policy.basic.cloudProjectLimit = readInteger(
+    process.env.CLOUD_PROJECT_BASIC_LIMIT,
+    policy.basic.cloudProjectLimit,
+    0,
+    100_000,
+  );
+  policy.basic.projectStorageBytes = readInteger(
+    process.env.CLOUD_PROJECT_BASIC_STORAGE_BYTES,
+    policy.basic.projectStorageBytes,
+    0,
+    Number.MAX_SAFE_INTEGER,
+  );
+  policy.basic.mediaStorageBytes = readInteger(
+    process.env.CLOUD_MEDIA_BASIC_STORAGE_BYTES,
+    policy.basic.mediaStorageBytes,
+    0,
+    Number.MAX_SAFE_INTEGER,
+  );
+  policy.basic.revisionRetentionCount = readInteger(
+    process.env.CLOUD_PROJECT_BASIC_REVISIONS,
+    policy.basic.revisionRetentionCount,
+    1,
+    1_000,
+  );
+  policy.standard.cloudProjectLimit = readInteger(
+    process.env.CLOUD_PROJECT_STANDARD_LIMIT,
+    policy.standard.cloudProjectLimit,
+    0,
+    100_000,
+  );
+  policy.standard.projectStorageBytes = readInteger(
+    process.env.CLOUD_PROJECT_STANDARD_STORAGE_BYTES,
+    policy.standard.projectStorageBytes,
+    0,
+    Number.MAX_SAFE_INTEGER,
+  );
+  policy.standard.mediaStorageBytes = readInteger(
+    process.env.CLOUD_MEDIA_STANDARD_STORAGE_BYTES,
+    policy.standard.mediaStorageBytes,
+    0,
+    Number.MAX_SAFE_INTEGER,
+  );
+  policy.standard.revisionRetentionCount = readInteger(
+    process.env.CLOUD_PROJECT_STANDARD_REVISIONS,
+    policy.standard.revisionRetentionCount,
+    1,
+    1_000,
+  );
+  policy.pro.cloudProjectLimit = readInteger(
+    process.env.CLOUD_PROJECT_PRO_LIMIT,
+    policy.pro.cloudProjectLimit,
+    0,
+    100_000,
+  );
+  policy.pro.projectStorageBytes = readInteger(
+    process.env.CLOUD_PROJECT_PRO_STORAGE_BYTES,
+    policy.pro.projectStorageBytes,
+    0,
+    Number.MAX_SAFE_INTEGER,
+  );
+  policy.pro.mediaStorageBytes = readInteger(
+    process.env.CLOUD_MEDIA_PRO_STORAGE_BYTES,
+    policy.pro.mediaStorageBytes,
+    0,
+    Number.MAX_SAFE_INTEGER,
+  );
+  policy.pro.revisionRetentionCount = readInteger(
+    process.env.CLOUD_PROJECT_PRO_REVISIONS,
+    policy.pro.revisionRetentionCount,
+    1,
+    1_000,
+  );
   return policy;
 }

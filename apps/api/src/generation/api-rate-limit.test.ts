@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  GenerationApiGuard,
-  type FixedWindowRateLimiter,
-} from "./api-rate-limit.js";
+import { GenerationApiGuard, type FixedWindowRateLimiter } from "./api-rate-limit.js";
 
 describe("generation API guard", () => {
   it("applies independent submission and read windows", async () => {
@@ -21,7 +18,9 @@ describe("generation API guard", () => {
       retryAfterSeconds: 60,
     });
     await guard.checkRead("user-1");
-    await expect(guard.checkRead("user-1")).rejects.toMatchObject({ code: "GENERATION_RATE_LIMITED" });
+    await expect(guard.checkRead("user-1")).rejects.toMatchObject({
+      code: "GENERATION_RATE_LIMITED",
+    });
     expect(limiter.calls.map((call) => call.scope)).toEqual([
       "generation:submit:minute",
       "generation:submit:day",
@@ -35,7 +34,10 @@ describe("generation API guard", () => {
 
   it("disables a submission window configured as zero instead of failing closed", async () => {
     const limiter = new MemoryLimiter();
-    const guard = new GenerationApiGuard(limiter, { submissionsPerMinute: 0, submissionsPerDay: 0 });
+    const guard = new GenerationApiGuard(limiter, {
+      submissionsPerMinute: 0,
+      submissionsPerDay: 0,
+    });
     for (let index = 0; index < 5; index += 1) await guard.checkSubmission("user-1");
     // 上限为 0 表示不设上限：连计数都不产生。
     expect(limiter.calls).toEqual([]);
@@ -43,10 +45,15 @@ describe("generation API guard", () => {
 
   it("removes only the disabled submission window", async () => {
     const limiter = new MemoryLimiter();
-    const guard = new GenerationApiGuard(limiter, { submissionsPerMinute: 0, submissionsPerDay: 2 });
+    const guard = new GenerationApiGuard(limiter, {
+      submissionsPerMinute: 0,
+      submissionsPerDay: 2,
+    });
     await guard.checkSubmission("user-1");
     await guard.checkSubmission("user-1");
-    await expect(guard.checkSubmission("user-1")).rejects.toMatchObject({ code: "GENERATION_RATE_LIMITED" });
+    await expect(guard.checkSubmission("user-1")).rejects.toMatchObject({
+      code: "GENERATION_RATE_LIMITED",
+    });
     expect(limiter.calls.map((call) => call.scope)).toEqual([
       "generation:submit:day",
       "generation:submit:day",
@@ -54,13 +61,16 @@ describe("generation API guard", () => {
     ]);
   });
 
-  it("caps live streams and releases slots idempotently", async () => {    const guard = new GenerationApiGuard(new MemoryLimiter(), {
+  it("caps live streams and releases slots idempotently", async () => {
+    const guard = new GenerationApiGuard(new MemoryLimiter(), {
       streamsPerOwner: 1,
       streamsGlobal: 2,
       streamStartsPerMinute: 10,
     });
     const release = await guard.acquireStream("user-1");
-    await expect(guard.acquireStream("user-1")).rejects.toMatchObject({ code: "GENERATION_STREAM_LIMITED" });
+    await expect(guard.acquireStream("user-1")).rejects.toMatchObject({
+      code: "GENERATION_STREAM_LIMITED",
+    });
     release();
     release();
     const next = await guard.acquireStream("user-1");

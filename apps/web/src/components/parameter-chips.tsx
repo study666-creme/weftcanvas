@@ -1,4 +1,4 @@
-import type { ModelParameter } from "@kachang/contracts";
+import type { ModelParameter } from "@weftcanvas/contracts";
 
 import {
   generationParameterDisplayValue,
@@ -32,9 +32,9 @@ export function ParameterChips({
   const selected = resolvedValue;
 
   return (
-    <div className="kc-param-chips" role="group" aria-label={parameter.label}>
-      <span className="kc-param-chips-label">{parameter.label}</span>
-      <div className="kc-param-chips-row">
+    <div className="wc-param-chips" role="group" aria-label={parameter.label}>
+      <span className="wc-param-chips-label">{parameter.label}</span>
+      <div className="wc-param-chips-row">
         {options.map((option) => {
           const active = selected !== undefined && Object.is(selected, option);
           return (

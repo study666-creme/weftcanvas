@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FileText } from "lucide-react";
-import type { CanvasNodeKind } from "@kachang/contracts";
+import type { CanvasNodeKind } from "@weftcanvas/contracts";
 
 import { registerNode, type NodeDefinition } from "../node-registry";
 import "../builtin-nodes";

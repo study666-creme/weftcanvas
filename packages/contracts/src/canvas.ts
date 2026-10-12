@@ -5,8 +5,15 @@ import { generationJobStatusSchema } from "./generation-job.js";
 export const CANVAS_SCHEMA_VERSION = 1 as const;
 
 /** 内置节点类型（闭合集合；插件节点走 plugin: 前缀命名空间，不进这里）。 */
-export const builtinCanvasNodeKinds = ["text", "image", "video", "audio", "config", "edit"] as const;
-export type BuiltinCanvasNodeKind = typeof builtinCanvasNodeKinds[number];
+export const builtinCanvasNodeKinds = [
+  "text",
+  "image",
+  "video",
+  "audio",
+  "config",
+  "edit",
+] as const;
+export type BuiltinCanvasNodeKind = (typeof builtinCanvasNodeKinds)[number];
 /** 插件注册的节点类型：`plugin:<pluginId>:<name>`（plugin-host 强制命名空间）。 */
 export type PluginNodeKind = `plugin:${string}`;
 /**
@@ -17,8 +24,14 @@ const persistedCanvasNodeKindSchema = z.union([
   z.enum([...builtinCanvasNodeKinds, "note", "music"]),
   z.string().regex(/^plugin:[a-z0-9][a-z0-9._-]*$/),
 ]);
-export const canvasNodeKindSchema = persistedCanvasNodeKindSchema.transform((kind): BuiltinCanvasNodeKind | PluginNodeKind =>
-  kind === "note" ? "text" : kind === "music" ? "audio" : (kind as BuiltinCanvasNodeKind | PluginNodeKind));
+export const canvasNodeKindSchema = persistedCanvasNodeKindSchema.transform(
+  (kind): BuiltinCanvasNodeKind | PluginNodeKind =>
+    kind === "note"
+      ? "text"
+      : kind === "music"
+        ? "audio"
+        : (kind as BuiltinCanvasNodeKind | PluginNodeKind),
+);
 export type CanvasNodeKind = z.infer<typeof canvasNodeKindSchema>;
 
 export const canvasNodeStatusSchema = z.enum(["idle", "running", "success", "error"]);
@@ -65,22 +78,25 @@ const persistedCanvasNodeGenerationSchema = z.object({
   aspectExplicit: z.boolean().optional(),
 });
 
-export const canvasNodeGenerationSchema = persistedCanvasNodeGenerationSchema.transform((generation) => ({
-  ...generation,
-  referenceMode: generation.referenceMode ?? (generation.referenceNodeIds.length ? "explicit" : "auto"),
-})).default({
-  modelId: null,
-  parameters: {},
-  referenceImagePurposes: {},
-  maxOutputTokens: null,
-  referenceMode: "auto",
-  referenceNodeIds: [],
-  jobId: null,
-  jobVersion: null,
-  jobCreatedAt: null,
-  jobStatus: null,
-  error: null,
-});
+export const canvasNodeGenerationSchema = persistedCanvasNodeGenerationSchema
+  .transform((generation) => ({
+    ...generation,
+    referenceMode:
+      generation.referenceMode ?? (generation.referenceNodeIds.length ? "explicit" : "auto"),
+  }))
+  .default({
+    modelId: null,
+    parameters: {},
+    referenceImagePurposes: {},
+    maxOutputTokens: null,
+    referenceMode: "auto",
+    referenceNodeIds: [],
+    jobId: null,
+    jobVersion: null,
+    jobCreatedAt: null,
+    jobStatus: null,
+    error: null,
+  });
 export type CanvasNodeGeneration = z.infer<typeof canvasNodeGenerationSchema>;
 
 /**
@@ -214,7 +230,7 @@ export type CanvasViewport = z.infer<typeof canvasViewportSchema>;
 
 export const canvasNodeRecordSchema = z.object({
   id: z.string().min(1),
-  type: z.literal("kachang"),
+  type: z.literal("weftcanvas"),
   position: z.object({ x: z.number(), y: z.number() }),
   width: z.number().positive().optional(),
   height: z.number().positive().optional(),

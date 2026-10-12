@@ -1,6 +1,19 @@
-import type { CanvasNodeKind } from "@kachang/contracts";
+import type { CanvasNodeKind } from "@weftcanvas/contracts";
 import { NodeToolbar, Position } from "@xyflow/react";
-import { Clapperboard, Download, Info, Maximize2, Pencil, PenTool, ScanFace, ScanLine, SlidersHorizontal, Sparkles, Trash2, Upload } from "lucide-react";
+import {
+  Clapperboard,
+  Download,
+  Info,
+  Maximize2,
+  Pencil,
+  PenTool,
+  ScanFace,
+  ScanLine,
+  SlidersHorizontal,
+  Sparkles,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import { useRef, type ReactNode, type WheelEvent } from "react";
 
 import { useHorizontalViewportClamp } from "../hooks/use-horizontal-viewport-clamp";
@@ -59,21 +72,115 @@ export function NodeActionToolbar({
   const previewable = kind === "image" || kind === "video";
   const mediaLabel = kind === "image" ? "图片" : kind === "video" ? "视频" : "音频";
   const actions: ToolbarAction[] = [
-    ...(kind === "edit" ? [{ id: "clip-editor", label: "打开剪辑", icon: <Clapperboard aria-hidden="true" />, onClick: onEdit }] : []),
-    ...(showGenerationAction ? [{ id: "generate", label: kind === "config" ? "配置" : "生成", icon: kind === "config" ? <SlidersHorizontal aria-hidden="true" /> : <Sparkles aria-hidden="true" />, onClick: onGenerate }] : []),
-    ...(isText ? [{ id: "edit", label: "全屏编辑", icon: <Pencil aria-hidden="true" />, onClick: onEdit }] : []),
+    ...(kind === "edit"
+      ? [
+          {
+            id: "clip-editor",
+            label: "打开剪辑",
+            icon: <Clapperboard aria-hidden="true" />,
+            onClick: onEdit,
+          },
+        ]
+      : []),
+    ...(showGenerationAction
+      ? [
+          {
+            id: "generate",
+            label: kind === "config" ? "配置" : "生成",
+            icon:
+              kind === "config" ? (
+                <SlidersHorizontal aria-hidden="true" />
+              ) : (
+                <Sparkles aria-hidden="true" />
+              ),
+            onClick: onGenerate,
+          },
+        ]
+      : []),
+    ...(isText
+      ? [{ id: "edit", label: "全屏编辑", icon: <Pencil aria-hidden="true" />, onClick: onEdit }]
+      : []),
     { id: "info", label: "节点信息", icon: <Info aria-hidden="true" />, onClick: onInfo },
-    ...(isText ? [{ id: "director", label: "送入 3D 导演台", icon: <Clapperboard aria-hidden="true" />, onClick: onOpenDirector }] : []),
-    ...(previewable && hasMedia ? [{ id: "preview", label: `查看${mediaLabel}`, icon: <Maximize2 aria-hidden="true" />, onClick: onPreview }] : []),
-    ...(kind === "image" ? [{ id: "face-grid", label: hasMedia ? "人脸网格" : "人脸网格（先选择图片）", icon: <ScanFace aria-hidden="true" />, onClick: onFaceGrid }] : []),
-    ...(kind === "image" ? [{ id: "annotate", label: hasMedia ? "标注图片" : "标注图片（先选择图片）", icon: <PenTool aria-hidden="true" />, onClick: onAnnotate }] : []),
-    ...(isMedia && hasMedia ? [{ id: "download", label: `下载${mediaLabel}`, icon: <Download aria-hidden="true" />, onClick: onDownload }] : []),
-    ...(kind === "video" && hasMedia ? [{ id: "capture-frame", label: "截取当前帧", icon: <ScanLine aria-hidden="true" />, onClick: onCaptureVideoFrame }] : []),
-    ...(isMedia ? [{ id: "upload", label: hasMedia ? `替换${mediaLabel}` : `上传${mediaLabel}`, icon: <Upload aria-hidden="true" />, onClick: onUpload }] : []),
-    { id: "delete", label: "删除节点", icon: <Trash2 aria-hidden="true" />, onClick: onDelete, danger: true },
+    ...(isText
+      ? [
+          {
+            id: "director",
+            label: "送入 3D 导演台",
+            icon: <Clapperboard aria-hidden="true" />,
+            onClick: onOpenDirector,
+          },
+        ]
+      : []),
+    ...(previewable && hasMedia
+      ? [
+          {
+            id: "preview",
+            label: `查看${mediaLabel}`,
+            icon: <Maximize2 aria-hidden="true" />,
+            onClick: onPreview,
+          },
+        ]
+      : []),
+    ...(kind === "image"
+      ? [
+          {
+            id: "face-grid",
+            label: hasMedia ? "人脸网格" : "人脸网格（先选择图片）",
+            icon: <ScanFace aria-hidden="true" />,
+            onClick: onFaceGrid,
+          },
+        ]
+      : []),
+    ...(kind === "image"
+      ? [
+          {
+            id: "annotate",
+            label: hasMedia ? "标注图片" : "标注图片（先选择图片）",
+            icon: <PenTool aria-hidden="true" />,
+            onClick: onAnnotate,
+          },
+        ]
+      : []),
+    ...(isMedia && hasMedia
+      ? [
+          {
+            id: "download",
+            label: `下载${mediaLabel}`,
+            icon: <Download aria-hidden="true" />,
+            onClick: onDownload,
+          },
+        ]
+      : []),
+    ...(kind === "video" && hasMedia
+      ? [
+          {
+            id: "capture-frame",
+            label: "截取当前帧",
+            icon: <ScanLine aria-hidden="true" />,
+            onClick: onCaptureVideoFrame,
+          },
+        ]
+      : []),
+    ...(isMedia
+      ? [
+          {
+            id: "upload",
+            label: hasMedia ? `替换${mediaLabel}` : `上传${mediaLabel}`,
+            icon: <Upload aria-hidden="true" />,
+            onClick: onUpload,
+          },
+        ]
+      : []),
+    {
+      id: "delete",
+      label: "删除节点",
+      icon: <Trash2 aria-hidden="true" />,
+      onClick: onDelete,
+      danger: true,
+    },
   ];
 
-  useHorizontalViewportClamp(shellRef, "--kc-toolbar-shift", visible, 12, "--kc-toolbar-shift-y");
+  useHorizontalViewportClamp(shellRef, "--wc-toolbar-shift", visible, 12, "--wc-toolbar-shift-y");
 
   const scrollHorizontally = (event: WheelEvent<HTMLDivElement>) => {
     const toolbar = scrollRef.current;
@@ -90,16 +197,16 @@ export function NodeActionToolbar({
       isVisible={visible}
       position={Position.Top}
       offset={0}
-      className="kc-node-toolbar-anchor"
+      className="wc-node-toolbar-anchor"
       data-canvas-node-toolbar
       onPointerDown={(event) => event.stopPropagation()}
       onPointerEnter={onPointerEnter}
       onPointerLeave={onPointerLeave}
     >
-      <div ref={shellRef} className="kc-node-toolbar-shell">
+      <div ref={shellRef} className="wc-node-toolbar-shell">
         <div
           ref={scrollRef}
-          className="kc-node-action-toolbar nodrag nowheel"
+          className="wc-node-action-toolbar nodrag nowheel"
           data-node-kind={kind}
           role="toolbar"
           aria-label={`${kind === "config" ? "配置" : "节点"}操作`}
@@ -122,7 +229,7 @@ export function NodeActionToolbar({
             </button>
           ))}
         </div>
-        <div className="kc-node-toolbar-bridge" aria-hidden="true" />
+        <div className="wc-node-toolbar-bridge" aria-hidden="true" />
       </div>
     </NodeToolbar>
   );

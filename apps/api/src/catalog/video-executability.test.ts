@@ -11,7 +11,7 @@ describe("executor video id expansion", () => {
   });
 
   /**
-   * 回归：执行器把 Grok 视频发布成 motion-video，卡藏叫 grok-imagine-video。
+   * 回归：执行器把 Grok 视频发布成 motion-video，纬线叫 grok-imagine-video。
    * 没有这张映射表，白名单过滤会把本来能跑的 Grok 线路一起误杀。
    */
   it("maps the executor's renamed Grok video lines back to the owned ids", () => {
@@ -38,7 +38,7 @@ describe("executor availability annotation", () => {
   });
 
   /**
-   * 关键取舍：执行器目录是「可执行」权威，它收录了哪些视频，卡藏侧就只上架
+   * 关键取舍：执行器目录是「可执行」权威，它收录了哪些视频，纬线侧就只上架
    * 哪些。实测 2026-10-01 两边相差 8 条 token 计费 Seedance 线，它们报价能过、
    * 生成必失败。
    */
@@ -48,11 +48,9 @@ describe("executor availability annotation", () => {
       disabledVideoIds: ["retired-line"],
       validatedAt: 456,
     });
-    expect(availability.publicModelIds).toEqual([
-      "S-2.0-933-线路六",
-      "grok-imagine-video",
-      "motion-video",
-    ].sort());
+    expect(availability.publicModelIds).toEqual(
+      ["S-2.0-933-线路六", "grok-imagine-video", "motion-video"].sort(),
+    );
     expect(availability.disabledModelIds).toEqual(["retired-line"]);
   });
 

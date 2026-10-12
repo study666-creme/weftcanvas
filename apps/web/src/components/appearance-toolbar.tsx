@@ -31,9 +31,15 @@ import {
 import { useAppearanceOptions } from "../lib/appearance-registry";
 
 /** 创作设置面板（自定义 API / 模型 / 本地保存）与协作面板按需加载。 */
-const CustomApiPanel = lazy(async () => ({ default: (await import("./custom-api-dialog")).CustomApiPanel }));
-const CollaborationPanel = lazy(async () => ({ default: (await import("./collaboration-dialog")).CollaborationPanel }));
-const PluginSettingsPanel = lazy(async () => ({ default: (await import("./plugin-settings-panel")).PluginSettingsPanel }));
+const CustomApiPanel = lazy(async () => ({
+  default: (await import("./custom-api-dialog")).CustomApiPanel,
+}));
+const CollaborationPanel = lazy(async () => ({
+  default: (await import("./collaboration-dialog")).CollaborationPanel,
+}));
+const PluginSettingsPanel = lazy(async () => ({
+  default: (await import("./plugin-settings-panel")).PluginSettingsPanel,
+}));
 
 type SettingsSection = "ui" | "apis" | "models" | "local" | "collaboration" | "plugins";
 type AppearanceTab = "visual" | "interaction";
@@ -100,7 +106,9 @@ export function AppearanceToolbar({
   const cursorStyle = useUiPreferencesStore((state) => state.cursorStyle);
   const setCursorStyle = useUiPreferencesStore((state) => state.setCursorStyle);
   const defaultNodeAspectRatio = useUiPreferencesStore((state) => state.defaultNodeAspectRatio);
-  const setDefaultNodeAspectRatio = useUiPreferencesStore((state) => state.setDefaultNodeAspectRatio);
+  const setDefaultNodeAspectRatio = useUiPreferencesStore(
+    (state) => state.setDefaultNodeAspectRatio,
+  );
 
   useEffect(() => {
     const panel = panelRef.current;
@@ -108,7 +116,9 @@ export function AppearanceToolbar({
 
     if (open) {
       const frame = window.requestAnimationFrame(() => {
-        const selectedPreference = panel.querySelector<HTMLButtonElement>('button[aria-pressed="true"]');
+        const selectedPreference = panel.querySelector<HTMLButtonElement>(
+          'button[aria-pressed="true"]',
+        );
         (selectedPreference ?? panel.querySelector<HTMLButtonElement>("button"))?.focus();
       });
       return () => window.cancelAnimationFrame(frame);
@@ -120,155 +130,224 @@ export function AppearanceToolbar({
   return createPortal(
     <div
       ref={panelRef}
-      id="kc-appearance-toolbar"
-      className={`kc-appearance-toolbar kc-ui-settings nodrag nopan nowheel ${open ? "is-open" : ""}`}
+      id="wc-appearance-toolbar"
+      className={`wc-appearance-toolbar wc-ui-settings nodrag nopan nowheel ${open ? "is-open" : ""}`}
       role="dialog"
       aria-label="设置"
       aria-modal="false"
       aria-hidden={!open}
       inert={open ? undefined : true}
-      data-kc-block-canvas-shortcuts
+      data-wc-block-canvas-shortcuts
       data-section={section}
       onPointerDown={(event) => event.stopPropagation()}
     >
-      <header className="kc-ui-settings-header">
-        <span className="kc-ui-settings-title"><Settings aria-hidden="true" />设置</span>
-        <button type="button" className="kc-ui-settings-close" aria-label="关闭设置" title="关闭" onClick={onClose}>
+      <header className="wc-ui-settings-header">
+        <span className="wc-ui-settings-title">
+          <Settings aria-hidden="true" />
+          设置
+        </span>
+        <button
+          type="button"
+          className="wc-ui-settings-close"
+          aria-label="关闭设置"
+          title="关闭"
+          onClick={onClose}
+        >
           <X aria-hidden="true" />
         </button>
       </header>
 
-      <div className="kc-ui-settings-tabs" role="tablist" aria-label="设置板块">
+      <div className="wc-ui-settings-tabs" role="tablist" aria-label="设置板块">
         <button
           type="button"
           role="tab"
-          id="kc-settings-section-tab-ui"
-          aria-controls="kc-ui-settings-panel-visual"
+          id="wc-settings-section-tab-ui"
+          aria-controls="wc-ui-settings-panel-visual"
           aria-selected={section === "ui"}
           onClick={() => setSection("ui")}
         >
-          <Palette aria-hidden="true" />界面
+          <Palette aria-hidden="true" />
+          界面
         </button>
         <button
           type="button"
           role="tab"
-          id="kc-settings-section-tab-apis"
+          id="wc-settings-section-tab-apis"
           aria-selected={section === "apis"}
           onClick={() => setSection("apis")}
         >
-          <Server aria-hidden="true" />API 配置
+          <Server aria-hidden="true" />
+          API 配置
         </button>
         <button
           type="button"
           role="tab"
-          id="kc-settings-section-tab-models"
+          id="wc-settings-section-tab-models"
           aria-selected={section === "models"}
           onClick={() => setSection("models")}
         >
-          <Settings2 aria-hidden="true" />模型
+          <Settings2 aria-hidden="true" />
+          模型
         </button>
         <button
           type="button"
           role="tab"
-          id="kc-settings-section-tab-local"
+          id="wc-settings-section-tab-local"
           aria-selected={section === "local"}
           onClick={() => setSection("local")}
         >
-          <FolderDown aria-hidden="true" />本地保存
+          <FolderDown aria-hidden="true" />
+          本地保存
         </button>
         <button
           type="button"
           role="tab"
-          id="kc-settings-section-tab-collaboration"
+          id="wc-settings-section-tab-collaboration"
           aria-selected={section === "collaboration"}
           onClick={() => setSection("collaboration")}
         >
-          <UsersRound aria-hidden="true" />协作
+          <UsersRound aria-hidden="true" />
+          协作
         </button>
         <button
           type="button"
           role="tab"
-          id="kc-settings-section-tab-plugins"
+          id="wc-settings-section-tab-plugins"
           aria-selected={section === "plugins"}
           onClick={() => setSection("plugins")}
         >
-          <Puzzle aria-hidden="true" />插件
+          <Puzzle aria-hidden="true" />
+          插件
         </button>
       </div>
 
       {section === "ui" ? (
         <>
-          <div className="kc-ui-settings-tabs kc-ui-settings-tabs--sub" role="tablist" aria-label="界面设置类别">
+          <div
+            className="wc-ui-settings-tabs wc-ui-settings-tabs--sub"
+            role="tablist"
+            aria-label="界面设置类别"
+          >
             <button
               type="button"
               role="tab"
-              id="kc-ui-settings-tab-visual"
-              aria-controls="kc-ui-settings-panel-visual"
+              id="wc-ui-settings-tab-visual"
+              aria-controls="wc-ui-settings-panel-visual"
               aria-selected={activeTab === "visual"}
               onClick={() => setActiveTab("visual")}
             >
-              <Sparkles aria-hidden="true" />视觉
+              <Sparkles aria-hidden="true" />
+              视觉
             </button>
             <button
               type="button"
               role="tab"
-              id="kc-ui-settings-tab-interaction"
-              aria-controls="kc-ui-settings-panel-interaction"
+              id="wc-ui-settings-tab-interaction"
+              aria-controls="wc-ui-settings-panel-interaction"
               aria-selected={activeTab === "interaction"}
               onClick={() => setActiveTab("interaction")}
             >
-              <MousePointer2 aria-hidden="true" />交互
+              <MousePointer2 aria-hidden="true" />
+              交互
             </button>
           </div>
 
           <div
-            id="kc-ui-settings-panel-visual"
-            className="kc-ui-settings-panel"
+            id="wc-ui-settings-panel-visual"
+            className="wc-ui-settings-panel"
             role="tabpanel"
-            aria-labelledby="kc-ui-settings-tab-visual"
+            aria-labelledby="wc-ui-settings-tab-visual"
             hidden={activeTab !== "visual"}
           >
-            <PreferenceGroup icon={<Frame aria-hidden="true" />} label="节点" ariaLabel="节点样式" variant="nodes">
+            <PreferenceGroup
+              icon={<Frame aria-hidden="true" />}
+              label="节点"
+              ariaLabel="节点样式"
+              variant="nodes"
+            >
               {nodeStyleOptions.map((style) => (
-                <PreferenceButton key={style.id} active={canvasVisualStyle === style.id} onClick={() => setCanvasVisualStyle(style.id)}>
+                <PreferenceButton
+                  key={style.id}
+                  active={canvasVisualStyle === style.id}
+                  onClick={() => setCanvasVisualStyle(style.id)}
+                >
                   {style.label}
                 </PreferenceButton>
               ))}
             </PreferenceGroup>
 
-            <PreferenceGroup icon={<SlidersHorizontal aria-hidden="true" />} label="界面" ariaLabel="界面与功能栏样式">
+            <PreferenceGroup
+              icon={<SlidersHorizontal aria-hidden="true" />}
+              label="界面"
+              ariaLabel="界面与功能栏样式"
+            >
               {chromeStyleOptions.map((style) => (
-                <PreferenceButton key={style.id} active={chromeVisualStyle === style.id} onClick={() => setChromeVisualStyle(style.id)}>
+                <PreferenceButton
+                  key={style.id}
+                  active={chromeVisualStyle === style.id}
+                  onClick={() => setChromeVisualStyle(style.id)}
+                >
                   {style.label}
                 </PreferenceButton>
               ))}
             </PreferenceGroup>
 
-            <PreferenceGroup icon={<Contrast aria-hidden="true" />} label="配色" ariaLabel="配色方案">
+            <PreferenceGroup
+              icon={<Contrast aria-hidden="true" />}
+              label="配色"
+              ariaLabel="配色方案"
+            >
               {colorSchemes.map((scheme) => (
-                <PreferenceButton key={scheme.id} active={colorScheme === scheme.id} onClick={() => setColorScheme(scheme.id)}>
+                <PreferenceButton
+                  key={scheme.id}
+                  active={colorScheme === scheme.id}
+                  onClick={() => setColorScheme(scheme.id)}
+                >
                   {scheme.label}
                 </PreferenceButton>
               ))}
             </PreferenceGroup>
 
-            <PreferenceGroup icon={<Maximize2 aria-hidden="true" />} label="默认画幅" ariaLabel="新建媒体节点默认画幅" variant="ratios">
+            <PreferenceGroup
+              icon={<Maximize2 aria-hidden="true" />}
+              label="默认画幅"
+              ariaLabel="新建媒体节点默认画幅"
+              variant="ratios"
+            >
               {defaultAspectRatios.map((ratio) => (
-                <PreferenceButton key={ratio} active={defaultNodeAspectRatio === ratio} onClick={() => setDefaultNodeAspectRatio(ratio)}>
+                <PreferenceButton
+                  key={ratio}
+                  active={defaultNodeAspectRatio === ratio}
+                  onClick={() => setDefaultNodeAspectRatio(ratio)}
+                >
                   {ratio}
                 </PreferenceButton>
               ))}
             </PreferenceGroup>
 
-            <PreferenceGroup icon={<Grid3x3 aria-hidden="true" />} label="背景" ariaLabel="背景样式" variant="full">
+            <PreferenceGroup
+              icon={<Grid3x3 aria-hidden="true" />}
+              label="背景"
+              ariaLabel="背景样式"
+              variant="full"
+            >
               {backgroundStyleOptions.map((style) => (
-                <PreferenceButton key={style.id} active={canvasBackgroundStyle === style.id} onClick={() => setCanvasBackgroundStyle(style.id)}>
+                <PreferenceButton
+                  key={style.id}
+                  active={canvasBackgroundStyle === style.id}
+                  onClick={() => setCanvasBackgroundStyle(style.id)}
+                >
                   {style.label}
                 </PreferenceButton>
               ))}
             </PreferenceGroup>
 
-            <PreferenceGroup icon={<Waves aria-hidden="true" />} label="生成" ariaLabel="生成动效" variant="previews">
+            <PreferenceGroup
+              icon={<Waves aria-hidden="true" />}
+              label="生成"
+              ariaLabel="生成动效"
+              variant="previews"
+            >
               {generationEffectOptions.map((effect) => (
                 <GenerationEffectButton
                   key={effect.id}
@@ -282,15 +361,23 @@ export function AppearanceToolbar({
           </div>
 
           <div
-            id="kc-ui-settings-panel-interaction"
-            className="kc-ui-settings-panel kc-ui-settings-panel--interaction"
+            id="wc-ui-settings-panel-interaction"
+            className="wc-ui-settings-panel wc-ui-settings-panel--interaction"
             role="tabpanel"
-            aria-labelledby="kc-ui-settings-tab-interaction"
+            aria-labelledby="wc-ui-settings-tab-interaction"
             hidden={activeTab !== "interaction"}
           >
-            <PreferenceGroup icon={<MousePointer2 aria-hidden="true" />} label="鼠标" ariaLabel="鼠标样式">
+            <PreferenceGroup
+              icon={<MousePointer2 aria-hidden="true" />}
+              label="鼠标"
+              ariaLabel="鼠标样式"
+            >
               {cursorStyleOptions.map((style) => (
-                <PreferenceButton key={style.id} active={cursorStyle === style.id} onClick={() => setCursorStyle(style.id)}>
+                <PreferenceButton
+                  key={style.id}
+                  active={cursorStyle === style.id}
+                  onClick={() => setCursorStyle(style.id)}
+                >
                   {style.label}
                 </PreferenceButton>
               ))}
@@ -298,7 +385,11 @@ export function AppearanceToolbar({
 
             <PreferenceGroup icon={<Spline aria-hidden="true" />} label="线形" ariaLabel="连线形态">
               {edgePathStyleOptions.map((style) => (
-                <PreferenceButton key={style.id} active={edgePathStyle === style.id} onClick={() => setEdgePathStyle(style.id)}>
+                <PreferenceButton
+                  key={style.id}
+                  active={edgePathStyle === style.id}
+                  onClick={() => setEdgePathStyle(style.id)}
+                >
                   {style.label}
                 </PreferenceButton>
               ))}
@@ -306,15 +397,27 @@ export function AppearanceToolbar({
 
             <PreferenceGroup icon={<Orbit aria-hidden="true" />} label="流动" ariaLabel="连线光效">
               {edgeFlowStyleOptions.map((style) => (
-                <PreferenceButton key={style.id} active={edgeFlowStyle === style.id} onClick={() => setEdgeFlowStyle(style.id)}>
+                <PreferenceButton
+                  key={style.id}
+                  active={edgeFlowStyle === style.id}
+                  onClick={() => setEdgeFlowStyle(style.id)}
+                >
                   {style.label}
                 </PreferenceButton>
               ))}
             </PreferenceGroup>
 
-            <PreferenceGroup icon={<Sparkles aria-hidden="true" />} label="加号" ariaLabel="节点加号样式">
+            <PreferenceGroup
+              icon={<Sparkles aria-hidden="true" />}
+              label="加号"
+              ariaLabel="节点加号样式"
+            >
               {nodePortStyleOptions.map((style) => (
-                <PreferenceButton key={style.id} active={nodePortStyle === style.id} onClick={() => setNodePortStyle(style.id)}>
+                <PreferenceButton
+                  key={style.id}
+                  active={nodePortStyle === style.id}
+                  onClick={() => setNodePortStyle(style.id)}
+                >
                   {style.label}
                 </PreferenceButton>
               ))}
@@ -322,18 +425,26 @@ export function AppearanceToolbar({
           </div>
         </>
       ) : !open ? null : (
-        <div className="kc-ui-settings-embed" role="tabpanel" aria-labelledby={`kc-settings-section-tab-${section}`}>
-          <Suspense fallback={
-            <div className="kc-ui-settings-loading" role="status" aria-label="加载中">
-              <LoaderCircle className="is-spinning" aria-hidden="true" />
-              <span>正在加载</span>
-            </div>
-          }>
-            {section === "collaboration"
-              ? <CollaborationPanel />
-              : section === "plugins"
-                ? <PluginSettingsPanel />
-                : <CustomApiPanel section={section} />}
+        <div
+          className="wc-ui-settings-embed"
+          role="tabpanel"
+          aria-labelledby={`wc-settings-section-tab-${section}`}
+        >
+          <Suspense
+            fallback={
+              <div className="wc-ui-settings-loading" role="status" aria-label="加载中">
+                <LoaderCircle className="is-spinning" aria-hidden="true" />
+                <span>正在加载</span>
+              </div>
+            }
+          >
+            {section === "collaboration" ? (
+              <CollaborationPanel />
+            ) : section === "plugins" ? (
+              <PluginSettingsPanel />
+            ) : (
+              <CustomApiPanel section={section} />
+            )}
           </Suspense>
         </div>
       )}
@@ -356,16 +467,38 @@ function PreferenceGroup({
   children: ReactNode;
 }) {
   return (
-    <section className={`kc-appearance-group ${variant ? `kc-appearance-group--${variant}` : ""}`}>
-      <span className="kc-appearance-label">{icon}<span>{label}</span></span>
-      <div className={`kc-appearance-segmented ${variant ? `kc-appearance-segmented--${variant}` : ""}`} role="group" aria-label={ariaLabel}>{children}</div>
+    <section className={`wc-appearance-group ${variant ? `wc-appearance-group--${variant}` : ""}`}>
+      <span className="wc-appearance-label">
+        {icon}
+        <span>{label}</span>
+      </span>
+      <div
+        className={`wc-appearance-segmented ${variant ? `wc-appearance-segmented--${variant}` : ""}`}
+        role="group"
+        aria-label={ariaLabel}
+      >
+        {children}
+      </div>
     </section>
   );
 }
 
-function PreferenceButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
+function PreferenceButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
   return (
-    <button type="button" className={active ? "is-active" : undefined} aria-pressed={active} onClick={onClick}>
+    <button
+      type="button"
+      className={active ? "is-active" : undefined}
+      aria-pressed={active}
+      onClick={onClick}
+    >
       {children}
     </button>
   );
@@ -385,18 +518,20 @@ function GenerationEffectButton({
   return (
     <button
       type="button"
-      className={`kc-generation-effect-choice is-${effect} ${active ? "is-active" : ""}`}
+      className={`wc-generation-effect-choice is-${effect} ${active ? "is-active" : ""}`}
       aria-label={`${label}生成动效`}
       aria-pressed={active}
       title={label}
       onClick={onClick}
     >
-      <span className="kc-generation-effect-preview" aria-hidden="true">
-        <span className="kc-generation-effect-preview-layer is-primary" />
-        <span className="kc-generation-effect-preview-layer is-secondary" />
-        <span className="kc-generation-effect-preview-progress"><span /></span>
+      <span className="wc-generation-effect-preview" aria-hidden="true">
+        <span className="wc-generation-effect-preview-layer is-primary" />
+        <span className="wc-generation-effect-preview-layer is-secondary" />
+        <span className="wc-generation-effect-preview-progress">
+          <span />
+        </span>
       </span>
-      <span className="kc-generation-effect-label">{label}</span>
+      <span className="wc-generation-effect-label">{label}</span>
     </button>
   );
 }

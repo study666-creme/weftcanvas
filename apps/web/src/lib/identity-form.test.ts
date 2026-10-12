@@ -32,12 +32,24 @@ describe("identity form check", () => {
   });
 
   it("requires a password and the registration password length the API enforces", () => {
-    expect(checkIdentityForm({ ...base, password: "" })).toEqual({ ok: false, message: "请输入密码" });
-    expect(checkIdentityForm({ ...base, mode: "register", password: "short", confirmPassword: "short" })).toEqual({
+    expect(checkIdentityForm({ ...base, password: "" })).toEqual({
+      ok: false,
+      message: "请输入密码",
+    });
+    expect(
+      checkIdentityForm({ ...base, mode: "register", password: "short", confirmPassword: "short" }),
+    ).toEqual({
       ok: false,
       message: "密码需 10-128 位",
     });
-    expect(checkIdentityForm({ ...base, mode: "register", password: "long-enough", confirmPassword: "different-password" })).toEqual({
+    expect(
+      checkIdentityForm({
+        ...base,
+        mode: "register",
+        password: "long-enough",
+        confirmPassword: "different-password",
+      }),
+    ).toEqual({
       ok: false,
       message: "两次输入的密码不一致",
     });
@@ -57,12 +69,16 @@ describe("identity form check", () => {
   });
 
   it("lets the local dev test account through only when the API advertises it", () => {
-    expect(checkIdentityForm({ ...base, email: "admin", password: "123456", devTestAccount: true })).toEqual({
+    expect(
+      checkIdentityForm({ ...base, email: "admin", password: "123456", devTestAccount: true }),
+    ).toEqual({
       ok: true,
       email: "admin",
       displayName: "",
     });
-    expect(checkIdentityForm({ ...base, email: "admin", password: "123456", devTestAccount: false })).toEqual({
+    expect(
+      checkIdentityForm({ ...base, email: "admin", password: "123456", devTestAccount: false }),
+    ).toEqual({
       ok: false,
       message: "请填写完整的邮箱地址，例如 name@example.com",
     });

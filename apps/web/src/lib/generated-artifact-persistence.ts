@@ -1,4 +1,4 @@
-import type { CanvasMedia, GenerationArtifact, PublicGenerationJob } from "@kachang/contracts";
+import type { CanvasMedia, GenerationArtifact, PublicGenerationJob } from "@weftcanvas/contracts";
 
 import { ensureMediaAsset } from "./asset-library-store";
 import { cacheServerMedia, readMedia } from "./media-store";
@@ -16,9 +16,11 @@ let activeArtifactPersistenceWrites = 0;
  */
 export function persistCompletedGenerationArtifacts(job: PublicGenerationJob) {
   if (job.status !== "completed") return Promise.resolve();
-  return Promise.all(job.artifacts.flatMap((artifact) => (
-    artifact.kind === "text" ? [] : [persistGenerationArtifact(job, artifact)]
-  ))).then(() => undefined);
+  return Promise.all(
+    job.artifacts.flatMap((artifact) =>
+      artifact.kind === "text" ? [] : [persistGenerationArtifact(job, artifact)],
+    ),
+  ).then(() => undefined);
 }
 
 export function mediaFromGenerationArtifact(artifact: GenerationMediaArtifact): CanvasMedia {
@@ -42,7 +44,7 @@ function persistGenerationArtifact(job: PublicGenerationJob, artifact: Generatio
   const media = mediaFromGenerationArtifact(artifact);
   const request = scheduleArtifactPersistence(async () => {
     const cachedForProject = await cacheServerMedia(media, job.projectId);
-    const cached = cachedForProject || await cacheServerMedia(media);
+    const cached = cachedForProject || (await cacheServerMedia(media));
     if (!cached) throw new Error("Generated media could not be cached in the browser");
     const stored = await readMedia(media.id);
     if (!stored) throw new Error("Generated media could not be read from the browser cache");
@@ -71,10 +73,12 @@ function scheduleArtifactPersistence(work: () => Promise<void>) {
   return new Promise<void>((resolve, reject) => {
     artifactPersistenceQueue.push(() => {
       activeArtifactPersistenceWrites += 1;
-      void work().then(resolve, reject).finally(() => {
-        activeArtifactPersistenceWrites -= 1;
-        drainArtifactPersistenceQueue();
-      });
+      void work()
+        .then(resolve, reject)
+        .finally(() => {
+          activeArtifactPersistenceWrites -= 1;
+          drainArtifactPersistenceQueue();
+        });
     });
     drainArtifactPersistenceQueue();
   });

@@ -1,10 +1,13 @@
-import type { ModelModality } from "@kachang/contracts";
+import type { ModelModality } from "@weftcanvas/contracts";
 
 /** The two parameter names used by compatible image APIs for output count. */
 export const OUTPUT_COUNT_PARAMETER_NAMES = ["n", "count"] as const;
 
 export class OutputCountError extends Error {
-  constructor(readonly code: "INVALID_OUTPUT_COUNT" | "CONFLICTING_OUTPUT_COUNT" | "OUTPUT_COUNT_OVERFLOW", message: string) {
+  constructor(
+    readonly code: "INVALID_OUTPUT_COUNT" | "CONFLICTING_OUTPUT_COUNT" | "OUTPUT_COUNT_OVERFLOW",
+    message: string,
+  ) {
     super(message);
     this.name = "OutputCountError";
   }
@@ -25,7 +28,10 @@ export function outputCountParameter(parameters: Record<string, unknown>): numbe
       throw new OutputCountError("INVALID_OUTPUT_COUNT", "Output count must be a positive integer");
     }
     if (selected !== undefined && selected !== value) {
-      throw new OutputCountError("CONFLICTING_OUTPUT_COUNT", "The n and count parameters must match");
+      throw new OutputCountError(
+        "CONFLICTING_OUTPUT_COUNT",
+        "The n and count parameters must match",
+      );
     }
     selected = value as number;
   }
@@ -53,7 +59,10 @@ export function totalOutputCount(
   // Video APIs expose one task and one media result. A batch video request
   // cannot be represented by the current job/result contract.
   if (modality === "video" && total !== 1) {
-    throw new OutputCountError("INVALID_OUTPUT_COUNT", "Video generation supports exactly one output");
+    throw new OutputCountError(
+      "INVALID_OUTPUT_COUNT",
+      "Video generation supports exactly one output",
+    );
   }
   return total;
 }

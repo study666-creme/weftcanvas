@@ -1,0 +1,28 @@
+/* 工作台专属样式聚合：画布（/canvas）、生成台（/generate/*）以及挂在它们上的
+   对话框（账号/云资源/协作/自定义 API）使用；登录首屏与游客入口页不加载。
+   由 canvas-route.tsx 与 direct-generation-page.tsx 引入，Vite 会把它拆成独立
+   CSS chunk。
+
+   @import 顺序 = 拆分前 main.tsx 的加载顺序，级联顺序与拆分前一致：
+   styles-workbench.css / entry-gate-workbench.css 是从入口样式里切出的
+   “仅工作台使用”规则；styles.css / entry-gate.css / canvas-entry-loader.css /
+   ui-polish.css 仍留在入口且在这些文件之前加载。凡是会在拆分后翻转优先级
+   （选择器主体类名相交——含 BEM 前缀关系如 .wc-generation-submit 与
+   .wc-generation-submit--compact——且声明同一属性）的规则都已钉回入口文件，
+   所以拆分不改变任何一条原本的胜负关系。新增画布专属样式请写在这一侧，
+   写回 styles.css 会让登录首屏重新下载它们（见 src/css-chunking.test.ts 的契约）。 */
+@import "./styles-workbench.css";
+@import "./entry-gate-workbench.css";
+@import "./appearance-panel.css";
+@import "./app-cursor.css";
+@import "./canvas-effects.css";
+@import "./airy-theme.css";
+@import "./ink-scheme.css";
+@import "./imax-theme.css";
+@import "./onyx-scheme.css";
+@import "./onyx-theme.css";
+@import "./emerald-edge.css";
+@import "./ui-polish-workbench.css";
+@import "./quiet-generation.css";
+@import "./wallet-premium.css";
+@import "./cloud-resource.css";

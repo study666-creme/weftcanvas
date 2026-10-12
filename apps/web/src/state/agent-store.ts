@@ -6,7 +6,7 @@ import {
   type AgentConversationDetail,
   type AgentExecutionReceiptCreateRequest,
   type AgentModelCatalog,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 import { create } from "zustand";
 
 import {
@@ -27,7 +27,7 @@ import { useIdentityStore } from "./identity-store";
 type AgentUiStatus = "idle" | "loading" | "sending" | "ready" | "error";
 type AgentModelStatus = "idle" | "loading" | "ready" | "error";
 
-const MODEL_STORAGE_KEY = "kachang-canvas:agent-model:v1";
+const MODEL_STORAGE_KEY = "weftcanvas:agent-model:v1";
 const MODEL_REFRESH_INTERVAL_MS = 60_000;
 const MODEL_MAX_STALE_MS = 7 * 24 * 60 * 60_000;
 
@@ -60,7 +60,11 @@ type AgentState = {
   cancel: () => Promise<void>;
   confirmProposal: (contextRevision: string) => Promise<boolean>;
   dismissProposal: () => Promise<boolean>;
-  recordReceipt: (conversationId: string, runId: string, receipt: AgentExecutionReceiptCreateRequest) => Promise<boolean>;
+  recordReceipt: (
+    conversationId: string,
+    runId: string,
+    receipt: AgentExecutionReceiptCreateRequest,
+  ) => Promise<boolean>;
 };
 
 let loadVersion = 0;
@@ -112,18 +116,32 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
   load: async (projectId, force = false) => {
     const state = get();
-    if (!force && state.projectId === projectId && ["loading", "ready", "sending"].includes(state.status)) return;
+    if (
+      !force &&
+      state.projectId === projectId &&
+      ["loading", "ready", "sending"].includes(state.status)
+    )
+      return;
     const version = ++loadVersion;
     stopPolling();
-    set({ projectId, status: "loading", error: null, ...(state.projectId === projectId ? {} : { conversations: [], activeConversationId: null, detail: null }) });
+    set({
+      projectId,
+      status: "loading",
+      error: null,
+      ...(state.projectId === projectId
+        ? {}
+        : { conversations: [], activeConversationId: null, detail: null }),
+    });
     try {
       const conversations = await listAgentConversations(projectId);
       if (version !== loadVersion) return;
       const preferredId = get().activeConversationId;
       const activeConversationId = conversations.some((item) => item.id === preferredId)
         ? preferredId
-        : conversations[0]?.id ?? null;
-      const detail = activeConversationId ? await fetchAgentConversation(activeConversationId) : null;
+        : (conversations[0]?.id ?? null);
+      const detail = activeConversationId
+        ? await fetchAgentConversation(activeConversationId)
+        : null;
       if (version !== loadVersion) return;
       set({ conversations, activeConversationId, detail, status: "ready", error: null });
       scheduleIfRunning();
@@ -135,7 +153,12 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
   loadModels: async (force = false) => {
     const state = get();
-    if (!force && state.models.length && Date.now() - state.modelLoadedAt < MODEL_REFRESH_INTERVAL_MS) return;
+    if (
+      !force &&
+      state.models.length &&
+      Date.now() - state.modelLoadedAt < MODEL_REFRESH_INTERVAL_MS
+    )
+      return;
     if (modelRequest) return modelRequest;
     const version = ++modelLoadVersion;
     const hasModels = state.models.length > 0;
@@ -145,8 +168,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         const catalog = await fetchAgentModels(force);
         if (version !== modelLoadVersion) return;
         const currentModelId = get().selectedModelId;
-        const selectedModelId = catalog.models.find((model) => model.id === currentModelId)?.id
-          ?? catalog.defaultModelId;
+        const selectedModelId =
+          catalog.models.find((model) => model.id === currentModelId)?.id ?? catalog.defaultModelId;
         set({
           models: catalog.models,
           selectedModelId,
@@ -159,10 +182,13 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         writeStoredModelState(selectedModelId, catalog, get().modelLoadedAt);
       } catch (cause) {
         if (version !== modelLoadVersion) return;
-        if (cause instanceof CanvasApiError && cause.status === 401) useIdentityStore.getState().expire();
-        set((current) => current.models.length
-          ? { modelStatus: "ready", modelRefreshing: false, modelError: null }
-          : { modelStatus: "error", modelRefreshing: false, modelError: publicModelError(cause) });
+        if (cause instanceof CanvasApiError && cause.status === 401)
+          useIdentityStore.getState().expire();
+        set((current) =>
+          current.models.length
+            ? { modelStatus: "ready", modelRefreshing: false, modelError: null }
+            : { modelStatus: "error", modelRefreshing: false, modelError: publicModelError(cause) },
+        );
       }
     })();
     modelRequest = request;
@@ -176,10 +202,14 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   setSelectedModelId: (modelIdValue) => {
     const parsed = agentModelIdSchema.safeParse(modelIdValue);
     if (!parsed.success || !get().models.some((model) => model.id === parsed.data)) return;
-    writeStoredModelState(parsed.data, {
-      defaultModelId: get().models[0]?.id ?? parsed.data,
-      models: get().models,
-    }, get().modelLoadedAt);
+    writeStoredModelState(
+      parsed.data,
+      {
+        defaultModelId: get().models[0]?.id ?? parsed.data,
+        models: get().models,
+      },
+      get().modelLoadedAt,
+    );
     set({
       selectedModelId: parsed.data,
       reasoningEffort: defaultThinkingFor(get().models, parsed.data),
@@ -203,7 +233,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       const conversation = await createAgentConversation({ projectId });
       set((state) => ({
         projectId,
-        conversations: [conversation, ...state.conversations.filter((item) => item.id !== conversation.id)],
+        conversations: [
+          conversation,
+          ...state.conversations.filter((item) => item.id !== conversation.id),
+        ],
         activeConversationId: conversation.id,
         detail: { conversation, messages: [], latestRun: null },
         status: "ready",
@@ -237,9 +270,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const modelState = get();
     const selectedModelId = modelState.selectedModelId;
     if (
-      modelState.modelStatus !== "ready"
-      || !selectedModelId
-      || !modelState.models.some((model) => model.id === selectedModelId)
+      modelState.modelStatus !== "ready" ||
+      !selectedModelId ||
+      !modelState.models.some((model) => model.id === selectedModelId)
     ) {
       set({ modelStatus: "error", modelError: "请先选择可用的 Agent 模型" });
       return false;
@@ -259,7 +292,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       });
       set((state) => ({
         detail,
-        conversations: [detail.conversation, ...state.conversations.filter((item) => item.id !== detail.conversation.id)],
+        conversations: [
+          detail.conversation,
+          ...state.conversations.filter((item) => item.id !== detail.conversation.id),
+        ],
         status: "ready",
         error: null,
       }));
@@ -296,7 +332,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   confirmProposal: async (contextRevision) => {
     const { detail } = get();
     const run = detail?.latestRun;
-    if (!detail || !run || run.executionMode !== "proposal" || run.proposalStatus !== "pending") return false;
+    if (!detail || !run || run.executionMode !== "proposal" || run.proposalStatus !== "pending")
+      return false;
     set({ status: "sending", error: null });
     try {
       const next = await confirmAgentProposal(detail.conversation.id, run.id, { contextRevision });
@@ -311,7 +348,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   dismissProposal: async () => {
     const { detail } = get();
     const run = detail?.latestRun;
-    if (!detail || !run || run.executionMode !== "proposal" || run.proposalStatus !== "pending") return false;
+    if (!detail || !run || run.executionMode !== "proposal" || run.proposalStatus !== "pending")
+      return false;
     set({ status: "sending", error: null });
     try {
       const next = await dismissAgentProposal(detail.conversation.id, run.id);
@@ -326,7 +364,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   recordReceipt: async (conversationId, runId, receipt) => {
     try {
       const next = await recordAgentExecutionReceipt(conversationId, runId, receipt);
-      if (get().activeConversationId === conversationId) set({ detail: next, status: "ready", error: null });
+      if (get().activeConversationId === conversationId)
+        set({ detail: next, status: "ready", error: null });
       return true;
     } catch (cause) {
       handleError(cause, set);
@@ -366,7 +405,10 @@ function isActiveRun(status: string) {
 
 function handleError(cause: unknown, set: typeof useAgentStore.setState) {
   if (cause instanceof CanvasApiError && cause.status === 401) useIdentityStore.getState().expire();
-  set({ status: "error", error: cause instanceof CanvasApiError ? cause.message : "Agent 请求没有完成" });
+  set({
+    status: "error",
+    error: cause instanceof CanvasApiError ? cause.message : "Agent 请求没有完成",
+  });
 }
 
 function publicModelError(cause: unknown) {
@@ -387,7 +429,11 @@ function readStoredModelState(): {
     } | null;
     const savedModelId = agentModelIdSchema.safeParse(stored?.modelId);
     const catalog = agentModelCatalogSchema.safeParse(stored?.catalog);
-    if (!catalog.success || typeof stored?.loadedAt !== "number" || Date.now() - stored.loadedAt > MODEL_MAX_STALE_MS) {
+    if (
+      !catalog.success ||
+      typeof stored?.loadedAt !== "number" ||
+      Date.now() - stored.loadedAt > MODEL_MAX_STALE_MS
+    ) {
       return { modelId: savedModelId.success ? savedModelId.data : null, models: [], loadedAt: 0 };
     }
     const requestedModelId = savedModelId.success ? savedModelId.data : null;

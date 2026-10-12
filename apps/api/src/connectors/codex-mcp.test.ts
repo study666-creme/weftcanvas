@@ -21,19 +21,28 @@ const context = {
 
 function harness() {
   const broker = new CanvasCommandBroker({ waitMs: 2_000 });
-  return { broker, mcp: (message: unknown) => handleCodexMcpMessage(message as never, { ownerId: "user-a", broker }) };
+  return {
+    broker,
+    mcp: (message: unknown) =>
+      handleCodexMcpMessage(message as never, { ownerId: "user-a", broker }),
+  };
 }
 
 describe("Codex MCP endpoint", () => {
   it("answers the handshake and lists the canvas tools", async () => {
     const { mcp } = harness();
-    const initialized = await mcp({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }) as {
+    const initialized = (await mcp({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: {},
+    })) as {
       result: { protocolVersion: string; serverInfo: { name: string } };
     };
     expect(initialized.result.protocolVersion).toBe("2024-11-05");
-    expect(initialized.result.serverInfo.name).toBe("kachang-canvas");
+    expect(initialized.result.serverInfo.name).toBe("weftcanvas");
 
-    const listed = await mcp({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }) as {
+    const listed = (await mcp({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} })) as {
       result: { tools: Array<{ name: string }> };
     };
     const names = listed.result.tools.map((tool) => tool.name);
@@ -44,7 +53,12 @@ describe("Codex MCP endpoint", () => {
 
   it("tells the client to open the canvas when no page has reported one", async () => {
     const { mcp } = harness();
-    const response = await mcp({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "canvas_read", arguments: {} } }) as {
+    const response = (await mcp({
+      jsonrpc: "2.0",
+      id: 3,
+      method: "tools/call",
+      params: { name: "canvas_read", arguments: {} },
+    })) as {
       result: { content: Array<{ text: string }> };
     };
     expect(response.result.content[0]!.text).toContain("请先在浏览器里打开画布页面");
@@ -53,7 +67,12 @@ describe("Codex MCP endpoint", () => {
   it("reads the reported canvas summary", async () => {
     const { broker, mcp } = harness();
     broker.rememberContext("user-a", "p1", context);
-    const response = await mcp({ jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "canvas_read", arguments: {} } }) as {
+    const response = (await mcp({
+      jsonrpc: "2.0",
+      id: 4,
+      method: "tools/call",
+      params: { name: "canvas_read", arguments: {} },
+    })) as {
       result: { content: Array<{ text: string }> };
     };
     const text = response.result.content[0]!.text;
@@ -75,7 +94,11 @@ describe("Codex MCP endpoint", () => {
     // 等指令入队后由"浏览器"执行并回执
     await new Promise((resolve) => setTimeout(resolve, 10));
     const command = broker.pendingFor("user-a")[0]!;
-    expect(command.actions[0]).toMatchObject({ type: "canvas_add_node", kind: "text", body: "第二幕" });
+    expect(command.actions[0]).toMatchObject({
+      type: "canvas_add_node",
+      kind: "text",
+      body: "第二幕",
+    });
     broker.submitReceipt("user-a", {
       commandId: command.id,
       status: "applied",
@@ -84,19 +107,26 @@ describe("Codex MCP endpoint", () => {
       reason: null,
     });
 
-    const response = await calling as { result: { content: Array<{ text: string }> } };
+    const response = (await calling) as { result: { content: Array<{ text: string }> } };
     expect(response.result.content[0]!.text).toBe("已应用 1 项");
   });
 
   it("rejects unknown tools and unknown methods honestly", async () => {
     const { mcp } = harness();
-    const unknownTool = await mcp({ jsonrpc: "2.0", id: 6, method: "tools/call", params: { name: "maya_run", arguments: {} } }) as {
+    const unknownTool = (await mcp({
+      jsonrpc: "2.0",
+      id: 6,
+      method: "tools/call",
+      params: { name: "maya_run", arguments: {} },
+    })) as {
       result: { content: Array<{ text: string }>; isError?: boolean };
     };
     expect(unknownTool.result.isError).toBe(true);
     expect(unknownTool.result.content[0]!.text).toContain("未知工具");
 
-    const unknownMethod = await mcp({ jsonrpc: "2.0", id: 7, method: "resources/list" }) as { error: { code: number } };
+    const unknownMethod = (await mcp({ jsonrpc: "2.0", id: 7, method: "resources/list" })) as {
+      error: { code: number };
+    };
     expect(unknownMethod.error.code).toBe(-32601);
   });
 });

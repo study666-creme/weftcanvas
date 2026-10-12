@@ -1,7 +1,22 @@
-import type { CloudResource } from "@kachang/contracts";
-import { AlertCircle, Check, CloudOff, Download, Film, HardDrive, LoaderCircle, Music, RefreshCw, ShieldAlert, Trash2, X } from "lucide-react";
+import type { CloudResource } from "@weftcanvas/contracts";
+import {
+  AlertCircle,
+  Check,
+  CloudOff,
+  Download,
+  Film,
+  HardDrive,
+  LoaderCircle,
+  Music,
+  RefreshCw,
+  ShieldAlert,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+// 云资源抽屉样式随对话框加载，登录首屏与游客入口不再下载。
+import "../cloud-resource.css";
 
 import { useCloudResourceStore, formatBytes } from "../state/cloud-resource-store";
 import { useIdentityStore } from "../state/identity-store";
@@ -54,77 +69,121 @@ export function CloudResourceDialog() {
     [orphanItems, selected],
   );
   const selectedBytes = selectedItems.reduce((sum, item) => sum + item.size, 0);
-  const percent = usage && usage.quotaBytes > 0
-    ? Math.min(100, Math.round((usage.usedBytes / usage.quotaBytes) * 1000) / 10)
-    : 0;
+  const percent =
+    usage && usage.quotaBytes > 0
+      ? Math.min(100, Math.round((usage.usedBytes / usage.quotaBytes) * 1000) / 10)
+      : 0;
 
   if (!open) return null;
 
   return createPortal(
     <div
-      className="kc-cloud-res-backdrop"
+      className="wc-cloud-res-backdrop"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="kc-cloud-res-title"
+      aria-labelledby="wc-cloud-res-title"
       onPointerDown={(event) => {
         if (event.target === event.currentTarget && !busy) closeDialog();
       }}
     >
-      <section className="kc-cloud-res-dialog" onPointerDown={(event) => event.stopPropagation()}>
-        <header className="kc-cloud-res-header">
-          <div className="kc-cloud-res-heading">
-            <span className="kc-cloud-res-symbol"><HardDrive aria-hidden="true" /></span>
+      <section className="wc-cloud-res-dialog" onPointerDown={(event) => event.stopPropagation()}>
+        <header className="wc-cloud-res-header">
+          <div className="wc-cloud-res-heading">
+            <span className="wc-cloud-res-symbol">
+              <HardDrive aria-hidden="true" />
+            </span>
             <div>
-              <strong id="kc-cloud-res-title">云端资源清理</strong>
+              <strong id="wc-cloud-res-title">云端资源清理</strong>
               <span>盘点云端素材，自选释放占用的存储空间</span>
             </div>
           </div>
-          <button type="button" className="kc-dialog-close" aria-label="关闭" title="关闭" onClick={closeDialog} disabled={busy}>
+          <button
+            type="button"
+            className="wc-dialog-close"
+            aria-label="关闭"
+            title="关闭"
+            onClick={closeDialog}
+            disabled={busy}
+          >
             <X aria-hidden="true" />
           </button>
         </header>
 
         {!authenticated ? (
-          <div className="kc-cloud-res-state"><AlertCircle aria-hidden="true" />登录后可以管理云端资源</div>
+          <div className="wc-cloud-res-state">
+            <AlertCircle aria-hidden="true" />
+            登录后可以管理云端资源
+          </div>
         ) : (
           <>
-            <section className="kc-cloud-res-usage" aria-label="云端存储用量">
-              <div className="kc-cloud-res-usage-head">
+            <section className="wc-cloud-res-usage" aria-label="云端存储用量">
+              <div className="wc-cloud-res-usage-head">
                 <span>素材存储</span>
                 <strong>
-                  {usage ? `${formatBytes(usage.usedBytes)} / ${formatBytes(usage.quotaBytes)}` : "--"}
+                  {usage
+                    ? `${formatBytes(usage.usedBytes)} / ${formatBytes(usage.quotaBytes)}`
+                    : "--"}
                 </strong>
               </div>
-              <div className={`kc-cloud-res-bar ${percent >= 95 ? "is-critical" : percent >= 80 ? "is-nearing" : ""}`}>
+              <div
+                className={`wc-cloud-res-bar ${percent >= 95 ? "is-critical" : percent >= 80 ? "is-nearing" : ""}`}
+              >
                 <i style={{ width: `${percent}%` }} />
               </div>
               {usage ? (
                 <p>
-                  其中画布已删除遗留的孤立资源 {formatBytes(usage.orphanBytes)} · {usage.orphanCount} 个，
-                  清理后即可释放；仍在使用的素材不会被删除。
+                  其中画布已删除遗留的孤立资源 {formatBytes(usage.orphanBytes)} ·{" "}
+                  {usage.orphanCount} 个， 清理后即可释放；仍在使用的素材不会被删除。
                 </p>
               ) : null}
             </section>
 
-            <div className="kc-cloud-res-toolbar">
-              <div className="kc-cloud-res-actions">
-                <button type="button" onClick={selectOrphans} disabled={busy || !orphanItems.length}>
-                  <Check aria-hidden="true" />全选可清理（{orphanItems.length}）
+            <div className="wc-cloud-res-toolbar">
+              <div className="wc-cloud-res-actions">
+                <button
+                  type="button"
+                  onClick={selectOrphans}
+                  disabled={busy || !orphanItems.length}
+                >
+                  <Check aria-hidden="true" />
+                  全选可清理（{orphanItems.length}）
                 </button>
-                <button type="button" onClick={clearSelection} disabled={busy || !selectedItems.length}>清空选择</button>
+                <button
+                  type="button"
+                  onClick={clearSelection}
+                  disabled={busy || !selectedItems.length}
+                >
+                  清空选择
+                </button>
               </div>
-              <button type="button" className="kc-cloud-res-refresh" onClick={() => void load(true)} disabled={loading || busy} title="刷新列表" aria-label="刷新列表">
+              <button
+                type="button"
+                className="wc-cloud-res-refresh"
+                onClick={() => void load(true)}
+                disabled={loading || busy}
+                title="刷新列表"
+                aria-label="刷新列表"
+              >
                 <RefreshCw className={loading ? "is-spinning" : ""} aria-hidden="true" />
               </button>
             </div>
 
-            <div className="kc-cloud-res-list" role="list">
+            <div className="wc-cloud-res-list" role="list">
               {loading && !items.length ? (
-                <div className="kc-cloud-res-state"><LoaderCircle className="is-spinning" aria-hidden="true" />正在读取云端资源</div>
+                <div className="wc-cloud-res-state">
+                  <LoaderCircle className="is-spinning" aria-hidden="true" />
+                  正在读取云端资源
+                </div>
               ) : error && !items.length ? (
-                <div className="kc-cloud-res-state is-error"><AlertCircle aria-hidden="true" />{error}</div>
+                <div className="wc-cloud-res-state is-error">
+                  <AlertCircle aria-hidden="true" />
+                  {error}
+                </div>
               ) : !items.length ? (
-                <div className="kc-cloud-res-state"><CloudOff aria-hidden="true" />云端还没有素材</div>
+                <div className="wc-cloud-res-state">
+                  <CloudOff aria-hidden="true" />
+                  云端还没有素材
+                </div>
               ) : (
                 <>
                   <ResourceGroup
@@ -154,42 +213,69 @@ export function CloudResourceDialog() {
               )}
             </div>
 
-            <section className="kc-cloud-res-options">
-              <label className="kc-cloud-res-option">
-                <input type="checkbox" checked={saveLocally} disabled={busy} onChange={(event) => setSaveLocally(event.target.checked)} />
+            <section className="wc-cloud-res-options">
+              <label className="wc-cloud-res-option">
+                <input
+                  type="checkbox"
+                  checked={saveLocally}
+                  disabled={busy}
+                  onChange={(event) => setSaveLocally(event.target.checked)}
+                />
                 <span>
-                  <strong><Download aria-hidden="true" />清理前自动保存到本地</strong>
-                  <small>先把所选素材下载到本地素材库，再从云端删除；保存失败会取消本次清理。未同步到云端的画布素材会用本地副本重新上传。</small>
+                  <strong>
+                    <Download aria-hidden="true" />
+                    清理前自动保存到本地
+                  </strong>
+                  <small>
+                    先把所选素材下载到本地素材库，再从云端删除；保存失败会取消本次清理。未同步到云端的画布素材会用本地副本重新上传。
+                  </small>
                 </span>
               </label>
-              <label className="kc-cloud-res-option is-switch">
-                <input type="checkbox" checked={skipCloudUploads} disabled={busy} onChange={(event) => setSkipCloudUploads(event.target.checked)} />
+              <label className="wc-cloud-res-option is-switch">
+                <input
+                  type="checkbox"
+                  checked={skipCloudUploads}
+                  disabled={busy}
+                  onChange={(event) => setSkipCloudUploads(event.target.checked)}
+                />
                 <span>
-                  <strong><CloudOff aria-hidden="true" />不再保存素材到云端</strong>
+                  <strong>
+                    <CloudOff aria-hidden="true" />
+                    不再保存素材到云端
+                  </strong>
                   <small>开启后新的画布内容只同步文档，素材保留在本地，不再占用云端配额。</small>
                 </span>
               </label>
             </section>
 
             {error && items.length ? (
-              <div className="kc-cloud-res-inline-error" role="alert"><AlertCircle aria-hidden="true" />{error}</div>
+              <div className="wc-cloud-res-inline-error" role="alert">
+                <AlertCircle aria-hidden="true" />
+                {error}
+              </div>
             ) : null}
 
-            <footer className="kc-cloud-res-footer">
-              <span className="kc-cloud-res-selection">
+            <footer className="wc-cloud-res-footer">
+              <span className="wc-cloud-res-selection">
                 {busy && progress
                   ? `正在保存到本地 ${progress.done}/${progress.total}`
                   : `已选 ${selectedItems.length} 项 · 可释放 ${formatBytes(selectedBytes)}`}
               </span>
               <div>
-                <button type="button" onClick={closeDialog} disabled={busy}>取消</button>
+                <button type="button" onClick={closeDialog} disabled={busy}>
+                  取消
+                </button>
                 <button
                   type="button"
                   className="is-danger"
                   disabled={busy || !selectedItems.length}
                   onClick={() => void cleanup({ saveLocally })}
                 >
-                  {busy ? <LoaderCircle className="is-spinning" aria-hidden="true" /> : <Trash2 aria-hidden="true" />}
+                  {busy ? (
+                    <LoaderCircle className="is-spinning" aria-hidden="true" />
+                  ) : (
+                    <Trash2 aria-hidden="true" />
+                  )}
                   {busy ? "正在清理" : "清理所选"}
                 </button>
               </div>
@@ -219,7 +305,7 @@ function ResourceGroup({
 }) {
   if (!items.length) return null;
   return (
-    <section className="kc-cloud-res-group" aria-label={title}>
+    <section className="wc-cloud-res-group" aria-label={title}>
       <header>
         <span>{title}</span>
         <small>{hint ?? `${items.length} 个`}</small>
@@ -250,7 +336,10 @@ function ResourceRow({
 }) {
   const bound = item.projectIds.length > 0;
   return (
-    <label className={`kc-cloud-res-row ${disabled ? "is-disabled" : ""} ${checked ? "is-checked" : ""}`} role="listitem">
+    <label
+      className={`wc-cloud-res-row ${disabled ? "is-disabled" : ""} ${checked ? "is-checked" : ""}`}
+      role="listitem"
+    >
       <input
         type="checkbox"
         checked={checked}
@@ -258,17 +347,23 @@ function ResourceRow({
         onChange={() => onToggle(item.id)}
         aria-label={`选择 ${item.name}`}
       />
-      <span className="kc-cloud-res-thumb" aria-hidden="true">
+      <span className="wc-cloud-res-thumb" aria-hidden="true">
         {item.kind === "image" ? (
           <img
             src={mediaContentPath(item.id, item.projectIds[0], { variant: "thumb" })}
             alt=""
             loading="lazy"
-            onError={(event) => { event.currentTarget.style.display = "none"; }}
+            onError={(event) => {
+              event.currentTarget.style.display = "none";
+            }}
           />
-        ) : item.kind === "video" ? <Film /> : <Music />}
+        ) : item.kind === "video" ? (
+          <Film />
+        ) : (
+          <Music />
+        )}
       </span>
-      <span className="kc-cloud-res-copy">
+      <span className="wc-cloud-res-copy">
         <strong title={item.name}>{item.name}</strong>
         <small>
           {formatBytes(item.size)} · {new Date(item.createdAt).toLocaleDateString("zh-CN")}
@@ -276,13 +371,23 @@ function ResourceRow({
         </small>
       </span>
       {bound ? (
-        <span className="kc-cloud-res-tag is-bound" title={`被 ${item.projectIds.length} 个云端画布引用`}>
-          <ShieldAlert aria-hidden="true" />已被引用
+        <span
+          className="wc-cloud-res-tag is-bound"
+          title={`被 ${item.projectIds.length} 个云端画布引用`}
+        >
+          <ShieldAlert aria-hidden="true" />
+          已被引用
         </span>
       ) : item.orphaned ? (
-        <span className="kc-cloud-res-tag is-orphan"><Trash2 aria-hidden="true" />可清理</span>
+        <span className="wc-cloud-res-tag is-orphan">
+          <Trash2 aria-hidden="true" />
+          可清理
+        </span>
       ) : (
-        <span className="kc-cloud-res-tag"><HardDrive aria-hidden="true" />使用中</span>
+        <span className="wc-cloud-res-tag">
+          <HardDrive aria-hidden="true" />
+          使用中
+        </span>
       )}
     </label>
   );

@@ -24,7 +24,13 @@ export function isPrivateIp(ip: string): boolean {
     const lower = ip.toLowerCase();
     if (lower === "::1") return true;
     if (lower.startsWith("fc") || lower.startsWith("fd")) return true;
-    if (lower.startsWith("fe8") || lower.startsWith("fe9") || lower.startsWith("fea") || lower.startsWith("feb")) return true;
+    if (
+      lower.startsWith("fe8") ||
+      lower.startsWith("fe9") ||
+      lower.startsWith("fea") ||
+      lower.startsWith("feb")
+    )
+      return true;
     if (lower.startsWith("::ffff:")) return isPrivateIp(lower.slice(7));
     if (lower.startsWith("::")) return true;
     return false;

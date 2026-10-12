@@ -1,4 +1,4 @@
-import type { CanvasControlCommand } from "@kachang/contracts";
+import type { CanvasControlCommand } from "@weftcanvas/contracts";
 import { describe, expect, it } from "vitest";
 
 import { describeCanvasControlOutcome, type CanvasControlOutcome } from "./canvas-control-client";
@@ -32,16 +32,26 @@ describe("describeCanvasControlOutcome", () => {
 
   it("describes applied, partial and rejected results truthfully", () => {
     expect(describeCanvasControlOutcome(command, outcome({}))).toBe("Codex 已完成 1 项画布操作");
-    expect(describeCanvasControlOutcome(command, outcome({
-      status: "partial",
-      appliedActions: 1,
-      skippedActions: [{ index: 1, reason: "没有找到节点 n9" }],
-      reason: "已应用 1 项，另有 1 项未能应用",
-    }))).toContain("部分完成");
-    expect(describeCanvasControlOutcome(command, outcome({
-      status: "rejected",
-      appliedActions: 0,
-      reason: "画布没有接受这组操作",
-    }))).toContain("没有生效");
+    expect(
+      describeCanvasControlOutcome(
+        command,
+        outcome({
+          status: "partial",
+          appliedActions: 1,
+          skippedActions: [{ index: 1, reason: "没有找到节点 n9" }],
+          reason: "已应用 1 项，另有 1 项未能应用",
+        }),
+      ),
+    ).toContain("部分完成");
+    expect(
+      describeCanvasControlOutcome(
+        command,
+        outcome({
+          status: "rejected",
+          appliedActions: 0,
+          reason: "画布没有接受这组操作",
+        }),
+      ),
+    ).toContain("没有生效");
   });
 });

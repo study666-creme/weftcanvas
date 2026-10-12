@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
 
-import { canvasControlCommandSchema, type AgentAction, type AgentCanvasContext, type CanvasControlCommand, type CanvasControlReceiptRequest } from "@kachang/contracts";
+import {
+  canvasControlCommandSchema,
+  type AgentAction,
+  type AgentCanvasContext,
+  type CanvasControlCommand,
+  type CanvasControlReceiptRequest,
+} from "@weftcanvas/contracts";
 
 /**
  * 托管站点上"外部连接操作画布"的服务端一半。
@@ -40,7 +46,10 @@ export class CanvasCommandBroker {
   private readonly waitMs: number;
   private readonly pending = new Map<string, PendingEntry>();
   /** ownerId -> 浏览器最近上报的画布摘要与项目 */
-  private readonly contexts = new Map<string, { projectId: string; context: AgentCanvasContext | null; at: number }>();
+  private readonly contexts = new Map<
+    string,
+    { projectId: string; context: AgentCanvasContext | null; at: number }
+  >();
 
   constructor(options: CanvasCommandBrokerOptions = {}) {
     this.now = options.now ?? Date.now;
@@ -103,7 +112,10 @@ export class CanvasCommandBroker {
     const projectId = input.projectId?.trim() || this.readContext(ownerId)?.projectId;
     if (!projectId) return Promise.resolve(null);
     if (!input.actions.length) return Promise.resolve(null);
-    if ([...this.pending.values()].filter((entry) => entry.ownerId === ownerId).length >= MAX_PENDING_PER_OWNER) {
+    if (
+      [...this.pending.values()].filter((entry) => entry.ownerId === ownerId).length >=
+      MAX_PENDING_PER_OWNER
+    ) {
       return Promise.resolve(null);
     }
 
@@ -124,7 +136,13 @@ export class CanvasCommandBroker {
     return new Promise<CanvasCommandOutcome | null>((resolve) => {
       const timer = setTimeout(() => {
         this.pending.delete(command.id);
-        resolve({ commandId: command.id, status: "rejected", appliedActions: 0, skippedActions: [], reason: "画布没有在等待时间内处理这条指令" });
+        resolve({
+          commandId: command.id,
+          status: "rejected",
+          appliedActions: 0,
+          skippedActions: [],
+          reason: "画布没有在等待时间内处理这条指令",
+        });
       }, this.waitMs);
       const abort = () => {
         clearTimeout(timer);
@@ -150,7 +168,13 @@ export class CanvasCommandBroker {
       if (Date.parse(entry.command.expiresAt) > now) continue;
       clearTimeout(entry.timer);
       this.pending.delete(id);
-      entry.resolve({ commandId: id, status: "rejected", appliedActions: 0, skippedActions: [], reason: "指令已过期" });
+      entry.resolve({
+        commandId: id,
+        status: "rejected",
+        appliedActions: 0,
+        skippedActions: [],
+        reason: "指令已过期",
+      });
     }
   }
 }

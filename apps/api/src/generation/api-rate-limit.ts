@@ -22,7 +22,10 @@ export class PostgresFixedWindowRateLimiter implements FixedWindowRateLimiter {
   private lastCleanupAt = 0;
   private cleanupPromise: Promise<void> | null = null;
 
-  constructor(private readonly pool: Pool, options: { now?: () => number } = {}) {
+  constructor(
+    private readonly pool: Pool,
+    options: { now?: () => number } = {},
+  ) {
     this.now = options.now ?? Date.now;
   }
 
@@ -70,20 +73,24 @@ export class PostgresFixedWindowRateLimiter implements FixedWindowRateLimiter {
     if (this.cleanupPromise) return this.cleanupPromise;
     if (now - this.lastCleanupAt < 60 * 60_000) return Promise.resolve();
     this.lastCleanupAt = now;
-    this.cleanupPromise = this.pool.query(
-      `DELETE FROM canvas_api_rate_limits
+    this.cleanupPromise = this.pool
+      .query(
+        `DELETE FROM canvas_api_rate_limits
        WHERE ctid IN (
          SELECT ctid FROM canvas_api_rate_limits
          WHERE expires_at < $1
          ORDER BY expires_at
          LIMIT 1000
        )`,
-      [new Date(now).toISOString()],
-    ).then(() => undefined).catch((error) => {
-      console.error("Rate-limit cleanup failed", error);
-    }).finally(() => {
-      this.cleanupPromise = null;
-    });
+        [new Date(now).toISOString()],
+      )
+      .then(() => undefined)
+      .catch((error) => {
+        console.error("Rate-limit cleanup failed", error);
+      })
+      .finally(() => {
+        this.cleanupPromise = null;
+      });
     return this.cleanupPromise;
   }
 }
@@ -113,13 +120,22 @@ export class GenerationApiGuard {
   private readonly ownerStreams = new Map<string, number>();
   private streamCount = 0;
 
-  constructor(private readonly limiter: FixedWindowRateLimiter, options: GenerationApiGuardOptions = {}) {
+  constructor(
+    private readonly limiter: FixedWindowRateLimiter,
+    options: GenerationApiGuardOptions = {},
+  ) {
     this.limits = {
       // 提交上限支持 0 = 不设上限（见 checkSubmission）。读取/流连接仍必须为正数。
-      submissionsPerMinute: nonNegativeInteger(options.submissionsPerMinute ?? 10, "submissionsPerMinute"),
+      submissionsPerMinute: nonNegativeInteger(
+        options.submissionsPerMinute ?? 10,
+        "submissionsPerMinute",
+      ),
       submissionsPerDay: nonNegativeInteger(options.submissionsPerDay ?? 100, "submissionsPerDay"),
       readsPerMinute: positiveInteger(options.readsPerMinute ?? 180, "readsPerMinute"),
-      streamStartsPerMinute: positiveInteger(options.streamStartsPerMinute ?? 30, "streamStartsPerMinute"),
+      streamStartsPerMinute: positiveInteger(
+        options.streamStartsPerMinute ?? 30,
+        "streamStartsPerMinute",
+      ),
       streamsPerOwner: positiveInteger(options.streamsPerOwner ?? 3, "streamsPerOwner"),
       streamsGlobal: positiveInteger(options.streamsGlobal ?? 200, "streamsGlobal"),
     };
@@ -133,42 +149,61 @@ export class GenerationApiGuard {
    */
   async checkSubmission(ownerId: string) {
     if (this.limits.submissionsPerMinute > 0) {
-      await this.requireAllowed(await this.limiter.consume({
-        scope: "generation:submit:minute",
-        subjectId: ownerId,
-        limit: this.limits.submissionsPerMinute,
-        windowMs: 60_000,
-      }), "提交过于频繁，请稍后再试");
+      await this.requireAllowed(
+        await this.limiter.consume({
+          scope: "generation:submit:minute",
+          subjectId: ownerId,
+          limit: this.limits.submissionsPerMinute,
+          windowMs: 60_000,
+        }),
+        "提交过于频繁，请稍后再试",
+      );
     }
     if (this.limits.submissionsPerDay > 0) {
-      await this.requireAllowed(await this.limiter.consume({
-        scope: "generation:submit:day",
-        subjectId: ownerId,
-        limit: this.limits.submissionsPerDay,
-        windowMs: 24 * 60 * 60_000,
-      }), "今日提交次数已达到当前限制");
+      await this.requireAllowed(
+        await this.limiter.consume({
+          scope: "generation:submit:day",
+          subjectId: ownerId,
+          limit: this.limits.submissionsPerDay,
+          windowMs: 24 * 60 * 60_000,
+        }),
+        "今日提交次数已达到当前限制",
+      );
     }
   }
 
   async checkRead(ownerId: string) {
-    await this.requireAllowed(await this.limiter.consume({
-      scope: "generation:read:minute",
-      subjectId: ownerId,
-      limit: this.limits.readsPerMinute,
-      windowMs: 60_000,
-    }), "状态刷新过于频繁，请稍后再试");
+    await this.requireAllowed(
+      await this.limiter.consume({
+        scope: "generation:read:minute",
+        subjectId: ownerId,
+        limit: this.limits.readsPerMinute,
+        windowMs: 60_000,
+      }),
+      "状态刷新过于频繁，请稍后再试",
+    );
   }
 
   async acquireStream(ownerId: string) {
-    await this.requireAllowed(await this.limiter.consume({
-      scope: "generation:stream:minute",
-      subjectId: ownerId,
-      limit: this.limits.streamStartsPerMinute,
-      windowMs: 60_000,
-    }), "状态连接过于频繁，请稍后再试");
+    await this.requireAllowed(
+      await this.limiter.consume({
+        scope: "generation:stream:minute",
+        subjectId: ownerId,
+        limit: this.limits.streamStartsPerMinute,
+        windowMs: 60_000,
+      }),
+      "状态连接过于频繁，请稍后再试",
+    );
     const ownerCount = this.ownerStreams.get(ownerId) ?? 0;
-    if (ownerCount >= this.limits.streamsPerOwner || this.streamCount >= this.limits.streamsGlobal) {
-      throw new GenerationApiLimitError("GENERATION_STREAM_LIMITED", "当前状态连接过多，请稍后再试", 5);
+    if (
+      ownerCount >= this.limits.streamsPerOwner ||
+      this.streamCount >= this.limits.streamsGlobal
+    ) {
+      throw new GenerationApiLimitError(
+        "GENERATION_STREAM_LIMITED",
+        "当前状态连接过多，请稍后再试",
+        5,
+      );
     }
     this.ownerStreams.set(ownerId, ownerCount + 1);
     this.streamCount += 1;
@@ -185,7 +220,11 @@ export class GenerationApiGuard {
 
   private async requireAllowed(result: RateLimitResult, message: string) {
     if (!result.allowed) {
-      throw new GenerationApiLimitError("GENERATION_RATE_LIMITED", message, result.retryAfterSeconds);
+      throw new GenerationApiLimitError(
+        "GENERATION_RATE_LIMITED",
+        message,
+        result.retryAfterSeconds,
+      );
     }
   }
 }
@@ -205,11 +244,13 @@ function validSubject(value: string) {
 }
 
 function positiveInteger(value: number, name: string) {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${name} must be a positive safe integer`);
+  if (!Number.isSafeInteger(value) || value <= 0)
+    throw new Error(`${name} must be a positive safe integer`);
   return value;
 }
 
 function nonNegativeInteger(value: number, name: string) {
-  if (!Number.isSafeInteger(value) || value < 0) throw new Error(`${name} must be a non-negative safe integer`);
+  if (!Number.isSafeInteger(value) || value < 0)
+    throw new Error(`${name} must be a non-negative safe integer`);
   return value;
 }

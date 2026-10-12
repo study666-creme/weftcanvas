@@ -30,13 +30,18 @@ export async function runMigrations(pool: Pool, directory = defaultMigrationDire
         applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
-    const applied = await client.query<{ name: string }>("SELECT name FROM canvas_schema_migrations");
+    const applied = await client.query<{ name: string }>(
+      "SELECT name FROM canvas_schema_migrations",
+    );
     const appliedNames = new Set(applied.rows.map((row) => row.name));
     for (const name of files) {
       if (!appliedNames.has(name)) await applyMigration(client, directory, name);
     }
   } finally {
-    if (lockAcquired) await client.query("SELECT pg_advisory_unlock($1)", [MIGRATION_LOCK_ID]).catch(() => undefined);
+    if (lockAcquired)
+      await client
+        .query("SELECT pg_advisory_unlock($1)", [MIGRATION_LOCK_ID])
+        .catch(() => undefined);
     client.release();
   }
 }

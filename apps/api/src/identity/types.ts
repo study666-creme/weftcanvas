@@ -1,4 +1,4 @@
-import type { PublicIdentityUser } from "@kachang/contracts";
+import type { PublicIdentityUser } from "@weftcanvas/contracts";
 
 export type IdentityUserStatus = "active" | "disabled";
 
@@ -24,9 +24,7 @@ export type ActiveIdentitySession = {
   session: IdentitySessionRecord;
 };
 
-export type CreateIdentityAccountResult =
-  | { kind: "created" }
-  | { kind: "email_taken" };
+export type CreateIdentityAccountResult = { kind: "created" } | { kind: "email_taken" };
 
 export interface IdentityStore {
   createAccount(

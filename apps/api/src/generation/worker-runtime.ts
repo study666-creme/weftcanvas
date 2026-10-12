@@ -1,12 +1,16 @@
 import { randomUUID } from "node:crypto";
 
-import type { GenerationJobStatus } from "@kachang/contracts";
+import type { GenerationJobStatus } from "@weftcanvas/contracts";
 
 import type { GenerationJobProcessor } from "./service.js";
 import type { GenerationJobRecord } from "./types.js";
 import type { GenerationWorkLease, GenerationWorkQueue } from "./work-queue.js";
 
-const TERMINAL_STATUSES = new Set<GenerationJobStatus>(["completed", "failed", "submission_unknown"]);
+const TERMINAL_STATUSES = new Set<GenerationJobStatus>([
+  "completed",
+  "failed",
+  "submission_unknown",
+]);
 
 type WorkerRuntimeOptions = {
   owner?: string;
@@ -36,10 +40,12 @@ export class GenerationWorkerRuntime {
     this.now = options.now ?? Date.now;
     this.leaseDurationMs = positiveInteger(options.leaseDurationMs ?? 60_000, "leaseDurationMs");
     this.heartbeatMs = positiveInteger(options.heartbeatMs ?? 20_000, "heartbeatMs");
-    if (this.heartbeatMs >= this.leaseDurationMs) throw new Error("heartbeatMs must be shorter than leaseDurationMs");
+    if (this.heartbeatMs >= this.leaseDurationMs)
+      throw new Error("heartbeatMs must be shorter than leaseDurationMs");
     this.idleDelayMs = positiveInteger(options.idleDelayMs ?? 1_000, "idleDelayMs");
     this.sleep = options.sleep ?? sleep;
-    this.onError = options.onError ?? ((error) => console.error("Generation worker iteration failed", error));
+    this.onError =
+      options.onError ?? ((error) => console.error("Generation worker iteration failed", error));
   }
 
   async run(signal: AbortSignal) {
@@ -50,7 +56,8 @@ export class GenerationWorkerRuntime {
       } catch (error) {
         this.onError(error);
       }
-      if (!worked && !signal.aborted) await this.sleep(this.idleDelayMs, signal).catch(() => undefined);
+      if (!worked && !signal.aborted)
+        await this.sleep(this.idleDelayMs, signal).catch(() => undefined);
     }
   }
 
@@ -64,7 +71,9 @@ export class GenerationWorkerRuntime {
   private async processLease(lease: GenerationWorkLease) {
     const heartbeatController = new AbortController();
     let leaseLost = false;
-    const heartbeat = this.heartbeat(lease, heartbeatController.signal, () => { leaseLost = true; });
+    const heartbeat = this.heartbeat(lease, heartbeatController.signal, () => {
+      leaseLost = true;
+    });
     let result: GenerationJobRecord;
     try {
       result = await this.processor.process(lease.jobId);
@@ -100,7 +109,14 @@ export class GenerationWorkerRuntime {
       await this.sleep(this.heartbeatMs, signal).catch(() => undefined);
       if (signal.aborted) return;
       try {
-        if (!await this.queue.renew(lease.jobId, lease.token, this.timestamp(), this.leaseDurationMs)) {
+        if (
+          !(await this.queue.renew(
+            lease.jobId,
+            lease.token,
+            this.timestamp(),
+            this.leaseDurationMs,
+          ))
+        ) {
           lost();
           return;
         }
@@ -134,7 +150,8 @@ function safeError(error: unknown) {
 }
 
 function positiveInteger(value: number, name: string) {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${name} must be a positive safe integer`);
+  if (!Number.isSafeInteger(value) || value <= 0)
+    throw new Error(`${name} must be a positive safe integer`);
   return value;
 }
 
@@ -145,9 +162,13 @@ function sleep(milliseconds: number, signal?: AbortSignal) {
       return;
     }
     const timer = setTimeout(resolve, milliseconds);
-    signal?.addEventListener("abort", () => {
-      clearTimeout(timer);
-      reject(signal.reason);
-    }, { once: true });
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        reject(signal.reason);
+      },
+      { once: true },
+    );
   });
 }

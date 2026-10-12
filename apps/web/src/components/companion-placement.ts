@@ -7,13 +7,13 @@ export type DockTarget = { key: CompanionDock; selector: string };
  * 选择器只在运行时用来量位置，localStorage 里存的是稳定的业务键。
  */
 export const DOCK_TARGETS: readonly DockTarget[] = [
-  { key: "edit-dock", selector: ".kc-edit-dock" },
-  { key: "node-config", selector: ".kc-node-config-shell" },
-  { key: "node-prompt", selector: ".kc-node-prompt-shell" },
-  { key: "agent-drawer", selector: ".kc-agent-drawer" },
-  { key: "resource-drawer", selector: ".kc-resource-drawer" },
-  { key: "workspace-assets", selector: ".kc-workspace-assets" },
-  { key: "appearance", selector: ".kc-appearance-toolbar" },
+  { key: "edit-dock", selector: ".wc-edit-dock" },
+  { key: "node-config", selector: ".wc-node-config-shell" },
+  { key: "node-prompt", selector: ".wc-node-prompt-shell" },
+  { key: "agent-drawer", selector: ".wc-agent-drawer" },
+  { key: "resource-drawer", selector: ".wc-resource-drawer" },
+  { key: "workspace-assets", selector: ".wc-workspace-assets" },
+  { key: "appearance", selector: ".wc-appearance-toolbar" },
 ];
 
 /**
@@ -65,7 +65,14 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 function toRect(element: Element): Rect | null {
   const rect = element.getBoundingClientRect();
   if (rect.width <= 0 || rect.height <= 0) return null;
-  return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height };
+  return {
+    left: rect.left,
+    top: rect.top,
+    right: rect.right,
+    bottom: rect.bottom,
+    width: rect.width,
+    height: rect.height,
+  };
 }
 
 function dockElement(dock: CompanionDock): Element | null {
@@ -90,7 +97,9 @@ function isDockableSurface(element: Element): boolean {
   if (rect.width * rect.height > viewport * 0.8) return false;
   try {
     if (typeof element.checkVisibility === "function" && !element.checkVisibility()) return false;
-  } catch { /* 没有 checkVisibility 的环境就放过，命中测试还会兜底 */ }
+  } catch {
+    /* 没有 checkVisibility 的环境就放过，命中测试还会兜底 */
+  }
   return true;
 }
 

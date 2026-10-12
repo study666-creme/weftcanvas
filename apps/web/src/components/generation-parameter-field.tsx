@@ -1,7 +1,10 @@
-import type { ModelParameter } from "@kachang/contracts";
+import type { ModelParameter } from "@weftcanvas/contracts";
 import { useEffect, useRef, useState } from "react";
 
-import { generationParameterHint, generationParameterOptionMetaLabel } from "../lib/generation-parameter-hints";
+import {
+  generationParameterHint,
+  generationParameterOptionMetaLabel,
+} from "../lib/generation-parameter-hints";
 import { CanvasSelect } from "./canvas-select";
 
 const BOUNDED_DURATION_PARAMETER_NAMES = new Set(["duration_seconds", "duration", "seconds"]);
@@ -20,8 +23,10 @@ const QUALITY_OPTION_LABELS: Readonly<Record<string, string>> = {
 };
 // 长文本参数（负向提示词、各类参考图 URL）在弹层里必须是多行输入框：
 // 单行 input 既装不下也看不出全貌，用户会以为输入框不存在。
-const MULTILINE_TEXT_PARAMETER_NAME_PATTERN = /(?:^|_)(?:negative_?prompt|prompt|description|instruction|url|uri|link)(?:$|_)|(?:url|uri|link)$/iu;
-const MULTILINE_TEXT_PARAMETER_LABEL_PATTERN = /负向提示词|提示词|描述|说明|参考图\s*URL|URL|链接/iu;
+const MULTILINE_TEXT_PARAMETER_NAME_PATTERN =
+  /(?:^|_)(?:negative_?prompt|prompt|description|instruction|url|uri|link)(?:$|_)|(?:url|uri|link)$/iu;
+const MULTILINE_TEXT_PARAMETER_LABEL_PATTERN =
+  /负向提示词|提示词|描述|说明|参考图\s*URL|URL|链接/iu;
 
 export function GenerationParameterField({
   parameter,
@@ -51,20 +56,23 @@ export function GenerationParameterField({
     const selected = normalizeBoundedDurationValue(parameter, resolvedValue);
     const hasSelected = selected !== undefined;
     return (
-      <div className="kc-generation-field">
+      <div className="wc-generation-field">
         <FieldLabel parameter={parameter} />
         <CanvasSelect
           value={hasSelected ? JSON.stringify(selected) : "__unset__"}
           options={[
             ...(!hasSelected ? [{ value: "__unset__", label: "请选择" }] : []),
-            ...durationValues.map((option) => ({ value: JSON.stringify(option), label: `${option} 秒` })),
+            ...durationValues.map((option) => ({
+              value: JSON.stringify(option),
+              label: `${option} 秒`,
+            })),
           ]}
           disabled={fieldDisabled || durationValues.length === 0}
           ariaLabel={parameter.label}
           menuClassName={menuClassName}
           onChange={(next) => onChange(next === "__unset__" ? undefined : JSON.parse(next))}
         />
-        {hint ? <small className="kc-generation-field-hint">{hint}</small> : null}
+        {hint ? <small className="wc-generation-field-hint">{hint}</small> : null}
       </div>
     );
   }
@@ -72,7 +80,7 @@ export function GenerationParameterField({
   if (scalarOptions) {
     const selected = resolvedValue;
     return (
-      <div className="kc-generation-field">
+      <div className="wc-generation-field">
         <FieldLabel parameter={parameter} />
         <CanvasSelect
           value={selected === undefined ? "__unset__" : JSON.stringify(selected)}
@@ -88,22 +96,27 @@ export function GenerationParameterField({
           menuClassName={menuClassName}
           onChange={(next) => onChange(next === "__unset__" ? undefined : JSON.parse(next))}
         />
-        {hint ? <small className="kc-generation-field-hint">{hint}</small> : null}
+        {hint ? <small className="wc-generation-field-hint">{hint}</small> : null}
       </div>
     );
   }
   if (parameter.type === "boolean") {
     return (
-      <label className="kc-generation-toggle">
+      <label className="wc-generation-toggle">
         <span>{parameter.label}</span>
-        <input type="checkbox" checked={Boolean(resolvedValue)} disabled={fieldDisabled} onChange={(event) => onChange(event.target.checked)} />
+        <input
+          type="checkbox"
+          checked={Boolean(resolvedValue)}
+          disabled={fieldDisabled}
+          onChange={(event) => onChange(event.target.checked)}
+        />
         <i aria-hidden="true" />
       </label>
     );
   }
   if (parameter.type === "integer" || parameter.type === "number") {
     return (
-      <label className="kc-generation-field">
+      <label className="wc-generation-field">
         <FieldLabel parameter={parameter} />
         <input
           type="number"
@@ -113,18 +126,28 @@ export function GenerationParameterField({
           step={parameter.step ?? (parameter.type === "integer" ? 1 : "any")}
           required={parameter.required}
           disabled={fieldDisabled}
-          onChange={(event) => onChange(event.target.value === "" ? undefined : Number(event.target.value))}
+          onChange={(event) =>
+            onChange(event.target.value === "" ? undefined : Number(event.target.value))
+          }
         />
-        {hint ? <small className="kc-generation-field-hint">{hint}</small> : null}
+        {hint ? <small className="wc-generation-field-hint">{hint}</small> : null}
       </label>
     );
   }
   if (parameter.type === "array" || parameter.type === "object") {
-    return <JsonParameterField parameter={parameter} value={resolvedValue} disabled={fieldDisabled} onChange={onChange} onValidityChange={onValidityChange} />;
+    return (
+      <JsonParameterField
+        parameter={parameter}
+        value={resolvedValue}
+        disabled={fieldDisabled}
+        onChange={onChange}
+        onValidityChange={onValidityChange}
+      />
+    );
   }
   if (isMultilineTextParameter(parameter)) {
     return (
-      <label className="kc-generation-field kc-generation-textarea">
+      <label className="wc-generation-field wc-generation-textarea">
         <FieldLabel parameter={parameter} />
         <textarea
           rows={multilineTextRows(parameter)}
@@ -135,12 +158,12 @@ export function GenerationParameterField({
           disabled={fieldDisabled}
           onChange={(event) => onChange(event.target.value || undefined)}
         />
-        {hint ? <small className="kc-generation-field-hint">{hint}</small> : null}
+        {hint ? <small className="wc-generation-field-hint">{hint}</small> : null}
       </label>
     );
   }
   return (
-    <label className="kc-generation-field">
+    <label className="wc-generation-field">
       <FieldLabel parameter={parameter} />
       <input
         type="text"
@@ -151,7 +174,7 @@ export function GenerationParameterField({
         disabled={fieldDisabled}
         onChange={(event) => onChange(event.target.value || undefined)}
       />
-      {hint ? <small className="kc-generation-field-hint">{hint}</small> : null}
+      {hint ? <small className="wc-generation-field-hint">{hint}</small> : null}
     </label>
   );
 }
@@ -162,9 +185,7 @@ export function GenerationParameterField({
  */
 function FieldLabel({ parameter }: { parameter: ModelParameter }) {
   const hint = generationParameterHint(parameter);
-  return (
-    <span title={hint ?? undefined}>{parameter.label}</span>
-  );
+  return <span title={hint ?? undefined}>{parameter.label}</span>;
 }
 
 export function isGenerationParameterLocked(parameter: ModelParameter) {
@@ -189,10 +210,18 @@ function multilineTextRows(parameter: ModelParameter) {
 
 export function generationParameterDisplayValue(parameter: ModelParameter, configured: unknown) {
   if (parameter.fixed !== undefined) return parameter.fixed;
-  if (configured !== undefined && (!parameter.options?.length || parameter.options.some((option) => Object.is(option, configured)))) {
+  if (
+    configured !== undefined &&
+    (!parameter.options?.length ||
+      parameter.options.some((option) => Object.is(option, configured)))
+  ) {
     return configured;
   }
-  if (parameter.default !== undefined && (!parameter.options?.length || parameter.options.some((option) => Object.is(option, parameter.default)))) {
+  if (
+    parameter.default !== undefined &&
+    (!parameter.options?.length ||
+      parameter.options.some((option) => Object.is(option, parameter.default)))
+  ) {
     return parameter.default;
   }
   return parameter.options?.[0];
@@ -204,7 +233,8 @@ export function generationParameterScalarOptions(
 ): Array<string | number | boolean> | null {
   const declared: Array<string | number | boolean> | null = parameter.options?.length
     ? parameter.options
-    : parameter.fixed !== undefined && (parameter.type === "string" || parameter.type === "integer" || parameter.type === "number")
+    : parameter.fixed !== undefined &&
+        (parameter.type === "string" || parameter.type === "integer" || parameter.type === "number")
       ? [parameter.fixed as string | number]
       : null;
   if (!declared) return null;
@@ -220,14 +250,18 @@ export function generationParameterScalarOptions(
  */
 export type BoundedDurationOption = string | number;
 
-export function generationParameterOptionLabel(parameter: ModelParameter, option: string | number | boolean) {
+export function generationParameterOptionLabel(
+  parameter: ModelParameter,
+  option: string | number | boolean,
+) {
   if (typeof option === "string") {
     const metaLabel = generationParameterOptionMetaLabel(parameter, option);
     if (metaLabel) return metaLabel;
     const ratio = pixelSizeToRatio(option);
     if (ratio) return ratio;
   }
-  if (parameter.name.trim().toLowerCase() !== "quality" || typeof option !== "string") return String(option);
+  if (parameter.name.trim().toLowerCase() !== "quality" || typeof option !== "string")
+    return String(option);
   return QUALITY_OPTION_LABELS[option.trim().toLowerCase()] ?? option;
 }
 
@@ -338,7 +372,9 @@ function JsonParameterField({
   onChange: (value: unknown) => void;
   onValidityChange: (valid: boolean) => void;
 }) {
-  const [text, setText] = useState(() => value === undefined ? "" : JSON.stringify(value, null, 2));
+  const [text, setText] = useState(() =>
+    value === undefined ? "" : JSON.stringify(value, null, 2),
+  );
   const emittedValue = useRef(value);
   useEffect(() => {
     if (JSON.stringify(value) === JSON.stringify(emittedValue.current)) return;
@@ -346,7 +382,7 @@ function JsonParameterField({
     setText(value === undefined ? "" : JSON.stringify(value, null, 2));
   }, [value]);
   return (
-    <label className="kc-generation-field kc-generation-json">
+    <label className="wc-generation-field wc-generation-json">
       <span>{parameter.label}</span>
       <textarea
         rows={3}
@@ -363,7 +399,10 @@ function JsonParameterField({
           }
           try {
             const parsed = JSON.parse(next);
-            const validType = parameter.type === "array" ? Array.isArray(parsed) : parsed !== null && typeof parsed === "object" && !Array.isArray(parsed);
+            const validType =
+              parameter.type === "array"
+                ? Array.isArray(parsed)
+                : parsed !== null && typeof parsed === "object" && !Array.isArray(parsed);
             onValidityChange(validType);
             if (validType) {
               emittedValue.current = parsed;

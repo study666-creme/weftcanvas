@@ -1,0 +1,72 @@
+# Self-host the canvas: web (nginx) + API + PostgreSQL, optional generation worker.
+# Setup and instructions: docs/DEPLOYING.md
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: canvas
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: canvas
+    volumes:
+      - canvas-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U canvas -d canvas"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  api:
+    build:
+      context: .
+      target: api-runtime
+    environment:
+      NODE_ENV: production
+      # dev-test = native PostgreSQL identity + durable jobs, zero external services.
+      CANVAS_API_PROVIDER: dev-test
+      DATABASE_URL: postgresql://canvas:${POSTGRES_PASSWORD}@postgres:5432/canvas
+      IDENTITY_SESSION_SECRET: ${IDENTITY_SESSION_SECRET:?set IDENTITY_SESSION_SECRET in .env}
+      REGISTRATION_CREDIT_MICROS: ${REGISTRATION_CREDIT_MICROS:-0}
+    volumes:
+      - canvas-data:/repo/apps/api/.data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      # Optional direct API access (nginx already proxies /api internally).
+      - "${API_PORT:-127.0.0.1:8787}:8787"
+
+  # Durable generation execution. Enable with: docker compose --profile generation up
+  # Generation needs an OpenAI-compatible endpoint; without it, jobs fail honestly.
+  worker:
+    profiles: ["generation"]
+    build:
+      context: .
+      target: api-runtime
+    command: ["node", "apps/worker/dist/server.js"]
+    environment:
+      NODE_ENV: production
+      CANVAS_API_PROVIDER: dev-test
+      DATABASE_URL: postgresql://canvas:${POSTGRES_PASSWORD}@postgres:5432/canvas
+      GENERATION_WORKER_ENABLED: "true"
+      MEDIA_MULTIPART_WORKER_ENABLED: "false"
+      WEFTCANVAS_API_BASE_URL: ${WEFTCANVAS_API_BASE_URL:-}
+      WEFTCANVAS_API_KEY: ${WEFTCANVAS_API_KEY:-}
+    volumes:
+      - canvas-data:/repo/apps/worker/.data
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      target: web-runtime
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      - api
+
+volumes:
+  canvas-db:
+  canvas-data:

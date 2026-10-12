@@ -1,4 +1,4 @@
-import type { CanvasDocument, CanvasProject, CloudProject } from "@kachang/contracts";
+import type { CanvasDocument, CanvasProject, CloudProject } from "@weftcanvas/contracts";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../lib/api-client", async (importActual) => ({
-  ...await importActual<typeof import("../lib/api-client")>(),
+  ...(await importActual<typeof import("../lib/api-client")>()),
   createCloudProject: mocks.createCloudProject,
   deleteCloudProject: mocks.deleteCloudProject,
   fetchCloudProject: mocks.fetchCloudProject,
@@ -19,7 +19,7 @@ vi.mock("../lib/api-client", async (importActual) => ({
   saveCloudProject: mocks.saveCloudProject,
 }));
 vi.mock("../lib/cloud-project-media", async (importActual) => ({
-  ...await importActual<typeof import("../lib/cloud-project-media")>(),
+  ...(await importActual<typeof import("../lib/cloud-project-media")>()),
   prepareProjectMediaForCloud: mocks.prepareProjectMediaForCloud,
 }));
 
@@ -95,7 +95,10 @@ describe("cloud project store", () => {
         },
       },
     }));
-    mocks.deleteCloudProject.mockImplementation(async () => { deleted = true; return { ok: true }; });
+    mocks.deleteCloudProject.mockImplementation(async () => {
+      deleted = true;
+      return { ok: true };
+    });
     await useCloudProjectStore.getState().refresh(OWNER);
     expect(useCloudProjectStore.getState().projects.map((item) => item.id)).toEqual([project.id]);
 
@@ -125,7 +128,9 @@ describe("cloud project store", () => {
         },
       },
     }));
-    mocks.deleteCloudProject.mockRejectedValue(new CanvasApiError(409, "REVISION_CONFLICT", "stale"));
+    mocks.deleteCloudProject.mockRejectedValue(
+      new CanvasApiError(409, "REVISION_CONFLICT", "stale"),
+    );
     await useCloudProjectStore.getState().refresh(OWNER);
 
     const ok = await useCloudProjectStore.getState().deleteProject(OWNER, project.id);
@@ -138,7 +143,9 @@ describe("cloud project store", () => {
     const project = fixtureProject("Local");
     const first = cloudProject(project, 1);
     mocks.createCloudProject.mockResolvedValue(first);
-    mocks.saveCloudProject.mockResolvedValue(cloudProject({ ...project, name: "Edited", updatedAt: 2 }, 2));
+    mocks.saveCloudProject.mockResolvedValue(
+      cloudProject({ ...project, name: "Edited", updatedAt: 2 }, 2),
+    );
     await useCloudProjectStore.getState().refresh(OWNER);
     await useCloudProjectStore.getState().enableProject(OWNER, project);
 
@@ -147,9 +154,13 @@ describe("cloud project store", () => {
     expect(JSON.parse(rawLink ?? "{}").lastSyncedFingerprint).toMatch(/^[a-f0-9]{64}$/);
     expect(JSON.parse(rawLink ?? "{}").projectOwnerId).toBe(OWNER);
 
-    useCloudProjectStore.getState().scheduleSync(OWNER, { ...project, name: "Edited", updatedAt: 2 });
+    useCloudProjectStore
+      .getState()
+      .scheduleSync(OWNER, { ...project, name: "Edited", updatedAt: 2 });
     await vi.advanceTimersByTimeAsync(3_000);
-    await vi.waitFor(() => expect(useCloudProjectStore.getState().links[project.id]?.revision).toBe(2));
+    await vi.waitFor(() =>
+      expect(useCloudProjectStore.getState().links[project.id]?.revision).toBe(2),
+    );
     expect(mocks.saveCloudProject).toHaveBeenCalledTimes(1);
     expect(mocks.saveCloudProject.mock.calls[0]?.[1]).toMatchObject({ baseRevision: 1 });
   });
@@ -161,24 +172,34 @@ describe("cloud project store", () => {
     await useCloudProjectStore.getState().refresh(OWNER);
 
     useCloudProjectStore.getState().ensureAutoSync(OWNER, project);
-    await vi.waitFor(() => expect(useCloudProjectStore.getState().links[project.id]?.revision).toBe(1));
+    await vi.waitFor(() =>
+      expect(useCloudProjectStore.getState().links[project.id]?.revision).toBe(1),
+    );
 
     // 静默开通：无成功 toast，状态为 synced。
-    expect(useToastStore.getState().items.filter((item) => item.tone === "success")).toHaveLength(0);
+    expect(useToastStore.getState().items.filter((item) => item.tone === "success")).toHaveLength(
+      0,
+    );
     expect(useCloudProjectStore.getState().statusByProject[project.id]).toBe("synced");
     expect(mocks.createCloudProject).toHaveBeenCalledTimes(1);
   });
 
   it("suspends silently when auto-enable hits the cloud project limit", async () => {
     const project = fixtureProject("Auto limited");
-    mocks.createCloudProject.mockRejectedValue(new CanvasApiError(403, "CLOUD_PROJECT_LIMIT_REACHED", "limit"));
+    mocks.createCloudProject.mockRejectedValue(
+      new CanvasApiError(403, "CLOUD_PROJECT_LIMIT_REACHED", "limit"),
+    );
     await useCloudProjectStore.getState().refresh(OWNER);
 
     useCloudProjectStore.getState().ensureAutoSync(OWNER, project);
-    await vi.waitFor(() => expect(useCloudProjectStore.getState().statusByProject[project.id]).toBe("local-only"));
+    await vi.waitFor(() =>
+      expect(useCloudProjectStore.getState().statusByProject[project.id]).toBe("local-only"),
+    );
 
     // 配额满：转入 local-only（贴士可见），但不弹任何 toast 打扰。
-    expect(useCloudProjectStore.getState().errorByProject[project.id]).toBe(CLOUD_QUOTA_LOCAL_MESSAGE);
+    expect(useCloudProjectStore.getState().errorByProject[project.id]).toBe(
+      CLOUD_QUOTA_LOCAL_MESSAGE,
+    );
     expect(useToastStore.getState().items).toHaveLength(0);
   });
 
@@ -197,51 +218,67 @@ describe("cloud project store", () => {
 
     useCloudProjectStore.getState().scheduleSync(OWNER, edited, true);
     await vi.advanceTimersByTimeAsync(0);
-    await vi.waitFor(() => expect(useCloudProjectStore.getState().statusByProject[project.id]).toBe("local-only"));
+    await vi.waitFor(() =>
+      expect(useCloudProjectStore.getState().statusByProject[project.id]).toBe("local-only"),
+    );
 
-    expect(useCloudProjectStore.getState().errorByProject[project.id]).toBe(CLOUD_QUOTA_LOCAL_MESSAGE);
+    expect(useCloudProjectStore.getState().errorByProject[project.id]).toBe(
+      CLOUD_QUOTA_LOCAL_MESSAGE,
+    );
     expect(readProject(project.id)?.name).toBe("Local edit");
     expect(mocks.saveCloudProject).toHaveBeenCalledTimes(1);
 
-    useCloudProjectStore.getState().scheduleSync(OWNER, { ...edited, name: "Newer local edit", updatedAt: 3 });
+    useCloudProjectStore
+      .getState()
+      .scheduleSync(OWNER, { ...edited, name: "Newer local edit", updatedAt: 3 });
     await vi.advanceTimersByTimeAsync(10_000);
     expect(mocks.saveCloudProject).toHaveBeenCalledTimes(1);
 
     useCloudProjectStore.getState().reset();
     await useCloudProjectStore.getState().refresh(OWNER, true);
     expect(useCloudProjectStore.getState().statusByProject[project.id]).toBe("local-only");
-    expect(useCloudProjectStore.getState().errorByProject[project.id]).toBe(CLOUD_QUOTA_LOCAL_MESSAGE);
+    expect(useCloudProjectStore.getState().errorByProject[project.id]).toBe(
+      CLOUD_QUOTA_LOCAL_MESSAGE,
+    );
 
-    useCloudProjectStore.getState().scheduleSync(OWNER, { ...edited, name: "Edit after reload", updatedAt: 4 }, true);
+    useCloudProjectStore
+      .getState()
+      .scheduleSync(OWNER, { ...edited, name: "Edit after reload", updatedAt: 4 }, true);
     await vi.advanceTimersByTimeAsync(10_000);
     expect(mocks.saveCloudProject).toHaveBeenCalledTimes(1);
   });
 
-  it.each([
-    "CLOUD_PROJECT_DOCUMENT_TOO_LARGE",
-    "MEDIA_TOO_LARGE",
-  ])("persists terminal local saving for hard size error %s", async (code) => {
-    const project = fixtureProject("Hard size limit");
-    const edited = { ...project, name: "Oversized cloud content", updatedAt: 2 };
-    mocks.createCloudProject.mockResolvedValue(cloudProject(project, 1));
-    mocks.saveCloudProject.mockRejectedValue(new CanvasApiError(413, code, "too large"));
+  it.each(["CLOUD_PROJECT_DOCUMENT_TOO_LARGE", "MEDIA_TOO_LARGE"])(
+    "persists terminal local saving for hard size error %s",
+    async (code) => {
+      const project = fixtureProject("Hard size limit");
+      const edited = { ...project, name: "Oversized cloud content", updatedAt: 2 };
+      mocks.createCloudProject.mockResolvedValue(cloudProject(project, 1));
+      mocks.saveCloudProject.mockRejectedValue(new CanvasApiError(413, code, "too large"));
 
-    await useCloudProjectStore.getState().refresh(OWNER);
-    await useCloudProjectStore.getState().enableProject(OWNER, project);
-    useCloudProjectStore.getState().scheduleSync(OWNER, edited, true);
-    await vi.advanceTimersByTimeAsync(0);
-    await vi.waitFor(() => expect(useCloudProjectStore.getState().statusByProject[project.id]).toBe("local-only"));
-    expect(useCloudProjectStore.getState().errorByProject[project.id]).toBe(CLOUD_SIZE_LOCAL_MESSAGE);
-    expect(mocks.saveCloudProject).toHaveBeenCalledTimes(1);
+      await useCloudProjectStore.getState().refresh(OWNER);
+      await useCloudProjectStore.getState().enableProject(OWNER, project);
+      useCloudProjectStore.getState().scheduleSync(OWNER, edited, true);
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.waitFor(() =>
+        expect(useCloudProjectStore.getState().statusByProject[project.id]).toBe("local-only"),
+      );
+      expect(useCloudProjectStore.getState().errorByProject[project.id]).toBe(
+        CLOUD_SIZE_LOCAL_MESSAGE,
+      );
+      expect(mocks.saveCloudProject).toHaveBeenCalledTimes(1);
 
-    useCloudProjectStore.getState().reset();
-    await useCloudProjectStore.getState().refresh(OWNER, true);
-    expect(useCloudProjectStore.getState().statusByProject[project.id]).toBe("local-only");
-    expect(useCloudProjectStore.getState().errorByProject[project.id]).toBe(CLOUD_SIZE_LOCAL_MESSAGE);
-    useCloudProjectStore.getState().scheduleSync(OWNER, { ...edited, updatedAt: 3 }, true);
-    await vi.advanceTimersByTimeAsync(10_000);
-    expect(mocks.saveCloudProject).toHaveBeenCalledTimes(1);
-  });
+      useCloudProjectStore.getState().reset();
+      await useCloudProjectStore.getState().refresh(OWNER, true);
+      expect(useCloudProjectStore.getState().statusByProject[project.id]).toBe("local-only");
+      expect(useCloudProjectStore.getState().errorByProject[project.id]).toBe(
+        CLOUD_SIZE_LOCAL_MESSAGE,
+      );
+      useCloudProjectStore.getState().scheduleSync(OWNER, { ...edited, updatedAt: 3 }, true);
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(mocks.saveCloudProject).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("creates and links the project before media upload, then resumes only after an explicit retry", async () => {
     const project = fixtureProjectWithLocalMedia("Local media");
@@ -261,14 +298,18 @@ describe("cloud project store", () => {
     });
     await useCloudProjectStore.getState().refresh(OWNER);
 
-    await expect(useCloudProjectStore.getState().enableProject(OWNER, project)).resolves.toBe(false);
+    await expect(useCloudProjectStore.getState().enableProject(OWNER, project)).resolves.toBe(
+      false,
+    );
 
     expect(callOrder).toEqual(["create", "prepare-media"]);
-    expect(mocks.createCloudProject.mock.calls[0]?.[0].document.nodes[0]?.data.media).toMatchObject({
-      id: "local-media",
-      source: "local",
-      serverId: null,
-    });
+    expect(mocks.createCloudProject.mock.calls[0]?.[0].document.nodes[0]?.data.media).toMatchObject(
+      {
+        id: "local-media",
+        source: "local",
+        serverId: null,
+      },
+    );
     expect(mocks.saveCloudProject).not.toHaveBeenCalled();
     expect(useCloudProjectStore.getState().links[project.id]?.revision).toBe(1);
     expect(useCloudProjectStore.getState().statusByProject[project.id]).toBe("local-only");
@@ -289,17 +330,21 @@ describe("cloud project store", () => {
       prepared.nodes[0]!.data.media!.serverId = "11111111-1111-4111-8111-111111111111";
       return prepared;
     });
-    mocks.saveCloudProject.mockImplementation(async (_projectId: string, value: { document: CanvasDocument }) => ({
-      ...cloudProject(edited, 2),
-      title: value.document.title,
-      document: value.document,
-    }));
+    mocks.saveCloudProject.mockImplementation(
+      async (_projectId: string, value: { document: CanvasDocument }) => ({
+        ...cloudProject(edited, 2),
+        title: value.document.title,
+        document: value.document,
+      }),
+    );
 
     useCloudProjectStore.getState().retrySync(OWNER, edited);
     useCloudProjectStore.getState().retrySync(OWNER, edited);
     expect(useCloudProjectStore.getState().statusByProject[project.id]).toBe("syncing");
     await vi.advanceTimersByTimeAsync(0);
-    await vi.waitFor(() => expect(useCloudProjectStore.getState().statusByProject[project.id]).toBe("synced"));
+    await vi.waitFor(() =>
+      expect(useCloudProjectStore.getState().statusByProject[project.id]).toBe("synced"),
+    );
 
     expect(mocks.prepareProjectMediaForCloud).toHaveBeenCalledTimes(2);
     expect(mocks.saveCloudProject).toHaveBeenCalledTimes(1);
@@ -332,19 +377,23 @@ describe("cloud project store", () => {
       prepared.nodes[0]!.data.media!.serverId = boundMediaId;
       return prepared;
     });
-    mocks.saveCloudProject.mockImplementation(async (_projectId: string, value: { document: CanvasDocument }) => ({
-      ...cloudProject(project, 2),
-      document: value.document,
-    }));
+    mocks.saveCloudProject.mockImplementation(
+      async (_projectId: string, value: { document: CanvasDocument }) => ({
+        ...cloudProject(project, 2),
+        document: value.document,
+      }),
+    );
 
     await useCloudProjectStore.getState().refresh(OWNER);
     await expect(useCloudProjectStore.getState().enableProject(OWNER, project)).resolves.toBe(true);
 
-    expect(mocks.createCloudProject.mock.calls[0]?.[0].document.nodes[0]?.data.media).toMatchObject({
-      id: personalMediaId,
-      source: "local",
-      serverId: null,
-    });
+    expect(mocks.createCloudProject.mock.calls[0]?.[0].document.nodes[0]?.data.media).toMatchObject(
+      {
+        id: personalMediaId,
+        source: "local",
+        serverId: null,
+      },
+    );
     expect(mocks.saveCloudProject.mock.calls[0]?.[1].document.nodes[0]?.data.media).toMatchObject({
       id: boundMediaId,
       source: "server",
@@ -360,20 +409,18 @@ describe("cloud project store", () => {
     writeProject(local);
     useCanvasStore.getState().replaceProject(local);
     mocks.createCloudProject.mockResolvedValue(cloudProject(fixtureProject("Base"), 1));
-    mocks.saveCloudProject.mockRejectedValue(new CanvasApiError(
-      409,
-      "CLOUD_PROJECT_REVISION_CONFLICT",
-      "conflict",
-      null,
-      2,
-    ));
+    mocks.saveCloudProject.mockRejectedValue(
+      new CanvasApiError(409, "CLOUD_PROJECT_REVISION_CONFLICT", "conflict", null, 2),
+    );
     mocks.fetchCloudProject.mockResolvedValue(cloudProject(remote, 2));
     await useCloudProjectStore.getState().refresh(OWNER);
     await useCloudProjectStore.getState().enableProject(OWNER, fixtureProject("Base"));
 
     useCloudProjectStore.getState().scheduleSync(OWNER, local, true);
     await vi.advanceTimersByTimeAsync(0);
-    await vi.waitFor(() => expect(useCloudProjectStore.getState().links[local.id]?.revision).toBe(2));
+    await vi.waitFor(() =>
+      expect(useCloudProjectStore.getState().links[local.id]?.revision).toBe(2),
+    );
 
     const projects = readAllProjects();
     expect(projects.some((project) => project.name.includes("冲突副本"))).toBe(true);
@@ -395,28 +442,38 @@ describe("cloud project store", () => {
     await useCloudProjectStore.getState().enableProject(OWNER, base);
     useCloudProjectStore.getState().scheduleSync(OWNER, local, true);
     await vi.advanceTimersByTimeAsync(0);
-    await vi.waitFor(() => expect(useCloudProjectStore.getState().links[local.id]?.revision).toBe(3));
+    await vi.waitFor(() =>
+      expect(useCloudProjectStore.getState().links[local.id]?.revision).toBe(3),
+    );
 
     expect(mocks.saveCloudProject).toHaveBeenCalledTimes(2);
     expect(mocks.saveCloudProject.mock.calls[1]?.[1]).toMatchObject({ baseRevision: 2 });
-    expect(readAllProjects().filter((project) => project.name.includes("冲突副本"))).toHaveLength(0);
+    expect(readAllProjects().filter((project) => project.name.includes("冲突副本"))).toHaveLength(
+      0,
+    );
   });
 
   it("adopts an identical remote document after a conflict without copying it", async () => {
     const base = fixtureProject("Base");
     const local = fixtureProject("Local edit");
     mocks.createCloudProject.mockResolvedValue(cloudProject(base, 1));
-    mocks.saveCloudProject.mockRejectedValue(new CanvasApiError(409, "CLOUD_PROJECT_REVISION_CONFLICT", "conflict"));
+    mocks.saveCloudProject.mockRejectedValue(
+      new CanvasApiError(409, "CLOUD_PROJECT_REVISION_CONFLICT", "conflict"),
+    );
     mocks.fetchCloudProject.mockResolvedValue(cloudProject(local, 2));
 
     await useCloudProjectStore.getState().refresh(OWNER);
     await useCloudProjectStore.getState().enableProject(OWNER, base);
     useCloudProjectStore.getState().scheduleSync(OWNER, local, true);
     await vi.advanceTimersByTimeAsync(0);
-    await vi.waitFor(() => expect(useCloudProjectStore.getState().links[local.id]?.revision).toBe(2));
+    await vi.waitFor(() =>
+      expect(useCloudProjectStore.getState().links[local.id]?.revision).toBe(2),
+    );
 
     expect(mocks.saveCloudProject).toHaveBeenCalledTimes(1);
-    expect(readAllProjects().filter((project) => project.name.includes("冲突副本"))).toHaveLength(0);
+    expect(readAllProjects().filter((project) => project.name.includes("冲突副本"))).toHaveLength(
+      0,
+    );
     expect(useCloudProjectStore.getState().statusByProject[local.id]).toBe("synced");
   });
 
@@ -427,28 +484,32 @@ describe("cloud project store", () => {
     writeProject(local);
     useCanvasStore.getState().replaceProject(local);
     mocks.createCloudProject.mockResolvedValue(cloudProject(fixtureProject("Base"), 1));
-    mocks.saveCloudProject.mockRejectedValue(new CanvasApiError(
-      409,
-      "CLOUD_PROJECT_REVISION_CONFLICT",
-      "conflict",
-      null,
-      2,
-    ));
+    mocks.saveCloudProject.mockRejectedValue(
+      new CanvasApiError(409, "CLOUD_PROJECT_REVISION_CONFLICT", "conflict", null, 2),
+    );
     mocks.fetchCloudProject.mockResolvedValue(cloudProject(remote, 2));
     await useCloudProjectStore.getState().refresh(OWNER);
     await useCloudProjectStore.getState().enableProject(OWNER, fixtureProject("Base"));
 
     useCloudProjectStore.getState().scheduleSync(OWNER, local, true);
     await vi.advanceTimersByTimeAsync(0);
-    await vi.waitFor(() => expect(useCloudProjectStore.getState().links[local.id]?.revision).toBe(2));
+    await vi.waitFor(() =>
+      expect(useCloudProjectStore.getState().links[local.id]?.revision).toBe(2),
+    );
 
-    expect(readAllProjects().filter((project) => project.name.includes("冲突副本"))).toHaveLength(1);
+    expect(readAllProjects().filter((project) => project.name.includes("冲突副本"))).toHaveLength(
+      1,
+    );
 
     useCloudProjectStore.getState().scheduleSync(OWNER, { ...local, updatedAt: 5 }, true);
     await vi.advanceTimersByTimeAsync(0);
-    await vi.waitFor(() => expect(useCloudProjectStore.getState().statusByProject[local.id]).toBe("conflict"));
+    await vi.waitFor(() =>
+      expect(useCloudProjectStore.getState().statusByProject[local.id]).toBe("conflict"),
+    );
 
-    expect(readAllProjects().filter((project) => project.name.includes("冲突副本"))).toHaveLength(1);
+    expect(readAllProjects().filter((project) => project.name.includes("冲突副本"))).toHaveLength(
+      1,
+    );
   });
 
   it("keeps the conflict copy offline without a cloud link or generation runtime state", async () => {
@@ -461,20 +522,18 @@ describe("cloud project store", () => {
     writeProject(local);
     useCanvasStore.getState().replaceProject(local);
     mocks.createCloudProject.mockResolvedValue(cloudProject(fixtureProject("Base"), 1));
-    mocks.saveCloudProject.mockRejectedValue(new CanvasApiError(
-      409,
-      "CLOUD_PROJECT_REVISION_CONFLICT",
-      "conflict",
-      null,
-      2,
-    ));
+    mocks.saveCloudProject.mockRejectedValue(
+      new CanvasApiError(409, "CLOUD_PROJECT_REVISION_CONFLICT", "conflict", null, 2),
+    );
     mocks.fetchCloudProject.mockResolvedValue(cloudProject(remote, 2));
     await useCloudProjectStore.getState().refresh(OWNER);
     await useCloudProjectStore.getState().enableProject(OWNER, fixtureProject("Base"));
 
     useCloudProjectStore.getState().scheduleSync(OWNER, local, true);
     await vi.advanceTimersByTimeAsync(0);
-    await vi.waitFor(() => expect(useCloudProjectStore.getState().links[local.id]?.revision).toBe(2));
+    await vi.waitFor(() =>
+      expect(useCloudProjectStore.getState().links[local.id]?.revision).toBe(2),
+    );
 
     const copies = readAllProjects().filter((project) => project.name.includes("冲突副本"));
     expect(copies).toHaveLength(1);
@@ -498,25 +557,27 @@ describe("cloud project store", () => {
     writeProject(local);
     useCanvasStore.getState().replaceProject(local);
     mocks.createCloudProject.mockResolvedValue(cloudProject(fixtureProject("Base"), 1));
-    mocks.saveCloudProject.mockRejectedValue(new CanvasApiError(
-      409,
-      "CLOUD_PROJECT_REVISION_CONFLICT",
-      "conflict",
-      null,
-      2,
-    ));
+    mocks.saveCloudProject.mockRejectedValue(
+      new CanvasApiError(409, "CLOUD_PROJECT_REVISION_CONFLICT", "conflict", null, 2),
+    );
     mocks.fetchCloudProject.mockResolvedValue(cloudProject(remote, 2));
     await useCloudProjectStore.getState().refresh(OWNER);
     await useCloudProjectStore.getState().enableProject(OWNER, fixtureProject("Base"));
 
     useCloudProjectStore.getState().scheduleSync(OWNER, local, true);
-    useCloudProjectStore.getState().scheduleSync(OWNER, { ...local, name: "Stale queued edit", updatedAt: 4 }, true);
+    useCloudProjectStore
+      .getState()
+      .scheduleSync(OWNER, { ...local, name: "Stale queued edit", updatedAt: 4 }, true);
     await vi.advanceTimersByTimeAsync(0);
-    await vi.waitFor(() => expect(useCloudProjectStore.getState().links[local.id]?.revision).toBe(2));
+    await vi.waitFor(() =>
+      expect(useCloudProjectStore.getState().links[local.id]?.revision).toBe(2),
+    );
     await vi.advanceTimersByTimeAsync(5_000);
 
     expect(mocks.saveCloudProject).toHaveBeenCalledTimes(1);
-    expect(readAllProjects().filter((project) => project.name.includes("冲突副本"))).toHaveLength(1);
+    expect(readAllProjects().filter((project) => project.name.includes("冲突副本"))).toHaveLength(
+      1,
+    );
   });
 
   it("saves the next real local edit to a new revision after a conflict", async () => {
@@ -527,7 +588,9 @@ describe("cloud project store", () => {
     useCanvasStore.getState().replaceProject(local);
     mocks.createCloudProject.mockResolvedValue(cloudProject(fixtureProject("Base"), 1));
     mocks.saveCloudProject
-      .mockRejectedValueOnce(new CanvasApiError(409, "CLOUD_PROJECT_REVISION_CONFLICT", "conflict", null, 2))
+      .mockRejectedValueOnce(
+        new CanvasApiError(409, "CLOUD_PROJECT_REVISION_CONFLICT", "conflict", null, 2),
+      )
       .mockResolvedValueOnce(cloudProject({ ...remote, name: "Next edit", updatedAt: 4 }, 3));
     mocks.fetchCloudProject.mockResolvedValue(cloudProject(remote, 2));
     await useCloudProjectStore.getState().refresh(OWNER);
@@ -535,13 +598,17 @@ describe("cloud project store", () => {
 
     useCloudProjectStore.getState().scheduleSync(OWNER, local, true);
     await vi.advanceTimersByTimeAsync(0);
-    await vi.waitFor(() => expect(useCloudProjectStore.getState().links[local.id]?.revision).toBe(2));
+    await vi.waitFor(() =>
+      expect(useCloudProjectStore.getState().links[local.id]?.revision).toBe(2),
+    );
 
     const nextEdit = { ...remote, name: "Next edit", updatedAt: 4 };
     writeProject(nextEdit);
     useCloudProjectStore.getState().scheduleSync(OWNER, nextEdit, true);
     await vi.advanceTimersByTimeAsync(0);
-    await vi.waitFor(() => expect(useCloudProjectStore.getState().links[local.id]?.revision).toBe(3));
+    await vi.waitFor(() =>
+      expect(useCloudProjectStore.getState().links[local.id]?.revision).toBe(3),
+    );
     expect(useCloudProjectStore.getState().statusByProject[local.id]).toBe("synced");
     expect(useCloudProjectStore.getState().errorByProject[local.id]).toBeNull();
   });
@@ -556,11 +623,15 @@ describe("cloud project store", () => {
     await useCloudProjectStore.getState().refresh(OWNER);
 
     await useCloudProjectStore.getState().openRemoteProject(OWNER, local.id);
-    expect(readAllProjects().filter((project) => project.name.includes("冲突副本"))).toHaveLength(1);
+    expect(readAllProjects().filter((project) => project.name.includes("冲突副本"))).toHaveLength(
+      1,
+    );
 
     writeProject(local);
     await useCloudProjectStore.getState().openRemoteProject(OWNER, local.id);
-    expect(readAllProjects().filter((project) => project.name.includes("冲突副本"))).toHaveLength(1);
+    expect(readAllProjects().filter((project) => project.name.includes("冲突副本"))).toHaveLength(
+      1,
+    );
   });
 
   it("ignores an old owner's deferred open response after the account changes", async () => {
@@ -607,7 +678,9 @@ describe("cloud project store", () => {
       projects: [],
       statusByProject: {},
     });
-    expect([...((localStorage as MemoryStorage).values.keys())].some((key) => key.includes("cloud-link"))).toBe(false);
+    expect(
+      [...(localStorage as MemoryStorage).values.keys()].some((key) => key.includes("cloud-link")),
+    ).toBe(false);
     expect(useToastStore.getState().items).toEqual([]);
   });
 
@@ -616,7 +689,9 @@ describe("cloud project store", () => {
     mocks.fetchCloudProject.mockReturnValueOnce(request.promise);
     await useCloudProjectStore.getState().refresh(OWNER);
 
-    const opening = useCloudProjectStore.getState().openRemoteProject(OWNER, "project-owner-a-remote");
+    const opening = useCloudProjectStore
+      .getState()
+      .openRemoteProject(OWNER, "project-owner-a-remote");
     authenticate(OTHER_OWNER);
     await useCloudProjectStore.getState().refresh(OTHER_OWNER, true);
     request.reject(new CanvasApiError(401, "UNAUTHENTICATED", "expired"));
@@ -635,14 +710,14 @@ describe("cloud project store", () => {
     writeProject(project);
     const before = readProject(project.id);
     mocks.createCloudProject.mockResolvedValue(cloudProject(project, 1));
-    mocks.prepareProjectMediaForCloud.mockRejectedValue(new CanvasApiError(
-      403,
-      "MEDIA_STORAGE_LIMIT_REACHED",
-      "media quota reached",
-    ));
+    mocks.prepareProjectMediaForCloud.mockRejectedValue(
+      new CanvasApiError(403, "MEDIA_STORAGE_LIMIT_REACHED", "media quota reached"),
+    );
 
     await useCloudProjectStore.getState().refresh(OWNER);
-    await expect(useCloudProjectStore.getState().enableProject(OWNER, project)).resolves.toBe(false);
+    await expect(useCloudProjectStore.getState().enableProject(OWNER, project)).resolves.toBe(
+      false,
+    );
 
     expect(readProject(project.id)).toEqual(before);
     expect(useCloudProjectStore.getState().statusByProject[project.id]).toBe("local-only");
@@ -655,11 +730,9 @@ describe("cloud project store", () => {
   it("does not retry autosaves after a quota failure until explicitly retried", async () => {
     const project = fixtureProject("Local only");
     mocks.createCloudProject.mockResolvedValue(cloudProject(project, 1));
-    mocks.prepareProjectMediaForCloud.mockRejectedValueOnce(new CanvasApiError(
-      403,
-      "CLOUD_PROJECT_STORAGE_LIMIT_REACHED",
-      "project quota reached",
-    ));
+    mocks.prepareProjectMediaForCloud.mockRejectedValueOnce(
+      new CanvasApiError(403, "CLOUD_PROJECT_STORAGE_LIMIT_REACHED", "project quota reached"),
+    );
 
     await useCloudProjectStore.getState().refresh(OWNER);
     await useCloudProjectStore.getState().enableProject(OWNER, project);
@@ -678,11 +751,9 @@ describe("cloud project store", () => {
     const project = fixtureProject("Retry me");
     const edited = { ...project, name: "Retry me after upgrade", updatedAt: 2 };
     mocks.createCloudProject.mockResolvedValue(cloudProject(project, 1));
-    mocks.prepareProjectMediaForCloud.mockRejectedValueOnce(new CanvasApiError(
-      403,
-      "MEDIA_STORAGE_LIMIT_REACHED",
-      "media quota reached",
-    ));
+    mocks.prepareProjectMediaForCloud.mockRejectedValueOnce(
+      new CanvasApiError(403, "MEDIA_STORAGE_LIMIT_REACHED", "media quota reached"),
+    );
     mocks.saveCloudProject.mockResolvedValue(cloudProject(edited, 2));
 
     await useCloudProjectStore.getState().refresh(OWNER);
@@ -693,7 +764,9 @@ describe("cloud project store", () => {
     useCloudProjectStore.getState().retrySync(OWNER, edited);
     await vi.advanceTimersByTimeAsync(0);
     await vi.waitFor(() => expect(mocks.saveCloudProject).toHaveBeenCalledTimes(1));
-    await vi.waitFor(() => expect(useCloudProjectStore.getState().statusByProject[project.id]).toBe("synced"));
+    await vi.waitFor(() =>
+      expect(useCloudProjectStore.getState().statusByProject[project.id]).toBe("synced"),
+    );
 
     expect(mocks.saveCloudProject.mock.calls[0]?.[0]).toBe(project.id);
     expect(mocks.saveCloudProject.mock.calls[0]?.[1]).toMatchObject({ baseRevision: 1 });
@@ -706,14 +779,14 @@ describe("cloud project store", () => {
 
   it("checks project quota before attempting any media upload", async () => {
     const project = fixtureProject("Project quota");
-    mocks.createCloudProject.mockRejectedValue(new CanvasApiError(
-      403,
-      "CLOUD_PROJECT_LIMIT_REACHED",
-      "project quota reached",
-    ));
+    mocks.createCloudProject.mockRejectedValue(
+      new CanvasApiError(403, "CLOUD_PROJECT_LIMIT_REACHED", "project quota reached"),
+    );
 
     await useCloudProjectStore.getState().refresh(OWNER);
-    await expect(useCloudProjectStore.getState().enableProject(OWNER, project)).resolves.toBe(false);
+    await expect(useCloudProjectStore.getState().enableProject(OWNER, project)).resolves.toBe(
+      false,
+    );
 
     expect(mocks.prepareProjectMediaForCloud).not.toHaveBeenCalled();
     expect(useCloudProjectStore.getState().statusByProject[project.id]).toBe("local-only");
@@ -723,11 +796,9 @@ describe("cloud project store", () => {
   it("keeps the cloud link when media quota fails after project creation", async () => {
     const project = fixtureProject("Linked local-only");
     mocks.createCloudProject.mockResolvedValue(cloudProject(project, 1));
-    mocks.prepareProjectMediaForCloud.mockRejectedValue(new CanvasApiError(
-      403,
-      "MEDIA_STORAGE_LIMIT_REACHED",
-      "media quota reached",
-    ));
+    mocks.prepareProjectMediaForCloud.mockRejectedValue(
+      new CanvasApiError(403, "MEDIA_STORAGE_LIMIT_REACHED", "media quota reached"),
+    );
 
     await useCloudProjectStore.getState().refresh(OWNER);
     await useCloudProjectStore.getState().enableProject(OWNER, project);
@@ -745,12 +816,24 @@ describe("cloud project store", () => {
 
 class MemoryStorage implements Storage {
   readonly values = new Map<string, string>();
-  get length() { return this.values.size; }
-  clear() { this.values.clear(); }
-  getItem(key: string) { return this.values.get(key) ?? null; }
-  key(index: number) { return [...this.values.keys()][index] ?? null; }
-  removeItem(key: string) { this.values.delete(key); }
-  setItem(key: string, value: string) { this.values.set(key, String(value)); }
+  get length() {
+    return this.values.size;
+  }
+  clear() {
+    this.values.clear();
+  }
+  getItem(key: string) {
+    return this.values.get(key) ?? null;
+  }
+  key(index: number) {
+    return [...this.values.keys()][index] ?? null;
+  }
+  removeItem(key: string) {
+    this.values.delete(key);
+  }
+  setItem(key: string, value: string) {
+    this.values.set(key, String(value));
+  }
 }
 
 function cloudProject(project: CanvasProject, revision: number): CloudProject {
@@ -798,48 +881,50 @@ function fixtureProject(name: string): CanvasProject {
 function fixtureProjectWithLocalMedia(name: string): CanvasProject {
   return {
     ...fixtureProject(name),
-    nodes: [{
-      id: "node-local-media",
-      type: "kachang",
-      position: { x: 10, y: 20 },
-      data: {
-        kind: "image",
-        body: "",
-        accent: "jade",
-        status: "success",
-        progress: null,
-        media: {
-          id: "local-media",
-          name: "frame.png",
-          mimeType: "image/png",
-          size: 128,
-          source: "local",
-          serverId: null,
-          width: 640,
-          height: 360,
-          durationMs: null,
+    nodes: [
+      {
+        id: "node-local-media",
+        type: "weftcanvas",
+        position: { x: 10, y: 20 },
+        data: {
+          kind: "image",
+          body: "",
+          accent: "jade",
+          status: "success",
+          progress: null,
+          media: {
+            id: "local-media",
+            name: "frame.png",
+            mimeType: "image/png",
+            size: 128,
+            source: "local",
+            serverId: null,
+            width: 640,
+            height: 360,
+            durationMs: null,
+          },
+          directorCapture: null,
+          config: null,
+          edit: null,
+          music: null,
+          generation: {
+            modelId: null,
+            parameters: {},
+            referenceImagePurposes: {},
+            maxOutputTokens: null,
+            referenceMode: "auto",
+            referenceNodeIds: [],
+            jobId: null,
+            jobVersion: null,
+            jobCreatedAt: null,
+            jobStatus: null,
+            error: null,
+          },
+          createdAt: 1,
+          updatedAt: 1,
         },
-        directorCapture: null,
-        config: null,
-      edit: null,
-      music: null,
-        generation: {
-          modelId: null,
-          parameters: {},
-          referenceImagePurposes: {},
-          maxOutputTokens: null,
-          referenceMode: "auto",
-          referenceNodeIds: [],
-          jobId: null,
-          jobVersion: null,
-          jobCreatedAt: null,
-          jobStatus: null,
-          error: null,
-        },
-        createdAt: 1,
-        updatedAt: 1,
       },
-    }],
+    ],
   };
 }
 

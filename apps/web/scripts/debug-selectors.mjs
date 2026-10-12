@@ -7,11 +7,15 @@ await page.waitForTimeout(1200);
 
 const selectors = await page.evaluate(() => {
   const all = Array.from(document.querySelectorAll("*"));
-  const modelEls = all.filter(el =>
-    el.className && typeof el.className === "string" &&
-    (el.className.includes("model") || el.className.includes("select") || el.className.includes("picker"))
+  const modelEls = all.filter(
+    (el) =>
+      el.className &&
+      typeof el.className === "string" &&
+      (el.className.includes("model") ||
+        el.className.includes("select") ||
+        el.className.includes("picker")),
   );
-  return modelEls.slice(0, 40).map(el => ({
+  return modelEls.slice(0, 40).map((el) => ({
     tag: el.tagName,
     classes: el.className,
     text: el.textContent?.slice(0, 60),

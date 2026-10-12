@@ -20,10 +20,9 @@ describe("media object URL cache", () => {
     const revokeObjectUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
     const load = vi.fn(async () => new Blob(["image"], { type: "image/png" }));
 
-    await expect(Promise.all([
-      acquireMediaObjectUrl("media-1", load),
-      acquireMediaObjectUrl("media-1", load),
-    ])).resolves.toEqual(["blob:shared-media", "blob:shared-media"]);
+    await expect(
+      Promise.all([acquireMediaObjectUrl("media-1", load), acquireMediaObjectUrl("media-1", load)]),
+    ).resolves.toEqual(["blob:shared-media", "blob:shared-media"]);
     expect(load).toHaveBeenCalledTimes(1);
     expect(createObjectUrl).toHaveBeenCalledTimes(1);
 

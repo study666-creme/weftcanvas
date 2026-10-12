@@ -1,6 +1,6 @@
 import { useSyncExternalStore, type ComponentType } from "react";
 
-import type { CanvasNodeData, CanvasNodeKind } from "@kachang/contracts";
+import type { CanvasNodeData, CanvasNodeKind } from "@weftcanvas/contracts";
 import type { LucideIcon } from "lucide-react";
 
 import {
@@ -22,7 +22,9 @@ export type NodeBodyProps = {
     [key: string]: unknown;
   };
   ops: {
-    apply(ops: { type: string; [key: string]: unknown }[]): Promise<{ applied: number; skipped: number }>;
+    apply(
+      ops: { type: string; [key: string]: unknown }[],
+    ): Promise<{ applied: number; skipped: number }>;
   };
   updateBody(nextBody: string): void;
 };
@@ -30,7 +32,7 @@ export type NodeBodyProps = {
 /**
  * 节点注册表（docs/PLUGIN-ROADMAP.md §3 P0）：新增一种节点 = 注册一个定义对象，
  * 创建菜单/工具 rail/连线落点/hover 工具条/连线策略全部从注册表读取，不再
- * 散改核心代码。渲染仍由宿主 kachang-node 的分支负责（本期不做插件内容注入）。
+ * 散改核心代码。渲染仍由宿主 weftcanvas-node 的分支负责（本期不做插件内容注入）。
  *
  * 与 infinite-canvas 的差异点：同名 kind 重复注册直接报错，不做静默覆盖。
  */
@@ -67,7 +69,7 @@ export type NodeDefinition = {
   /** 创建菜单/双击画布/连线落点建节点时的默认草案。 */
   createDraft: (ctx: NodeCreateContext) => NodeDraft;
   /**
-   * 可选节点体渲染（插件节点用）：kachang-node 在宿主 ErrorBoundary 内调用，
+   * 可选节点体渲染（插件节点用）：weftcanvas-node 在宿主 ErrorBoundary 内调用，
    * 插件抛错只影响这一个节点卡面。
    */
   renderBody?: ComponentType<NodeBodyProps>;
@@ -95,7 +97,9 @@ function emitChange() {
 export function registerNode(definition: NodeDefinition): () => void {
   const existing = registry.get(definition.kind);
   if (existing) {
-    throw new Error(`[node-registry] 节点类型 "${definition.kind}" 已注册，拒绝覆盖（先卸载旧定义）`);
+    throw new Error(
+      `[node-registry] 节点类型 "${definition.kind}" 已注册，拒绝覆盖（先卸载旧定义）`,
+    );
   }
   registry.set(definition.kind, definition);
   emitChange();

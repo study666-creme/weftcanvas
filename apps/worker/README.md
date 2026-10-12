@@ -23,7 +23,7 @@ does not start it, preventing an ordinary UI development session from consuming
 model usage. Apply database migrations first, then start it explicitly:
 
 ```bash
-pnpm --filter @kachang/canvas-api db:migrate
+pnpm --filter @weftcanvas/canvas-api db:migrate
 pnpm dev:worker
 ```
 
@@ -35,7 +35,7 @@ Required environment variables for every mode:
 
 Generation mode additionally requires:
 
-- `KACHANG_API_KEY`
+- `WEFTCANVAS_API_KEY`
 - `GENERATION_MEDIA_HOSTS`: comma-separated exact or `*.suffix` host rules for
   generated image and video downloads
 

@@ -24,43 +24,53 @@ const SWEEP_MS = 2_400;
 const ROUNDS = Number(process.env.AUTH_BUDGET_ROUNDS ?? 3);
 
 /* 页面内采样：一边持续派发指针移动，一边量 rAF 间隔。 */
-const MEASURE = ({ sweep }) => new Promise((resolve) => {
-  const deltas = [];
-  let last = performance.now();
-  const startedAt = last;
-  let stop = false;
-  const tick = () => {
-    const now = performance.now();
-    deltas.push(now - last);
-    last = now;
-    if (!stop) requestAnimationFrame(tick);
-  };
-  requestAnimationFrame(tick);
-  const wiggle = setInterval(() => {
-    window.dispatchEvent(new PointerEvent("pointermove", {
-      clientX: 300 + Math.random() * 700, clientY: 200 + Math.random() * 400,
-      bubbles: true, pointerType: "mouse",
-    }));
-  }, 16);
-  setTimeout(() => {
-    stop = true;
-    clearInterval(wiggle);
-    deltas.shift();
-    const sorted = [...deltas].sort((a, b) => a - b);
-    const pick = (q) => sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * q))] ?? 0;
-    resolve({
-      p50: Number(pick(0.5).toFixed(1)),
-      p90: Number(pick(0.9).toFixed(1)),
-      p95: Number(pick(0.95).toFixed(1)),
-      jank: Number(((deltas.filter((d) => d > 33).length / Math.max(1, deltas.length)) * 100).toFixed(1)),
-    });
-  }, sweep);
-});
+const MEASURE = ({ sweep }) =>
+  new Promise((resolve) => {
+    const deltas = [];
+    let last = performance.now();
+    const startedAt = last;
+    let stop = false;
+    const tick = () => {
+      const now = performance.now();
+      deltas.push(now - last);
+      last = now;
+      if (!stop) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    const wiggle = setInterval(() => {
+      window.dispatchEvent(
+        new PointerEvent("pointermove", {
+          clientX: 300 + Math.random() * 700,
+          clientY: 200 + Math.random() * 400,
+          bubbles: true,
+          pointerType: "mouse",
+        }),
+      );
+    }, 16);
+    setTimeout(() => {
+      stop = true;
+      clearInterval(wiggle);
+      deltas.shift();
+      const sorted = [...deltas].sort((a, b) => a - b);
+      const pick = (q) => sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * q))] ?? 0;
+      resolve({
+        p50: Number(pick(0.5).toFixed(1)),
+        p90: Number(pick(0.9).toFixed(1)),
+        p95: Number(pick(0.95).toFixed(1)),
+        jank: Number(
+          ((deltas.filter((d) => d > 33).length / Math.max(1, deltas.length)) * 100).toFixed(1),
+        ),
+      });
+    }, sweep);
+  });
 
 const STATES = [
   ["电影 + 自绘光标（线上形态）", ""],
-  ["关掉电影", ".kc-auth-film{display:none!important}"],
-  ["关掉电影与自绘光标", ".kc-auth-film{display:none!important}.kc-app-cursor{display:none!important}.has-kc-cursor,.has-kc-cursor *{cursor:auto!important}"],
+  ["关掉电影", ".wc-auth-film{display:none!important}"],
+  [
+    "关掉电影与自绘光标",
+    ".wc-auth-film{display:none!important}.wc-app-cursor{display:none!important}.has-wc-cursor,.has-wc-cursor *{cursor:auto!important}",
+  ],
 ];
 
 const browser = await chromium.launch({ headless: false, args: ["--window-position=0,0"] });
@@ -68,20 +78,22 @@ const context = await browser.newContext({ viewport: { width: 1440, height: 900 
 const page = await context.newPage();
 const cdp = await context.newCDPSession(page);
 await cdp.send("Emulation.setFocusEmulationEnabled", { enabled: true }).catch(() => {});
-await page.route("**/api/v1/auth/session", (route) => route.fulfill({ json: { ok: true, data: null } }));
+await page.route("**/api/v1/auth/session", (route) =>
+  route.fulfill({ json: { ok: true, data: null } }),
+);
 
 const results = Object.fromEntries(STATES.map(([label]) => [label, []]));
 for (let round = 0; round < ROUNDS; round += 1) {
   for (const [label, css] of STATES) {
     await page.goto(`${ORIGIN}/`);
-    await page.waitForSelector("#kc-auth-email", { timeout: 20_000 });
+    await page.waitForSelector("#wc-auth-email", { timeout: 20_000 });
     // 等画质自适应收敛：电影起步会先在满档上量一次，立刻读数是启动瞬态。
     await page.waitForTimeout(5_000);
     const tag = css ? await page.addStyleTag({ content: css }) : null;
     await page.waitForTimeout(400);
     const sample = await page.evaluate(MEASURE, { sweep: SWEEP_MS });
     const film = await page.evaluate(() => {
-      const c = document.querySelector("canvas.kc-auth-film");
+      const c = document.querySelector("canvas.wc-auth-film");
       return c ? [c.width, c.height] : null;
     });
     results[label].push({ ...sample, film });
@@ -105,7 +117,9 @@ console.log(JSON.stringify(summary, null, 2));
 
 const online = summary["电影 + 自绘光标（线上形态）"];
 const baseline = summary["关掉电影与自绘光标"];
-console.log(`线上形态长帧占比 ${online.jank}%，全关基线 ${baseline.jank}%；p90 ${online.p90}ms vs ${baseline.p90}ms`);
+console.log(
+  `线上形态长帧占比 ${online.jank}%，全关基线 ${baseline.jank}%；p90 ${online.p90}ms vs ${baseline.p90}ms`,
+);
 const overhead = Number((online.jank - baseline.jank).toFixed(1));
 console.log(`判定：${overhead <= 8 ? "✓ 装饰层在预算内" : "✗ 仍有可感知开销"}`);
 await browser.close();

@@ -75,7 +75,7 @@ describe("media database", () => {
 
     expect(database.objectStoreNames.contains(MEDIA_STORE_NAME)).toBe(true);
     expect(database.objectStoreNames.contains(MEDIA_THUMB_STORE_NAME)).toBe(true);
-    expect(openCalls).toEqual([{ name: "kachang-canvas-media", version: 2 }]);
+    expect(openCalls).toEqual([{ name: "weftcanvas-media", version: 2 }]);
     expect([...databases.values()][0]?.version).toBe(2);
   });
 

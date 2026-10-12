@@ -7,7 +7,7 @@ import {
   type AgentConnectorId,
   type CanvasControlCommand,
   type CanvasControlReceiptRequest,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 
 export type CanvasControlSettlement = {
   commandId: string;
@@ -47,15 +47,21 @@ export class CanvasControlQueue {
   private readonly contextMaxAgeMs: number;
   private readonly now: () => number;
   private readonly pending = new Map<string, PendingEntry>();
-  private active: { projectId: string; context: AgentCanvasContext | null; updatedAt: number } | null = null;
+  private active: {
+    projectId: string;
+    context: AgentCanvasContext | null;
+    updatedAt: number;
+  } | null = null;
 
-  constructor(options: {
-    ttlMs?: number;
-    waitMs?: number;
-    maxPendingPerProject?: number;
-    contextMaxAgeMs?: number;
-    now?: () => number;
-  } = {}) {
+  constructor(
+    options: {
+      ttlMs?: number;
+      waitMs?: number;
+      maxPendingPerProject?: number;
+      contextMaxAgeMs?: number;
+      now?: () => number;
+    } = {},
+  ) {
     this.ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
     this.waitMs = options.waitMs ?? DEFAULT_WAIT_MS;
     this.maxPending = options.maxPendingPerProject ?? DEFAULT_MAX_PENDING;
@@ -85,8 +91,11 @@ export class CanvasControlQueue {
     const projectId = input.projectId.trim();
     if (!projectId) return { ok: false, error: "缺少画布项目" };
     if (!input.actions.length) return { ok: false, error: "指令不包含任何画布操作" };
-    const pendingForProject = [...this.pending.values()].filter((entry) => entry.command.projectId === projectId).length;
-    if (pendingForProject >= this.maxPending) return { ok: false, error: "这个画布还有未完成的指令，请等浏览器处理完" };
+    const pendingForProject = [...this.pending.values()].filter(
+      (entry) => entry.command.projectId === projectId,
+    ).length;
+    if (pendingForProject >= this.maxPending)
+      return { ok: false, error: "这个画布还有未完成的指令，请等浏览器处理完" };
 
     const createdAt = this.now();
     const parsed = canvasControlCommandSchema.safeParse({

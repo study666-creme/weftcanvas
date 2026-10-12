@@ -19,8 +19,11 @@ export function GlobalConfirmDialog() {
 
   useEffect(() => {
     if (!confirmation) return;
-    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const frame = window.requestAnimationFrame(() => cancelRef.current?.focus({ preventScroll: true }));
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const frame = window.requestAnimationFrame(() =>
+      cancelRef.current?.focus({ preventScroll: true }),
+    );
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -28,7 +31,9 @@ export function GlobalConfirmDialog() {
         return;
       }
       if (event.key !== "Tab") return;
-      const buttons = Array.from(dialogRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? []);
+      const buttons = Array.from(
+        dialogRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [],
+      );
       if (!buttons.length) return;
       const first = buttons[0]!;
       const last = buttons.at(-1)!;
@@ -54,35 +59,49 @@ export function GlobalConfirmDialog() {
 
   return createPortal(
     <div
-      className="kc-confirm-backdrop"
+      className="wc-confirm-backdrop"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="kc-confirm-title"
-      aria-describedby="kc-confirm-description"
+      aria-labelledby="wc-confirm-title"
+      aria-describedby="wc-confirm-description"
       onPointerDown={(event) => {
         if (event.target === event.currentTarget) resolveConfirmation(confirmation.id, false);
       }}
     >
-      <section ref={dialogRef} className={`kc-confirm-dialog is-${tone}`}>
+      <section ref={dialogRef} className={`wc-confirm-dialog is-${tone}`}>
         <header>
-          <span className="kc-confirm-mark" aria-hidden="true"><AlertTriangle /></span>
+          <span className="wc-confirm-mark" aria-hidden="true">
+            <AlertTriangle />
+          </span>
           <span>
-            <strong id="kc-confirm-title">{options.title}</strong>
+            <strong id="wc-confirm-title">{options.title}</strong>
             <small>请确认这项操作</small>
           </span>
-          <button type="button" aria-label="关闭确认窗口" onClick={() => resolveConfirmation(confirmation.id, false)}>
+          <button
+            type="button"
+            aria-label="关闭确认窗口"
+            onClick={() => resolveConfirmation(confirmation.id, false)}
+          >
             <X aria-hidden="true" />
           </button>
         </header>
-        <div className="kc-confirm-content">
-          <p id="kc-confirm-description">{options.description}</p>
+        <div className="wc-confirm-content">
+          <p id="wc-confirm-description">{options.description}</p>
           {options.detail ? <small>{options.detail}</small> : null}
         </div>
         <footer>
-          <button ref={cancelRef} type="button" onClick={() => resolveConfirmation(confirmation.id, false)}>
+          <button
+            ref={cancelRef}
+            type="button"
+            onClick={() => resolveConfirmation(confirmation.id, false)}
+          >
             {options.cancelLabel ?? "取消"}
           </button>
-          <button type="button" className="is-confirm" onClick={() => resolveConfirmation(confirmation.id, true)}>
+          <button
+            type="button"
+            className="is-confirm"
+            onClick={() => resolveConfirmation(confirmation.id, true)}
+          >
             {options.confirmLabel ?? "确认"}
           </button>
         </footer>

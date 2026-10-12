@@ -1,4 +1,10 @@
-import type { CanvasNodeKind, GenerationQuoteRequest, ModelModality, ModelParameter, PublicModel } from "@kachang/contracts";
+import type {
+  CanvasNodeKind,
+  GenerationQuoteRequest,
+  ModelModality,
+  ModelParameter,
+  PublicModel,
+} from "@weftcanvas/contracts";
 
 import { normalizeBoundedDurationValue } from "../components/generation-parameter-field";
 import { mediaAspectRatioParameterNames, type DefaultNodeAspectRatio } from "./node-size";
@@ -7,7 +13,8 @@ const PRIMARY_TEXT_PARAMETERS = new Set(["prompt", "text", "input"]);
 const MESSAGE_PARAMETERS = new Set(["messages"]);
 const MEDIA_REFERENCE_PARAMETER_NAME = /^(?:reference|ref)(?:image|video|audio)s?(?:url)?s?$/;
 const BARE_MEDIA_PARAMETER_NAME = /^(image|video|audio)(?:s|urls?)?$/;
-const POSITIONED_IMAGE_PARAMETER_NAME = /^(?:first|start|last|end)(?:(?:frame)(?:image)?|image)(?:url)?$/;
+const POSITIONED_IMAGE_PARAMETER_NAME =
+  /^(?:first|start|last|end)(?:(?:frame)(?:image)?|image)(?:url)?$/;
 const INTERNAL_PARAMETER_NAMES = new Set(["model", "provider", "n", "async"]);
 const COMPATIBILITY_LABEL_PATTERN = /兼容(?:字段|别名|比例)|compat(?:ibility)?|alias/iu;
 const DURATION_PARAMETER_NAMES = new Set(["duration_seconds", "duration", "seconds"]);
@@ -34,15 +41,15 @@ export function canRecoverUnavailableModelSelection(input: {
   customCatalogLoading: boolean;
 }) {
   return Boolean(
-    input.modelId
-    && !input.modelAvailable
-    && !input.customModelKey
-    && input.catalogLoadSettled
-    && input.catalogReady
-    && !input.catalogRefreshing
-    && !input.catalogError
-    && input.platformModelCount > 0
-    && !input.customCatalogLoading
+    input.modelId &&
+    !input.modelAvailable &&
+    !input.customModelKey &&
+    input.catalogLoadSettled &&
+    input.catalogReady &&
+    !input.catalogRefreshing &&
+    !input.catalogError &&
+    input.platformModelCount > 0 &&
+    !input.customCatalogLoading,
   );
 }
 
@@ -52,11 +59,13 @@ export function canRecoverUnavailableModelSelection(input: {
 // those artifacts into repeated calls: the quote/job quantity stays 1 and the
 // delivered artifact count comes from the catalog output contract.
 export function isRequestPricedFixedMultiOutputImageModel(model: PublicModel | null): boolean {
-  return Boolean(model
-    && model.modality === "image"
-    && model.pricing.unit === "request"
-    && model.output.minCount === model.output.maxCount
-    && model.output.minCount > 1);
+  return Boolean(
+    model &&
+    model.modality === "image" &&
+    model.pricing.unit === "request" &&
+    model.output.minCount === model.output.maxCount &&
+    model.output.minCount > 1,
+  );
 }
 
 /** The number of artifacts one call returns for a request-priced fixed multi-output image model, else null. */
@@ -72,7 +81,10 @@ export function requestPricedFixedOutputCount(model: PublicModel | null): number
  * - 没有可用的 n 范围参数（有范围的模型直接传 n，由上游一次出多条）；
  * - 不是按次计费的固定多图模型。
  */
-export function supportsClientBatchGeneration(model: PublicModel | null, outputCountParameter: ModelParameter | null): boolean {
+export function supportsClientBatchGeneration(
+  model: PublicModel | null,
+  outputCountParameter: ModelParameter | null,
+): boolean {
   if (!model) return false;
   if (model.modality !== "image" && model.modality !== "video") return false;
   if (isRequestPricedFixedMultiOutputImageModel(model)) return false;
@@ -116,14 +128,21 @@ export function isModelMediaReferenceParameter(model: PublicModel, parameter: Mo
   const bareKind = BARE_MEDIA_PARAMETER_NAME.exec(normalizedName)?.[1];
   const mediaInputName = POSITIONED_IMAGE_PARAMETER_NAME.test(normalizedName)
     ? "images"
-    : bareKind ? `${bareKind}s` as "images" | "videos" | "audios" : undefined;
+    : bareKind
+      ? (`${bareKind}s` as "images" | "videos" | "audios")
+      : undefined;
   if (mediaInputName) return acceptsMediaInput(model.input[mediaInputName]);
   if (!MESSAGE_PARAMETERS.has(parameter.name) || !hasModelMediaInput(model)) return false;
-  return model.parameters.some((candidate) => candidate.name !== parameter.name && PRIMARY_TEXT_PARAMETERS.has(candidate.name));
+  return model.parameters.some(
+    (candidate) => candidate.name !== parameter.name && PRIMARY_TEXT_PARAMETERS.has(candidate.name),
+  );
 }
 
 export function isModelInternalParameter(parameter: ModelParameter) {
-  return parameter.fixed !== undefined && INTERNAL_PARAMETER_NAMES.has(parameter.name.trim().toLowerCase());
+  return (
+    parameter.fixed !== undefined &&
+    INTERNAL_PARAMETER_NAMES.has(parameter.name.trim().toLowerCase())
+  );
 }
 
 export function isModelCompatibilityParameterHidden(model: PublicModel, parameter: ModelParameter) {
@@ -142,10 +161,18 @@ export function isModelCompatibilityParameterHidden(model: PublicModel, paramete
  * 因此任何界面都不显示。
  */
 const TRANSPORT_FORMAT_PARAMETER_NAMES = new Set([
-  "response_format", "responseformat", "response_type", "output_format", "outputformat",
-  "format", "mime", "mime_type", "file_format",
+  "response_format",
+  "responseformat",
+  "response_type",
+  "output_format",
+  "outputformat",
+  "format",
+  "mime",
+  "mime_type",
+  "file_format",
 ]);
-const TRANSPORT_FORMAT_NAME_PATTERN = /(?:^|_)(?:response|output|file|mime)(?:_|$)|(?:^|_)(?:format|encoding)(?:_|$)/iu;
+const TRANSPORT_FORMAT_NAME_PATTERN =
+  /(?:^|_)(?:response|output|file|mime)(?:_|$)|(?:^|_)(?:format|encoding)(?:_|$)/iu;
 const TRANSPORT_FORMAT_LABEL_PATTERN = /响应格式|输出格式|返回格式|url格式|链接格式/iu;
 
 /**
@@ -192,48 +219,69 @@ export function autoPickGenerationSettings(input: {
   const seeded = canonicalizeConfiguredValues(input.model, input.remembered?.parameters ?? {});
   const aspectParameter = modelAspectRatioParameter(input.model);
   const defaultAspectRatio = input.defaultAspectRatio;
-  if (aspectParameter && defaultAspectRatio
-    && aspectParameter.options?.some((option) => (
-      typeof option === "string" && option.toLowerCase() === defaultAspectRatio.toLowerCase()
-    ))) {
+  if (
+    aspectParameter &&
+    defaultAspectRatio &&
+    aspectParameter.options?.some(
+      (option) =>
+        typeof option === "string" && option.toLowerCase() === defaultAspectRatio.toLowerCase(),
+    )
+  ) {
     seeded[aspectParameter.name] = defaultAspectRatio;
   }
   return seeded;
 }
 
 function modelAspectRatioParameter(model: PublicModel): ModelParameter | null {
-  return model.parameters.find((parameter) => parameter.fixed === undefined
-    && canonicalParameterName(model, parameter.name) === parameter.name
-    && (mediaAspectRatioParameterNames as readonly string[]).includes(parameter.name)) ?? null;
+  return (
+    model.parameters.find(
+      (parameter) =>
+        parameter.fixed === undefined &&
+        canonicalParameterName(model, parameter.name) === parameter.name &&
+        (mediaAspectRatioParameterNames as readonly string[]).includes(parameter.name),
+    ) ?? null
+  );
 }
 
 export function reconcileModelParameters(model: PublicModel, current: Record<string, unknown>) {
   return canonicalizeConfiguredValues(model, current);
 }
 
-export function composeModelParameters(model: PublicModel, body: string, configured: Record<string, unknown>) {
+export function composeModelParameters(
+  model: PublicModel,
+  body: string,
+  configured: Record<string, unknown>,
+) {
   const parameters: Record<string, unknown> = {};
   const synchronized = canonicalizeConfiguredValues(model, configured);
   const textParameterName = primaryTextParameterName(model);
   for (const parameter of model.parameters) {
-    if (isModelMediaReferenceParameter(model, parameter)
-      || canonicalParameterName(model, parameter.name) !== parameter.name) continue;
+    if (
+      isModelMediaReferenceParameter(model, parameter) ||
+      canonicalParameterName(model, parameter.name) !== parameter.name
+    )
+      continue;
     let value: unknown;
     if (parameter.fixed !== undefined) value = parameter.fixed;
-    else if (parameter.name === textParameterName && MESSAGE_PARAMETERS.has(parameter.name)) value = [{ role: "user", content: body }];
+    else if (parameter.name === textParameterName && MESSAGE_PARAMETERS.has(parameter.name))
+      value = [{ role: "user", content: body }];
     else if (parameter.name === textParameterName) value = body;
-    else value = firstValidParameterValue(
-      model,
-      parameter,
-      Object.hasOwn(synchronized, parameter.name) ? synchronized[parameter.name] : undefined,
-      parameter.default,
-      // 只给「必填但目录没给默认值」的枚举兜底第一项；可选枚举（如 Midjourney 的
-      // 后续动作/平移方向/融图画幅）不填就绝不提交——以前一律兜底 options[0]，
-      // 普通生成会携带 action=upscale 等二次操作参数，语义完全错误。
-      parameter.required ? parameter.options?.[0] : undefined,
-      defaultBoundedDurationValue(model, parameter),
-    );
-    if (value !== undefined && !(typeof value === "string" && value === "" && !parameter.required)) {
+    else
+      value = firstValidParameterValue(
+        model,
+        parameter,
+        Object.hasOwn(synchronized, parameter.name) ? synchronized[parameter.name] : undefined,
+        parameter.default,
+        // 只给「必填但目录没给默认值」的枚举兜底第一项；可选枚举（如 Midjourney 的
+        // 后续动作/平移方向/融图画幅）不填就绝不提交——以前一律兜底 options[0]，
+        // 普通生成会携带 action=upscale 等二次操作参数，语义完全错误。
+        parameter.required ? parameter.options?.[0] : undefined,
+        defaultBoundedDurationValue(model, parameter),
+      );
+    if (
+      value !== undefined &&
+      !(typeof value === "string" && value === "" && !parameter.required)
+    ) {
       parameters[parameter.name] = value;
     }
   }
@@ -251,10 +299,15 @@ export function estimateInputTokens(text: string) {
   return Math.max(1, Math.ceil(ascii / 4 + other * 1.15 + 12));
 }
 
-export function estimateMaximumOutputTokens(model: PublicModel, configured: Record<string, unknown>, explicit: number | null) {
+export function estimateMaximumOutputTokens(
+  model: PublicModel,
+  configured: Record<string, unknown>,
+  explicit: number | null,
+) {
   if (explicit) return explicit;
   for (const name of ["max_output_tokens", "max_tokens"]) {
-    const value = configured[name] ?? model.parameters.find((parameter) => parameter.name === name)?.default;
+    const value =
+      configured[name] ?? model.parameters.find((parameter) => parameter.name === name)?.default;
     if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) return value;
   }
   return 1_024;
@@ -288,7 +341,11 @@ export function setExclusiveParameter(
   return canonicalizeConfiguredValues(model, next, false);
 }
 
-export function removeModelParameter(model: PublicModel, current: Record<string, unknown>, name: string) {
+export function removeModelParameter(
+  model: PublicModel,
+  current: Record<string, unknown>,
+  name: string,
+) {
   const canonicalName = canonicalParameterName(model, name);
   const family = aliasFamily(model, canonicalName);
   // 别名族整体移除；同时必须移除参数本身——普通参数（无别名族，如 Midjourney 的
@@ -308,21 +365,29 @@ function hasValue(value: unknown) {
 function matchesParameterType(parameter: ModelParameter, value: unknown) {
   if (value === undefined) return false;
   if (parameter.type === "string") return typeof value === "string";
-  if (parameter.type === "number" || parameter.type === "integer") return typeof value === "number" && Number.isFinite(value);
+  if (parameter.type === "number" || parameter.type === "integer")
+    return typeof value === "number" && Number.isFinite(value);
   if (parameter.type === "boolean") return typeof value === "boolean";
   if (parameter.type === "array") return Array.isArray(value);
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function firstValidParameterValue(model: PublicModel, parameter: ModelParameter, ...candidates: unknown[]) {
+function firstValidParameterValue(
+  model: PublicModel,
+  parameter: ModelParameter,
+  ...candidates: unknown[]
+) {
   for (const candidate of candidates) {
     if (candidate === undefined) continue;
     const normalized = normalizeModelParameterValue(model, parameter, candidate);
     if (!matchesParameterType(parameter, normalized)) continue;
-    const canonicalOption = parameter.options?.find((option) => (
-      Object.is(option, normalized)
-      || (typeof option === "string" && typeof normalized === "string" && option.toLowerCase() === normalized.toLowerCase())
-    ));
+    const canonicalOption = parameter.options?.find(
+      (option) =>
+        Object.is(option, normalized) ||
+        (typeof option === "string" &&
+          typeof normalized === "string" &&
+          option.toLowerCase() === normalized.toLowerCase()),
+    );
     if (parameter.options?.length && canonicalOption === undefined) continue;
     if (typeof normalized === "number") {
       const rounded = parameter.type === "integer" ? Math.round(normalized) : normalized;
@@ -335,44 +400,61 @@ function firstValidParameterValue(model: PublicModel, parameter: ModelParameter,
 
 function primaryTextParameterName(model: PublicModel) {
   const known = model.parameters.find(
-    (parameter) => isBoundTextParameter(parameter) && !isModelMediaReferenceParameter(model, parameter),
+    (parameter) =>
+      isBoundTextParameter(parameter) && !isModelMediaReferenceParameter(model, parameter),
   );
   if (known) return known.name;
   if (!model.input.textRequired) return null;
-  return model.parameters.find((parameter) => parameter.required && parameter.type === "string")?.name ?? null;
+  return (
+    model.parameters.find((parameter) => parameter.required && parameter.type === "string")?.name ??
+    null
+  );
 }
 
 function hasModelMediaInput(model: PublicModel) {
-  return [model.input.images, model.input.videos, model.input.audios]
-    .some(acceptsMediaInput);
+  return [model.input.images, model.input.videos, model.input.audios].some(acceptsMediaInput);
 }
 
 function acceptsMediaInput(input: PublicModel["input"]["images"]) {
   return input !== undefined && input.max !== 0;
 }
 
-function normalizeModelParameterValue(model: PublicModel, parameter: ModelParameter, value: unknown) {
+function normalizeModelParameterValue(
+  model: PublicModel,
+  parameter: ModelParameter,
+  value: unknown,
+) {
   return model.modality === "video" || model.modality === "audio"
     ? normalizeBoundedDurationValue(parameter, value)
     : value;
 }
 
-function canonicalizeConfiguredValues(model: PublicModel, current: Record<string, unknown>, includeDefaults = true) {
+function canonicalizeConfiguredValues(
+  model: PublicModel,
+  current: Record<string, unknown>,
+  includeDefaults = true,
+) {
   const next: Record<string, unknown> = {};
   for (const parameter of model.parameters) {
-    if (isModelBoundTextParameter(model, parameter)
-      || isModelMediaReferenceParameter(model, parameter)
-      || parameter.fixed !== undefined
-      || canonicalParameterName(model, parameter.name) !== parameter.name) continue;
+    if (
+      isModelBoundTextParameter(model, parameter) ||
+      isModelMediaReferenceParameter(model, parameter) ||
+      parameter.fixed !== undefined ||
+      canonicalParameterName(model, parameter.name) !== parameter.name
+    )
+      continue;
     const family = aliasFamily(model, parameter.name);
     const candidates = family.length > 1 ? family : [parameter];
     const savedNames = aliasNames(parameter.name) ?? new Set([parameter.name]);
     const values: unknown[] = [];
     for (const savedName of savedNames) {
-      if (Object.hasOwn(current, savedName)) values.push(convertAliasValue(parameter, current[savedName]));
+      if (Object.hasOwn(current, savedName))
+        values.push(convertAliasValue(parameter, current[savedName]));
     }
-    if (ASPECT_RATIO_PARAMETER_NAMES.has(parameter.name)
-      && !model.parameters.some((candidate) => DIMENSION_PARAMETER_NAMES.has(candidate.name))) {
+    if (
+      ASPECT_RATIO_PARAMETER_NAMES.has(parameter.name) &&
+      !model.parameters.some((candidate) => DIMENSION_PARAMETER_NAMES.has(candidate.name))
+    ) {
       for (const dimensionName of DIMENSION_PARAMETER_NAMES) {
         if (!Object.hasOwn(current, dimensionName)) continue;
         const ratio = aspectRatioFromDimension(current[dimensionName]);
@@ -383,7 +465,11 @@ function canonicalizeConfiguredValues(model: PublicModel, current: Record<string
       for (const candidate of candidates) {
         // 与 composeModelParameters 同一口径：可选枚举不默认第一项，避免把
         // 「后续动作/平移方向」这类二次操作参数悄悄预选进面板状态。
-        values.push(candidate.default, candidate.required ? candidate.options?.[0] : undefined, defaultBoundedDurationValue(model, candidate));
+        values.push(
+          candidate.default,
+          candidate.required ? candidate.options?.[0] : undefined,
+          defaultBoundedDurationValue(model, candidate),
+        );
       }
     }
     const value = firstValidParameterValue(model, parameter, ...values);
@@ -402,7 +488,9 @@ function aliasNames(name: string) {
     ? DURATION_PARAMETER_NAMES
     : ASPECT_RATIO_PARAMETER_NAMES.has(name)
       ? ASPECT_RATIO_PARAMETER_NAMES
-      : DIMENSION_PARAMETER_NAMES.has(name) ? DIMENSION_PARAMETER_NAMES : undefined;
+      : DIMENSION_PARAMETER_NAMES.has(name)
+        ? DIMENSION_PARAMETER_NAMES
+        : undefined;
 }
 
 function canonicalParameterName(model: PublicModel, name: string) {
@@ -411,20 +499,32 @@ function canonicalParameterName(model: PublicModel, name: string) {
   if (DIMENSION_PARAMETER_NAMES.has(name)) {
     return family.find((parameter) => parameter.name === "resolution")?.name ?? family[0]!.name;
   }
-  const nonCompatibility = family.filter((parameter) => !COMPATIBILITY_LABEL_PATTERN.test(parameter.label));
+  const nonCompatibility = family.filter(
+    (parameter) => !COMPATIBILITY_LABEL_PATTERN.test(parameter.label),
+  );
   if (nonCompatibility.length === 1) return nonCompatibility[0]!.name;
-  if (DURATION_PARAMETER_NAMES.has(name)) return family.find((parameter) => parameter.name === "duration_seconds")?.name
-    ?? family.find((parameter) => parameter.name === "seconds")?.name
-    ?? family[0]!.name;
-  if (ASPECT_RATIO_PARAMETER_NAMES.has(name)) return family.find((parameter) => parameter.name === "aspect_ratio")?.name
-    ?? family.find((parameter) => parameter.name === "aspectRatio")?.name
-    ?? family[0]!.name;
+  if (DURATION_PARAMETER_NAMES.has(name))
+    return (
+      family.find((parameter) => parameter.name === "duration_seconds")?.name ??
+      family.find((parameter) => parameter.name === "seconds")?.name ??
+      family[0]!.name
+    );
+  if (ASPECT_RATIO_PARAMETER_NAMES.has(name))
+    return (
+      family.find((parameter) => parameter.name === "aspect_ratio")?.name ??
+      family.find((parameter) => parameter.name === "aspectRatio")?.name ??
+      family[0]!.name
+    );
   return family[0]!.name;
 }
 
 function convertAliasValue(parameter: ModelParameter, value: unknown) {
   if (parameter.type === "string" && typeof value === "number") return String(value);
-  if ((parameter.type === "number" || parameter.type === "integer") && typeof value === "string" && value.trim()) {
+  if (
+    (parameter.type === "number" || parameter.type === "integer") &&
+    typeof value === "string" &&
+    value.trim()
+  ) {
     const numeric = Number(value);
     if (Number.isFinite(numeric)) return numeric;
   }
@@ -437,7 +537,8 @@ function aspectRatioFromDimension(value: unknown) {
   if (!match) return undefined;
   const width = Number(match[1]);
   const height = Number(match[2]);
-  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0) return undefined;
+  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0)
+    return undefined;
   let left = width;
   let right = height;
   while (right !== 0) [left, right] = [right, left % right];

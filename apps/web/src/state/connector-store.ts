@@ -1,7 +1,16 @@
-import type { AgentConnector, AgentConnectorId, AgentConnectorUpdateRequest } from "@kachang/contracts";
+import type {
+  AgentConnector,
+  AgentConnectorId,
+  AgentConnectorUpdateRequest,
+} from "@weftcanvas/contracts";
 import { create } from "zustand";
 
-import { CanvasApiError, connectAgentConnector, fetchAgentConnectors, updateAgentConnector } from "../lib/api-client";
+import {
+  CanvasApiError,
+  connectAgentConnector,
+  fetchAgentConnectors,
+  updateAgentConnector,
+} from "../lib/api-client";
 import { useIdentityStore } from "./identity-store";
 
 type ConnectorStatus = "idle" | "loading" | "ready" | "error";
@@ -47,9 +56,7 @@ export const useConnectorStore = create<ConnectorState>((set, get) => ({
       set({ items, status: "ready", error: null, loadedAt: Date.now() });
     } catch (cause) {
       if (version !== loadVersion) return;
-      const message = cause instanceof CanvasApiError
-        ? cause.message
-        : "本机连接状态暂时读不到";
+      const message = cause instanceof CanvasApiError ? cause.message : "本机连接状态暂时读不到";
       set({ status: "error", error: message, loadedAt: Date.now() });
     }
   },

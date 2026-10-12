@@ -15,7 +15,9 @@ const KIND_LABELS: Record<DirectMentionReference["kind"], string> = {
   audio: "音频",
 };
 
-export function directMentionCandidates(references: DirectMentionReference[]): DirectMentionCandidate[] {
+export function directMentionCandidates(
+  references: DirectMentionReference[],
+): DirectMentionCandidate[] {
   const counters: Record<string, number> = {};
   return references
     .filter((reference) => reference.status === "ready")
@@ -26,7 +28,10 @@ export function directMentionCandidates(references: DirectMentionReference[]): D
     });
 }
 
-export function mentionQueryAtCursor(value: string, cursor: number): { start: number; end: number; query: string } | null {
+export function mentionQueryAtCursor(
+  value: string,
+  cursor: number,
+): { start: number; end: number; query: string } | null {
   const before = value.slice(0, cursor);
   // Trigger on "@" at the start, after whitespace, or right after CJK/punctuated
   // text (e.g. "猫@"), but not when it is glued to a latin word/handle like an
@@ -47,9 +52,14 @@ export function insertDirectMention(
   return { value: nextValue, cursor: range.start + insertion.length };
 }
 
-export function removeInvalidDirectMentions(value: string, references: DirectMentionReference[]): string {
+export function removeInvalidDirectMentions(
+  value: string,
+  references: DirectMentionReference[],
+): string {
   const valid = new Set(directMentionCandidates(references).map((candidate) => candidate.label));
-  return value.replace(/@((?:图片|视频|音频)\d+)/gu, (token, label: string) => valid.has(label) ? token : "");
+  return value.replace(/@((?:图片|视频|音频)\d+)/gu, (token, label: string) =>
+    valid.has(label) ? token : "",
+  );
 }
 
 /**
@@ -61,8 +71,12 @@ export function reconcileDirectMentions(
   previousReferences: DirectMentionReference[],
   nextReferences: DirectMentionReference[],
 ): string {
-  const previousByLabel = new Map(directMentionCandidates(previousReferences).map((candidate) => [candidate.label, candidate.id]));
-  const nextById = new Map(directMentionCandidates(nextReferences).map((candidate) => [candidate.id, candidate.label]));
+  const previousByLabel = new Map(
+    directMentionCandidates(previousReferences).map((candidate) => [candidate.label, candidate.id]),
+  );
+  const nextById = new Map(
+    directMentionCandidates(nextReferences).map((candidate) => [candidate.id, candidate.label]),
+  );
   return value.replace(/@((?:图片|视频|音频)\d+)/gu, (_token, label: string) => {
     const referenceId = previousByLabel.get(label);
     const nextLabel = referenceId ? nextById.get(referenceId) : null;

@@ -73,7 +73,9 @@ describe.skipIf(!databaseUrl)("PostgreSQL media metadata store", { timeout: 120_
       revision: claimed.revision + 1,
       updatedAt: "2026-07-15T18:00:02.000Z",
     };
-    await expect(store.markFailed(failed, claimed.revision)).rejects.toThrow("Immutable media fields");
+    await expect(store.markFailed(failed, claimed.revision)).rejects.toThrow(
+      "Immutable media fields",
+    );
   });
 
   it("evicts the oldest unbound ready media when the quota would be exceeded", async () => {
@@ -164,19 +166,44 @@ describe.skipIf(!databaseUrl)("PostgreSQL media metadata store", { timeout: 120_
     const MIB = 1024 * 1024;
     const now = Date.parse("2026-07-20T18:00:00.000Z");
     // 超额：建立宽限记录，deadline = now + 7d。
-    await store.maintainStorageGrace(USER_ID, 120 * MIB, 100 * MIB, "basic", 7 * 24 * 60 * 60 * 1000, now);
+    await store.maintainStorageGrace(
+      USER_ID,
+      120 * MIB,
+      100 * MIB,
+      "basic",
+      7 * 24 * 60 * 60 * 1000,
+      now,
+    );
     let grace = await store.readStorageGrace(USER_ID);
-    expect(grace).toMatchObject({ fromTier: "basic", quotaBytes: 100 * MIB, usageBytes: 120 * MIB });
+    expect(grace).toMatchObject({
+      fromTier: "basic",
+      quotaBytes: 100 * MIB,
+      usageBytes: 120 * MIB,
+    });
     expect(Date.parse(grace!.deadline)).toBe(now + 7 * 24 * 60 * 60 * 1000);
 
     // 再次超额（同窗口内）：deadline 不被顺延，用量快照刷新。
-    await store.maintainStorageGrace(USER_ID, 130 * MIB, 100 * MIB, "basic", 7 * 24 * 60 * 60 * 1000, now + 60_000);
+    await store.maintainStorageGrace(
+      USER_ID,
+      130 * MIB,
+      100 * MIB,
+      "basic",
+      7 * 24 * 60 * 60 * 1000,
+      now + 60_000,
+    );
     grace = await store.readStorageGrace(USER_ID);
     expect(Date.parse(grace!.deadline)).toBe(now + 7 * 24 * 60 * 60 * 1000);
     expect(grace!.usageBytes).toBe(130 * MIB);
 
     // 配额恢复（续费）：记录清除。
-    await store.maintainStorageGrace(USER_ID, 80 * MIB, 200 * MIB, "pro", 7 * 24 * 60 * 60 * 1000, now + 120_000);
+    await store.maintainStorageGrace(
+      USER_ID,
+      80 * MIB,
+      200 * MIB,
+      "pro",
+      7 * 24 * 60 * 60 * 1000,
+      now + 120_000,
+    );
     expect(await store.readStorageGrace(USER_ID)).toBeNull();
   });
 
@@ -184,7 +211,11 @@ describe.skipIf(!databaseUrl)("PostgreSQL media metadata store", { timeout: 120_
     const MIB = 1024 * 1024;
     const now = Date.parse("2026-07-27T18:00:00.000Z");
     // 4 个素材：oldest-unbound, newest-unbound, oldProject-bound, recentProject-bound
-    const [oldUnbound, newUnbound, oldBound, recentBound] = await seedReadyMedia(store, 4, 40 * MIB);
+    const [oldUnbound, newUnbound, oldBound, recentBound] = await seedReadyMedia(
+      store,
+      4,
+      40 * MIB,
+    );
     await seedProject(pool, "old-project");
     await seedProject(pool, "recent-project");
     await pool.query(
@@ -193,16 +224,31 @@ describe.skipIf(!databaseUrl)("PostgreSQL media metadata store", { timeout: 120_
       [USER_ID, oldBound, NOW, recentBound],
     );
     // old-project 更早更新、recent-project 更近更新，决定绑定阶段的顺序。
-    await pool.query("UPDATE canvas_cloud_projects SET updated_at = '2026-07-01T00:00:00Z' WHERE id = 'old-project'");
-    await pool.query("UPDATE canvas_cloud_projects SET updated_at = '2026-07-25T00:00:00Z' WHERE id = 'recent-project'");
+    await pool.query(
+      "UPDATE canvas_cloud_projects SET updated_at = '2026-07-01T00:00:00Z' WHERE id = 'old-project'",
+    );
+    await pool.query(
+      "UPDATE canvas_cloud_projects SET updated_at = '2026-07-25T00:00:00Z' WHERE id = 'recent-project'",
+    );
 
     // 宽限已过期。
-    await store.maintainStorageGrace(USER_ID, 160 * MIB, 80 * MIB, "basic", 7 * 24 * 60 * 60 * 1000, now - 8 * 24 * 60 * 60 * 1000);
+    await store.maintainStorageGrace(
+      USER_ID,
+      160 * MIB,
+      80 * MIB,
+      "basic",
+      7 * 24 * 60 * 60 * 1000,
+      now - 8 * 24 * 60 * 60 * 1000,
+    );
     expect(await store.overdueStorageGrace(now)).toEqual([USER_ID]);
 
     // 配额 80MB：需要释放 80MB。阶段一清 oldUnbound + newUnbound（80MB）即达标，
     // 绑定素材（含 old-project 的）不动。
-    const { evicted, remainingOverage } = await store.enforceQuotaAfterGrace(USER_ID, 80 * MIB, now);
+    const { evicted, remainingOverage } = await store.enforceQuotaAfterGrace(
+      USER_ID,
+      80 * MIB,
+      now,
+    );
     expect(remainingOverage).toBe(0);
     expect(evicted.map((item) => item.id).sort()).toEqual([oldUnbound, newUnbound].sort());
     expect(await store.getById(oldBound)).not.toBeNull();
@@ -220,7 +266,14 @@ describe.skipIf(!databaseUrl)("PostgreSQL media metadata store", { timeout: 120_
        VALUES ($1, 'old-project', $2, $3), ($1, 'old-project', $4, $3)`,
       [USER_ID, boundOld, NOW, boundNew],
     );
-    await store.maintainStorageGrace(USER_ID, 120 * MIB, 40 * MIB, "basic", 7 * 24 * 60 * 60 * 1000, now - 8 * 24 * 60 * 60 * 1000);
+    await store.maintainStorageGrace(
+      USER_ID,
+      120 * MIB,
+      40 * MIB,
+      "basic",
+      7 * 24 * 60 * 60 * 1000,
+      now - 8 * 24 * 60 * 60 * 1000,
+    );
 
     // 配额 40MB、需释放 80MB：阶段一清 unbound（40MB），阶段二清最旧绑定 boundOld。
     const { evicted } = await store.enforceQuotaAfterGrace(USER_ID, 40 * MIB, now);
@@ -257,18 +310,21 @@ async function seedReadyMedia(store: PostgresMediaMetadataStore, count: number, 
     expect(claimed).not.toBeNull();
     const revision = claimed!.revision + 1;
     const updatedAt = "2026-07-16T18:00:02.000Z";
-    await store.markReady({
-      ...claimed!,
-      detectedMimeType: "image/png",
-      size,
-      sha256: "a".repeat(64),
-      width: 64,
-      height: 36,
-      status: "ready",
-      revision,
-      updatedAt,
-      readyAt: updatedAt,
-    }, claimed!.revision);
+    await store.markReady(
+      {
+        ...claimed!,
+        detectedMimeType: "image/png",
+        size,
+        sha256: "a".repeat(64),
+        width: 64,
+        height: 36,
+        status: "ready",
+        revision,
+        updatedAt,
+        readyAt: updatedAt,
+      },
+      claimed!.revision,
+    );
     ids.push(record.id);
   }
   return ids;

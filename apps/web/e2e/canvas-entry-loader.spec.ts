@@ -4,11 +4,13 @@ test("the HTML response paints a dark startup screen before JavaScript runs", as
   await page.route("**/src/main.tsx", (route) => route.abort());
   await page.goto("/canvas");
 
-  const bootstrap = page.locator(".kc-bootstrap-screen");
+  const bootstrap = page.locator(".wc-bootstrap-screen");
   await expect(bootstrap).toBeVisible();
   await expect(bootstrap.getByRole("progressbar", { name: "画布启动进度" })).toBeVisible();
   await expect(bootstrap.getByRole("heading", { name: "正在打开画布" })).toBeVisible();
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).not.toBe("rgb(255, 255, 255)");
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).not.toBe(
+    "rgb(255, 255, 255)",
+  );
 });
 
 test("restricted browser storage cannot leave the canvas on a blank screen", async ({ page }) => {
@@ -21,16 +23,18 @@ test("restricted browser storage cannot leave the canvas on a blank screen", asy
   });
 
   await page.goto("/canvas");
-  await expect(page.locator(".kc-workspace")).toBeVisible({ timeout: 6_000 });
-  await expect(page.locator(".kc-startup-error")).toHaveCount(0);
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).not.toBe("rgb(255, 255, 255)");
+  await expect(page.locator(".wc-workspace")).toBeVisible({ timeout: 6_000 });
+  await expect(page.locator(".wc-startup-error")).toHaveCount(0);
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).not.toBe(
+    "rgb(255, 255, 255)",
+  );
 });
 
 test("a failed workspace chunk shows a recoverable startup state", async ({ page }) => {
   await page.route("**/src/components/canvas-workspace.tsx", (route) => route.abort());
   await page.goto("/canvas");
 
-  const startupError = page.locator(".kc-startup-error");
+  const startupError = page.locator(".wc-startup-error");
   await expect(startupError).toBeVisible();
   await expect(startupError.getByRole("button", { name: "重新载入" })).toBeVisible();
 });
@@ -43,7 +47,7 @@ for (const { name, viewport } of [
     await page.setViewportSize(viewport);
     await page.goto("/canvas");
 
-    const loader = page.locator(".kc-canvas-entry-loader");
+    const loader = page.locator(".wc-canvas-entry-loader");
     await expect(loader).toBeVisible();
     const visibleAt = Date.now();
     await expect(loader.getByRole("progressbar", { name: "画布进入进度" })).toBeVisible();
@@ -70,7 +74,7 @@ for (const { name, viewport } of [
     const visibleDurationMs = Date.now() - visibleAt;
     expect(visibleDurationMs).toBeGreaterThanOrEqual(350);
     expect(visibleDurationMs).toBeLessThan(3_500);
-    await expect(page.locator(".kc-workspace")).toBeVisible();
-    await expect(page.locator(".kc-app")).not.toHaveClass(/kc-app--canvas-loading/);
+    await expect(page.locator(".wc-workspace")).toBeVisible();
+    await expect(page.locator(".wc-app")).not.toHaveClass(/wc-app--canvas-loading/);
   });
 }

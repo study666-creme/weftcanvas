@@ -29,8 +29,22 @@ function imageModel(options: {
   extraParameters?: SourceModel["parameters"];
 }): SourceModel {
   const parameters: Record<string, unknown>[] = [
-    { name: "model", path: "model", type: "string", required: true, fixed: options.id, label: "模型" },
-    { name: "prompt", path: "prompt", type: "string", required: true, min_length: 1, label: "提示词" },
+    {
+      name: "model",
+      path: "model",
+      type: "string",
+      required: true,
+      fixed: options.id,
+      label: "模型",
+    },
+    {
+      name: "prompt",
+      path: "prompt",
+      type: "string",
+      required: true,
+      min_length: 1,
+      label: "提示词",
+    },
   ];
   if (options.size) {
     parameters.push({
@@ -48,7 +62,9 @@ function imageModel(options: {
       path: "aspect_ratio",
       type: "string",
       label: "画面比例",
-      ...(options.aspectRatio.default !== undefined ? { default: options.aspectRatio.default } : {}),
+      ...(options.aspectRatio.default !== undefined
+        ? { default: options.aspectRatio.default }
+        : {}),
       options: options.aspectRatio.options,
     });
   }
@@ -93,7 +109,8 @@ function imageModel(options: {
       items: { type: "string", format: "uri-or-data-image" },
     });
   }
-  if (options.extraParameters) parameters.push(...(options.extraParameters as Record<string, unknown>[]));
+  if (options.extraParameters)
+    parameters.push(...(options.extraParameters as Record<string, unknown>[]));
   return {
     id: options.id,
     modality: "image",
@@ -101,11 +118,15 @@ function imageModel(options: {
     order: options.order,
     input: {
       text: { required: true },
-      images: options.images ? { min: 0, max: options.images.max, multiple: true } : { min: 0, max: 0, multiple: false },
+      images: options.images
+        ? { min: 0, max: options.images.max, multiple: true }
+        : { min: 0, max: 0, multiple: false },
     },
     output: {
       type: "image",
-      ...(options.n?.fixed ? { count: { fixed: 1 } } : { count: { min: 1, max: options.n?.max ?? 8 } }),
+      ...(options.n?.fixed
+        ? { count: { fixed: 1 } }
+        : { count: { min: 1, max: options.n?.max ?? 8 } }),
     },
     parameters,
     endpoint: {
@@ -144,8 +165,22 @@ function videoModel(options: {
   extraParameters?: SourceModel["parameters"];
 }): SourceModel {
   const parameters: Record<string, unknown>[] = [
-    { name: "model", path: "model", type: "string", required: true, fixed: options.id, label: "模型" },
-    { name: "prompt", path: "prompt", type: "string", required: true, min_length: 1, label: "提示词" },
+    {
+      name: "model",
+      path: "model",
+      type: "string",
+      required: true,
+      fixed: options.id,
+      label: "模型",
+    },
+    {
+      name: "prompt",
+      path: "prompt",
+      type: "string",
+      required: true,
+      min_length: 1,
+      label: "提示词",
+    },
   ];
   const seconds = options.seconds ?? { default: 5, min: 4, max: 15 };
   parameters.push({
@@ -188,7 +223,8 @@ function videoModel(options: {
       items: { type: "string", format: "public-http-url" },
     });
   }
-  if (options.extraParameters) parameters.push(...(options.extraParameters as Record<string, unknown>[]));
+  if (options.extraParameters)
+    parameters.push(...(options.extraParameters as Record<string, unknown>[]));
   return {
     id: options.id,
     modality: "video",
@@ -196,8 +232,12 @@ function videoModel(options: {
     order: options.order,
     input: {
       text: { required: true },
-      images: options.images ? { min: 0, max: options.images.max, multiple: true } : { min: 0, max: 0, multiple: false },
-      videos: options.videos ? { min: 0, max: options.videos.max, multiple: options.videos.max > 1 } : { min: 0, max: 0, multiple: false },
+      images: options.images
+        ? { min: 0, max: options.images.max, multiple: true }
+        : { min: 0, max: 0, multiple: false },
+      videos: options.videos
+        ? { min: 0, max: options.videos.max, multiple: options.videos.max > 1 }
+        : { min: 0, max: 0, multiple: false },
     },
     output: { type: "video", count: { fixed: 1 } },
     parameters,
@@ -206,22 +246,22 @@ function videoModel(options: {
     selectable: true,
     pricing: options.perSecond
       ? {
-        mode: "fixed",
-        unit: "second",
-        currency: "CNY",
-        credits_per_yuan: 100,
-        credits: options.creditsPerSecond,
-        yuan: options.yuanPerSecond,
-        quantity_parameter: "duration",
-      }
+          mode: "fixed",
+          unit: "second",
+          currency: "CNY",
+          credits_per_yuan: 100,
+          credits: options.creditsPerSecond,
+          yuan: options.yuanPerSecond,
+          quantity_parameter: "duration",
+        }
       : {
-        mode: "fixed",
-        unit: "request",
-        currency: "CNY",
-        credits_per_yuan: 100,
-        credits: options.credits,
-        yuan: options.yuan,
-      },
+          mode: "fixed",
+          unit: "request",
+          currency: "CNY",
+          credits_per_yuan: 100,
+          credits: options.credits,
+          yuan: options.yuan,
+        },
   };
 }
 

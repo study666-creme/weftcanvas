@@ -27,7 +27,9 @@ describe("Canvas API access", () => {
   });
 
   it("keeps authenticated users in the free preview until the policy flips", () => {
-    expect(resolveCanvasApiAccess({ authenticated: true, membership: { active: true, tier: "basic" } })).toMatchObject({
+    expect(
+      resolveCanvasApiAccess({ authenticated: true, membership: { active: true, tier: "basic" } }),
+    ).toMatchObject({
       allowed: true,
       memberEligible: false,
       source: "preview",
@@ -42,8 +44,20 @@ describe("Canvas API access", () => {
   });
 
   it("provides one switchable gate for a future paid rollout", () => {
-    expect(canUseCanvasApi({ authenticated: true, membership: { active: true, tier: "basic" }, previewEnabled: false })).toBe(false);
-    expect(canUseCanvasApi({ authenticated: true, membership: { active: true, tier: "standard" }, previewEnabled: false })).toBe(true);
+    expect(
+      canUseCanvasApi({
+        authenticated: true,
+        membership: { active: true, tier: "basic" },
+        previewEnabled: false,
+      }),
+    ).toBe(false);
+    expect(
+      canUseCanvasApi({
+        authenticated: true,
+        membership: { active: true, tier: "standard" },
+        previewEnabled: false,
+      }),
+    ).toBe(true);
   });
 
   it("supports the membership-only settings projection", () => {

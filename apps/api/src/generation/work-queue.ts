@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { GenerationJobStatus } from "@kachang/contracts";
+import type { GenerationJobStatus } from "@weftcanvas/contracts";
 import type { Pool } from "pg";
 
 const RUNNABLE_STATUSES = ["reserved", "submitting", "queued", "running", "validating"] as const;
@@ -16,7 +16,11 @@ export type GenerationWorkLease = {
 };
 
 export interface GenerationWorkQueue {
-  leaseNext(owner: string, now: string, leaseDurationMs: number): Promise<GenerationWorkLease | null>;
+  leaseNext(
+    owner: string,
+    now: string,
+    leaseDurationMs: number,
+  ): Promise<GenerationWorkLease | null>;
   renew(jobId: string, token: string, now: string, leaseDurationMs: number): Promise<boolean>;
   release(
     jobId: string,
@@ -36,7 +40,10 @@ type LeaseRow = {
 };
 
 export class PostgresGenerationWorkQueue implements GenerationWorkQueue {
-  constructor(private readonly pool: Pool, private readonly createToken: () => string = randomUUID) {}
+  constructor(
+    private readonly pool: Pool,
+    private readonly createToken: () => string = randomUUID,
+  ) {}
 
   async leaseNext(owner: string, now: string, leaseDurationMs: number) {
     const workerOwner = validOwner(owner);
@@ -127,7 +134,8 @@ function validToken(value: string) {
 }
 
 function positiveInteger(value: number, name: string) {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`${name} must be a positive safe integer`);
+  if (!Number.isSafeInteger(value) || value <= 0)
+    throw new Error(`${name} must be a positive safe integer`);
   return value;
 }
 

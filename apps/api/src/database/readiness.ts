@@ -19,8 +19,10 @@ export class PostgresApiReadinessProbe implements ApiReadinessProbe {
     try {
       await client.query("BEGIN READ ONLY");
       await client.query("SET LOCAL statement_timeout = '10s'");
-      return await migrationsReady(client, this.expectedMigrations)
-        && await browserAccessLockedDown(client);
+      return (
+        (await migrationsReady(client, this.expectedMigrations)) &&
+        (await browserAccessLockedDown(client))
+      );
     } catch {
       return false;
     } finally {
@@ -80,8 +82,10 @@ async function browserAccessLockedDown(client: PoolClient) {
        AND c.relkind IN ('r', 'p')
        AND c.relname LIKE 'canvas\_%' ESCAPE '\\'`,
   );
-  return Number(tables.rows[0]?.table_count ?? 0) > 0
-    && Number(tables.rows[0]?.insecure_count ?? 0) === 0;
+  return (
+    Number(tables.rows[0]?.table_count ?? 0) > 0 &&
+    Number(tables.rows[0]?.insecure_count ?? 0) === 0
+  );
 }
 
 function defaultMigrationDirectory() {

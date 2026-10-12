@@ -2,7 +2,7 @@ import {
   createDirectorStageStarterPacket,
   normalizeDirectorStagePacket,
   type DirectorStagePacket,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 
 export type DirectorStageSourceMode = "packet" | "draft";
 
@@ -26,12 +26,14 @@ export function createDirectorStagePacketFromText(value: string): {
     mode: "draft",
     packet: {
       ...packet,
-      slots: [{
-        ...slot,
-        dramatic_function: body ? "文本预演" : slot.dramatic_function,
-        beat: prompt || slot.beat,
-        compressed_video_prompt: prompt,
-      }],
+      slots: [
+        {
+          ...slot,
+          dramatic_function: body ? "文本预演" : slot.dramatic_function,
+          beat: prompt || slot.beat,
+          compressed_video_prompt: prompt,
+        },
+      ],
     },
   };
 }

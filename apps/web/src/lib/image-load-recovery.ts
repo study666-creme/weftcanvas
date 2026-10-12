@@ -24,7 +24,10 @@ export type ImageLoadDecision =
  * - 瞬时失败（超时/网络/可重试状态码）→ 退避重试，预算用尽才落错误态；
  * - 未持有失败原因（引用被释放/主动清空）→ 不改变任何状态。
  */
-export function decideImageLoadOutcome(result: ImageLoadResult, retryAttempt: number): ImageLoadDecision {
+export function decideImageLoadOutcome(
+  result: ImageLoadResult,
+  retryAttempt: number,
+): ImageLoadDecision {
   if (result.asset) return { action: "show", asset: result.asset };
   if (result.failure === "permanent") return { action: "error" };
   if (result.failure !== "transient") return { action: "ignore" };

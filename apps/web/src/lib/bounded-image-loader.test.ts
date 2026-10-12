@@ -24,18 +24,20 @@ type LoaderHarness = {
   revoke: ReturnType<typeof vi.fn>;
 };
 
-function makeLoader(overrides: {
-  fetch?: (url: string, init: RequestInit) => Promise<Response>;
-  decode?: () => Promise<{ width: number; height: number }>;
-  nativeDecode?: (url: string, signal: AbortSignal) => Promise<{ width: number; height: number }>;
-  maxConcurrent?: number;
-  maxQueued?: number;
-  maxCachedBlobs?: number;
-  maxRetries?: number;
-  retryBaseDelayMs?: number;
-  objectUrlGraceMs?: number;
-  attemptTimeoutMs?: number;
-} = {}): LoaderHarness {
+function makeLoader(
+  overrides: {
+    fetch?: (url: string, init: RequestInit) => Promise<Response>;
+    decode?: () => Promise<{ width: number; height: number }>;
+    nativeDecode?: (url: string, signal: AbortSignal) => Promise<{ width: number; height: number }>;
+    maxConcurrent?: number;
+    maxQueued?: number;
+    maxCachedBlobs?: number;
+    maxRetries?: number;
+    retryBaseDelayMs?: number;
+    objectUrlGraceMs?: number;
+    attemptTimeoutMs?: number;
+  } = {},
+): LoaderHarness {
   const fetchCalls: string[] = [];
   const revoke = vi.fn();
   let urlSequence = 0;
@@ -107,10 +109,7 @@ describe("bounded image loader", () => {
 
   it("deduplicates concurrent acquires of the same URL into one fetch", async () => {
     const { loader, fetchCalls } = makeLoader();
-    const [first, second] = await Promise.all([
-      loader.acquire("same"),
-      loader.acquire("same"),
-    ]);
+    const [first, second] = await Promise.all([loader.acquire("same"), loader.acquire("same")]);
     expect(fetchCalls.filter((url) => url === "same")).toHaveLength(1);
     expect(first).not.toBeNull();
     expect(second).not.toBeNull();
@@ -142,7 +141,9 @@ describe("bounded image loader", () => {
     const { loader, fetchCalls } = makeLoader({
       fetch: (_url, init) => {
         pendingSignal = init.signal;
-        return new Promise<Response>((_resolve, reject) => { rejectFetch = reject; });
+        return new Promise<Response>((_resolve, reject) => {
+          rejectFetch = reject;
+        });
       },
     });
     const request = loader.acquire("slow");
@@ -157,7 +158,9 @@ describe("bounded image loader", () => {
   it("resolves only after decode, then reuses the object URL from memory", async () => {
     let releaseDecode!: () => void;
     let decoded = false;
-    const decodeGate = new Promise<void>((resolve) => { releaseDecode = resolve; });
+    const decodeGate = new Promise<void>((resolve) => {
+      releaseDecode = resolve;
+    });
     const { loader, fetchCalls, revoke } = makeLoader({
       decode: async () => {
         await decodeGate;
@@ -167,7 +170,9 @@ describe("bounded image loader", () => {
     });
     const request = loader.acquire("decode-gated");
     let settled = false;
-    void request.then(() => { settled = true; });
+    void request.then(() => {
+      settled = true;
+    });
     await new Promise((resolve) => setTimeout(resolve, 5));
     expect(settled).toBe(false);
     releaseDecode();
@@ -221,7 +226,11 @@ describe("bounded image loader", () => {
   });
 
   it("treats undecodable content as a permanent failure", async () => {
-    const { loader, fetchCalls } = makeLoader({ decode: async () => { throw new Error("decode failed"); } });
+    const { loader, fetchCalls } = makeLoader({
+      decode: async () => {
+        throw new Error("decode failed");
+      },
+    });
     await expect(loader.acquire("bad")).resolves.toBeNull();
     expect(fetchCalls).toEqual(["bad"]);
   });
@@ -231,7 +240,9 @@ describe("bounded image loader", () => {
     const { loader, fetchCalls } = makeLoader({
       maxRetries: 2,
       retryBaseDelayMs: 2,
-      fetch: async () => { throw new TypeError("Failed to fetch"); },
+      fetch: async () => {
+        throw new TypeError("Failed to fetch");
+      },
       nativeDecode,
     });
     const result = await loader.acquire("cdn-image");
@@ -325,14 +336,12 @@ describe("bounded image loader", () => {
   });
 
   it("times out a never-resolving fetch, aborts it, and settles within bounded retries", async () => {
-    let pendingSignal: AbortSignal | null | undefined = null;
     let pendingSignalAfterTimeout: AbortSignal | null | undefined = null;
     const { loader, fetchCalls } = makeLoader({
       maxRetries: 2,
       attemptTimeoutMs: 5,
       nativeDecode: () => new Promise(() => {}),
       fetch: (_url, init) => {
-        pendingSignal = init.signal;
         pendingSignalAfterTimeout = init.signal;
         return new Promise<Response>(() => {});
       },
@@ -353,7 +362,10 @@ describe("bounded image loader", () => {
       maxRetries: 1,
       retryBaseDelayMs: 2,
       attemptTimeoutMs: 5,
-      decode: () => (hung ? new Promise<{ width: number; height: number }>(() => {}) : Promise.resolve({ width: 100, height: 80 })),
+      decode: () =>
+        hung
+          ? new Promise<{ width: number; height: number }>(() => {})
+          : Promise.resolve({ width: 100, height: 80 }),
       nativeDecode: () => new Promise(() => {}),
     });
 
@@ -374,7 +386,10 @@ describe("bounded image loader", () => {
       maxRetries: 0,
       attemptTimeoutMs: 5,
       nativeDecode: () => new Promise(() => {}),
-      fetch: () => new Promise<Response>((resolve) => { lateResolve = resolve; }),
+      fetch: () =>
+        new Promise<Response>((resolve) => {
+          lateResolve = resolve;
+        }),
     });
 
     const first = loader.acquire("slow-a");
@@ -413,7 +428,10 @@ describe("bounded image loader", () => {
       fetch: async () => statusResponse(503),
     });
 
-    await expect(loader.acquireDetailed("warming")).resolves.toEqual({ asset: null, failure: "transient" });
+    await expect(loader.acquireDetailed("warming")).resolves.toEqual({
+      asset: null,
+      failure: "transient",
+    });
     // One initial attempt plus the bounded retry budget, then reported transient
     // (a slow first-time derivative generation is expected to recover).
     expect(fetchCalls).toEqual(["warming", "warming", "warming"]);
@@ -421,10 +439,20 @@ describe("bounded image loader", () => {
 
   it("reports a 404 and undecodable content as permanent failures", async () => {
     const missing = makeLoader({ fetch: async () => statusResponse(404) });
-    await expect(missing.loader.acquireDetailed("missing")).resolves.toEqual({ asset: null, failure: "permanent" });
+    await expect(missing.loader.acquireDetailed("missing")).resolves.toEqual({
+      asset: null,
+      failure: "permanent",
+    });
 
-    const bad = makeLoader({ decode: async () => { throw new Error("decode failed"); } });
-    await expect(bad.loader.acquireDetailed("bad")).resolves.toEqual({ asset: null, failure: "permanent" });
+    const bad = makeLoader({
+      decode: async () => {
+        throw new Error("decode failed");
+      },
+    });
+    await expect(bad.loader.acquireDetailed("bad")).resolves.toEqual({
+      asset: null,
+      failure: "permanent",
+    });
   });
 
   it("reports exhausted timeouts as transient", async () => {
@@ -435,7 +463,10 @@ describe("bounded image loader", () => {
       fetch: () => new Promise<Response>(() => {}),
     });
 
-    await expect(loader.acquireDetailed("never-resolves")).resolves.toEqual({ asset: null, failure: "transient" });
+    await expect(loader.acquireDetailed("never-resolves")).resolves.toEqual({
+      asset: null,
+      failure: "transient",
+    });
   });
 
   it("reports a released request as neither success nor failure", async () => {
@@ -449,7 +480,11 @@ describe("bounded image loader", () => {
   });
 
   it("keeps the legacy acquire contract returning null for every failure", async () => {
-    const transient = makeLoader({ maxRetries: 0, attemptTimeoutMs: 5, fetch: async () => statusResponse(503) });
+    const transient = makeLoader({
+      maxRetries: 0,
+      attemptTimeoutMs: 5,
+      fetch: async () => statusResponse(503),
+    });
     await expect(transient.loader.acquire("warming")).resolves.toBeNull();
 
     const permanent = makeLoader({ fetch: async () => statusResponse(404) });

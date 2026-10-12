@@ -1,4 +1,4 @@
-import type { PublicModel } from "@kachang/contracts";
+import type { PublicModel } from "@weftcanvas/contracts";
 import { z } from "zod";
 
 import {
@@ -13,11 +13,13 @@ import { executorAvailability } from "./video-executability.js";
 
 const hostedModelInventorySchema = z.object({
   success: z.literal(true),
-  models: z.array(z.object({
-    id: z.string().trim().min(1),
-    modality: z.enum(["text", "image", "video", "audio"]),
-    selectable: z.boolean().optional(),
-  })),
+  models: z.array(
+    z.object({
+      id: z.string().trim().min(1),
+      modality: z.enum(["text", "image", "video", "audio"]),
+      selectable: z.boolean().optional(),
+    }),
+  ),
 });
 
 export class CatalogUnavailableError extends Error {
@@ -50,7 +52,7 @@ type CatalogAdapterOptions = {
   now?: () => number;
 };
 
-export class KachangCatalogAdapter {
+export class WeftcanvasCatalogAdapter {
   private readonly fetcher: typeof globalThis.fetch;
   private readonly inventoryFetcher: typeof globalThis.fetch;
   private readonly refreshIntervalMs: number;
@@ -74,34 +76,43 @@ export class KachangCatalogAdapter {
     this.now = options.now ?? Date.now;
   }
 
-  async getCatalog(options: {
-    forceRefresh?: boolean;
-    awaitRefresh?: boolean;
-    awaitVideoAvailability?: boolean;
-    /** Admin reads the raw upstream view so hidden models can be un-hidden. */
-    includeOverrides?: boolean;
-  } = {}) {
+  async getCatalog(
+    options: {
+      forceRefresh?: boolean;
+      awaitRefresh?: boolean;
+      awaitVideoAvailability?: boolean;
+      /** Admin reads the raw upstream view so hidden models can be un-hidden. */
+      includeOverrides?: boolean;
+    } = {},
+  ) {
     await this.loadStoredSnapshot();
     const now = this.now();
-    const snapshotExpired = this.snapshot ? now >= Date.parse(this.snapshot.catalog.expiresAt) : false;
-    const snapshotIncomplete = this.snapshot ? !hasCompleteExecutionRoutes(this.snapshot) : false;
-    const videoAvailabilityMissing = this.options.videoInventoryUrl && this.snapshot
-      ? !hasFreshVideoAvailability(this.snapshot, now, this.refreshIntervalMs)
+    const snapshotExpired = this.snapshot
+      ? now >= Date.parse(this.snapshot.catalog.expiresAt)
       : false;
-    const snapshotNeedsNormalization = this.snapshot ? !hasCurrentNormalization(this.snapshot, this.options.overlay) : false;
-    const mustAwaitRefresh = options.forceRefresh === true
-      || !this.snapshot
-      || snapshotNeedsNormalization
-      || snapshotIncomplete
-      || (options.awaitRefresh === true && (snapshotExpired || snapshotIncomplete))
-      || (options.awaitVideoAvailability === true && videoAvailabilityMissing);
-    const shouldRefresh = Boolean(this.options.sourceUrl)
-      && (mustAwaitRefresh
-      || now - this.lastCheckedAt >= this.refreshIntervalMs
-      || snapshotExpired
-      || snapshotIncomplete
-      || videoAvailabilityMissing
-      || snapshotNeedsNormalization);
+    const snapshotIncomplete = this.snapshot ? !hasCompleteExecutionRoutes(this.snapshot) : false;
+    const videoAvailabilityMissing =
+      this.options.videoInventoryUrl && this.snapshot
+        ? !hasFreshVideoAvailability(this.snapshot, now, this.refreshIntervalMs)
+        : false;
+    const snapshotNeedsNormalization = this.snapshot
+      ? !hasCurrentNormalization(this.snapshot, this.options.overlay)
+      : false;
+    const mustAwaitRefresh =
+      options.forceRefresh === true ||
+      !this.snapshot ||
+      snapshotNeedsNormalization ||
+      snapshotIncomplete ||
+      (options.awaitRefresh === true && (snapshotExpired || snapshotIncomplete)) ||
+      (options.awaitVideoAvailability === true && videoAvailabilityMissing);
+    const shouldRefresh =
+      Boolean(this.options.sourceUrl) &&
+      (mustAwaitRefresh ||
+        now - this.lastCheckedAt >= this.refreshIntervalMs ||
+        snapshotExpired ||
+        snapshotIncomplete ||
+        videoAvailabilityMissing ||
+        snapshotNeedsNormalization);
     const refreshAllowed = options.forceRefresh === true || now >= this.refreshRetryAt;
     if (shouldRefresh && refreshAllowed) {
       if (mustAwaitRefresh) await this.refreshSafely();
@@ -112,19 +123,21 @@ export class KachangCatalogAdapter {
     const sourceCatalog = this.options.videoInventoryUrl
       ? filterVideoModels(currentCatalog, this.snapshot.videoAvailability)
       : currentCatalog;
-    const catalog = this.options.overrides && options.includeOverrides !== false
-      ? applyModelOverrides(sourceCatalog, await this.options.overrides.load())
-      : sourceCatalog;
-    return hasCompleteExecutionRoutes(this.snapshot) && hasCurrentNormalization(this.snapshot, this.options.overlay)
+    const catalog =
+      this.options.overrides && options.includeOverrides !== false
+        ? applyModelOverrides(sourceCatalog, await this.options.overrides.load())
+        : sourceCatalog;
+    return hasCompleteExecutionRoutes(this.snapshot) &&
+      hasCurrentNormalization(this.snapshot, this.options.overlay)
       ? catalog
       : { ...catalog, quoteAvailable: false };
   }
 
   async getModel(publicModelId: string, options: { forceRefresh?: boolean } = {}) {
     await this.loadStoredSnapshot();
-    const knownVideo = this.snapshot?.catalog.models.some((model) => (
-      model.id === publicModelId && model.modality === "video"
-    ));
+    const knownVideo = this.snapshot?.catalog.models.some(
+      (model) => model.id === publicModelId && model.modality === "video",
+    );
     let catalog = await this.getCatalog({
       ...options,
       awaitRefresh: true,
@@ -143,13 +156,13 @@ export class KachangCatalogAdapter {
     // newly published model or route. Retry one authoritative refresh before
     // reporting MODEL_NOT_AVAILABLE so transient catalog skew does not block a
     // submit.
-    const refreshedKnownVideo = this.snapshot?.catalog.models.some((model) => (
-      model.id === publicModelId && model.modality === "video"
-    ));
-    const knownUnavailableVideo = refreshedKnownVideo && (
-      hasFreshVideoAvailability(this.snapshot, this.now(), this.refreshIntervalMs)
-      || this.now() < this.refreshRetryAt
+    const refreshedKnownVideo = this.snapshot?.catalog.models.some(
+      (model) => model.id === publicModelId && model.modality === "video",
     );
+    const knownUnavailableVideo =
+      refreshedKnownVideo &&
+      (hasFreshVideoAvailability(this.snapshot, this.now(), this.refreshIntervalMs) ||
+        this.now() < this.refreshRetryAt);
     if (record || options.forceRefresh === true || knownUnavailableVideo) return record;
     catalog = await this.getCatalog({ forceRefresh: true, awaitRefresh: true });
     return resolve();
@@ -170,16 +183,19 @@ export class KachangCatalogAdapter {
   private async loadStoredSnapshot() {
     if (this.loaded) return;
     if (!this.loadPromise) {
-      this.loadPromise = this.options.store.load().then((snapshot) => {
-        const compatible = snapshot
-          ? (this.options.overlay?.ensureSnapshotCompatibility?.(snapshot) ?? snapshot)
-          : null;
-        this.snapshot = compatible;
-        if (compatible && compatible !== snapshot) void this.options.store.save(compatible);
-        this.loaded = true;
-      }).finally(() => {
-        this.loadPromise = null;
-      });
+      this.loadPromise = this.options.store
+        .load()
+        .then((snapshot) => {
+          const compatible = snapshot
+            ? (this.options.overlay?.ensureSnapshotCompatibility?.(snapshot) ?? snapshot)
+            : null;
+          this.snapshot = compatible;
+          if (compatible && compatible !== snapshot) void this.options.store.save(compatible);
+          this.loaded = true;
+        })
+        .finally(() => {
+          this.loadPromise = null;
+        });
     }
     await this.loadPromise;
   }
@@ -193,7 +209,10 @@ export class KachangCatalogAdapter {
         })
         .catch((cause) => {
           this.refreshFailureCount += 1;
-          const retryDelay = Math.min(5 * 60_000, 2_000 * (2 ** Math.min(7, this.refreshFailureCount - 1)));
+          const retryDelay = Math.min(
+            5 * 60_000,
+            2_000 * 2 ** Math.min(7, this.refreshFailureCount - 1),
+          );
           this.refreshRetryAt = this.now() + retryDelay;
           if (!this.snapshot) throw new CatalogUnavailableError(cause);
           console.error("Catalog refresh failed", cause);
@@ -210,10 +229,12 @@ export class KachangCatalogAdapter {
     const checkedAt = this.now();
     this.lastCheckedAt = checkedAt;
     const headers = new Headers({ Accept: "application/json" });
-    const canRevalidateSnapshot = this.snapshot
-      && hasCompleteExecutionRoutes(this.snapshot)
-      && hasCurrentNormalization(this.snapshot, this.options.overlay);
-    if (this.snapshot?.etag && canRevalidateSnapshot) headers.set("If-None-Match", this.snapshot.etag);
+    const canRevalidateSnapshot =
+      this.snapshot &&
+      hasCompleteExecutionRoutes(this.snapshot) &&
+      hasCurrentNormalization(this.snapshot, this.options.overlay);
+    if (this.snapshot?.etag && canRevalidateSnapshot)
+      headers.set("If-None-Match", this.snapshot.etag);
     const [sourceResult, inventoryResult] = await Promise.allSettled([
       this.fetcher(this.options.sourceUrl!, {
         headers,
@@ -223,12 +244,10 @@ export class KachangCatalogAdapter {
         ? this.fetchVideoAvailability(checkedAt)
         : Promise.resolve(undefined),
     ]);
-    const videoAvailability = inventoryResult.status === "fulfilled"
-      ? inventoryResult.value
-      : undefined;
-    const failures: unknown[] = inventoryResult.status === "rejected"
-      ? [inventoryResult.reason]
-      : [];
+    const videoAvailability =
+      inventoryResult.status === "fulfilled" ? inventoryResult.value : undefined;
+    const failures: unknown[] =
+      inventoryResult.status === "rejected" ? [inventoryResult.reason] : [];
     let refreshed: StoredCatalogSnapshot | null = null;
 
     if (sourceResult.status === "rejected") {
@@ -237,7 +256,11 @@ export class KachangCatalogAdapter {
       const response = sourceResult.value;
       try {
         if (response.status === 304) {
-          if (!this.snapshot || !canRevalidateSnapshot || (this.options.videoInventoryUrl && !videoAvailability)) {
+          if (
+            !this.snapshot ||
+            !canRevalidateSnapshot ||
+            (this.options.videoInventoryUrl && !videoAvailability)
+          ) {
             throw new Error("Catalog returned 304 without a validated execution inventory");
           }
           refreshed = {
@@ -297,15 +320,19 @@ export class KachangCatalogAdapter {
     // 执行器目录已经把「没有可用渠道」的视频挡掉了，所以这里的可执行清单就是
     // 视频准入白名单（见 video-executability.ts 的说明）。
     return executorAvailability({
-      executorVideoIds: videoModels.filter((model) => model.selectable !== false).map((model) => model.id),
-      disabledVideoIds: videoModels.filter((model) => model.selectable === false).map((model) => model.id),
+      executorVideoIds: videoModels
+        .filter((model) => model.selectable !== false)
+        .map((model) => model.id),
+      disabledVideoIds: videoModels
+        .filter((model) => model.selectable === false)
+        .map((model) => model.id),
       validatedAt,
     });
   }
 }
 
 export type CatalogModelRecord = {
-  catalog: Awaited<ReturnType<KachangCatalogAdapter["getCatalog"]>>;
+  catalog: Awaited<ReturnType<WeftcanvasCatalogAdapter["getCatalog"]>>;
   model: PublicModel;
   sourceModelId: string;
 };
@@ -314,15 +341,24 @@ function hasCompleteExecutionRoutes(snapshot: StoredCatalogSnapshot) {
   return snapshot.catalog.models.every((model) => {
     const route = snapshot.routes[model.id];
     if (!route) return false;
-    return route.sourceModelId === snapshot.sourceModels[model.id] && route.modality === model.modality;
+    return (
+      route.sourceModelId === snapshot.sourceModels[model.id] && route.modality === model.modality
+    );
   });
 }
 
-function hasCurrentNormalization(snapshot: StoredCatalogSnapshot, overlay?: CatalogCompatibilityOverlay) {
+function hasCurrentNormalization(
+  snapshot: StoredCatalogSnapshot,
+  overlay?: CatalogCompatibilityOverlay,
+) {
   return snapshot.normalizationVersion === catalogNormalizationVersion(overlay);
 }
 
-function hasFreshVideoAvailability(snapshot: StoredCatalogSnapshot | null, now: number, maxAgeMs: number) {
+function hasFreshVideoAvailability(
+  snapshot: StoredCatalogSnapshot | null,
+  now: number,
+  maxAgeMs: number,
+) {
   const validatedAt = snapshot?.videoAvailability?.validatedAt;
   if (validatedAt === undefined) return false;
   const age = now - validatedAt;
@@ -334,7 +370,7 @@ function filterVideoModels(
   availability: StoredCatalogSnapshot["videoAvailability"],
 ) {
   // 视频可用性来自**执行器目录**（`videoInventoryUrl` 默认指向 Prompt Hub 的
-  // /api/v1/model-catalog），它是「这个模型现在有没有可用渠道」的权威。卡藏目录
+  // /api/v1/model-catalog），它是「这个模型现在有没有可用渠道」的权威。纬线目录
   // 只说明站点上架了什么，两者实测并不一致——差集里的 token 计费 Seedance 系会
   // 报价通过、点生成才报「模型不可用」（见 video-executability.ts）。
   //

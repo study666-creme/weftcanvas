@@ -1,11 +1,11 @@
-# Kachang API Model Catalog and Pricing
+# Weftcanvas API Model Catalog and Pricing
 
-Kachang API is the built-in model and generation provider. The Card Repository
+Weftcanvas API is the built-in model and generation provider. The Card Repository
 is a separate optional product integration and is not involved in this flow.
 
 ## Source of truth
 
-The Kachang API public catalog is authoritative for:
+The Weftcanvas API public catalog is authoritative for:
 
 - public model id, label, and description
 - modality: text, image, video, or audio
@@ -334,7 +334,7 @@ The admin surface is served by the Canvas API itself and is enabled only when
   overrides. This read bypasses overrides so a hidden model can be re-shown.
 - `PUT /api/v1/admin/model-overrides` — replace the override set. Body:
   `{ "models": { "<public id>": { "hidden"?: boolean, "sortOrder"?: number,
-  "price"?: { "yuan"?: number, "byResolution"?: { "<resolution>": number } } } } }`.
+"price"?: { "yuan"?: number, "byResolution"?: { "<resolution>": number } } } } }`.
 
 State is a JSON file at `MODEL_OVERRIDES_PATH` (default
 `.data/model-overrides.json`). A price override rotates the catalog
@@ -343,16 +343,16 @@ visibility-only edit keeps the upstream version.
 
 ### Banana line group-standard prices
 
-The 卡藏 catalog publishes one price per model, but some 香蕉 lines bill on a
+The 纬线 catalog publishes one price per model, but some 香蕉 lines bill on a
 specific NewAPI group whose standard differs from the published top-level
 price. The group standards (from the deployment's pricing endpoint) are:
 
-| public id | group | standard (CNY) |
-| --- | --- | --- |
-| `nano-banana-2` | 生图 | 0.06 |
-| `nano-banana-pro` | 生图 | 0.062 |
-| `nano-banana-2-a` | 稳定香蕉 | 0.08 |
-| `nano-banana-pro-a` | 稳定香蕉 | 0.10 |
+| public id           | group    | standard (CNY) |
+| ------------------- | -------- | -------------- |
+| `nano-banana-2`     | 生图     | 0.06           |
+| `nano-banana-pro`   | 生图     | 0.062          |
+| `nano-banana-2-a`   | 稳定香蕉 | 0.08           |
+| `nano-banana-pro-a` | 稳定香蕉 | 0.10           |
 
 `nano-banana-2`, `nano-banana-pro`, and `nano-banana-2-a` already match their
 group standard. `nano-banana-pro-a` is published at 0.07 and must be corrected
@@ -439,7 +439,7 @@ Verified production-path boundaries:
    `kling-o3-pro-v2v-reference`, and `sd2.0-480p`; confirm the credit/yuan
    values match the catalog pricing.
 3. For `image2-A` and `grok-imagine-image`, submit through a validation-only or
-  zero-cost path and capture the product-facing validation details. The
+   zero-cost path and capture the product-facing validation details. The
    Canvas request itself must contain only the documented public fields.
 4. Confirm `nano-banana` maintenance/selectable state mirrors the upstream.
 5. Confirm a running `gpt-image-2-ext` job shows the stalled marker after three

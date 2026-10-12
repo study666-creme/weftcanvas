@@ -79,8 +79,12 @@ describe("media HTTP API", () => {
       data: { status: "ready", width: 80, height: 45, size: BYTES.length },
     });
 
-    const metadata = await app.request(`http://localhost/api/v1/media/${MEDIA_ID}`, { headers: { Cookie: cookie } });
-    expect(await metadata.json()).toMatchObject({ data: { status: "ready", mimeType: "image/png" } });
+    const metadata = await app.request(`http://localhost/api/v1/media/${MEDIA_ID}`, {
+      headers: { Cookie: cookie },
+    });
+    expect(await metadata.json()).toMatchObject({
+      data: { status: "ready", mimeType: "image/png" },
+    });
 
     const content = await app.request(`http://localhost/api/v1/media/${MEDIA_ID}/content`, {
       headers: { Cookie: cookie, Range: "bytes=2-6" },
@@ -89,11 +93,16 @@ describe("media HTTP API", () => {
     expect(content.headers.get("Content-Range")).toBe(`bytes 2-6/${BYTES.length}`);
     expect(Buffer.from(await content.arrayBuffer())).toEqual(BYTES.subarray(2, 7));
 
-    const explicitFullRange = await app.request(`http://localhost/api/v1/media/${MEDIA_ID}/content`, {
-      headers: { Cookie: cookie, Range: `bytes=0-${BYTES.length - 1}` },
-    });
+    const explicitFullRange = await app.request(
+      `http://localhost/api/v1/media/${MEDIA_ID}/content`,
+      {
+        headers: { Cookie: cookie, Range: `bytes=0-${BYTES.length - 1}` },
+      },
+    );
     expect(explicitFullRange.status).toBe(206);
-    expect(explicitFullRange.headers.get("Content-Range")).toBe(`bytes 0-${BYTES.length - 1}/${BYTES.length}`);
+    expect(explicitFullRange.headers.get("Content-Range")).toBe(
+      `bytes 0-${BYTES.length - 1}/${BYTES.length}`,
+    );
 
     const signedUrl = new SignedMediaAccess({
       secret: SIGNING_SECRET,
@@ -172,11 +181,16 @@ describe("media HTTP API", () => {
     expect(content.status).toBe(307);
     expect(content.headers.get("Location")).toBe("https://objects.example.test/download");
 
-    const download = await app.request(`http://localhost/api/v1/media/${MEDIA_ID}/content?download=1`, {
-      headers: { Cookie: cookie },
-    });
+    const download = await app.request(
+      `http://localhost/api/v1/media/${MEDIA_ID}/content?download=1`,
+      {
+        headers: { Cookie: cookie },
+      },
+    );
     expect(download.status).toBe(200);
-    expect(download.headers.get("Content-Disposition")).toBe('attachment; filename="reference.png"');
+    expect(download.headers.get("Content-Disposition")).toBe(
+      'attachment; filename="reference.png"',
+    );
     expect(Buffer.from(await download.arrayBuffer())).toEqual(BYTES);
 
     const signedUrl = new SignedMediaAccess({
@@ -199,15 +213,22 @@ function createApp(objects: MediaObjectStore = new MemoryObjectStore()) {
     passwordHasher: new TestPasswordHasher(),
     sessionTtlMs: 60_000,
   });
-  const media = new MediaService(
-    new MemoryMetadataStore(),
-    objects,
-    new FixedInspector(),
-    { now: () => NOW, createId: () => MEDIA_ID, uploadTtlMs: 60_000 },
-  );
+  const media = new MediaService(new MemoryMetadataStore(), objects, new FixedInspector(), {
+    now: () => NOW,
+    createId: () => MEDIA_ID,
+    uploadTtlMs: 60_000,
+  });
   return createApiApp({
-    catalog: { getCatalog: async () => { throw new Error("unused"); } },
-    quotes: { createQuote: async () => { throw new Error("unused"); } },
+    catalog: {
+      getCatalog: async () => {
+        throw new Error("unused");
+      },
+    },
+    quotes: {
+      createQuote: async () => {
+        throw new Error("unused");
+      },
+    },
     identity,
     media,
     signedMedia: new SignedMediaAccess({ secret: SIGNING_SECRET, now: () => NOW }),
@@ -227,7 +248,10 @@ class MemoryIdentityStore implements IdentityStore {
   private user: IdentityUserRecord | null = null;
   private session: IdentitySessionRecord | null = null;
 
-  async createAccount(user: IdentityUserRecord, session: IdentitySessionRecord): Promise<CreateIdentityAccountResult> {
+  async createAccount(
+    user: IdentityUserRecord,
+    session: IdentitySessionRecord,
+  ): Promise<CreateIdentityAccountResult> {
     this.user = structuredClone(user);
     this.session = structuredClone(session);
     return { kind: "created" };
@@ -243,7 +267,13 @@ class MemoryIdentityStore implements IdentityStore {
   }
 
   async findActiveSession(tokenHash: string, now: string): Promise<ActiveIdentitySession | null> {
-    if (!this.user || !this.session || this.session.tokenHash !== tokenHash || this.session.expiresAt <= now) return null;
+    if (
+      !this.user ||
+      !this.session ||
+      this.session.tokenHash !== tokenHash ||
+      this.session.expiresAt <= now
+    )
+      return null;
     return { user: structuredClone(this.user), session: structuredClone(this.session) };
   }
 
@@ -256,7 +286,9 @@ class MemoryMetadataStore implements MediaMetadataStore {
   private media: MediaRecord | null = null;
 
   async findByIdempotency(ownerId: string, key: string) {
-    return this.media?.ownerId === ownerId && this.media.idempotencyKey === key ? structuredClone(this.media) : null;
+    return this.media?.ownerId === ownerId && this.media.idempotencyKey === key
+      ? structuredClone(this.media)
+      : null;
   }
 
   async getById(id: string) {
@@ -269,7 +301,8 @@ class MemoryMetadataStore implements MediaMetadataStore {
   }
 
   async deleteOwned(id: string, ownerId: string) {
-    if (!this.media || this.media.id !== id || this.media.ownerId !== ownerId) return { kind: "missing" } as const;
+    if (!this.media || this.media.id !== id || this.media.ownerId !== ownerId)
+      return { kind: "missing" } as const;
     const [media] = [this.media];
     this.media = null;
     return { kind: "deleted", media: structuredClone(media) } as const;
@@ -300,7 +333,14 @@ class MemoryMetadataStore implements MediaMetadataStore {
     status: MediaRecord["status"],
     change: Pick<MediaRecord, "status" | "updatedAt">,
   ) {
-    if (!this.media || this.media.id !== id || this.media.ownerId !== ownerId || this.media.revision !== revision || this.media.status !== status) return null;
+    if (
+      !this.media ||
+      this.media.id !== id ||
+      this.media.ownerId !== ownerId ||
+      this.media.revision !== revision ||
+      this.media.status !== status
+    )
+      return null;
     this.media = { ...this.media, ...change, revision: revision + 1 };
     return structuredClone(this.media);
   }
@@ -313,12 +353,15 @@ class MemoryObjectStore implements MediaObjectStore {
     const values: Buffer[] = [];
     for await (const value of source) values.push(Buffer.from(value));
     this.bytes = Buffer.concat(values);
-    return { size: this.bytes.length, sha256: createHash("sha256").update(this.bytes).digest("hex") };
+    return {
+      size: this.bytes.length,
+      sha256: createHash("sha256").update(this.bytes).digest("hex"),
+    };
   }
 
   async withLocalFile<T>(_key: string, action: (path: string) => Promise<T>) {
     if (!this.bytes) throw new Error("missing media");
-    const directory = await mkdtemp(join(tmpdir(), "kachang-http-media-"));
+    const directory = await mkdtemp(join(tmpdir(), "weftcanvas-http-media-"));
     const path = join(directory, "object.media");
     await writeFile(path, this.bytes);
     try {
@@ -332,7 +375,12 @@ class MemoryObjectStore implements MediaObjectStore {
     if (!this.bytes) throw new Error("missing media");
     const start = range?.start ?? 0;
     const end = range?.end ?? this.bytes.length - 1;
-    return { stream: Readable.from(this.bytes.subarray(start, end + 1)), totalSize: this.bytes.length, start, end };
+    return {
+      stream: Readable.from(this.bytes.subarray(start, end + 1)),
+      totalSize: this.bytes.length,
+      start,
+      end,
+    };
   }
 
   async remove() {
@@ -347,7 +395,12 @@ class MemoryObjectStore implements MediaObjectStore {
 class MemoryDirectObjectStore extends MemoryObjectStore {
   async createUploadInstruction(
     _key: string,
-    options: { contentType: string; contentLength: number; sha256: string | null; expiresAt: string },
+    options: {
+      contentType: string;
+      contentLength: number;
+      sha256: string | null;
+      expiresAt: string;
+    },
   ) {
     return {
       method: "PUT" as const,
@@ -378,7 +431,14 @@ class MemoryDirectObjectStore extends MemoryObjectStore {
 
 class FixedInspector implements MediaInspector {
   async inspect(): Promise<InspectedMedia> {
-    return { kind: "image", mimeType: "image/png", size: BYTES.length, width: 80, height: 45, durationMs: null };
+    return {
+      kind: "image",
+      mimeType: "image/png",
+      size: BYTES.length,
+      width: 80,
+      height: 45,
+      durationMs: null,
+    };
   }
 }
 

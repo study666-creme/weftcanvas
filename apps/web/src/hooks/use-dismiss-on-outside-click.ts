@@ -1,6 +1,9 @@
 import { useEffect, useRef, type RefObject } from "react";
 
-export function useDismissOnOutsideClick<T extends HTMLElement>(open: boolean, onDismiss: () => void): RefObject<T | null> {
+export function useDismissOnOutsideClick<T extends HTMLElement>(
+  open: boolean,
+  onDismiss: () => void,
+): RefObject<T | null> {
   const surfaceRef = useRef<T>(null);
   const onDismissRef = useRef(onDismiss);
   onDismissRef.current = onDismiss;
@@ -13,7 +16,12 @@ export function useDismissOnOutsideClick<T extends HTMLElement>(open: boolean, o
       const surface = surfaceRef.current;
       const path = event.composedPath();
       if (!surface || path.includes(surface)) return;
-      if (path.some((item) => item instanceof HTMLElement && item.hasAttribute("data-kc-preserve-drawers"))) return;
+      if (
+        path.some(
+          (item) => item instanceof HTMLElement && item.hasAttribute("data-wc-preserve-drawers"),
+        )
+      )
+        return;
       if (!(target instanceof Node) || surface.contains(target)) return;
       onDismissRef.current();
     };

@@ -1,7 +1,7 @@
-import type { CanvasMedia } from "@kachang/contracts";
+import type { CanvasMedia } from "@weftcanvas/contracts";
 
 import type { ProjectAssetKind } from "./asset-library-store";
-import type { KachangNode } from "../types";
+import type { WeftcanvasNode } from "../types";
 
 export type CanvasMediaCapture = {
   media: CanvasMedia;
@@ -10,7 +10,9 @@ export type CanvasMediaCapture = {
 };
 
 /** mime → 资产类型；识别不了的类型不入库。 */
-export function projectAssetKindOfMedia(media: CanvasMedia): Exclude<ProjectAssetKind, "prompt"> | null {
+export function projectAssetKindOfMedia(
+  media: CanvasMedia,
+): Exclude<ProjectAssetKind, "prompt"> | null {
   if (media.mimeType.startsWith("image/")) return "image";
   if (media.mimeType.startsWith("video/")) return "video";
   if (media.mimeType.startsWith("audio/")) return "audio";
@@ -21,7 +23,7 @@ export function projectAssetKindOfMedia(media: CanvasMedia): Exclude<ProjectAsse
  * 收集画布节点上可入库的媒体资产：每个媒体 id 只取第一次出现的节点，
  * 节点提示词（body）随资产一起保存，插回画布时能还原创作语境。
  */
-export function collectCanvasMediaCaptures(nodes: KachangNode[]): CanvasMediaCapture[] {
+export function collectCanvasMediaCaptures(nodes: WeftcanvasNode[]): CanvasMediaCapture[] {
   const byMediaId = new Map<string, CanvasMediaCapture>();
   for (const node of nodes) {
     const media = node.data.media;

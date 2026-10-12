@@ -40,13 +40,19 @@ const emptyMembershipTasks = {
 // Authenticated pages eagerly refresh these account-scoped endpoints. Keep
 // production smoke tests isolated from the real account and task services.
 export async function mockAuthenticatedBackgroundApis(page: Page) {
-  await page.route(/\/api\/v1\/cloud-projects(?:\?.*)?$/, (route) => route.fulfill({
-    json: { ok: true, data: emptyCloudProjects },
-  }));
-  await page.route(/\/api\/v1\/membership\/tasks(?:\?.*)?$/, (route) => route.fulfill({
-    json: { ok: true, data: emptyMembershipTasks },
-  }));
-  await page.route(/\/api\/v1\/membership\/tasks\/canvas-create-node(?:\?.*)?$/, (route) => route.fulfill({
-    json: { ok: true, data: { message: "Node task recorded by the fixture", granted: false } },
-  }));
+  await page.route(/\/api\/v1\/cloud-projects(?:\?.*)?$/, (route) =>
+    route.fulfill({
+      json: { ok: true, data: emptyCloudProjects },
+    }),
+  );
+  await page.route(/\/api\/v1\/membership\/tasks(?:\?.*)?$/, (route) =>
+    route.fulfill({
+      json: { ok: true, data: emptyMembershipTasks },
+    }),
+  );
+  await page.route(/\/api\/v1\/membership\/tasks\/canvas-create-node(?:\?.*)?$/, (route) =>
+    route.fulfill({
+      json: { ok: true, data: { message: "Node task recorded by the fixture", granted: false } },
+    }),
+  );
 }

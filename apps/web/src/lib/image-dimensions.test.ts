@@ -22,38 +22,61 @@ function webpLosslessBytes(width: number, height: number) {
   const bits = (width - 1) | ((height - 1) << 14);
   return new Uint8Array([
     ...asciiBytes("RIFF"),
-    0x1a, 0x00, 0x00, 0x00,
+    0x1a,
+    0x00,
+    0x00,
+    0x00,
     ...asciiBytes("WEBP"),
     ...asciiBytes("VP8L"),
-    0x0e, 0x00, 0x00, 0x00,
+    0x0e,
+    0x00,
+    0x00,
+    0x00,
     0x2f,
     bits & 0xff,
     (bits >> 8) & 0xff,
     (bits >> 16) & 0xff,
     (bits >> 24) & 0xff,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
   ]);
 }
 
 function gifBytes(width: number, height: number) {
   return new Uint8Array([
     ...asciiBytes("GIF89a"),
-    width & 0xff, (width >> 8) & 0xff,
-    height & 0xff, (height >> 8) & 0xff,
-    0x00, 0x00, 0x00, 0x00, 0x00,
+    width & 0xff,
+    (width >> 8) & 0xff,
+    height & 0xff,
+    (height >> 8) & 0xff,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
   ]);
 }
 
 describe("image dimensions", () => {
-  it.each(REAL_FIXTURES)("reads $file header without a full decode", async ({ file, width, height }) => {
-    const bytes = new Uint8Array(readFileSync(new URL(`../assets/${file}`, import.meta.url)));
-    expect(readImageHeaderDimensions(bytes)).toEqual({ width, height });
-    expect(await readBlobImageDimensions(new Blob([bytes]))).toEqual({ width, height });
-  });
+  it.each(REAL_FIXTURES)(
+    "reads $file header without a full decode",
+    async ({ file, width, height }) => {
+      const bytes = new Uint8Array(readFileSync(new URL(`../assets/${file}`, import.meta.url)));
+      expect(readImageHeaderDimensions(bytes)).toEqual({ width, height });
+      expect(await readBlobImageDimensions(new Blob([bytes]))).toEqual({ width, height });
+    },
+  );
 
   it("reads lossless webp and gif containers", () => {
     expect(readImageHeaderDimensions(webpLosslessBytes(16, 16))).toEqual({ width: 16, height: 16 });
-    expect(readImageHeaderDimensions(webpLosslessBytes(1600, 900))).toEqual({ width: 1600, height: 900 });
+    expect(readImageHeaderDimensions(webpLosslessBytes(1600, 900))).toEqual({
+      width: 1600,
+      height: 900,
+    });
     expect(readImageHeaderDimensions(gifBytes(32, 16))).toEqual({ width: 32, height: 16 });
   });
 

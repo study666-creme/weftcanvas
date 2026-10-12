@@ -10,6 +10,9 @@ export function h3Resolution(parameters: Record<string, unknown>) {
   return normalized === "2K" || normalized === "4K" ? normalized : undefined;
 }
 
-export function h3SuperResolutionRequiresImage(modelId: string, parameters: Record<string, unknown>) {
+export function h3SuperResolutionRequiresImage(
+  modelId: string,
+  parameters: Record<string, unknown>,
+) {
   return isMinimaxH3Model(modelId) && h3Resolution(parameters) !== undefined;
 }

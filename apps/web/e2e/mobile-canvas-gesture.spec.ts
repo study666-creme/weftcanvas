@@ -31,7 +31,7 @@ test.beforeEach(async ({ page }) => {
 
   await seedEmptyProject(page);
   await page.goto("/canvas");
-  await expect(page.locator(".kc-canvas-entry-loader")).toHaveCount(0, { timeout: 6_000 });
+  await expect(page.locator(".wc-canvas-entry-loader")).toHaveCount(0, { timeout: 6_000 });
 });
 
 test("coarse touch devices pan and zoom the canvas with two fingers", async ({ page, context }) => {
@@ -46,10 +46,11 @@ test("coarse touch devices pan and zoom the canvas with two fingers", async ({ p
     x: bounds!.x + bounds!.width * 0.52,
     y: bounds!.y + bounds!.height * 0.52,
   };
-  const readViewport = () => page.locator(".react-flow__viewport").evaluate((element) => {
-    const matrix = new DOMMatrixReadOnly(getComputedStyle(element).transform);
-    return { x: matrix.m41, y: matrix.m42, zoom: matrix.a };
-  });
+  const readViewport = () =>
+    page.locator(".react-flow__viewport").evaluate((element) => {
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(element).transform);
+      return { x: matrix.m41, y: matrix.m42, zoom: matrix.a };
+    });
 
   const initial = await readViewport();
   await dispatchGesture(client, [
@@ -79,15 +80,19 @@ test("coarse touch devices pan and zoom the canvas with two fingers", async ({ p
   await expect.poll(async () => (await readViewport()).zoom).toBeLessThan(zoomedIn.zoom * 0.75);
 });
 
-test("a single blank-canvas touch leaves the entire viewport unchanged", async ({ page, context }) => {
+test("a single blank-canvas touch leaves the entire viewport unchanged", async ({
+  page,
+  context,
+}) => {
   const client = await context.newCDPSession(page);
   const bounds = await page.locator(".react-flow__pane").boundingBox();
   expect(bounds).not.toBeNull();
 
-  const readViewport = () => page.locator(".react-flow__viewport").evaluate((element) => {
-    const matrix = new DOMMatrixReadOnly(getComputedStyle(element).transform);
-    return { x: matrix.m41, y: matrix.m42, zoom: matrix.a };
-  });
+  const readViewport = () =>
+    page.locator(".react-flow__viewport").evaluate((element) => {
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(element).transform);
+      return { x: matrix.m41, y: matrix.m42, zoom: matrix.a };
+    });
   const before = await readViewport();
   const start = touch(1, bounds!.x + bounds!.width * 0.6, bounds!.y + bounds!.height * 0.58);
   const end = touch(1, start.x + 70, start.y + 46);
@@ -96,15 +101,19 @@ test("a single blank-canvas touch leaves the entire viewport unchanged", async (
   expect(await readViewport()).toEqual(before);
 });
 
-test("starting a two-finger gesture never opens mobile marquee selection", async ({ page, context }) => {
+test("starting a two-finger gesture never opens mobile marquee selection", async ({
+  page,
+  context,
+}) => {
   const client = await context.newCDPSession(page);
   const bounds = await page.locator(".react-flow__pane").boundingBox();
   expect(bounds).not.toBeNull();
 
-  const readViewport = () => page.locator(".react-flow__viewport").evaluate((element) => {
-    const matrix = new DOMMatrixReadOnly(getComputedStyle(element).transform);
-    return { x: matrix.m41, y: matrix.m42, zoom: matrix.a };
-  });
+  const readViewport = () =>
+    page.locator(".react-flow__viewport").evaluate((element) => {
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(element).transform);
+      return { x: matrix.m41, y: matrix.m42, zoom: matrix.a };
+    });
   const before = await readViewport();
   const firstStart = touch(1, bounds!.x + bounds!.width * 0.42, bounds!.y + bounds!.height * 0.48);
   const firstMoved = touch(1, firstStart.x + 28, firstStart.y + 18);
@@ -118,32 +127,41 @@ test("starting a two-finger gesture never opens mobile marquee selection", async
     type: "touchStart",
     touchPoints: [firstMoved, secondStart],
   });
-  await moveTouches(client, [firstMoved, secondStart], [
-    touch(1, firstMoved.x - 24, firstMoved.y + 46),
-    touch(2, secondStart.x + 38, secondStart.y + 46),
-  ]);
+  await moveTouches(
+    client,
+    [firstMoved, secondStart],
+    [
+      touch(1, firstMoved.x - 24, firstMoved.y + 46),
+      touch(2, secondStart.x + 38, secondStart.y + 46),
+    ],
+  );
   await expect(page.locator(".react-flow__selection")).toHaveCount(0);
   await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
 
   await expect.poll(readViewport).not.toEqual(before);
 });
 
-test("two-finger navigation can start on a node and leaves node dragging usable", async ({ page, context }) => {
+test("two-finger navigation can start on a node and leaves node dragging usable", async ({
+  page,
+  context,
+}) => {
   const client = await context.newCDPSession(page);
-  await page.locator(".kc-create-rail-node-group button").first().click();
+  await page.locator(".wc-create-rail-node-group button").first().click();
 
-  const node = page.locator(".react-flow__node-kachang");
+  const node = page.locator(".react-flow__node-weftcanvas");
   await expect(node).toHaveCount(1);
   await page.waitForTimeout(220);
 
-  const readNodePosition = () => node.evaluate((element) => {
-    const matrix = new DOMMatrixReadOnly(getComputedStyle(element).transform);
-    return { x: matrix.m41, y: matrix.m42 };
-  });
-  const readViewport = () => page.locator(".react-flow__viewport").evaluate((element) => {
-    const matrix = new DOMMatrixReadOnly(getComputedStyle(element).transform);
-    return { x: matrix.m41, y: matrix.m42, zoom: matrix.a };
-  });
+  const readNodePosition = () =>
+    node.evaluate((element) => {
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(element).transform);
+      return { x: matrix.m41, y: matrix.m42 };
+    });
+  const readViewport = () =>
+    page.locator(".react-flow__viewport").evaluate((element) => {
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(element).transform);
+      return { x: matrix.m41, y: matrix.m42, zoom: matrix.a };
+    });
 
   const nodeBounds = await node.boundingBox();
   expect(nodeBounds).not.toBeNull();
@@ -161,16 +179,25 @@ test("two-finger navigation can start on a node and leaves node dragging usable"
     ],
   ]);
 
-  await expect.poll(async () => (await readViewport()).zoom).toBeGreaterThan(viewportBeforeGesture.zoom * 1.4);
+  await expect
+    .poll(async () => (await readViewport()).zoom)
+    .toBeGreaterThan(viewportBeforeGesture.zoom * 1.4);
   expect(await readNodePosition()).toEqual(nodePositionBeforeGesture);
 
-  const dragStrip = node.locator(".kc-node-drag-strip");
+  const dragStrip = node.locator(".wc-node-drag-strip");
   let dragBounds = await dragStrip.boundingBox();
   expect(dragBounds).not.toBeNull();
   const nodePositionBeforeInterruptedDrag = await readNodePosition();
-  const interruptedStart = touch(1, dragBounds!.x + dragBounds!.width * 0.5, dragBounds!.y + dragBounds!.height * 0.5);
+  const interruptedStart = touch(
+    1,
+    dragBounds!.x + dragBounds!.width * 0.5,
+    dragBounds!.y + dragBounds!.height * 0.5,
+  );
   const interruptedMove = touch(1, interruptedStart.x + 34, interruptedStart.y + 22);
-  await client.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [interruptedStart] });
+  await client.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [interruptedStart],
+  });
   await moveTouches(client, [interruptedStart], [interruptedMove]);
   await expect.poll(readNodePosition).not.toEqual(nodePositionBeforeInterruptedDrag);
 
@@ -179,10 +206,14 @@ test("two-finger navigation can start on a node and leaves node dragging usable"
     type: "touchStart",
     touchPoints: [interruptedMove, secondStart],
   });
-  await moveTouches(client, [interruptedMove, secondStart], [
-    touch(1, interruptedMove.x - 24, interruptedMove.y + 28),
-    touch(2, secondStart.x + 46, secondStart.y + 28),
-  ]);
+  await moveTouches(
+    client,
+    [interruptedMove, secondStart],
+    [
+      touch(1, interruptedMove.x - 24, interruptedMove.y + 28),
+      touch(2, secondStart.x + 46, secondStart.y + 28),
+    ],
+  );
   await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await expect(node).not.toHaveClass(/dragging/);
 
@@ -192,7 +223,11 @@ test("two-finger navigation can start on a node and leaves node dragging usable"
   dragBounds = await dragStrip.boundingBox();
   expect(dragBounds).not.toBeNull();
   const nodePositionBeforeDrag = await readNodePosition();
-  const dragStart = touch(1, dragBounds!.x + dragBounds!.width * 0.5, dragBounds!.y + dragBounds!.height * 0.5);
+  const dragStart = touch(
+    1,
+    dragBounds!.x + dragBounds!.width * 0.5,
+    dragBounds!.y + dragBounds!.height * 0.5,
+  );
   await dispatchGesture(client, [[dragStart], [touch(1, dragStart.x + 54, dragStart.y + 38)]]);
 
   await expect.poll(readNodePosition).not.toEqual(nodePositionBeforeDrag);
@@ -200,20 +235,24 @@ test("two-finger navigation can start on a node and leaves node dragging usable"
 
 test("mobile canvas controls stay inside the viewport without overlapping", async ({ page }) => {
   const selectors = [
-    ".kc-project-console",
-    ".kc-topbar-actions",
-    ".kc-agent-companion",
-    ".kc-create-rail",
-    ".kc-edit-dock",
-    ".kc-zoom-control",
+    ".wc-project-console",
+    ".wc-topbar-actions",
+    ".wc-agent-companion",
+    ".wc-create-rail",
+    ".wc-edit-dock",
+    ".wc-zoom-control",
   ];
-  const boxes = await page.locator(selectors.join(",")).evaluateAll((elements, candidates) => Object.fromEntries(
-    elements.map((element) => {
-      const box = element.getBoundingClientRect();
-      const name = candidates.find((selector) => element.matches(selector))!;
-      return [name, { left: box.left, top: box.top, right: box.right, bottom: box.bottom }];
-    }),
-  ), selectors);
+  const boxes = await page.locator(selectors.join(",")).evaluateAll(
+    (elements, candidates) =>
+      Object.fromEntries(
+        elements.map((element) => {
+          const box = element.getBoundingClientRect();
+          const name = candidates.find((selector) => element.matches(selector))!;
+          return [name, { left: box.left, top: box.top, right: box.right, bottom: box.bottom }];
+        }),
+      ),
+    selectors,
+  );
 
   for (const box of Object.values(boxes)) {
     expect(box.left).toBeGreaterThanOrEqual(0);
@@ -221,9 +260,9 @@ test("mobile canvas controls stay inside the viewport without overlapping", asyn
     expect(box.right).toBeLessThanOrEqual(390);
     expect(box.bottom).toBeLessThanOrEqual(844);
   }
-  expect(overlaps(boxes[".kc-project-console"], boxes[".kc-agent-companion"])).toBe(false);
-  expect(overlaps(boxes[".kc-project-console"], boxes[".kc-topbar-actions"])).toBe(false);
-  expect(overlaps(boxes[".kc-edit-dock"], boxes[".kc-zoom-control"])).toBe(false);
+  expect(overlaps(boxes[".wc-project-console"], boxes[".wc-agent-companion"])).toBe(false);
+  expect(overlaps(boxes[".wc-project-console"], boxes[".wc-topbar-actions"])).toBe(false);
+  expect(overlaps(boxes[".wc-edit-dock"], boxes[".wc-zoom-control"])).toBe(false);
 });
 
 type TouchPoint = {
@@ -278,20 +317,25 @@ async function seedEmptyProject(page: Page) {
   await page.addInitScript((seed) => {
     localStorage.clear();
     localStorage.setItem(
-      `kachang-canvas:project-data:v1:${encodeURIComponent(seed.id)}`,
+      `weftcanvas:project-data:v1:${encodeURIComponent(seed.id)}`,
       JSON.stringify(seed),
     );
-    localStorage.setItem("kachang-canvas:projects:v1", JSON.stringify({
-      version: 1,
-      projects: [{
-        id: seed.id,
-        name: seed.name,
-        createdAt: seed.createdAt,
-        updatedAt: seed.updatedAt,
-        nodeCount: 0,
-      }],
-    }));
-    localStorage.setItem("kachang-canvas:active-project:v1", seed.id);
+    localStorage.setItem(
+      "weftcanvas:projects:v1",
+      JSON.stringify({
+        version: 1,
+        projects: [
+          {
+            id: seed.id,
+            name: seed.name,
+            createdAt: seed.createdAt,
+            updatedAt: seed.updatedAt,
+            nodeCount: 0,
+          },
+        ],
+      }),
+    );
+    localStorage.setItem("weftcanvas:active-project:v1", seed.id);
   }, project);
 }
 
@@ -299,8 +343,10 @@ function overlaps(
   first: { left: number; top: number; right: number; bottom: number },
   second: { left: number; top: number; right: number; bottom: number },
 ) {
-  return first.left < second.right
-    && first.right > second.left
-    && first.top < second.bottom
-    && first.bottom > second.top;
+  return (
+    first.left < second.right &&
+    first.right > second.left &&
+    first.top < second.bottom &&
+    first.bottom > second.top
+  );
 }

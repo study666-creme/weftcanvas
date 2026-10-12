@@ -1,28 +1,28 @@
 /* IMAX is a node-only material. One document-level SVG definition clips every
    node into the same inward-curving cinema screen without per-node SVG work. */
-:root[data-node-style="imax"] :is(.kc-node-surface, .kc-node-type-label) {
+:root[data-node-style="imax"] :is(.wc-node-surface, .wc-node-type-label) {
   color: #edf0f2;
-  --kc-surface: #070809;
-  --kc-surface-muted: #0b0d0f;
-  --kc-surface-strong: #15181b;
-  --kc-surface-raised: #191c1f;
-  --kc-text: #edf0f2;
-  --kc-text-secondary: #aeb4b8;
-  --kc-text-tertiary: #747b80;
-  --kc-border: #252a2e;
-  --kc-border-strong: #555d62;
-  --kc-node-jade: #78a98f;
-  --kc-node-jade-soft: #15231c;
-  --kc-node-blue: #7896b7;
-  --kc-node-blue-soft: #15202c;
-  --kc-node-coral: #bd8175;
-  --kc-node-coral-soft: #291a18;
-  --kc-node-amber: #b99d68;
-  --kc-node-amber-soft: #282217;
+  --wc-surface: #070809;
+  --wc-surface-muted: #0b0d0f;
+  --wc-surface-strong: #15181b;
+  --wc-surface-raised: #191c1f;
+  --wc-text: #edf0f2;
+  --wc-text-secondary: #aeb4b8;
+  --wc-text-tertiary: #747b80;
+  --wc-border: #252a2e;
+  --wc-border-strong: #555d62;
+  --wc-node-jade: #78a98f;
+  --wc-node-jade-soft: #15231c;
+  --wc-node-blue: #7896b7;
+  --wc-node-blue-soft: #15202c;
+  --wc-node-coral: #bd8175;
+  --wc-node-coral-soft: #291a18;
+  --wc-node-amber: #b99d68;
+  --wc-node-amber-soft: #282217;
 }
 
-:root[data-node-style="imax"] .kc-node-surface {
-  --kc-imax-rim: rgb(220 226 229 / 14%);
+:root[data-node-style="imax"] .wc-node-surface {
+  --wc-imax-rim: rgb(220 226 229 / 14%);
   z-index: 1;
   contain: paint;
   overflow: hidden;
@@ -30,7 +30,7 @@
   border-radius: 0;
   background: #020304;
   box-shadow: none;
-  clip-path: url("#kc-imax-screen-clip");
+  clip-path: url("#wc-imax-screen-clip");
   animation: none;
   filter: none;
   transition: transform 100ms ease;
@@ -38,52 +38,70 @@
 
 /* The outer vignette follows the clipped silhouette. It is entirely static:
    no blur, filter, animation, or frame-by-frame JavaScript is involved. */
-:root[data-node-style="imax"] .kc-node-surface::before {
+:root[data-node-style="imax"] .wc-node-surface::before {
   position: absolute;
   inset: 0;
   z-index: 20;
   border: 0;
   border-radius: 0;
   background:
-    linear-gradient(180deg, var(--kc-imax-rim) 0%, transparent 14%, transparent 84%, rgb(0 0 0 / 52%) 100%),
-    linear-gradient(90deg, rgb(255 255 255 / 5%) 0%, transparent 8%, transparent 92%, rgb(0 0 0 / 34%) 100%),
+    linear-gradient(
+      180deg,
+      var(--wc-imax-rim) 0%,
+      transparent 14%,
+      transparent 84%,
+      rgb(0 0 0 / 52%) 100%
+    ),
+    linear-gradient(
+      90deg,
+      rgb(255 255 255 / 5%) 0%,
+      transparent 8%,
+      transparent 92%,
+      rgb(0 0 0 / 34%) 100%
+    ),
     radial-gradient(ellipse 88% 132% at 50% 48%, transparent 58%, rgb(0 0 0 / 38%) 100%);
-  clip-path: url("#kc-imax-screen-clip");
+  clip-path: url("#wc-imax-screen-clip");
   content: "";
   pointer-events: none;
 }
 
 /* A second, slightly deeper curve creates the recessed inner screen seen in
    the reference while keeping the node's rectangular layout footprint. */
-:root[data-node-style="imax"] .kc-node-surface::after {
+:root[data-node-style="imax"] .wc-node-surface::after {
   inset: 4px;
   z-index: 21;
   border: 0;
   border-radius: 0;
   background:
-    linear-gradient(180deg, rgb(255 255 255 / 6%) 0%, transparent 11%, transparent 86%, rgb(0 0 0 / 20%) 100%),
+    linear-gradient(
+      180deg,
+      rgb(255 255 255 / 6%) 0%,
+      transparent 11%,
+      transparent 86%,
+      rgb(0 0 0 / 20%) 100%
+    ),
     radial-gradient(ellipse 82% 118% at 50% 48%, transparent 66%, rgb(0 0 0 / 18%) 100%);
   box-shadow: none;
-  clip-path: url("#kc-imax-screen-inner-clip");
+  clip-path: url("#wc-imax-screen-inner-clip");
 }
 
-:root[data-node-style="imax"] :is(.kc-node-media-frame, .kc-media-empty) {
+:root[data-node-style="imax"] :is(.wc-node-media-frame, .wc-media-empty) {
   border-radius: 0;
   background: #020304;
   box-shadow: none;
 }
 
-:root[data-node-style="imax"] .kc-node-media-frame::after,
-:root[data-node-style="imax"] .kc-node-media-frame--video::after {
+:root[data-node-style="imax"] .wc-node-media-frame::after,
+:root[data-node-style="imax"] .wc-node-media-frame--video::after {
   display: none;
 }
 
-:root[data-node-style="imax"] .kc-node-type-label {
+:root[data-node-style="imax"] .wc-node-type-label {
   color: color-mix(in srgb, var(--node-accent) 34%, #c9ced1);
   text-shadow: 0 1px 0 rgb(0 0 0 / 88%);
 }
 
-:root[data-node-style="imax"] .kc-node-type-label svg {
+:root[data-node-style="imax"] .wc-node-type-label svg {
   border-color: color-mix(in srgb, var(--node-accent) 24%, #555d62);
   border-radius: 3px;
   color: color-mix(in srgb, var(--node-accent) 62%, #e3e7e9);
@@ -93,50 +111,56 @@
     0 1px 0 rgb(0 0 0 / 72%);
 }
 
-:root[data-node-style="imax"] .react-flow__node-kachang:hover .kc-node-surface {
-  --kc-imax-rim: rgb(235 240 242 / 22%);
+:root[data-node-style="imax"] .react-flow__node-weftcanvas:hover .wc-node-surface {
+  --wc-imax-rim: rgb(235 240 242 / 22%);
   transform: translateY(-1px);
 }
 
-:root[data-node-style="imax"] .react-flow__node-kachang.selected .kc-node-surface {
-  --kc-imax-rim: color-mix(in srgb, var(--kc-selection) 44%, rgb(235 240 242 / 20%));
+:root[data-node-style="imax"] .react-flow__node-weftcanvas.selected .wc-node-surface {
+  --wc-imax-rim: color-mix(in srgb, var(--wc-selection) 44%, rgb(235 240 242 / 20%));
   transform: translateY(-1px);
 }
 
-:root[data-node-style="imax"] .react-flow__node-kachang.dragging .kc-node-surface {
-  --kc-imax-rim: color-mix(in srgb, var(--kc-selection) 28%, rgb(220 226 229 / 12%));
-  transform: translateY(1px) scale(.997);
+:root[data-node-style="imax"] .react-flow__node-weftcanvas.dragging .wc-node-surface {
+  --wc-imax-rim: color-mix(in srgb, var(--wc-selection) 28%, rgb(220 226 229 / 12%));
+  transform: translateY(1px) scale(0.997);
   transition: none;
 }
 
-:root[data-node-style="imax"] .kc-node-wrap[data-node-status="running"] .kc-node-surface {
-  --kc-imax-rim: color-mix(in srgb, var(--node-accent) 34%, rgb(220 226 229 / 14%));
+:root[data-node-style="imax"] .wc-node-wrap[data-node-status="running"] .wc-node-surface {
+  --wc-imax-rim: color-mix(in srgb, var(--node-accent) 34%, rgb(220 226 229 / 14%));
 }
 
-:root[data-node-style="imax"] .kc-node-wrap[data-node-status="error"] .kc-node-surface {
-  --kc-imax-rim: color-mix(in srgb, var(--kc-danger) 48%, rgb(220 226 229 / 12%));
+:root[data-node-style="imax"] .wc-node-wrap[data-node-status="error"] .wc-node-surface {
+  --wc-imax-rim: color-mix(in srgb, var(--wc-danger) 48%, rgb(220 226 229 / 12%));
 }
 
-:root[data-node-style="imax"][data-theme="light"] .kc-node-type-label {
+:root[data-node-style="imax"][data-theme="light"] .wc-node-type-label {
   color: color-mix(in srgb, var(--node-accent) 38%, #30363a);
   text-shadow: none;
 }
 
-:root[data-node-style="imax"] .kc-workspace.is-overview-zoom .kc-node-surface {
+:root[data-node-style="imax"] .wc-workspace.is-overview-zoom .wc-node-surface {
   background: #050607;
 }
 
-:root[data-node-style="imax"] .kc-workspace.is-overview-zoom .kc-node-surface::before,
-:root[data-node-style="imax"] .kc-workspace.is-overview-zoom .kc-node-surface::after {
+:root[data-node-style="imax"] .wc-workspace.is-overview-zoom .wc-node-surface::before,
+:root[data-node-style="imax"] .wc-workspace.is-overview-zoom .wc-node-surface::after {
   display: none;
 }
 
-:root[data-node-style="imax"] .kc-workspace:is(.is-space-pan, .is-viewport-moving, .is-node-dragging) .kc-node-surface {
+:root[data-node-style="imax"]
+  .wc-workspace:is(.is-space-pan, .is-viewport-moving, .is-node-dragging)
+  .wc-node-surface {
   box-shadow: none;
   transition: none;
 }
 
-:root[data-node-style="imax"] .kc-workspace:is(.is-space-pan, .is-viewport-moving, .is-node-dragging) .kc-node-surface::before,
-:root[data-node-style="imax"] .kc-workspace:is(.is-space-pan, .is-viewport-moving, .is-node-dragging) .kc-node-surface::after {
+:root[data-node-style="imax"]
+  .wc-workspace:is(.is-space-pan, .is-viewport-moving, .is-node-dragging)
+  .wc-node-surface::before,
+:root[data-node-style="imax"]
+  .wc-workspace:is(.is-space-pan, .is-viewport-moving, .is-node-dragging)
+  .wc-node-surface::after {
   display: none;
 }

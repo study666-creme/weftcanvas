@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { AgentAction } from "@kachang/contracts";
+import type { AgentAction } from "@weftcanvas/contracts";
 
 import { CanvasControlQueue } from "./canvas-control.js";
 
@@ -11,20 +11,27 @@ function addNode(body: string): AgentAction[] {
 describe("CanvasControlQueue", () => {
   it("hands a command to the browser and resolves with the browser receipt", async () => {
     const queue = new CanvasControlQueue({ waitMs: 5_000 });
-    const waiting = queue.enqueue({ projectId: "p1", actions: addNode("hi"), summary: "加一个文本节点", source: "codex" });
+    const waiting = queue.enqueue({
+      projectId: "p1",
+      actions: addNode("hi"),
+      summary: "加一个文本节点",
+      source: "codex",
+    });
 
     const commands = queue.pendingFor("p1");
     expect(commands).toHaveLength(1);
     expect(commands[0]?.source).toBe("codex");
     expect(commands[0]?.summary).toBe("加一个文本节点");
 
-    expect(queue.settle({
-      commandId: commands[0]!.id,
-      status: "applied",
-      appliedActions: 1,
-      skippedActions: [],
-      reason: null,
-    })).toBe(true);
+    expect(
+      queue.settle({
+        commandId: commands[0]!.id,
+        status: "applied",
+        appliedActions: 1,
+        skippedActions: [],
+        reason: null,
+      }),
+    ).toBe(true);
 
     await expect(waiting).resolves.toMatchObject({
       ok: true,
@@ -35,17 +42,29 @@ describe("CanvasControlQueue", () => {
 
   it("only delivers commands to the project that asked for them", async () => {
     const queue = new CanvasControlQueue({ waitMs: 5_000 });
-    const waiting = queue.enqueue({ projectId: "p1", actions: addNode("hi"), summary: "s", source: "codex" });
+    const waiting = queue.enqueue({
+      projectId: "p1",
+      actions: addNode("hi"),
+      summary: "s",
+      source: "codex",
+    });
     expect(queue.pendingFor("p2")).toHaveLength(0);
     expect(queue.pendingFor("p1")).toHaveLength(1);
-    queue.settle({ commandId: queue.pendingFor("p1")[0]!.id, status: "rejected", appliedActions: 0, skippedActions: [], reason: "no" });
+    queue.settle({
+      commandId: queue.pendingFor("p1")[0]!.id,
+      status: "rejected",
+      appliedActions: 0,
+      skippedActions: [],
+      reason: "no",
+    });
     await waiting;
   });
 
   it("fails instead of pretending success when no canvas is polling", async () => {
     const queue = new CanvasControlQueue({ waitMs: 30 });
-    await expect(queue.enqueue({ projectId: "p1", actions: addNode("hi"), summary: "s", source: "codex" }))
-      .resolves.toMatchObject({ ok: false });
+    await expect(
+      queue.enqueue({ projectId: "p1", actions: addNode("hi"), summary: "s", source: "codex" }),
+    ).resolves.toMatchObject({ ok: false });
   });
 
   it("remembers the active canvas and its summary while a page is polling", () => {
@@ -95,11 +114,15 @@ describe("CanvasControlQueue", () => {
 
   it("rejects malformed commands and cancels cleanly", async () => {
     const queue = new CanvasControlQueue({ waitMs: 5_000 });
-    await expect(queue.enqueue({ projectId: "p1", actions: [], summary: "s", source: "codex" }))
-      .resolves.toMatchObject({ ok: false });
+    await expect(
+      queue.enqueue({ projectId: "p1", actions: [], summary: "s", source: "codex" }),
+    ).resolves.toMatchObject({ ok: false });
 
     const controller = new AbortController();
-    const waiting = queue.enqueue({ projectId: "p1", actions: addNode("hi"), summary: "s", source: "codex" }, controller.signal);
+    const waiting = queue.enqueue(
+      { projectId: "p1", actions: addNode("hi"), summary: "s", source: "codex" },
+      controller.signal,
+    );
     controller.abort();
     await expect(waiting).resolves.toMatchObject({ ok: false, error: "已取消" });
   });

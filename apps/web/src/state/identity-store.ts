@@ -1,4 +1,4 @@
-import type { IdentityCapabilities, IdentitySession } from "@kachang/contracts";
+import type { IdentityCapabilities, IdentitySession } from "@weftcanvas/contracts";
 import { create } from "zustand";
 
 import {
@@ -27,7 +27,11 @@ type IdentityState = {
   closeDialog: () => void;
   setMode: (mode: IdentityMode) => void;
   login: (email: string, password: string) => Promise<boolean>;
-  register: (email: string, password: string, displayName?: string) => Promise<IdentityRegistrationOutcome>;
+  register: (
+    email: string,
+    password: string,
+    displayName?: string,
+  ) => Promise<IdentityRegistrationOutcome>;
   logout: () => Promise<void>;
   expire: () => void;
 };
@@ -52,7 +56,13 @@ export const useIdentityStore = create<IdentityState>((set, get) => ({
 
   hydrate: async (force = false) => {
     const state = get();
-    if (!force && (state.status === "authenticated" || state.status === "anonymous" || state.status === "unavailable")) return;
+    if (
+      !force &&
+      (state.status === "authenticated" ||
+        state.status === "anonymous" ||
+        state.status === "unavailable")
+    )
+      return;
     if (!force && hydration) return hydration;
     set({ status: "loading", error: null });
     hydration = (async () => {
@@ -60,7 +70,11 @@ export const useIdentityStore = create<IdentityState>((set, get) => ({
         const response = await fetchIdentityState();
         const capabilities = response.capabilities ?? fallbackCapabilities;
         set({
-          status: response.data ? "authenticated" : capabilities.available ? "anonymous" : "unavailable",
+          status: response.data
+            ? "authenticated"
+            : capabilities.available
+              ? "anonymous"
+              : "unavailable",
           session: response.data,
           capabilities,
           error: capabilities.available ? null : "账号服务尚未配置",
@@ -75,7 +89,13 @@ export const useIdentityStore = create<IdentityState>((set, get) => ({
     return hydration;
   },
 
-  openDialog: (mode) => set((state) => ({ dialogOpen: true, mode: mode ?? state.mode, error: null, verificationEmail: null })),
+  openDialog: (mode) =>
+    set((state) => ({
+      dialogOpen: true,
+      mode: mode ?? state.mode,
+      error: null,
+      verificationEmail: null,
+    })),
   closeDialog: () => {
     if (!get().busy) set({ dialogOpen: false, error: null });
   },
@@ -96,7 +116,13 @@ export const useIdentityStore = create<IdentityState>((set, get) => ({
       });
       return true;
     } catch (cause) {
-      set({ status: identityUnavailable(cause) ? "unavailable" : "anonymous", session: null, busy: false, error: publicError(cause), verificationEmail: null });
+      set({
+        status: identityUnavailable(cause) ? "unavailable" : "anonymous",
+        session: null,
+        busy: false,
+        error: publicError(cause),
+        verificationEmail: null,
+      });
       return false;
     }
   },
@@ -133,7 +159,13 @@ export const useIdentityStore = create<IdentityState>((set, get) => ({
       });
       return "authenticated";
     } catch (cause) {
-      set({ status: identityUnavailable(cause) ? "unavailable" : "anonymous", session: null, busy: false, error: publicError(cause), verificationEmail: null });
+      set({
+        status: identityUnavailable(cause) ? "unavailable" : "anonymous",
+        session: null,
+        busy: false,
+        error: publicError(cause),
+        verificationEmail: null,
+      });
       return false;
     }
   },
@@ -145,10 +177,26 @@ export const useIdentityStore = create<IdentityState>((set, get) => ({
     } catch {
       // The local session is cleared even when the service is temporarily unreachable.
     }
-    set({ status: "anonymous", session: null, busy: false, dialogOpen: false, error: null, verificationEmail: null });
+    set({
+      status: "anonymous",
+      session: null,
+      busy: false,
+      dialogOpen: false,
+      error: null,
+      verificationEmail: null,
+    });
   },
 
-  expire: () => set({ status: "anonymous", session: null, dialogOpen: true, mode: "login", busy: false, error: "登录已过期，请重新登录", verificationEmail: null }),
+  expire: () =>
+    set({
+      status: "anonymous",
+      session: null,
+      dialogOpen: true,
+      mode: "login",
+      busy: false,
+      error: "登录已过期，请重新登录",
+      verificationEmail: null,
+    }),
 }));
 
 function publicError(cause: unknown) {
@@ -156,6 +204,8 @@ function publicError(cause: unknown) {
 }
 
 function identityUnavailable(cause: unknown) {
-  return cause instanceof CanvasApiError
-    && (cause.status === 0 || cause.status >= 500 || cause.code === "IDENTITY_PROVIDER_UNAVAILABLE");
+  return (
+    cause instanceof CanvasApiError &&
+    (cause.status === 0 || cause.status >= 500 || cause.code === "IDENTITY_PROVIDER_UNAVAILABLE")
+  );
 }

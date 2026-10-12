@@ -30,20 +30,20 @@ canvas Agent drawer (see `docs/AGENT-CONNECTORS.md`):
   receipt. `GET /internal/v1/canvas-context` serves the canvas summary the
   browser reports while polling.
 - `blender` — the Agent gets a `blender_run_python` tool speaking one JSON line
-  per request to `blender/kachang_bridge.py` running inside Blender.
+  per request to `blender/weftcanvas_bridge.py` running inside Blender.
 
 Endpoints and enablement:
 
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `CODEX_BIN` | `codex` | Codex executable used for probing and delegation |
-| `CODEX_CONNECTOR_ENABLED` | `false` | Start with the Codex connector on |
-| `BLENDER_BRIDGE_ADDRESS` | `127.0.0.1:9876` | host:port of the Blender bridge |
-| `BLENDER_CONNECTOR_ENABLED` | `false` | Start with the Blender connector on |
-| `KACHANG_BLENDER_BIN` | unset | Explicit Blender executable for provisioning |
-| `KACHANG_BLENDER_ADDONS_DIR` | unset | Override the Blender user add-on directory |
-| `CODEX_HOME` | `~/.codex` | Where `config.toml` is read and merged |
-| `CANVAS_CONTROL_WAIT_MS` | `60000` | How long a canvas command waits for the browser |
+| Variable                        | Default          | Meaning                                          |
+| ------------------------------- | ---------------- | ------------------------------------------------ |
+| `CODEX_BIN`                     | `codex`          | Codex executable used for probing and delegation |
+| `CODEX_CONNECTOR_ENABLED`       | `false`          | Start with the Codex connector on                |
+| `BLENDER_BRIDGE_ADDRESS`        | `127.0.0.1:9876` | host:port of the Blender bridge                  |
+| `BLENDER_CONNECTOR_ENABLED`     | `false`          | Start with the Blender connector on              |
+| `WEFTCANVAS_BLENDER_BIN`        | unset            | Explicit Blender executable for provisioning     |
+| `WEFTCANVAS_BLENDER_ADDONS_DIR` | unset            | Override the Blender user add-on directory       |
+| `CODEX_HOME`                    | `~/.codex`       | Where `config.toml` is read and merged           |
+| `CANVAS_CONTROL_WAIT_MS`        | `60000`          | How long a canvas command waits for the browser  |
 
 Connector on/off state is process memory only: a restart returns to these
 defaults. Probe results are cached for 15 seconds. Enabled but unreachable
@@ -55,14 +55,14 @@ connectors stay visible as unavailable and contribute no tools to a run.
 It enables the connector and, only when the probe says it is not already
 reachable, prepares the machine:
 
-- **codex** — merges `[mcp_servers.kachang-canvas]` into `$CODEX_HOME/config.toml`
+- **codex** — merges `[mcp_servers.weftcanvas]` into `$CODEX_HOME/config.toml`
   (default `~/.codex/config.toml`), keeps every other section, and writes
-  `config.toml.kachang-backup` first. Codex reads its config at startup, so the
+  `config.toml.weftcanvas-backup` first. Codex reads its config at startup, so the
   response asks the user to restart Codex.
-- **blender** — locates Blender (`KACHANG_BLENDER_BIN` → `blender` on PATH →
-  per-platform install paths), installs `blender/kachang_bridge.py` as the
-  `kachang_bridge` add-on into the user add-on directory
-  (`KACHANG_BLENDER_ADDONS_DIR` overrides), enables it once via
+- **blender** — locates Blender (`WEFTCANVAS_BLENDER_BIN` → `blender` on PATH →
+  per-platform install paths), installs `blender/weftcanvas_bridge.py` as the
+  `weftcanvas_bridge` add-on into the user add-on directory
+  (`WEFTCANVAS_BLENDER_ADDONS_DIR` overrides), enables it once via
   `blender --background --python-expr`, then launches Blender. The configured
   `host:port` is baked into the add-on, which auto-starts the bridge on every
   Blender launch.

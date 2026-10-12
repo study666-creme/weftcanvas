@@ -5,7 +5,7 @@ import {
   type AgentAction,
   type AgentExecutionMode,
   type AgentProposalDraft,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 import { z } from "zod";
 
 const agentOutputFields = {
@@ -17,19 +17,23 @@ const agentOutputFields = {
  * 本机工具调用。它不是画布契约的一部分：运行时执行完就把结果回灌给模型，
  * 浏览器只会看到最终 content 与 actions，因此工具调用不会进入执行回执。
  */
-const agentToolCallSchema = z.object({
-  name: z.string().trim().min(1).max(64),
-  arguments: z.record(z.string(), z.unknown()).default({}),
-}).strict();
+const agentToolCallSchema = z
+  .object({
+    name: z.string().trim().min(1).max(64),
+    arguments: z.record(z.string(), z.unknown()).default({}),
+  })
+  .strict();
 
 export type AgentToolCall = z.infer<typeof agentToolCallSchema>;
 
-const agentOutputSchema = z.object({
-  ...agentOutputFields,
-  toolCalls: z.array(agentToolCallSchema).max(2).default([]),
-  executionMode: agentExecutionModeSchema,
-  proposal: agentProposalDraftSchema.nullable().default(null),
-}).strict();
+const agentOutputSchema = z
+  .object({
+    ...agentOutputFields,
+    toolCalls: z.array(agentToolCallSchema).max(2).default([]),
+    executionMode: agentExecutionModeSchema,
+    proposal: agentProposalDraftSchema.nullable().default(null),
+  })
+  .strict();
 
 const legacyAgentOutputSchema = z.object(agentOutputFields).strict();
 
@@ -79,7 +83,8 @@ function parseActionPayload(value: string): AgentModelOutput | null {
   if (!actions.length) return null;
   const prose = sanitizeVisibleContent(value.slice(0, start));
   return normalizeOutput({
-    content: prose === EMPTY_VISIBLE_CONTENT ? `已生成 ${actions.length} 项画布操作，确认后应用。` : prose,
+    content:
+      prose === EMPTY_VISIBLE_CONTENT ? `已生成 ${actions.length} 项画布操作，确认后应用。` : prose,
     actions,
     toolCalls: [],
     executionMode: "proposal",
@@ -107,10 +112,10 @@ function collectJsonObjects(value: string): unknown[] {
     if (inString) {
       if (escaped) escaped = false;
       else if (char === "\\") escaped = true;
-      else if (char === "\"") inString = false;
+      else if (char === '"') inString = false;
       continue;
     }
-    if (char === "\"") {
+    if (char === '"') {
       inString = true;
       continue;
     }
@@ -136,7 +141,8 @@ function collectJsonObjects(value: string): unknown[] {
 }
 
 const EMPTY_VISIBLE_CONTENT = "\u0000empty";
-const EMPTY_VISIBLE_MESSAGE = "模型这次没有返回可用的回复（响应格式无法解析），请重试或换一个模型。";
+const EMPTY_VISIBLE_MESSAGE =
+  "模型这次没有返回可用的回复（响应格式无法解析），请重试或换一个模型。";
 
 /** 兜底展示：去掉围栏与裸 JSON 行，避免把英文键名当正文给用户看。 */
 export function sanitizeVisibleContent(value: string) {
@@ -149,10 +155,18 @@ export function sanitizeVisibleContent(value: string) {
       if (!trimmed) return true;
       if (/^[[\]{}]/.test(trimmed)) return false;
       if (/^"[^"]+"\s*:/.test(trimmed)) return false;
-      if (/^(type|clientId|kind|body|text|actions|content|executionMode|proposal|toolCalls|sourceNodeId|targetNodeId)"?\s*:/.test(trimmed)) return false;
+      if (
+        /^(type|clientId|kind|body|text|actions|content|executionMode|proposal|toolCalls|sourceNodeId|targetNodeId)"?\s*:/.test(
+          trimmed,
+        )
+      )
+        return false;
       return true;
     });
-  const collapsed = lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  const collapsed = lines
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
   return collapsed || EMPTY_VISIBLE_CONTENT;
 }
 
@@ -170,14 +184,17 @@ function parseStructuredOutput(value: string, depth = 0): AgentModelOutput | nul
     if (current.success) {
       const normalized = normalizeOutput(current.data);
       if (
-        depth < 2
-        && normalized.actions.length === 0
-        && normalized.toolCalls.length === 0
-        && normalized.executionMode === "none"
-        && normalized.proposal === null
+        depth < 2 &&
+        normalized.actions.length === 0 &&
+        normalized.toolCalls.length === 0 &&
+        normalized.executionMode === "none" &&
+        normalized.proposal === null
       ) {
         const nested = parseStructuredOutput(current.data.content, depth + 1);
-        if (nested && (nested.actions.length > 0 || nested.executionMode !== "none" || nested.proposal !== null)) {
+        if (
+          nested &&
+          (nested.actions.length > 0 || nested.executionMode !== "none" || nested.proposal !== null)
+        ) {
           return nested;
         }
       }
@@ -214,9 +231,18 @@ function normalizeAgentOutputJson(value: unknown): unknown {
 }
 
 /** 动作字段别名表：只映射明确支持的两组常见写法。 */
-const ACTION_ALIASES: Record<string, ReadonlyArray<readonly [canonical: string, aliases: readonly string[]]>> = {
-  canvas_add_node: [["kind", ["nodeType"]], ["body", ["text"]]],
-  canvas_connect_nodes: [["sourceNodeId", ["source", "from"]], ["targetNodeId", ["target", "to"]]],
+const ACTION_ALIASES: Record<
+  string,
+  ReadonlyArray<readonly [canonical: string, aliases: readonly string[]]>
+> = {
+  canvas_add_node: [
+    ["kind", ["nodeType"]],
+    ["body", ["text"]],
+  ],
+  canvas_connect_nodes: [
+    ["sourceNodeId", ["source", "from"]],
+    ["targetNodeId", ["target", "to"]],
+  ],
 };
 
 function normalizeAgentAction(value: unknown): unknown | null {
@@ -242,8 +268,10 @@ function normalizeAgentAction(value: unknown): unknown | null {
 }
 
 function hasAmbiguousAlias(value: Record<string, unknown>, type: string) {
-  return (ACTION_ALIASES[type] ?? []).some(([canonical, aliases]) =>
-    hasOwn(value, canonical) && aliases.some((alias) => hasOwn(value, alias)));
+  return (ACTION_ALIASES[type] ?? []).some(
+    ([canonical, aliases]) =>
+      hasOwn(value, canonical) && aliases.some((alias) => hasOwn(value, alias)),
+  );
 }
 
 /** 每个动作类型允许的字段，直接从契约 schema 读，避免和契约漂移。 */
@@ -312,7 +340,13 @@ function normalizeOutput(value: {
   proposal: AgentProposalDraft | null;
 }): AgentModelOutput {
   if (!value.actions.length) {
-    return { content: value.content, actions: [], toolCalls: value.toolCalls, executionMode: "none", proposal: null };
+    return {
+      content: value.content,
+      actions: [],
+      toolCalls: value.toolCalls,
+      executionMode: "none",
+      proposal: null,
+    };
   }
   if (value.executionMode === "direct" && value.actions.every(isDirectAction)) {
     return { ...value, toolCalls: [], executionMode: "direct", proposal: null };
@@ -326,13 +360,15 @@ function normalizeOutput(value: {
 }
 
 function isDirectAction(action: AgentAction) {
-  return action.type === "canvas_connect_nodes"
-    || action.type === "canvas_select_nodes"
-    || action.type === "canvas_group_nodes"
-    || action.type === "canvas_set_viewport"
-    || action.type === "canvas_director_open"
-    || action.type === "canvas_director_select_shot"
-    || action.type === "canvas_director_update_entity";
+  return (
+    action.type === "canvas_connect_nodes" ||
+    action.type === "canvas_select_nodes" ||
+    action.type === "canvas_group_nodes" ||
+    action.type === "canvas_set_viewport" ||
+    action.type === "canvas_director_open" ||
+    action.type === "canvas_director_select_shot" ||
+    action.type === "canvas_director_update_entity"
+  );
 }
 
 function defaultProposal(): AgentProposalDraft {

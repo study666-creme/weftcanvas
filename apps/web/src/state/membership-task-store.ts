@@ -1,4 +1,4 @@
-import type { MembershipTaskCenter } from "@kachang/contracts";
+import type { MembershipTaskCenter } from "@weftcanvas/contracts";
 import { create } from "zustand";
 
 import {
@@ -35,14 +35,22 @@ let taskEpoch = 0;
 export function countClaimableMembershipTasks(data: MembershipTaskCenter | null) {
   if (!data) return 0;
   const itemKeys = new Set(data.items.map((item) => item.key));
-  let count = data.items.filter((item) => item.kind === "claim" && item.ready && !item.claimed).length;
-  if (!itemKeys.has(data.hub.dailyBonus.key) && data.hub.dailyBonus.ready && !data.hub.dailyBonus.claimed) count += 1;
+  let count = data.items.filter(
+    (item) => item.kind === "claim" && item.ready && !item.claimed,
+  ).length;
   if (
-    data.hub.memberDaily
-    && !itemKeys.has(data.hub.memberDaily.key)
-    && data.hub.memberDaily.ready
-    && !data.hub.memberDaily.claimed
-  ) count += 1;
+    !itemKeys.has(data.hub.dailyBonus.key) &&
+    data.hub.dailyBonus.ready &&
+    !data.hub.dailyBonus.claimed
+  )
+    count += 1;
+  if (
+    data.hub.memberDaily &&
+    !itemKeys.has(data.hub.memberDaily.key) &&
+    data.hub.memberDaily.ready &&
+    !data.hub.memberDaily.claimed
+  )
+    count += 1;
   return count;
 }
 
@@ -100,7 +108,9 @@ export const useMembershipTaskStore = create<MembershipTaskState>((set, get) => 
       handleUnauthorized(cause);
       // A response can be lost after an upstream claim commits. Reloading the
       // canonical task list distinguishes that case without another grant.
-      await get().load(true).catch(() => undefined);
+      await get()
+        .load(true)
+        .catch(() => undefined);
       set({ error: taskError(cause) });
       return null;
     } finally {
@@ -120,10 +130,7 @@ export const useMembershipTaskStore = create<MembershipTaskState>((set, get) => 
         const result = await recordCanvasNodeCreated();
         if (!currentRequest(epoch, ownerId)) return;
         set({ nodeRewardStatus: "recorded", error: null });
-        await Promise.all([
-          get().load(true),
-          useWalletStore.getState().loadSummary(true),
-        ]);
+        await Promise.all([get().load(true), useWalletStore.getState().loadSummary(true)]);
         if (result.granted) {
           useToastStore.getState().show("创建节点任务完成，已获得 1 天基础会员", "success");
         }
@@ -157,9 +164,11 @@ export const useMembershipTaskStore = create<MembershipTaskState>((set, get) => 
 }));
 
 function currentRequest(epoch: number, ownerId: string | undefined) {
-  return epoch === taskEpoch
-    && ownerId !== undefined
-    && useIdentityStore.getState().session?.user.id === ownerId;
+  return (
+    epoch === taskEpoch &&
+    ownerId !== undefined &&
+    useIdentityStore.getState().session?.user.id === ownerId
+  );
 }
 
 function handleUnauthorized(cause: unknown) {
@@ -172,7 +181,10 @@ function taskError(cause: unknown) {
   return cause instanceof CanvasApiError ? cause.message : "任务中心暂时无法连接";
 }
 
-function markClaimed(data: MembershipTaskCenter | null, taskKey: string): MembershipTaskCenter | null {
+function markClaimed(
+  data: MembershipTaskCenter | null,
+  taskKey: string,
+): MembershipTaskCenter | null {
   if (!data) return null;
   const patchEntry = <T extends { key: string; claimed: boolean }>(entry: T | null): T | null =>
     entry && entry.key === taskKey ? { ...entry, claimed: true } : entry;
@@ -183,6 +195,6 @@ function markClaimed(data: MembershipTaskCenter | null, taskKey: string): Member
       dailyBonus: patchEntry(data.hub.dailyBonus)!,
       memberDaily: patchEntry(data.hub.memberDaily),
     },
-    items: data.items.map((item) => item.key === taskKey ? { ...item, claimed: true } : item),
+    items: data.items.map((item) => (item.key === taskKey ? { ...item, claimed: true } : item)),
   };
 }

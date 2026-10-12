@@ -1,4 +1,4 @@
-import { publicGenerationJobSchema, type PublicGenerationJob } from "@kachang/contracts";
+import { publicGenerationJobSchema, type PublicGenerationJob } from "@weftcanvas/contracts";
 
 export type DirectGenerationModality = "image" | "video";
 
@@ -10,8 +10,8 @@ export const DIRECT_GENERATION_NODE_IDS: Record<DirectGenerationModality, string
   video: "home-direct-video",
 };
 
-const STORAGE_PREFIX = "kachang-canvas:direct-generation:v1:";
-const HIDDEN_ARTIFACTS_STORAGE_PREFIX = "kachang-canvas:direct-generation:hidden-artifacts:v1:";
+const STORAGE_PREFIX = "weftcanvas:direct-generation:v1:";
+const HIDDEN_ARTIFACTS_STORAGE_PREFIX = "weftcanvas:direct-generation:hidden-artifacts:v1:";
 const STORAGE_SCHEMA_VERSION = 1;
 const MAX_JOBS_PER_MODALITY = 40;
 const MAX_HIDDEN_ARTIFACTS = 200;
@@ -41,11 +41,14 @@ export function readDirectGenerationHistory(userId: string): DirectGenerationHis
 export function writeDirectGenerationHistory(userId: string, history: DirectGenerationHistory) {
   if (typeof localStorage === "undefined") return false;
   try {
-    localStorage.setItem(storageKey(userId), JSON.stringify({
-      schemaVersion: STORAGE_SCHEMA_VERSION,
-      image: normalizeJobs(history.image, "image"),
-      video: normalizeJobs(history.video, "video"),
-    }));
+    localStorage.setItem(
+      storageKey(userId),
+      JSON.stringify({
+        schemaVersion: STORAGE_SCHEMA_VERSION,
+        image: normalizeJobs(history.image, "image"),
+        video: normalizeJobs(history.video, "video"),
+      }),
+    );
     return true;
   } catch {
     return false;
@@ -63,8 +66,15 @@ export function readDirectGenerationHiddenArtifacts(userId: string) {
       schemaVersion?: unknown;
       keys?: unknown;
     } | null;
-    if (value?.schemaVersion !== STORAGE_SCHEMA_VERSION || !Array.isArray(value.keys)) return new Set<string>();
-    return new Set(value.keys.filter((key): key is string => typeof key === "string" && key.length > 0 && key.length <= 512).slice(-MAX_HIDDEN_ARTIFACTS));
+    if (value?.schemaVersion !== STORAGE_SCHEMA_VERSION || !Array.isArray(value.keys))
+      return new Set<string>();
+    return new Set(
+      value.keys
+        .filter(
+          (key): key is string => typeof key === "string" && key.length > 0 && key.length <= 512,
+        )
+        .slice(-MAX_HIDDEN_ARTIFACTS),
+    );
   } catch {
     return new Set<string>();
   }
@@ -73,10 +83,13 @@ export function readDirectGenerationHiddenArtifacts(userId: string) {
 export function writeDirectGenerationHiddenArtifacts(userId: string, keys: ReadonlySet<string>) {
   if (typeof localStorage === "undefined") return false;
   try {
-    localStorage.setItem(hiddenArtifactsStorageKey(userId), JSON.stringify({
-      schemaVersion: STORAGE_SCHEMA_VERSION,
-      keys: [...keys].slice(-MAX_HIDDEN_ARTIFACTS),
-    }));
+    localStorage.setItem(
+      hiddenArtifactsStorageKey(userId),
+      JSON.stringify({
+        schemaVersion: STORAGE_SCHEMA_VERSION,
+        keys: [...keys].slice(-MAX_HIDDEN_ARTIFACTS),
+      }),
+    );
     return true;
   } catch {
     return false;
@@ -88,8 +101,14 @@ export function mergeDirectGenerationJobs(
   remote: readonly PublicGenerationJob[],
 ): DirectGenerationHistory {
   return {
-    image: normalizeJobs([...remote.filter((job) => job.modality === "image"), ...local.image], "image"),
-    video: normalizeJobs([...remote.filter((job) => job.modality === "video"), ...local.video], "video"),
+    image: normalizeJobs(
+      [...remote.filter((job) => job.modality === "image"), ...local.image],
+      "image",
+    ),
+    video: normalizeJobs(
+      [...remote.filter((job) => job.modality === "video"), ...local.video],
+      "video",
+    ),
   };
 }
 
@@ -101,15 +120,19 @@ function normalizeJobs(value: unknown, modality: DirectGenerationModality) {
     if (!parsed.success) continue;
     const job = parsed.data;
     if (
-      job.projectId !== DIRECT_GENERATION_PROJECT_ID
-      || job.nodeId !== DIRECT_GENERATION_NODE_IDS[modality]
-      || job.modality !== modality
-    ) continue;
+      job.projectId !== DIRECT_GENERATION_PROJECT_ID ||
+      job.nodeId !== DIRECT_GENERATION_NODE_IDS[modality] ||
+      job.modality !== modality
+    )
+      continue;
     const current = jobs.get(job.id);
     if (!current || current.version < job.version) jobs.set(job.id, job);
   }
   return [...jobs.values()]
-    .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt) || right.id.localeCompare(left.id))
+    .sort(
+      (left, right) =>
+        Date.parse(right.createdAt) - Date.parse(left.createdAt) || right.id.localeCompare(left.id),
+    )
     .slice(0, MAX_JOBS_PER_MODALITY);
 }
 

@@ -1,4 +1,4 @@
-import type { CanvasProject } from "@kachang/contracts";
+import type { CanvasProject } from "@weftcanvas/contracts";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -11,7 +11,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("./api-client", () => ({
   CanvasApiError: class CanvasApiError extends Error {
-    constructor(readonly status: number, readonly code: string, message: string) {
+    constructor(
+      readonly status: number,
+      readonly code: string,
+      message: string,
+    ) {
       super(message);
     }
   },
@@ -66,12 +70,16 @@ describe("cloud project media preparation", () => {
     const prepared = await prepareProjectMediaForCloud(project);
 
     expect(mocks.createMediaUpload).toHaveBeenCalledTimes(1);
-    expect(mocks.createMediaUpload).toHaveBeenCalledWith(expect.objectContaining({ projectId: project.id }));
+    expect(mocks.createMediaUpload).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: project.id }),
+    );
     expect(prepared.nodes.map((node) => node.data.media?.serverId)).toEqual([
       "11111111-1111-4111-8111-111111111111",
       "11111111-1111-4111-8111-111111111111",
     ]);
-    expect(useCanvasStore.getState().nodes[0]?.data.media?.serverId).toBe("11111111-1111-4111-8111-111111111111");
+    expect(useCanvasStore.getState().nodes[0]?.data.media?.serverId).toBe(
+      "11111111-1111-4111-8111-111111111111",
+    );
   });
 
   it("can prepare media without mutating the active canvas", async () => {
@@ -146,12 +154,16 @@ describe("cloud project media preparation", () => {
     const prepared = await prepareProjectMediaForCloud(project);
 
     expect(mocks.cacheServerMedia).toHaveBeenCalledWith(generated);
-    expect(mocks.createMediaUpload).toHaveBeenCalledWith(expect.objectContaining({ projectId: project.id }));
+    expect(mocks.createMediaUpload).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: project.id }),
+    );
     expect(prepared.nodes.map((node) => node.data.media?.serverId)).toEqual([
       "33333333-3333-4333-8333-333333333333",
       "33333333-3333-4333-8333-333333333333",
     ]);
-    expect(useCanvasStore.getState().nodes[0]?.data.media?.serverId).toBe("33333333-3333-4333-8333-333333333333");
+    expect(useCanvasStore.getState().nodes[0]?.data.media?.serverId).toBe(
+      "33333333-3333-4333-8333-333333333333",
+    );
   });
 
   it("does not re-upload media already persisted by Canvas", async () => {
@@ -187,8 +199,12 @@ describe("cloud project media preparation", () => {
       source: "server" as const,
       serverId: "55555555-5555-4555-8555-555555555555",
     };
-    project.nodes.forEach((node) => { node.data.media = { ...generated }; });
-    mocks.fetchMediaMetadata.mockRejectedValue(new CanvasApiError(404, "MEDIA_NOT_FOUND", "missing"));
+    project.nodes.forEach((node) => {
+      node.data.media = { ...generated };
+    });
+    mocks.fetchMediaMetadata.mockRejectedValue(
+      new CanvasApiError(404, "MEDIA_NOT_FOUND", "missing"),
+    );
     const stored = { ...generated, blob: new Blob(["image"], { type: "image/png" }) };
     mocks.readMedia.mockResolvedValueOnce(null).mockResolvedValue(stored);
     mocks.cacheServerMedia.mockResolvedValue(true);
@@ -214,7 +230,9 @@ describe("cloud project media preparation", () => {
     const prepared = await prepareProjectMediaForCloud(project);
 
     expect(mocks.cacheServerMedia).toHaveBeenCalledWith(generated);
-    expect(mocks.createMediaUpload).toHaveBeenCalledWith(expect.objectContaining({ projectId: project.id }));
+    expect(mocks.createMediaUpload).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: project.id }),
+    );
     expect(prepared.nodes[0]?.data.media?.serverId).toBe("66666666-6666-4666-8666-666666666666");
   });
 });
@@ -244,10 +262,13 @@ function fixtureProject(): CanvasProject {
   };
 }
 
-function node(id: string, media: NonNullable<CanvasProject["nodes"][number]["data"]["media"]>): CanvasProject["nodes"][number] {
+function node(
+  id: string,
+  media: NonNullable<CanvasProject["nodes"][number]["data"]["media"]>,
+): CanvasProject["nodes"][number] {
   return {
     id,
-    type: "kachang",
+    type: "weftcanvas",
     position: { x: 0, y: 0 },
     data: {
       kind: "image",

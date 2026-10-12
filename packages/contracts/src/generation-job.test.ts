@@ -42,7 +42,9 @@ describe("generation job contracts", () => {
       inputs: { images: [], videos: [], audios: [] },
       quantity: 1,
     });
-    expect(() => generationJobSubmissionSchema.parse({ ...submission, idempotencyKey: "bad key" })).toThrow();
+    expect(() =>
+      generationJobSubmissionSchema.parse({ ...submission, idempotencyKey: "bad key" }),
+    ).toThrow();
   });
 
   it("accepts the live ten-item video and audio reference limits", () => {
@@ -58,10 +60,12 @@ describe("generation job contracts", () => {
     };
 
     expect(generationJobSubmissionSchema.safeParse(submission).success).toBe(true);
-    expect(generationJobSubmissionSchema.safeParse({
-      ...submission,
-      inputs: { videos: [...media, "media-10"], audios: media },
-    }).success).toBe(false);
+    expect(
+      generationJobSubmissionSchema.safeParse({
+        ...submission,
+        inputs: { videos: [...media, "media-10"], audios: media },
+      }).success,
+    ).toBe(false);
   });
 
   it("strips private execution fields from public job responses", () => {
@@ -107,10 +111,16 @@ describe("generation job contracts", () => {
   });
 
   it("parses a reconcile query with exactly one bounded key", () => {
-    expect(generationJobReconcileQuerySchema.parse({ key: "request-0001" })).toEqual({ key: "request-0001" });
+    expect(generationJobReconcileQuerySchema.parse({ key: "request-0001" })).toEqual({
+      key: "request-0001",
+    });
     expect(generationJobReconcileQuerySchema.safeParse({}).success).toBe(false);
     expect(generationJobReconcileQuerySchema.safeParse({ key: "" }).success).toBe(false);
-    expect(generationJobReconcileQuerySchema.safeParse({ key: "x".repeat(200) }).success).toBe(false);
-    expect(generationJobReconcileQuerySchema.safeParse({ key: "request-0001", extra: 1 }).success).toBe(true);
+    expect(generationJobReconcileQuerySchema.safeParse({ key: "x".repeat(200) }).success).toBe(
+      false,
+    );
+    expect(
+      generationJobReconcileQuerySchema.safeParse({ key: "request-0001", extra: 1 }).success,
+    ).toBe(true);
   });
 });

@@ -1,7 +1,7 @@
-import type { CanvasMedia, PublicModel } from "@kachang/contracts";
+import type { CanvasMedia, PublicModel } from "@weftcanvas/contracts";
 import { describe, expect, it } from "vitest";
 
-import type { KachangNode } from "../types";
+import type { WeftcanvasNode } from "../types";
 import {
   collectGenerationReferences,
   collectUpstreamTextContent,
@@ -28,7 +28,10 @@ describe("collectGenerationReferences", () => {
       ["explicit-b", "explicit-a"],
     );
 
-    expect(references.images.map((reference) => reference.nodeId)).toEqual(["explicit-b", "explicit-a"]);
+    expect(references.images.map((reference) => reference.nodeId)).toEqual([
+      "explicit-b",
+      "explicit-a",
+    ]);
     expect(references.overflow).toEqual([]);
   });
 
@@ -52,10 +55,7 @@ describe("collectGenerationReferences", () => {
   });
 
   it("falls back to connected media when there are no explicit references", () => {
-    const nodes = [
-      node("target", "video"),
-      node("upstream", "image", media("upstream-media")),
-    ];
+    const nodes = [node("target", "video"), node("upstream", "image", media("upstream-media"))];
 
     const references = collectGenerationReferences(
       "target",
@@ -112,17 +112,15 @@ describe("collectGenerationReferences", () => {
       node("upstream-b", "image", media("upstream-b-media")),
     ];
 
-    const references = collectGenerationReferences(
-      "target",
-      imageInputModel(3),
-      nodes,
-      [
-        { id: "edge-1", source: "upstream-a", target: "target" },
-        { id: "edge-2", source: "upstream-b", target: "target" },
-      ],
-    );
+    const references = collectGenerationReferences("target", imageInputModel(3), nodes, [
+      { id: "edge-1", source: "upstream-a", target: "target" },
+      { id: "edge-2", source: "upstream-b", target: "target" },
+    ]);
 
-    expect(references.images.map((reference) => reference.nodeId)).toEqual(["upstream-a", "upstream-b"]);
+    expect(references.images.map((reference) => reference.nodeId)).toEqual([
+      "upstream-a",
+      "upstream-b",
+    ]);
     expect(references.overflow).toEqual([]);
   });
 
@@ -180,7 +178,12 @@ describe("collectGenerationReferences", () => {
       node("upstream", "image", media("upstream-media")),
     ];
 
-    const automatic = collectGenerationReferences("target", model, nodes, edgesToTarget(["upstream"]));
+    const automatic = collectGenerationReferences(
+      "target",
+      model,
+      nodes,
+      edgesToTarget(["upstream"]),
+    );
     const explicit = collectGenerationReferences(
       "target",
       model,
@@ -257,10 +260,7 @@ describe("collectGenerationReferences", () => {
     const references = collectGenerationReferences(
       "target",
       imageInputModel(2),
-      [
-        node("target", "image"),
-        node("upstream", "image", media("upstream-media")),
-      ],
+      [node("target", "image"), node("upstream", "image", media("upstream-media"))],
       edgesToTarget(["upstream"]),
     );
 
@@ -299,11 +299,20 @@ describe("collectGenerationReferences", () => {
       );
 
       expect(generationReferenceError(references, model)).toBeNull();
-      expect(references.images.map((reference) => reference.nodeId)).toEqual(["frame-a", "frame-b"]);
+      expect(references.images.map((reference) => reference.nodeId)).toEqual([
+        "frame-a",
+        "frame-b",
+      ]);
       expect(references.videos).toEqual([]);
       expect(references.audios).toEqual([]);
       expect(references.overflow).toEqual([]);
-      expect(referenceCounts(references)).toEqual({ images: 2, styleImages: 0, elementImages: 0, videos: 0, audios: 0 });
+      expect(referenceCounts(references)).toEqual({
+        images: 2,
+        styleImages: 0,
+        elementImages: 0,
+        videos: 0,
+        audios: 0,
+      });
     });
 
     it("blocks a real video reference with an accurate error and never includes it in the payload", () => {
@@ -324,7 +333,13 @@ describe("collectGenerationReferences", () => {
       const error = generationReferenceError(references, model);
       expect(error).toBe("当前模型不支持视频素材输入");
       expect(error).not.toBeNull();
-      expect(referenceCounts(references)).toEqual({ images: 1, styleImages: 0, elementImages: 0, videos: 0, audios: 0 });
+      expect(referenceCounts(references)).toEqual({
+        images: 1,
+        styleImages: 0,
+        elementImages: 0,
+        videos: 0,
+        audios: 0,
+      });
     });
 
     it("judges video support from the versioned catalog contract, not the model id", () => {
@@ -338,17 +353,43 @@ describe("collectGenerationReferences", () => {
       ];
       const edges = edgesToTarget(["reference-video"]);
 
-      const genericCapable = collectGenerationReferences("target", grokLikeVideoModel(videoCapable, "generic-video-fixture"), nodes, edges);
-      const grokCapable = collectGenerationReferences("target", grokLikeVideoModel(videoCapable, "grok-imagine-video"), nodes, edges);
-      expect(genericCapable.videos.map((reference) => reference.nodeId)).toEqual(["reference-video"]);
+      const genericCapable = collectGenerationReferences(
+        "target",
+        grokLikeVideoModel(videoCapable, "generic-video-fixture"),
+        nodes,
+        edges,
+      );
+      const grokCapable = collectGenerationReferences(
+        "target",
+        grokLikeVideoModel(videoCapable, "grok-imagine-video"),
+        nodes,
+        edges,
+      );
+      expect(genericCapable.videos.map((reference) => reference.nodeId)).toEqual([
+        "reference-video",
+      ]);
       expect(grokCapable.videos.map((reference) => reference.nodeId)).toEqual(["reference-video"]);
       expect(generationReferenceError(genericCapable, grokLikeVideoModel(videoCapable))).toBeNull();
       expect(generationReferenceError(grokCapable, grokLikeVideoModel(videoCapable))).toBeNull();
 
-      const imageOnlyGeneric = collectGenerationReferences("target", grokLikeVideoModel(imageOnlyReferenceMedia, "generic-video-fixture"), nodes, edges);
-      const imageOnlyGrok = collectGenerationReferences("target", grokLikeVideoModel(imageOnlyReferenceMedia, "grok-imagine-video"), nodes, edges);
-      expect(generationReferenceError(imageOnlyGeneric, grokLikeVideoModel(imageOnlyReferenceMedia))).toBe("当前模型不支持视频素材输入");
-      expect(generationReferenceError(imageOnlyGrok, grokLikeVideoModel(imageOnlyReferenceMedia))).toBe("当前模型不支持视频素材输入");
+      const imageOnlyGeneric = collectGenerationReferences(
+        "target",
+        grokLikeVideoModel(imageOnlyReferenceMedia, "generic-video-fixture"),
+        nodes,
+        edges,
+      );
+      const imageOnlyGrok = collectGenerationReferences(
+        "target",
+        grokLikeVideoModel(imageOnlyReferenceMedia, "grok-imagine-video"),
+        nodes,
+        edges,
+      );
+      expect(
+        generationReferenceError(imageOnlyGeneric, grokLikeVideoModel(imageOnlyReferenceMedia)),
+      ).toBe("当前模型不支持视频素材输入");
+      expect(
+        generationReferenceError(imageOnlyGrok, grokLikeVideoModel(imageOnlyReferenceMedia)),
+      ).toBe("当前模型不支持视频素材输入");
     });
   });
 
@@ -367,7 +408,11 @@ describe("collectGenerationReferences", () => {
       "explicit",
     );
 
-    expect(references.images.map((reference) => reference.nodeId)).toEqual(["explicit-a", "explicit-b", "explicit-c"]);
+    expect(references.images.map((reference) => reference.nodeId)).toEqual([
+      "explicit-a",
+      "explicit-b",
+      "explicit-c",
+    ]);
     expect(references.overflow).toEqual([{ kind: "image", selected: 3, max: 2 }]);
   });
 
@@ -376,7 +421,10 @@ describe("collectGenerationReferences", () => {
     const references = collectGenerationReferences(
       "target",
       imageInputModel(64),
-      [node("target", "image", media("target-media")), ...explicitIds.map((id) => node(id, "image", media(`${id}-media`)))],
+      [
+        node("target", "image", media("target-media")),
+        ...explicitIds.map((id) => node(id, "image", media(`${id}-media`))),
+      ],
       edgesToTarget(explicitIds),
       explicitIds,
       "explicit",
@@ -412,7 +460,13 @@ describe("collectGenerationReferences", () => {
     expect(references.styleImages.map((reference) => reference.nodeId)).toEqual(["style"]);
     expect(references.images).toEqual([]);
     expect(references.unassignedImages).toEqual([]);
-    expect(referenceCounts(references)).toEqual({ images: 0, styleImages: 1, elementImages: 0, videos: 0, audios: 0 });
+    expect(referenceCounts(references)).toEqual({
+      images: 0,
+      styleImages: 1,
+      elementImages: 0,
+      videos: 0,
+      audios: 0,
+    });
   });
 
   it("requires a purpose for every image when the catalog exposes multiple slots", () => {
@@ -431,18 +485,18 @@ describe("collectGenerationReferences", () => {
     const edges = edgesToTarget(["frame", "style", "element"]);
 
     const unassigned = collectGenerationReferences("target", model, nodes, edges);
-    expect(unassigned.unassignedImages.map((reference) => reference.nodeId)).toEqual(["frame", "style", "element"]);
+    expect(unassigned.unassignedImages.map((reference) => reference.nodeId)).toEqual([
+      "frame",
+      "style",
+      "element",
+    ]);
     expect(generationReferenceError(unassigned, model)).toBe("请为 3 张参考图片选择用途");
 
-    const assigned = collectGenerationReferences(
-      "target",
-      model,
-      nodes,
-      edges,
-      [],
-      "auto",
-      { "frame-media": "images", "server-style": "styleImages", "element-media": "elementImages" },
-    );
+    const assigned = collectGenerationReferences("target", model, nodes, edges, [], "auto", {
+      "frame-media": "images",
+      "server-style": "styleImages",
+      "element-media": "elementImages",
+    });
     expect(assigned.images.map((reference) => reference.nodeId)).toEqual(["frame"]);
     expect(assigned.styleImages.map((reference) => reference.nodeId)).toEqual(["style"]);
     expect(assigned.elementImages.map((reference) => reference.nodeId)).toEqual(["element"]);
@@ -468,7 +522,9 @@ describe("collectGenerationReferences", () => {
 
     expect(references.imagePurposes).toEqual(["styleImages"]);
     expect(references.styleImages).toHaveLength(2);
-    expect(references.overflow).toEqual([{ kind: "image", purpose: "styleImages", selected: 2, max: 1 }]);
+    expect(references.overflow).toEqual([
+      { kind: "image", purpose: "styleImages", selected: 2, max: 1 },
+    ]);
   });
 
   it("reports the aggregate reference limit without discarding selected material", () => {
@@ -500,7 +556,9 @@ describe("collectGenerationReferences", () => {
 
   it("uses the ten-item request limit for video references", () => {
     const model = referenceMediaModel({ videos: { min: 0, max: 10, multiple: true } });
-    const videoNodes = Array.from({ length: 11 }, (_, index) => node(`video-${index}`, "video", media(`video-media-${index}`)));
+    const videoNodes = Array.from({ length: 11 }, (_, index) =>
+      node(`video-${index}`, "video", media(`video-media-${index}`)),
+    );
     const references = collectGenerationReferences(
       "target",
       model,
@@ -517,7 +575,11 @@ describe("collectGenerationReferences", () => {
     const references = collectGenerationReferences(
       "target",
       imageInputModel(2),
-      [node("target", "video"), node("image-a", "image", media("media-a")), node("image-b", "image", media("media-b"))],
+      [
+        node("target", "video"),
+        node("image-a", "image", media("media-a")),
+        node("image-b", "image", media("media-b")),
+      ],
       edgesToTarget(["image-a", "image-b"]),
     );
 
@@ -530,21 +592,28 @@ describe("collectGenerationReferences", () => {
     // 上游目录：minimax_h3 的 referenceVideoDurations 是 required_with
     // referenceVideos 的参数，缺时长整单 400（线上表现为「请求参数无效」），
     // 且参考视频合计不超过 15 秒。
-    const h3LikeVideoModel = (videos: { min: number; max: number; multiple: boolean }) => ({
-      ...grokLikeVideoModel({ images: { min: 0, max: 9, multiple: true }, videos }),
-      parameters: [
-        { name: "prompt", label: "提示词", type: "string", required: true },
-        { name: "referenceVideoDurations", label: "参考视频时长（秒）", type: "array", maxItems: 3 },
-      ],
-    } as PublicModel);
+    const h3LikeVideoModel = (videos: { min: number; max: number; multiple: boolean }) =>
+      ({
+        ...grokLikeVideoModel({ images: { min: 0, max: 9, multiple: true }, videos }),
+        parameters: [
+          { name: "prompt", label: "提示词", type: "string", required: true },
+          {
+            name: "referenceVideoDurations",
+            label: "参考视频时长（秒）",
+            type: "array",
+            maxItems: 3,
+          },
+        ],
+      }) as PublicModel;
 
     const videoReferenceNodes = (durations: Array<number | null>) => [
       node("target", "video", media("target-video")),
-      ...durations.map((durationMs, index) => node(
-        `reference-video-${index}`,
-        "video",
-        { ...media(`reference-video-media-${index}`), durationMs },
-      )),
+      ...durations.map((durationMs, index) =>
+        node(`reference-video-${index}`, "video", {
+          ...media(`reference-video-media-${index}`),
+          durationMs,
+        }),
+      ),
     ];
 
     it("returns the aligned duration array for a model that declares the parameter", () => {
@@ -596,7 +665,12 @@ describe("collectGenerationReferences", () => {
         edgesToTarget(["reference-video-0", "reference-video-1"]),
       );
 
-      expect(generationReferenceError(references, referenceMediaModel({ videos: { min: 0, max: 3, multiple: true } }))).toBeNull();
+      expect(
+        generationReferenceError(
+          references,
+          referenceMediaModel({ videos: { min: 0, max: 3, multiple: true } }),
+        ),
+      ).toBeNull();
     });
   });
 });
@@ -696,10 +770,10 @@ function node(
   kind: "text" | "image" | "video" | "audio",
   nodeMedia: CanvasMedia | null = null,
   body = "",
-): KachangNode {
+): WeftcanvasNode {
   return {
     id,
-    type: "kachang",
+    type: "weftcanvas",
     position: { x: 0, y: 0 },
     data: {
       kind,

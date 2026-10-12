@@ -3,11 +3,7 @@ import { z } from "zod";
 /** Versioned, provider-neutral image generation intent. */
 export const IMAGE_PROTOCOL_VERSION = "image.v1" as const;
 
-export const imageOperationSchema = z.enum([
-  "text_to_image",
-  "image_to_image",
-  "image_edit",
-]);
+export const imageOperationSchema = z.enum(["text_to_image", "image_to_image", "image_edit"]);
 export type ImageOperation = z.infer<typeof imageOperationSchema>;
 
 export const imageMediaRoleSchema = z.enum([
@@ -21,7 +17,11 @@ export type ImageMediaRole = z.infer<typeof imageMediaRoleSchema>;
 export const imageMediaInputSchema = z.object({
   kind: z.literal("image"),
   role: imageMediaRoleSchema,
-  url: z.string().trim().min(1).max(16 * 1024 * 1024),
+  url: z
+    .string()
+    .trim()
+    .min(1)
+    .max(16 * 1024 * 1024),
 });
 export type ImageMediaInput = z.infer<typeof imageMediaInputSchema>;
 

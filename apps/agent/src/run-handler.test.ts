@@ -17,14 +17,16 @@ function request(overrides: Record<string, unknown> = {}) {
       createdAt,
       updatedAt: createdAt,
     },
-    messages: [{
-      schemaVersion: 1,
-      id: randomUUID(),
-      conversationId,
-      role: "user",
-      content: "帮我把人物导进 Blender",
-      createdAt,
-    }],
+    messages: [
+      {
+        schemaVersion: 1,
+        id: randomUUID(),
+        conversationId,
+        role: "user",
+        content: "帮我把人物导进 Blender",
+        createdAt,
+      },
+    ],
     canvasContext: {
       schemaVersion: 1,
       contextRevision: "rev-1",
@@ -55,12 +57,9 @@ function tool(overrides: Partial<AgentTool> = {}): AgentTool {
 }
 
 function handler(complete: ReturnType<typeof vi.fn>, tools: AgentTool[] = []) {
-  return new AgentRunHandler(
-    { complete },
-    { allows: () => true },
-    undefined,
-    { buildTools: async () => tools },
-  );
+  return new AgentRunHandler({ complete }, { allows: () => true }, undefined, {
+    buildTools: async () => tools,
+  });
 }
 
 const toolCallEnvelope = JSON.stringify({
@@ -68,7 +67,9 @@ const toolCallEnvelope = JSON.stringify({
   executionMode: "none",
   proposal: null,
   actions: [],
-  toolCalls: [{ name: "blender_run_python", arguments: { code: "bpy.ops.mesh.primitive_cube_add()" } }],
+  toolCalls: [
+    { name: "blender_run_python", arguments: { code: "bpy.ops.mesh.primitive_cube_add()" } },
+  ],
 });
 
 const finalEnvelope = JSON.stringify({
@@ -90,7 +91,8 @@ describe("AgentRunHandler tool loop", () => {
   });
 
   it("executes a tool call and feeds the result back for the final answer", async () => {
-    const complete = vi.fn()
+    const complete = vi
+      .fn()
       .mockResolvedValueOnce(toolCallEnvelope)
       .mockResolvedValueOnce(finalEnvelope);
     const blender = tool();
@@ -98,8 +100,13 @@ describe("AgentRunHandler tool loop", () => {
 
     expect(complete).toHaveBeenCalledTimes(2);
     expect(blender.run).toHaveBeenCalledWith({ code: "bpy.ops.mesh.primitive_cube_add()" }, {});
-    const secondCallMessages = complete.mock.calls[1]![0] as Array<{ role: string; content: string }>;
-    expect(secondCallMessages.some((message) => message.content.includes("本机工具执行结果"))).toBe(true);
+    const secondCallMessages = complete.mock.calls[1]![0] as Array<{
+      role: string;
+      content: string;
+    }>;
+    expect(secondCallMessages.some((message) => message.content.includes("本机工具执行结果"))).toBe(
+      true,
+    );
     expect(secondCallMessages.some((message) => message.content.includes("cube added"))).toBe(true);
     expect(result).toMatchObject({ status: 200 });
     if (result.status !== 200) return;
@@ -110,34 +117,40 @@ describe("AgentRunHandler tool loop", () => {
     const complete = vi.fn(async () => finalEnvelope);
     await handler(complete, [tool()]).handle(request());
     const firstMessages = complete.mock.calls[0]![0] as Array<{ role: string; content: string }>;
-    expect(firstMessages.some((message) => message.content.includes("blender_run_python"))).toBe(true);
+    expect(firstMessages.some((message) => message.content.includes("blender_run_python"))).toBe(
+      true,
+    );
     expect(firstMessages.some((message) => message.content.includes("toolCalls"))).toBe(true);
   });
 
   it("reports an unknown tool back to the model instead of failing the run", async () => {
-    const complete = vi.fn()
-      .mockResolvedValueOnce(JSON.stringify({
-        content: "试试别的工具。",
-        executionMode: "none",
-        proposal: null,
-        actions: [],
-        toolCalls: [{ name: "maya_run_python", arguments: {} }],
-      }))
+    const complete = vi
+      .fn()
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          content: "试试别的工具。",
+          executionMode: "none",
+          proposal: null,
+          actions: [],
+          toolCalls: [{ name: "maya_run_python", arguments: {} }],
+        }),
+      )
       .mockResolvedValueOnce(finalEnvelope);
     const result = await handler(complete, [tool()]).handle(request());
     expect(result).toMatchObject({ status: 200 });
     const secondCallMessages = complete.mock.calls[1]![0] as Array<{ content: string }>;
-    expect(secondCallMessages.some((message) => message.content.includes("未知工具 maya_run_python"))).toBe(true);
+    expect(
+      secondCallMessages.some((message) => message.content.includes("未知工具 maya_run_python")),
+    ).toBe(true);
   });
 
   it("keeps the run alive when tool discovery fails", async () => {
     const complete = vi.fn(async () => finalEnvelope);
-    const runHandler = new AgentRunHandler(
-      { complete },
-      { allows: () => true },
-      undefined,
-      { buildTools: async () => { throw new Error("probe exploded"); } },
-    );
+    const runHandler = new AgentRunHandler({ complete }, { allows: () => true }, undefined, {
+      buildTools: async () => {
+        throw new Error("probe exploded");
+      },
+    });
     const result = await runHandler.handle(request());
     expect(complete).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({ status: 200 });
@@ -145,27 +158,29 @@ describe("AgentRunHandler tool loop", () => {
 
   it("blocks tool calls while the professional baseline is unfinished", async () => {
     const complete = vi.fn(async () => toolCallEnvelope);
-    const result = await handler(complete, [tool()]).handle(request({
-      canvasContext: {
-        schemaVersion: 1,
-        contextRevision: "rev-1",
-        projectId: "p1",
-        projectName: "项目",
-        nodeCount: 0,
-        edgeCount: 0,
-        groupCount: 0,
-        omittedNodeCount: 0,
-        omittedEdgeCount: 0,
-        nodes: [],
-        edges: [],
-        groups: [],
-        directorStage: null,
-        creativeGuidance: {
-          mode: "professional",
-          baseline: { aspectRatio: null, visualStyle: null, targetDuration: null, locked: false },
+    const result = await handler(complete, [tool()]).handle(
+      request({
+        canvasContext: {
+          schemaVersion: 1,
+          contextRevision: "rev-1",
+          projectId: "p1",
+          projectName: "项目",
+          nodeCount: 0,
+          edgeCount: 0,
+          groupCount: 0,
+          omittedNodeCount: 0,
+          omittedEdgeCount: 0,
+          nodes: [],
+          edges: [],
+          groups: [],
+          directorStage: null,
+          creativeGuidance: {
+            mode: "professional",
+            baseline: { aspectRatio: null, visualStyle: null, targetDuration: null, locked: false },
+          },
         },
-      },
-    }));
+      }),
+    );
     expect(result).toMatchObject({ status: 200 });
     if (result.status !== 200) return;
     expect(result.body.data.content).toContain("专业辅助会先定好创作基线");

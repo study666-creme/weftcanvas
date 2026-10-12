@@ -9,7 +9,9 @@ import { JsonGenerationResultStagingStore } from "./result-staging.js";
 const directories: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
+  await Promise.all(
+    directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })),
+  );
 });
 
 describe("generation result staging", () => {
@@ -43,11 +45,15 @@ describe("generation result staging", () => {
       maxRecordBytes: 200,
     });
 
-    await expect(store.read("generation-result:../../secret")).rejects.toThrow("Invalid generation result reference");
-    await expect(store.write("job-1", {
-      kind: "text",
-      text: "x".repeat(500),
-    })).rejects.toThrow("too large");
+    await expect(store.read("generation-result:../../secret")).rejects.toThrow(
+      "Invalid generation result reference",
+    );
+    await expect(
+      store.write("job-1", {
+        kind: "text",
+        text: "x".repeat(500),
+      }),
+    ).rejects.toThrow("too large");
 
     await writeFile(join(directory, "result_0003.json"), "x".repeat(300), "utf8");
     await expect(store.read("generation-result:result_0003")).rejects.toThrow("too large");
@@ -55,7 +61,7 @@ describe("generation result staging", () => {
 });
 
 async function temporaryDirectory() {
-  const directory = await mkdtemp(join(tmpdir(), "kachang-generation-results-"));
+  const directory = await mkdtemp(join(tmpdir(), "weftcanvas-generation-results-"));
   directories.push(directory);
   return directory;
 }

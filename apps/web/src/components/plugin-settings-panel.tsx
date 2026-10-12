@@ -1,7 +1,12 @@
 import { Puzzle, Plus, RefreshCw } from "lucide-react";
 import { useSyncExternalStore, useState } from "react";
 
-import { getLoadedPlugin, listInstalledPluginIds, subscribeToPlugins, uninstallPlugin } from "../lib/plugin-host";
+import {
+  getLoadedPlugin,
+  listInstalledPluginIds,
+  subscribeToPlugins,
+  uninstallPlugin,
+} from "../lib/plugin-host";
 import { installOfficialPlugin, officialPluginIds } from "../lib/official-plugins";
 
 /**
@@ -38,24 +43,27 @@ export function PluginSettingsPanel() {
   };
 
   return (
-    <div className="kc-plugin-settings" data-plugin-settings>
-      <p className="kc-plugin-settings-intro">
+    <div className="wc-plugin-settings" data-plugin-settings>
+      <p className="wc-plugin-settings-intro">
         插件经宿主注册表扩展画布；卸载会回收它注册的节点类型（已存在节点仍渲染），再装即恢复。
       </p>
       {installedIds.length ? (
-        <ul className="kc-plugin-settings-list">
+        <ul className="wc-plugin-settings-list">
           {installedIds.map((id) => {
             const plugin = getLoadedPlugin(id);
             return (
-              <li key={id} className="kc-plugin-settings-row" data-plugin-id={id}>
-                <span className="kc-plugin-settings-name"><Puzzle aria-hidden="true" />{id}</span>
-                <span className="kc-plugin-settings-meta">
+              <li key={id} className="wc-plugin-settings-row" data-plugin-id={id}>
+                <span className="wc-plugin-settings-name">
+                  <Puzzle aria-hidden="true" />
+                  {id}
+                </span>
+                <span className="wc-plugin-settings-meta">
                   {plugin?.version ?? ""}
                   {plugin?.description ? ` · ${plugin.description}` : ""}
                 </span>
                 <button
                   type="button"
-                  className="kc-plugin-settings-action"
+                  className="wc-plugin-settings-action"
                   onClick={() => handleUninstall(id)}
                 >
                   卸载
@@ -65,26 +73,34 @@ export function PluginSettingsPanel() {
           })}
         </ul>
       ) : (
-        <p className="kc-plugin-settings-empty">没有已装载的插件。</p>
+        <p className="wc-plugin-settings-empty">没有已装载的插件。</p>
       )}
       {uninstalledOfficial.length ? (
-        <div className="kc-plugin-settings-available">
-          <span className="kc-plugin-settings-label">官方插件</span>
+        <div className="wc-plugin-settings-available">
+          <span className="wc-plugin-settings-label">官方插件</span>
           {uninstalledOfficial.map((id) => (
             <button
               key={id}
               type="button"
-              className="kc-plugin-settings-action"
+              className="wc-plugin-settings-action"
               disabled={busyId === id}
               onClick={() => void handleInstall(id)}
             >
-              {busyId === id ? <RefreshCw className="is-spinning" aria-hidden="true" /> : <Plus aria-hidden="true" />}
+              {busyId === id ? (
+                <RefreshCw className="is-spinning" aria-hidden="true" />
+              ) : (
+                <Plus aria-hidden="true" />
+              )}
               装载 {id}
             </button>
           ))}
         </div>
       ) : null}
-      {error ? <div className="kc-plugin-settings-error" role="alert">{error}</div> : null}
+      {error ? (
+        <div className="wc-plugin-settings-error" role="alert">
+          {error}
+        </div>
+      ) : null}
     </div>
   );
 }

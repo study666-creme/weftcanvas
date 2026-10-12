@@ -13,7 +13,11 @@ class MemoryCloudResourceStore implements CloudResourceStore {
   async listOwnedResources(ownerId: string) {
     return this.items
       .filter((item) => item.media.ownerId === ownerId)
-      .map((item) => ({ media: structuredClone(item.media), projectIds: [...item.projectIds], orphaned: item.orphaned }));
+      .map((item) => ({
+        media: structuredClone(item.media),
+        projectIds: [...item.projectIds],
+        orphaned: item.orphaned,
+      }));
   }
 
   async listProjectBoundMediaIds(ownerId: string, projectId: string) {
@@ -23,18 +27,25 @@ class MemoryCloudResourceStore implements CloudResourceStore {
   }
 
   async listOwnersWithOrphanedMedia() {
-    return [...new Set(
-      this.items
-        .filter((item) => item.media.status !== "failed" && item.orphaned)
-        .map((item) => item.media.ownerId),
-    )];
+    return [
+      ...new Set(
+        this.items
+          .filter((item) => item.media.status !== "failed" && item.orphaned)
+          .map((item) => item.media.ownerId),
+      ),
+    ];
   }
 
   async deleteUnboundMedia(ownerId: string, ids: readonly string[]): Promise<MediaEvictionItem[]> {
     const target = new Set(ids);
     const removed: MediaEvictionItem[] = [];
     this.items = this.items.filter((item) => {
-      if (item.media.ownerId !== ownerId || !target.has(item.media.id) || item.projectIds.length > 0) return true;
+      if (
+        item.media.ownerId !== ownerId ||
+        !target.has(item.media.id) ||
+        item.projectIds.length > 0
+      )
+        return true;
       removed.push({ id: item.media.id, objectKey: item.media.objectKey });
       return false;
     });
@@ -44,10 +55,18 @@ class MemoryCloudResourceStore implements CloudResourceStore {
 
 class MemoryObjectStore implements MediaObjectStore {
   removed: string[] = [];
-  async write() { throw new Error("not used"); }
-  async withLocalFile<T>(): Promise<T> { throw new Error("not used"); }
-  async open(): Promise<never> { throw new Error("not used"); }
-  async remove(key: string) { this.removed.push(key); }
+  async write() {
+    throw new Error("not used");
+  }
+  async withLocalFile<T>(): Promise<T> {
+    throw new Error("not used");
+  }
+  async open(): Promise<never> {
+    throw new Error("not used");
+  }
+  async remove(key: string) {
+    this.removed.push(key);
+  }
 }
 
 function readyMedia(id: string, size: number): MediaRecord {
@@ -116,7 +135,11 @@ describe("CloudResourceService", () => {
 
   it("cleans only deleted-project orphans and reports referenced/active ones as skipped", async () => {
     const { service, objects } = setup();
-    const result = await service.cleanup(OWNER, [ORPHAN_ID, ACTIVE_ID, BOUND_ID, "44444444-4444-4444-8444-444444444444"], 300);
+    const result = await service.cleanup(
+      OWNER,
+      [ORPHAN_ID, ACTIVE_ID, BOUND_ID, "44444444-4444-4444-8444-444444444444"],
+      300,
+    );
 
     expect(result.deleted.map((item) => item.id)).toEqual([ORPHAN_ID]);
     expect(result.freedBytes).toBe(120);
@@ -139,11 +162,9 @@ describe("CloudResourceService", () => {
     expect(boundIds).toEqual([BOUND_ID]);
 
     // 模拟项目删除：绑定关系级联移除，但 canvas_media 记录还在（project_id 仍指向已删项目）。
-    store.items = store.items.map((item) => (
-      item.media.id === BOUND_ID
-        ? { ...item, projectIds: [], orphaned: true }
-        : item
-    ));
+    store.items = store.items.map((item) =>
+      item.media.id === BOUND_ID ? { ...item, projectIds: [], orphaned: true } : item,
+    );
     const released = await service.releaseUnbound(OWNER, [...boundIds, ORPHAN_ID]);
 
     expect(released).toBe(2);

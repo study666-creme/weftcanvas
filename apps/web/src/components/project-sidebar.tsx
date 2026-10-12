@@ -1,5 +1,21 @@
-import type { CloudProjectSummary } from "@kachang/contracts";
-import { ArrowRight, Check, Cloud, CloudOff, Copy, Download, House, LoaderCircle, MoreHorizontal, Pencil, Plus, Search, Trash2, Upload, X } from "lucide-react";
+import type { CloudProjectSummary } from "@weftcanvas/contracts";
+import {
+  ArrowRight,
+  Check,
+  Cloud,
+  CloudOff,
+  Copy,
+  Download,
+  House,
+  LoaderCircle,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 
 import { useCanvasStore } from "../state/canvas-store";
@@ -35,7 +51,9 @@ export const ProjectSidebar = memo(function ProjectSidebar() {
   const cloudUsage = useCloudProjectStore((state) => state.usage);
   const cloudLinks = useCloudProjectStore((state) => state.links);
   const cloudLoading = useCloudProjectStore((state) => state.loading);
-  const cloudStatus = useCloudProjectStore((state) => state.statusByProject[activeProjectId] ?? "idle");
+  const cloudStatus = useCloudProjectStore(
+    (state) => state.statusByProject[activeProjectId] ?? "idle",
+  );
   const cloudError = useCloudProjectStore((state) => state.errorByProject[activeProjectId]);
   const refreshCloud = useCloudProjectStore((state) => state.refresh);
   const enableCloud = useCloudProjectStore((state) => state.enableProject);
@@ -50,14 +68,20 @@ export const ProjectSidebar = memo(function ProjectSidebar() {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [deleteCandidate, setDeleteCandidate] = useState<{ id: string; name: string } | null>(null);
-  const [cloudDeleteCandidate, setCloudDeleteCandidate] = useState<{ id: string; title: string } | null>(null);
+  const [cloudDeleteCandidate, setCloudDeleteCandidate] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
   const [cloudDeleting, setCloudDeleting] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      if (cloudDeleteCandidate) { setCloudDeleteCandidate(null); return; }
+      if (cloudDeleteCandidate) {
+        setCloudDeleteCandidate(null);
+        return;
+      }
       if (deleteCandidate) setDeleteCandidate(null);
       else if (renamingId) setRenamingId(null);
       else if (menuId) setMenuId(null);
@@ -72,12 +96,15 @@ export const ProjectSidebar = memo(function ProjectSidebar() {
   }, [renamingId]);
 
   useEffect(() => {
-    if (open && identityStatus === "authenticated" && identityUserId) void refreshCloud(identityUserId);
+    if (open && identityStatus === "authenticated" && identityUserId)
+      void refreshCloud(identityUserId);
   }, [identityStatus, identityUserId, open, refreshCloud]);
 
   const filtered = useMemo(() => {
     const term = query.trim().toLocaleLowerCase("zh-CN");
-    return term ? projects.filter((project) => project.name.toLocaleLowerCase("zh-CN").includes(term)) : projects;
+    return term
+      ? projects.filter((project) => project.name.toLocaleLowerCase("zh-CN").includes(term))
+      : projects;
   }, [projects, query]);
   const cloudOpenCandidates = useMemo(
     () => selectCloudOpenCandidates(cloudProjects, projects, cloudLinks),
@@ -98,7 +125,7 @@ export const ProjectSidebar = memo(function ProjectSidebar() {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `${project.name || "卡藏画布"}.kachang.json`;
+    anchor.download = `${project.name || "纬线画布"}.weftcanvas.json`;
     anchor.click();
     URL.revokeObjectURL(url);
     showToast("项目文件已导出", "success");
@@ -109,7 +136,10 @@ export const ProjectSidebar = memo(function ProjectSidebar() {
     try {
       const outcome = parseProjectImportText(await file.text());
       if (!outcome.ok) {
-        showToast(outcome.reason === "too-large" ? "项目文件过大，无法导入" : "项目文件无效或版本不兼容", "error");
+        showToast(
+          outcome.reason === "too-large" ? "项目文件过大，无法导入" : "项目文件无效或版本不兼容",
+          "error",
+        );
         return;
       }
       importProject(outcome.project);
@@ -133,44 +163,78 @@ export const ProjectSidebar = memo(function ProjectSidebar() {
 
   return (
     <>
-      <div className={`kc-project-scrim ${open ? "is-open" : ""}`} aria-hidden="true" onPointerDown={() => setOpen(false)} />
+      <div
+        className={`wc-project-scrim ${open ? "is-open" : ""}`}
+        aria-hidden="true"
+        onPointerDown={() => setOpen(false)}
+      />
       <aside
-        className={`kc-project-sidebar ${open ? "is-open" : ""}`}
+        className={`wc-project-sidebar ${open ? "is-open" : ""}`}
         aria-hidden={!open}
         aria-label="项目库"
         inert={open ? undefined : true}
       >
-        <header className="kc-project-sidebar-header">
-          <div><strong>项目库</strong><span>{projects.length} 个项目</span></div>
+        <header className="wc-project-sidebar-header">
+          <div>
+            <strong>项目库</strong>
+            <span>{projects.length} 个项目</span>
+          </div>
           <a
-            className="kc-project-home-link"
+            className="wc-project-home-link"
             href="/"
             aria-label="返回项目首页"
             title="返回项目首页"
-            onClick={() => { persistCurrent(); }}
+            onClick={() => {
+              persistCurrent();
+            }}
           >
-            <House aria-hidden="true" /><span>首页</span>
+            <House aria-hidden="true" />
+            <span>首页</span>
           </a>
-          <button type="button" className="kc-project-new-button" aria-label="新建项目" title="新建项目" onClick={createProject}><Plus aria-hidden="true" /><span>新建</span></button>
-          <button type="button" aria-label="关闭项目栏" title="关闭" onClick={() => setOpen(false)}><X aria-hidden="true" /></button>
+          <button
+            type="button"
+            className="wc-project-new-button"
+            aria-label="新建项目"
+            title="新建项目"
+            onClick={createProject}
+          >
+            <Plus aria-hidden="true" />
+            <span>新建</span>
+          </button>
+          <button type="button" aria-label="关闭项目栏" title="关闭" onClick={() => setOpen(false)}>
+            <X aria-hidden="true" />
+          </button>
         </header>
 
-        <label className="kc-project-search">
+        <label className="wc-project-search">
           <Search aria-hidden="true" />
-          <input value={query} aria-label="搜索项目" placeholder="搜索项目" onChange={(event) => setQuery(event.target.value)} />
-          {query ? <button type="button" aria-label="清空搜索" title="清空" onClick={() => setQuery("")}><X aria-hidden="true" /></button> : null}
+          <input
+            value={query}
+            aria-label="搜索项目"
+            placeholder="搜索项目"
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          {query ? (
+            <button type="button" aria-label="清空搜索" title="清空" onClick={() => setQuery("")}>
+              <X aria-hidden="true" />
+            </button>
+          ) : null}
         </label>
 
-        <div className="kc-project-list" role="list">
+        <div className="wc-project-list" role="list">
           {filtered.map((project) => {
             const active = project.id === activeProjectId;
             return (
-              <div key={project.id} className={`kc-project-row ${active ? "is-active" : ""}`} role="listitem">
-                <div className="kc-project-row-main">
+              <div
+                key={project.id}
+                className={`wc-project-row ${active ? "is-active" : ""}`}
+                role="listitem"
+              >
+                <div className="wc-project-row-main">
                   {renamingId === project.id ? (
                     <input
                       ref={renameInput}
-                      className="kc-project-rename"
+                      className="wc-project-rename"
                       value={renameValue}
                       maxLength={64}
                       aria-label="项目名称"
@@ -182,62 +246,102 @@ export const ProjectSidebar = memo(function ProjectSidebar() {
                       }}
                     />
                   ) : (
-                    <button type="button" className="kc-project-open" aria-current={active ? "page" : undefined} onClick={() => switchProject(project.id)}>
-                      <span className="kc-project-active-mark" aria-hidden="true">{active ? <Check /> : null}</span>
-                      <span className="kc-project-copy"><strong>{project.name}</strong><small>{project.nodeCount} 个节点 · {formatProjectTime(project.updatedAt)}</small></span>
-                      <span className="kc-project-enter-cue" aria-hidden="true"><ArrowRight /></span>
+                    <button
+                      type="button"
+                      className="wc-project-open"
+                      aria-current={active ? "page" : undefined}
+                      onClick={() => switchProject(project.id)}
+                    >
+                      <span className="wc-project-active-mark" aria-hidden="true">
+                        {active ? <Check /> : null}
+                      </span>
+                      <span className="wc-project-copy">
+                        <strong>{project.name}</strong>
+                        <small>
+                          {project.nodeCount} 个节点 · {formatProjectTime(project.updatedAt)}
+                        </small>
+                      </span>
+                      <span className="wc-project-enter-cue" aria-hidden="true">
+                        <ArrowRight />
+                      </span>
                     </button>
                   )}
                   <button
                     type="button"
-                    className="kc-project-more"
+                    className="wc-project-more"
                     aria-label={`${project.name}的更多操作`}
                     title="更多操作"
                     aria-expanded={menuId === project.id}
-                    onClick={() => setMenuId((value) => value === project.id ? null : project.id)}
+                    onClick={() => setMenuId((value) => (value === project.id ? null : project.id))}
                   >
                     <MoreHorizontal aria-hidden="true" />
                   </button>
                 </div>
                 {menuId === project.id ? (
-                  <div className="kc-project-row-menu">
-                    <button type="button" onClick={() => {
-                      setRenameValue(project.name);
-                      setRenamingId(project.id);
-                      setMenuId(null);
-                    }}><Pencil aria-hidden="true" />重命名</button>
-                    <button type="button" onClick={() => duplicateProject(project.id)}><Copy aria-hidden="true" />创建副本</button>
-                    <button type="button" className="is-danger" onClick={() => {
-                      setDeleteCandidate({ id: project.id, name: project.name });
-                      setMenuId(null);
-                    }}><Trash2 aria-hidden="true" />删除</button>
+                  <div className="wc-project-row-menu">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRenameValue(project.name);
+                        setRenamingId(project.id);
+                        setMenuId(null);
+                      }}
+                    >
+                      <Pencil aria-hidden="true" />
+                      重命名
+                    </button>
+                    <button type="button" onClick={() => duplicateProject(project.id)}>
+                      <Copy aria-hidden="true" />
+                      创建副本
+                    </button>
+                    <button
+                      type="button"
+                      className="is-danger"
+                      onClick={() => {
+                        setDeleteCandidate({ id: project.id, name: project.name });
+                        setMenuId(null);
+                      }}
+                    >
+                      <Trash2 aria-hidden="true" />
+                      删除
+                    </button>
                   </div>
                 ) : null}
               </div>
             );
           })}
-          {!filtered.length ? <div className="kc-project-empty">没有匹配的项目</div> : null}
+          {!filtered.length ? <div className="wc-project-empty">没有匹配的项目</div> : null}
           {identityStatus === "authenticated" && cloudOpenCandidates.length ? (
-            <section className="kc-project-cloud-section" aria-label="云端项目">
-              <header><span>云端项目</span><small>{cloudOpenCandidates.length}</small></header>
+            <section className="wc-project-cloud-section" aria-label="云端项目">
+              <header>
+                <span>云端项目</span>
+                <small>{cloudOpenCandidates.length}</small>
+              </header>
               {cloudOpenCandidates.map((project) => (
-                <div className="kc-project-cloud-row-wrap" key={project.id}>
+                <div className="wc-project-cloud-row-wrap" key={project.id}>
                   <button
                     type="button"
-                    className="kc-project-cloud-row"
-                    onClick={() => identityUserId && void openRemoteProject(identityUserId, project.id)}
+                    className="wc-project-cloud-row"
+                    onClick={() =>
+                      identityUserId && void openRemoteProject(identityUserId, project.id)
+                    }
                   >
                     <Cloud aria-hidden="true" />
-                    <span><strong>{project.title}</strong><small>{formatProjectTime(Date.parse(project.updatedAt))}</small></span>
+                    <span>
+                      <strong>{project.title}</strong>
+                      <small>{formatProjectTime(Date.parse(project.updatedAt))}</small>
+                    </span>
                     <ArrowRight aria-hidden="true" />
                   </button>
                   <button
                     type="button"
-                    className="kc-project-cloud-delete"
+                    className="wc-project-cloud-delete"
                     aria-label={`删除云端项目：${project.title}`}
                     title="删除云端项目"
                     disabled={cloudDeleting}
-                    onClick={() => setCloudDeleteCandidate({ id: project.id, title: project.title })}
+                    onClick={() =>
+                      setCloudDeleteCandidate({ id: project.id, title: project.title })
+                    }
                   >
                     <Trash2 aria-hidden="true" />
                   </button>
@@ -247,7 +351,7 @@ export const ProjectSidebar = memo(function ProjectSidebar() {
           ) : null}
         </div>
 
-        <div className="kc-project-cloud-bar">
+        <div className="wc-project-cloud-bar">
           <button
             type="button"
             className={cloudStatus === "local-only" ? "is-local-only" : undefined}
@@ -255,28 +359,52 @@ export const ProjectSidebar = memo(function ProjectSidebar() {
             title={cloudError ?? undefined}
             onClick={() => void saveCurrentToCloud()}
           >
-            {cloudBusy || cloudLoading ? <LoaderCircle className="is-spinning" aria-hidden="true" /> : cloudStatus === "unavailable" || cloudStatus === "error" || cloudStatus === "local-only" ? <CloudOff aria-hidden="true" /> : <Cloud aria-hidden="true" />}
-            <span>{cloudButtonLabel(identityStatus, activeCloudLinked, cloudStatus, cloudError)}</span>
+            {cloudBusy || cloudLoading ? (
+              <LoaderCircle className="is-spinning" aria-hidden="true" />
+            ) : cloudStatus === "unavailable" ||
+              cloudStatus === "error" ||
+              cloudStatus === "local-only" ? (
+              <CloudOff aria-hidden="true" />
+            ) : (
+              <Cloud aria-hidden="true" />
+            )}
+            <span>
+              {cloudButtonLabel(identityStatus, activeCloudLinked, cloudStatus, cloudError)}
+            </span>
           </button>
           {identityStatus === "authenticated" && cloudUsage ? (
-            <small data-quota-level={cloudUsage.entitlements.mediaStorageBytes
-              ? (cloudUsage.mediaStorageBytes > cloudUsage.entitlements.mediaStorageBytes
-                  ? "over"
-                  : cloudUsage.mediaStorageBytes / cloudUsage.entitlements.mediaStorageBytes >= 0.95
-                    ? "critical"
-                    : cloudUsage.mediaStorageBytes / cloudUsage.entitlements.mediaStorageBytes >= 0.8
-                      ? "nearing"
-                      : "ok")
-              : "ok"}>
-              <span>项目 {cloudUsage.projectCount}/{cloudUsage.entitlements.cloudProjectLimit}</span>
-              <span>文档 {formatStorageBytes(cloudUsage.projectStorageBytes)}/{formatStorageBytes(cloudUsage.entitlements.projectStorageBytes)}</span>
-              <span>素材 {formatStorageBytes(cloudUsage.mediaStorageBytes)}/{formatStorageBytes(cloudUsage.entitlements.mediaStorageBytes)}</span>
+            <small
+              data-quota-level={
+                cloudUsage.entitlements.mediaStorageBytes
+                  ? cloudUsage.mediaStorageBytes > cloudUsage.entitlements.mediaStorageBytes
+                    ? "over"
+                    : cloudUsage.mediaStorageBytes / cloudUsage.entitlements.mediaStorageBytes >=
+                        0.95
+                      ? "critical"
+                      : cloudUsage.mediaStorageBytes / cloudUsage.entitlements.mediaStorageBytes >=
+                          0.8
+                        ? "nearing"
+                        : "ok"
+                  : "ok"
+              }
+            >
+              <span>
+                项目 {cloudUsage.projectCount}/{cloudUsage.entitlements.cloudProjectLimit}
+              </span>
+              <span>
+                文档 {formatStorageBytes(cloudUsage.projectStorageBytes)}/
+                {formatStorageBytes(cloudUsage.entitlements.projectStorageBytes)}
+              </span>
+              <span>
+                素材 {formatStorageBytes(cloudUsage.mediaStorageBytes)}/
+                {formatStorageBytes(cloudUsage.entitlements.mediaStorageBytes)}
+              </span>
             </small>
           ) : null}
           {identityStatus === "authenticated" ? (
             <button
               type="button"
-              className="kc-project-cloud-clean"
+              className="wc-project-cloud-clean"
               aria-label="清理云端资源"
               title="清理云端资源"
               onClick={openCloudResources}
@@ -286,48 +414,110 @@ export const ProjectSidebar = memo(function ProjectSidebar() {
           ) : null}
         </div>
 
-        <footer className="kc-project-sidebar-footer">
-          <input ref={importInput} type="file" hidden accept="application/json,.json,.kachang" onChange={(event) => void importFile(event.target.files?.[0])} />
-          <button type="button" onClick={() => importInput.current?.click()}><Upload aria-hidden="true" />导入</button>
-          <button type="button" onClick={exportCurrent}><Download aria-hidden="true" />导出当前</button>
+        <footer className="wc-project-sidebar-footer">
+          <input
+            ref={importInput}
+            type="file"
+            hidden
+            accept="application/json,.json,.weftcanvas"
+            onChange={(event) => void importFile(event.target.files?.[0])}
+          />
+          <button type="button" onClick={() => importInput.current?.click()}>
+            <Upload aria-hidden="true" />
+            导入
+          </button>
+          <button type="button" onClick={exportCurrent}>
+            <Download aria-hidden="true" />
+            导出当前
+          </button>
         </footer>
       </aside>
 
       {deleteCandidate ? (
-        <div className="kc-project-delete-backdrop" role="dialog" aria-modal="true" aria-label="删除项目" onPointerDown={(event) => {
-          if (event.target === event.currentTarget) setDeleteCandidate(null);
-        }}>
-          <section className="kc-project-delete-dialog">
-            <header><strong>删除项目</strong><button type="button" aria-label="关闭" onClick={() => setDeleteCandidate(null)}><X aria-hidden="true" /></button></header>
+        <div
+          className="wc-project-delete-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="删除项目"
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget) setDeleteCandidate(null);
+          }}
+        >
+          <section className="wc-project-delete-dialog">
+            <header>
+              <strong>删除项目</strong>
+              <button type="button" aria-label="关闭" onClick={() => setDeleteCandidate(null)}>
+                <X aria-hidden="true" />
+              </button>
+            </header>
             <p>{deleteCandidate.name}</p>
             <footer>
-              <button type="button" onClick={() => setDeleteCandidate(null)}>取消</button>
-              <button type="button" className="is-danger" onClick={() => {
-                deleteProject(deleteCandidate.id);
-                setDeleteCandidate(null);
-              }}>删除</button>
+              <button type="button" onClick={() => setDeleteCandidate(null)}>
+                取消
+              </button>
+              <button
+                type="button"
+                className="is-danger"
+                onClick={() => {
+                  deleteProject(deleteCandidate.id);
+                  setDeleteCandidate(null);
+                }}
+              >
+                删除
+              </button>
             </footer>
           </section>
         </div>
       ) : null}
 
       {cloudDeleteCandidate ? (
-        <div className="kc-project-delete-backdrop" role="dialog" aria-modal="true" aria-label="删除云端项目" onPointerDown={(event) => {
-          if (event.target === event.currentTarget && !cloudDeleting) setCloudDeleteCandidate(null);
-        }}>
-          <section className="kc-project-delete-dialog">
-            <header><strong>删除云端项目</strong><button type="button" aria-label="关闭" onClick={() => setCloudDeleteCandidate(null)} disabled={cloudDeleting}><X aria-hidden="true" /></button></header>
+        <div
+          className="wc-project-delete-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="删除云端项目"
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget && !cloudDeleting)
+              setCloudDeleteCandidate(null);
+          }}
+        >
+          <section className="wc-project-delete-dialog">
+            <header>
+              <strong>删除云端项目</strong>
+              <button
+                type="button"
+                aria-label="关闭"
+                onClick={() => setCloudDeleteCandidate(null)}
+                disabled={cloudDeleting}
+              >
+                <X aria-hidden="true" />
+              </button>
+            </header>
             <p>{cloudDeleteCandidate.title}</p>
             <small>将彻底删除云端副本，无法恢复；本地的同名项目不受影响。</small>
             <footer>
-              <button type="button" onClick={() => setCloudDeleteCandidate(null)} disabled={cloudDeleting}>取消</button>
-              <button type="button" className="is-danger" disabled={cloudDeleting} onClick={() => {
-                if (!identityUserId || !cloudDeleteCandidate) return;
-                setCloudDeleting(true);
-                void deleteCloudProject(identityUserId, cloudDeleteCandidate.id)
-                  .finally(() => { setCloudDeleting(false); setCloudDeleteCandidate(null); });
-              }}>
-                {cloudDeleting ? <LoaderCircle className="is-spinning" aria-hidden="true" /> : null}删除
+              <button
+                type="button"
+                onClick={() => setCloudDeleteCandidate(null)}
+                disabled={cloudDeleting}
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                className="is-danger"
+                disabled={cloudDeleting}
+                onClick={() => {
+                  if (!identityUserId || !cloudDeleteCandidate) return;
+                  setCloudDeleting(true);
+                  void deleteCloudProject(identityUserId, cloudDeleteCandidate.id).finally(() => {
+                    setCloudDeleting(false);
+                    setCloudDeleteCandidate(null);
+                  });
+                }}
+              >
+                {cloudDeleting ? <LoaderCircle className="is-spinning" aria-hidden="true" /> : null}
+                删除
               </button>
             </footer>
           </section>

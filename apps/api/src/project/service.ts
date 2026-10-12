@@ -11,12 +11,10 @@ import {
   cloudProjectUsageSchema,
   type CloudProject,
   type CloudProjectDeleteRequest,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 import { z } from "zod";
 
-import {
-  StaticCloudProjectEntitlementResolver,
-} from "./entitlements.js";
+import { StaticCloudProjectEntitlementResolver } from "./entitlements.js";
 import type { CloudProjectMediaValidator } from "./media-access.js";
 import type {
   CloudProjectAccessResolver,
@@ -41,7 +39,9 @@ export type CloudProjectStorageGracePort = {
     graceMs: number,
     now?: number,
   ): Promise<void>;
-  readStorageGrace(ownerId: string): Promise<{ fromTier: string; quotaBytes: number; usageBytes: number; deadline: string } | null>;
+  readStorageGrace(
+    ownerId: string,
+  ): Promise<{ fromTier: string; quotaBytes: number; usageBytes: number; deadline: string } | null>;
 };
 
 const MAX_PROJECT_DOCUMENT_BYTES = 900 * 1024;
@@ -93,11 +93,16 @@ export class CloudProjectService {
     this.storageGrace = options.storageGrace;
   }
 
-  async list(ownerId: string, token?: string): Promise<CloudProjectServiceResult<{
-    projects: ReturnType<typeof cloudProjectSummarySchema.parse>[];
-    sharedProjects: ReturnType<typeof cloudProjectSharedSummarySchema.parse>[];
-    usage: ReturnType<typeof cloudProjectUsageSchema.parse>;
-  }>> {
+  async list(
+    ownerId: string,
+    token?: string,
+  ): Promise<
+    CloudProjectServiceResult<{
+      projects: ReturnType<typeof cloudProjectSummarySchema.parse>[];
+      sharedProjects: ReturnType<typeof cloudProjectSharedSummarySchema.parse>[];
+      usage: ReturnType<typeof cloudProjectUsageSchema.parse>;
+    }>
+  > {
     const resolved = await this.entitlements.resolve(ownerId, token);
     const [projects, sharedProjects, usage] = await Promise.all([
       this.store.list(ownerId, 1_000),
@@ -130,14 +135,27 @@ export class CloudProjectService {
         console.warn("storage grace maintenance failed", error);
       }
     }
-    return withRefresh({
-      projects: projects.map((project) => cloudProjectSummarySchema.parse(project)),
-      sharedProjects: sharedProjects.map((project) => cloudProjectSharedSummarySchema.parse(project)),
-      usage: cloudProjectUsageSchema.parse({ ...usage, entitlements: resolved.data, storageGrace }),
-    }, resolved);
+    return withRefresh(
+      {
+        projects: projects.map((project) => cloudProjectSummarySchema.parse(project)),
+        sharedProjects: sharedProjects.map((project) =>
+          cloudProjectSharedSummarySchema.parse(project),
+        ),
+        usage: cloudProjectUsageSchema.parse({
+          ...usage,
+          entitlements: resolved.data,
+          storageGrace,
+        }),
+      },
+      resolved,
+    );
   }
 
-  async get(ownerId: string, projectId: string, token?: string): Promise<CloudProjectServiceResult<CloudProject>> {
+  async get(
+    ownerId: string,
+    projectId: string,
+    token?: string,
+  ): Promise<CloudProjectServiceResult<CloudProject>> {
     const resolved = await this.entitlements.resolve(ownerId, token);
     const project = await this.store.get(ownerId, projectId);
     if (!project) throw notFound();
@@ -145,7 +163,12 @@ export class CloudProjectService {
   }
 
   /** Resolve an owner or accepted collaborator before exposing a document. */
-  async getForActor(actorId: string, projectId: string, token?: string, ownerId?: string): Promise<CloudProjectServiceResult<CloudProject>> {
+  async getForActor(
+    actorId: string,
+    projectId: string,
+    token?: string,
+    ownerId?: string,
+  ): Promise<CloudProjectServiceResult<CloudProject>> {
     if (!this.access) return this.get(actorId, projectId, token);
     const access = await this.findAccess(projectId, actorId, ownerId);
     if (!access) throw notFound();
@@ -172,21 +195,31 @@ export class CloudProjectService {
     if (access.role === "owner") {
       if (access.ownerId !== actorId) throw notFound();
       const resolved = await this.entitlements.resolve(actorId, token, { allowStale: false });
-      return withRefresh({
-        ownerId: access.ownerId,
-        mediaStorageBytes: resolved.data.mediaStorageBytes,
-      }, resolved);
+      return withRefresh(
+        {
+          ownerId: access.ownerId,
+          mediaStorageBytes: resolved.data.mediaStorageBytes,
+        },
+        resolved,
+      );
     }
 
     const actorEntitlements = await this.requireCollaborationPro(actorId, token);
     const ownerEntitlements = await this.requireOwnerCollaborationPro(access.ownerId);
-    return withRefresh({
-      ownerId: access.ownerId,
-      mediaStorageBytes: ownerEntitlements.data.mediaStorageBytes,
-    }, actorEntitlements);
+    return withRefresh(
+      {
+        ownerId: access.ownerId,
+        mediaStorageBytes: ownerEntitlements.data.mediaStorageBytes,
+      },
+      actorEntitlements,
+    );
   }
 
-  async create(ownerId: string, value: unknown, token?: string): Promise<CloudProjectServiceResult<CloudProject>> {
+  async create(
+    ownerId: string,
+    value: unknown,
+    token?: string,
+  ): Promise<CloudProjectServiceResult<CloudProject>> {
     const input = cloudProjectCreateRequestSchema.parse(value);
     const resolved = await this.entitlements.resolve(ownerId, token, { allowStale: false });
     const write = documentWrite(input.document);
@@ -205,16 +238,30 @@ export class CloudProjectService {
       updatedAt: timestamp,
     };
     const result = await this.store.create(project, write.checksum, resolved.data);
-    if (result.kind === "exists") throw new CloudProjectServiceError("CLOUD_PROJECT_EXISTS", "This cloud project already exists", 409);
+    if (result.kind === "exists")
+      throw new CloudProjectServiceError(
+        "CLOUD_PROJECT_EXISTS",
+        "This cloud project already exists",
+        409,
+      );
     if (result.kind === "project_limit") throw projectLimit();
     if (result.kind === "storage_limit") throw storageLimit();
     return withRefresh(publicProject(result.project), resolved);
   }
 
-  async save(ownerId: string, projectId: string, value: unknown, token?: string): Promise<CloudProjectServiceResult<CloudProject>> {
+  async save(
+    ownerId: string,
+    projectId: string,
+    value: unknown,
+    token?: string,
+  ): Promise<CloudProjectServiceResult<CloudProject>> {
     const input = cloudProjectSaveRequestSchema.parse(value);
     if (input.document.projectId !== projectId) {
-      throw new CloudProjectServiceError("CLOUD_PROJECT_ID_MISMATCH", "The path and document project ids differ", 422);
+      throw new CloudProjectServiceError(
+        "CLOUD_PROJECT_ID_MISMATCH",
+        "The path and document project ids differ",
+        422,
+      );
     }
     const resolved = await this.entitlements.resolve(ownerId, token, { allowStale: false });
     const existing = await this.store.get(ownerId, projectId);
@@ -250,7 +297,13 @@ export class CloudProjectService {
     return withRefresh(publicProject(result.project), resolved);
   }
 
-  async saveForActor(actorId: string, projectId: string, value: unknown, token?: string, ownerId?: string): Promise<CloudProjectServiceResult<CloudProject>> {
+  async saveForActor(
+    actorId: string,
+    projectId: string,
+    value: unknown,
+    token?: string,
+    ownerId?: string,
+  ): Promise<CloudProjectServiceResult<CloudProject>> {
     if (!this.access) return this.save(actorId, projectId, value, token);
     const access = await this.findAccess(projectId, actorId, ownerId);
     if (!access) throw notFound();
@@ -258,7 +311,11 @@ export class CloudProjectService {
 
     const input = cloudProjectSaveRequestSchema.parse(value);
     if (input.document.projectId !== projectId) {
-      throw new CloudProjectServiceError("CLOUD_PROJECT_ID_MISMATCH", "The path and document project ids differ", 422);
+      throw new CloudProjectServiceError(
+        "CLOUD_PROJECT_ID_MISMATCH",
+        "The path and document project ids differ",
+        422,
+      );
     }
     const actorEntitlements = await this.requireCollaborationPro(actorId, token);
     // A member's bearer token is not an authorization proof for the owner.
@@ -299,7 +356,12 @@ export class CloudProjectService {
     return withRefresh(publicProject(result.project), actorEntitlements);
   }
 
-  async delete(ownerId: string, projectId: string, value: CloudProjectDeleteRequest | unknown, token?: string) {
+  async delete(
+    ownerId: string,
+    projectId: string,
+    value: CloudProjectDeleteRequest | unknown,
+    token?: string,
+  ) {
     const input = cloudProjectDeleteRequestSchema.parse(value);
     const resolved = await this.entitlements.resolve(ownerId, token);
     const result = await this.store.delete(ownerId, projectId, input.baseRevision);
@@ -358,18 +420,27 @@ export class CloudProjectService {
 
   private async ownerAccess(actorId: string, projectId: string) {
     const project = await this.store.get(actorId, projectId);
-    return project ? {
-      ownerId: actorId,
-      projectId,
-      principalId: actorId,
-      role: "owner" as const,
-    } : null;
+    return project
+      ? {
+          ownerId: actorId,
+          projectId,
+          principalId: actorId,
+          role: "owner" as const,
+        }
+      : null;
   }
 
-  private async validateProjectMedia(ownerId: string, projectId: string, mediaIds: readonly string[]) {
+  private async validateProjectMedia(
+    ownerId: string,
+    projectId: string,
+    mediaIds: readonly string[],
+  ) {
     if (mediaIds.length === 0) return;
     if (!mediaIds.every((id) => MEDIA_ID_SCHEMA.safeParse(id).success)) throw invalidProjectMedia();
-    if (!this.mediaValidator || !await this.mediaValidator.validateReadyMedia(ownerId, projectId, mediaIds)) {
+    if (
+      !this.mediaValidator ||
+      !(await this.mediaValidator.validateReadyMedia(ownerId, projectId, mediaIds))
+    ) {
       throw invalidProjectMedia();
     }
   }
@@ -390,12 +461,17 @@ function documentWrite(value: unknown) {
     document,
     documentBytes,
     checksum: createHash("sha256").update(json, "utf8").digest("hex"),
-    localMediaCount: document.nodes.reduce((count, node) => (
-      node.data.media?.source === "local" ? count + 1 : count
-    ), 0),
-    serverMediaIds: [...new Set(document.nodes.flatMap((node) => (
-      node.data.media?.serverId ? [node.data.media.serverId] : []
-    )))],
+    localMediaCount: document.nodes.reduce(
+      (count, node) => (node.data.media?.source === "local" ? count + 1 : count),
+      0,
+    ),
+    serverMediaIds: [
+      ...new Set(
+        document.nodes.flatMap((node) =>
+          node.data.media?.serverId ? [node.data.media.serverId] : [],
+        ),
+      ),
+    ],
   };
 }
 
@@ -404,7 +480,10 @@ function publicProject(project: CloudProjectRecord) {
   return cloudProjectSchema.parse(value);
 }
 
-function withRefresh<T>(data: T, resolved: Awaited<ReturnType<CloudProjectEntitlementResolver["resolve"]>>) {
+function withRefresh<T>(
+  data: T,
+  resolved: Awaited<ReturnType<CloudProjectEntitlementResolver["resolve"]>>,
+) {
   return {
     data,
     ...(resolved.refreshedToken ? { refreshedToken: resolved.refreshedToken } : {}),
@@ -417,11 +496,19 @@ function notFound() {
 }
 
 function projectLimit() {
-  return new CloudProjectServiceError("CLOUD_PROJECT_LIMIT_REACHED", "The account cloud project limit has been reached", 403);
+  return new CloudProjectServiceError(
+    "CLOUD_PROJECT_LIMIT_REACHED",
+    "The account cloud project limit has been reached",
+    403,
+  );
 }
 
 function storageLimit() {
-  return new CloudProjectServiceError("CLOUD_PROJECT_STORAGE_LIMIT_REACHED", "The account project storage limit has been reached", 403);
+  return new CloudProjectServiceError(
+    "CLOUD_PROJECT_STORAGE_LIMIT_REACHED",
+    "The account project storage limit has been reached",
+    403,
+  );
 }
 
 function invalidProjectMedia() {

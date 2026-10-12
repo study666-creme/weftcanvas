@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { generationJobStatusSchema } from "@kachang/contracts";
+import { generationJobStatusSchema } from "@weftcanvas/contracts";
 import type { Pool } from "pg";
 import { z } from "zod";
 
@@ -8,24 +8,55 @@ import { GenerationJobProcessor, GenerationJobServiceError } from "./service.js"
 import type { GenerationJobRecord, ProviderExecutionState } from "./types.js";
 
 const providerStateSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("queued"), taskId: z.string().min(1), progress: z.number().optional() }).strict(),
-  z.object({ kind: z.literal("running"), taskId: z.string().min(1), progress: z.number().optional() }).strict(),
-  z.object({ kind: z.literal("output"), resultRef: z.string().min(1), taskId: z.string().min(1).optional() }).strict(),
-  z.object({
-    kind: z.literal("failed"),
-    code: z.string().min(1),
-    message: z.string().min(1),
-    retryable: z.boolean().optional(),
-  }).strict(),
+  z
+    .object({
+      kind: z.literal("queued"),
+      taskId: z.string().min(1),
+      progress: z.number().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("running"),
+      taskId: z.string().min(1),
+      progress: z.number().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("output"),
+      resultRef: z.string().min(1),
+      taskId: z.string().min(1).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("failed"),
+      code: z.string().min(1),
+      message: z.string().min(1),
+      retryable: z.boolean().optional(),
+    })
+    .strict(),
 ]);
 
-const reconciliationRequestSchema = z.object({
-  jobId: z.string().min(1).max(128),
-  idempotencyKey: z.string().min(8).max(128).regex(/^[A-Za-z0-9._:-]+$/),
-  actor: z.string().trim().min(1).max(128).regex(/^[A-Za-z0-9._:@-]+$/),
-  state: providerStateSchema,
-  evidence: z.record(z.string(), z.unknown()).default({}),
-}).strict();
+const reconciliationRequestSchema = z
+  .object({
+    jobId: z.string().min(1).max(128),
+    idempotencyKey: z
+      .string()
+      .min(8)
+      .max(128)
+      .regex(/^[A-Za-z0-9._:-]+$/),
+    actor: z
+      .string()
+      .trim()
+      .min(1)
+      .max(128)
+      .regex(/^[A-Za-z0-9._:@-]+$/),
+    state: providerStateSchema,
+    evidence: z.record(z.string(), z.unknown()).default({}),
+  })
+  .strict();
 
 const reconciliationRecordSchema = z.object({
   id: z.string().uuid(),
@@ -47,12 +78,23 @@ type BeginResult = { kind: "created" | "existing"; record: GenerationReconciliat
 export interface GenerationReconciliationStore {
   begin(record: GenerationReconciliationRecord): Promise<BeginResult>;
   getById(id: string): Promise<GenerationReconciliationRecord | null>;
-  markApplied(id: string, resultStatus: GenerationJobRecord["status"], updatedAt: string): Promise<GenerationReconciliationRecord | null>;
-  markRejected(id: string, error: { code: string; message: string }, updatedAt: string): Promise<GenerationReconciliationRecord | null>;
+  markApplied(
+    id: string,
+    resultStatus: GenerationJobRecord["status"],
+    updatedAt: string,
+  ): Promise<GenerationReconciliationRecord | null>;
+  markRejected(
+    id: string,
+    error: { code: string; message: string },
+    updatedAt: string,
+  ): Promise<GenerationReconciliationRecord | null>;
 }
 
 export class GenerationReconciliationError extends Error {
-  constructor(readonly code: string, message: string) {
+  constructor(
+    readonly code: string,
+    message: string,
+  ) {
     super(message);
     this.name = "GenerationReconciliationError";
   }
@@ -77,34 +119,56 @@ export class GenerationReconciliationService {
       throw new GenerationReconciliationError("EVIDENCE_TOO_LARGE", "对账证据内容过大");
     }
     const timestamp = this.timestamp();
-    const begun = await this.store.begin(reconciliationRecordSchema.parse({
-      id: this.createId(),
-      jobId: input.jobId,
-      idempotencyKey: input.idempotencyKey,
-      actor: input.actor,
-      requestedState: input.state,
-      evidence: input.evidence,
-      status: "pending",
-      resultStatus: null,
-      error: null,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    }));
+    const begun = await this.store.begin(
+      reconciliationRecordSchema.parse({
+        id: this.createId(),
+        jobId: input.jobId,
+        idempotencyKey: input.idempotencyKey,
+        actor: input.actor,
+        requestedState: input.state,
+        evidence: input.evidence,
+        status: "pending",
+        resultStatus: null,
+        error: null,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      }),
+    );
     assertSameRequest(begun.record, input);
     if (begun.record.status === "applied") return begun.record;
     if (begun.record.status === "rejected") {
-      throw new GenerationReconciliationError(begun.record.error!.code, begun.record.error!.message);
+      throw new GenerationReconciliationError(
+        begun.record.error!.code,
+        begun.record.error!.message,
+      );
     }
 
     let job: GenerationJobRecord;
     try {
-      job = await this.processor.reconcileSubmission(input.jobId, input.state as ProviderExecutionState);
+      job = await this.processor.reconcileSubmission(
+        input.jobId,
+        input.state as ProviderExecutionState,
+      );
     } catch (error) {
-      if (begun.kind === "existing" && error instanceof GenerationJobServiceError && error.code === "JOB_NOT_RECONCILABLE") {
+      if (
+        begun.kind === "existing" &&
+        error instanceof GenerationJobServiceError &&
+        error.code === "JOB_NOT_RECONCILABLE"
+      ) {
         job = await this.processor.process(input.jobId);
-      } else if (error instanceof GenerationJobServiceError && error.code === "JOB_NOT_RECONCILABLE") {
-        const rejected = await this.store.markRejected(begun.record.id, { code: error.code, message: error.message }, this.timestamp());
-        throw new GenerationReconciliationError(rejected?.error?.code ?? error.code, rejected?.error?.message ?? error.message);
+      } else if (
+        error instanceof GenerationJobServiceError &&
+        error.code === "JOB_NOT_RECONCILABLE"
+      ) {
+        const rejected = await this.store.markRejected(
+          begun.record.id,
+          { code: error.code, message: error.message },
+          this.timestamp(),
+        );
+        throw new GenerationReconciliationError(
+          rejected?.error?.code ?? error.code,
+          rejected?.error?.message ?? error.message,
+        );
       } else {
         throw error;
       }
@@ -116,10 +180,17 @@ export class GenerationReconciliationService {
     } catch {
       applied = await this.store.getById(begun.record.id).catch(() => null);
       if (applied?.status !== "applied") {
-        throw new GenerationReconciliationError("RECONCILIATION_FINALIZATION_UNCONFIRMED", "任务状态已核对，正在确认审计记录");
+        throw new GenerationReconciliationError(
+          "RECONCILIATION_FINALIZATION_UNCONFIRMED",
+          "任务状态已核对，正在确认审计记录",
+        );
       }
     }
-    if (!applied) throw new GenerationReconciliationError("RECONCILIATION_CONFLICT", "对账记录已被其他进程更新");
+    if (!applied)
+      throw new GenerationReconciliationError(
+        "RECONCILIATION_CONFLICT",
+        "对账记录已被其他进程更新",
+      );
     return applied;
   }
 
@@ -206,7 +277,15 @@ export class PostgresGenerationReconciliationStore implements GenerationReconcil
         updated_at = $7
        WHERE id = $1 AND status = 'pending'
        RETURNING record`,
-      [id, status, resultStatus, error?.code ?? null, error?.message ?? null, JSON.stringify(next), updatedAt],
+      [
+        id,
+        status,
+        resultStatus,
+        error?.code ?? null,
+        error?.message ?? null,
+        JSON.stringify(next),
+        updatedAt,
+      ],
     );
     if (result.rows[0]) return parseRecord(result.rows[0]);
     return this.getById(id);
@@ -217,11 +296,19 @@ function parseRecord(row: ReconciliationRow) {
   return reconciliationRecordSchema.parse(row.record);
 }
 
-function assertSameRequest(record: GenerationReconciliationRecord, input: z.infer<typeof reconciliationRequestSchema>) {
-  const same = record.jobId === input.jobId
-    && record.idempotencyKey === input.idempotencyKey
-    && record.actor === input.actor
-    && JSON.stringify(record.requestedState) === JSON.stringify(input.state)
-    && JSON.stringify(record.evidence) === JSON.stringify(input.evidence);
-  if (!same) throw new GenerationReconciliationError("RECONCILIATION_IDEMPOTENCY_CONFLICT", "对账请求标识已经用于其他核对结果");
+function assertSameRequest(
+  record: GenerationReconciliationRecord,
+  input: z.infer<typeof reconciliationRequestSchema>,
+) {
+  const same =
+    record.jobId === input.jobId &&
+    record.idempotencyKey === input.idempotencyKey &&
+    record.actor === input.actor &&
+    JSON.stringify(record.requestedState) === JSON.stringify(input.state) &&
+    JSON.stringify(record.evidence) === JSON.stringify(input.evidence);
+  if (!same)
+    throw new GenerationReconciliationError(
+      "RECONCILIATION_IDEMPOTENCY_CONFLICT",
+      "对账请求标识已经用于其他核对结果",
+    );
 }

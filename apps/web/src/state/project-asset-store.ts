@@ -20,7 +20,7 @@ import {
   type ProjectAssetKind,
 } from "../lib/asset-library-store";
 import { collectCanvasMediaCaptures, projectAssetKindOfMedia } from "../lib/project-asset-capture";
-import type { CanvasMedia } from "@kachang/contracts";
+import type { CanvasMedia } from "@weftcanvas/contracts";
 import { useCanvasStore } from "./canvas-store";
 import { useToastStore } from "./toast-store";
 
@@ -75,7 +75,13 @@ export const useProjectAssetStore = create<ProjectAssetState>((set, get) => ({
       return;
     }
     const scopeId = useCanvasStore.getState().projectId;
-    set({ open: true, scopeId, query: "", pendingNew: 0, status: get().scopeId === scopeId && get().status === "ready" ? "ready" : "loading" });
+    set({
+      open: true,
+      scopeId,
+      query: "",
+      pendingNew: 0,
+      status: get().scopeId === scopeId && get().status === "ready" ? "ready" : "loading",
+    });
     void get().refresh();
   },
 
@@ -85,7 +91,10 @@ export const useProjectAssetStore = create<ProjectAssetState>((set, get) => ({
 
   refresh: async () => {
     const scopeId = useCanvasStore.getState().projectId;
-    set({ scopeId, status: get().status === "ready" && get().scopeId === scopeId ? "ready" : "loading" });
+    set({
+      scopeId,
+      status: get().status === "ready" && get().scopeId === scopeId ? "ready" : "loading",
+    });
     try {
       const [categories, items] = await Promise.all([
         ensureProjectAssetCategories(scopeId),
@@ -128,7 +137,9 @@ export const useProjectAssetStore = create<ProjectAssetState>((set, get) => ({
       await removeProjectAssetCategory(useCanvasStore.getState().projectId, categoryId);
       if (get().categoryFilter === categoryId) set({ categoryFilter: "uncategorized" });
       await get().refresh();
-      useToastStore.getState().show(`已删除文件夹「${category?.name ?? ""}」，其中资产已移至未分类`, "success");
+      useToastStore
+        .getState()
+        .show(`已删除文件夹「${category?.name ?? ""}」，其中资产已移至未分类`, "success");
       return true;
     } catch (cause) {
       useToastStore.getState().show(errorMessage(cause, "文件夹删除失败"), "error");
@@ -204,7 +215,11 @@ export const useProjectAssetStore = create<ProjectAssetState>((set, get) => ({
         useToastStore.getState().show("已在工作资产库", "success");
         return true;
       }
-      await saveProjectPromptAsset(scopeId, { name: "", prompt, categoryId: promptFallbackCategoryId(get()) });
+      await saveProjectPromptAsset(scopeId, {
+        name: "",
+        prompt,
+        categoryId: promptFallbackCategoryId(get()),
+      });
       await get().refresh();
       useToastStore.getState().show("已存入工作资产库", "success");
       return true;
@@ -218,8 +233,10 @@ export const useProjectAssetStore = create<ProjectAssetState>((set, get) => ({
     // 当前选中的具体文件夹优先（含默认分类），没有合适落点时优先「提示词资产」，
     // 它被删了就落未分类——默认分类可删除，兜底不能假设它一定存在。
     const { categoryFilter, categories } = get();
-    const filterValid = categoryFilter !== "all" && categoryFilter !== "uncategorized"
-      && categories.some((category) => category.id === categoryFilter);
+    const filterValid =
+      categoryFilter !== "all" &&
+      categoryFilter !== "uncategorized" &&
+      categories.some((category) => category.id === categoryFilter);
     const categoryId = filterValid ? categoryFilter : promptFallbackCategoryId(get());
     try {
       await saveProjectPromptAsset(useCanvasStore.getState().projectId, { ...input, categoryId });
@@ -242,7 +259,10 @@ function promptFallbackCategoryId(state: { categories: ProjectAssetCategory[] })
  * 自动收集/手动入库的落点：图片、视频、音频各进自己的堆放区。
  * 堆放区被用户删掉时回落到未分类，绝不写进一个不存在的分类。
  */
-function captureCategoryId(kind: Exclude<ProjectAssetKind, "prompt">, categories: ProjectAssetCategory[]) {
+function captureCategoryId(
+  kind: Exclude<ProjectAssetKind, "prompt">,
+  categories: ProjectAssetCategory[],
+) {
   const inboxId = PROJECT_ASSET_INBOX_BY_KIND[kind];
   return categories.some((category) => category.id === inboxId) ? inboxId : null;
 }
@@ -273,7 +293,10 @@ let engineStarted = false;
 let seededScopeId: string | null = null;
 let seedReady = false;
 const knownSourceIds = new Set<string>();
-const captureQueue = new Map<string, { media: CanvasMedia; kind: Exclude<ProjectAssetKind, "prompt">; prompt: string }>();
+const captureQueue = new Map<
+  string,
+  { media: CanvasMedia; kind: Exclude<ProjectAssetKind, "prompt">; prompt: string }
+>();
 let captureTimer: number | null = null;
 
 /**

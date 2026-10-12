@@ -39,7 +39,9 @@ export type HoverPreviewPlacementInput = {
   hasCaption: boolean;
 };
 
-export function computeHoverPreviewPlacement(input: HoverPreviewPlacementInput): HoverPreviewPlacement {
+export function computeHoverPreviewPlacement(
+  input: HoverPreviewPlacementInput,
+): HoverPreviewPlacement {
   const { anchor, viewport } = input;
   const aspect = Number.isFinite(input.aspect) && input.aspect > 0 ? input.aspect : 1;
   const chromeHeight = CHROME_HEIGHT + (input.hasCaption ? CAPTION_BLOCK_HEIGHT : 0);
@@ -70,8 +72,14 @@ export function computeHoverPreviewPlacement(input: HoverPreviewPlacementInput):
   // 先取整再夹取，保证 left + width 与 top + height 精确落在视口内（不留半像素尾巴）。
   const roundedWidth = Math.round(width);
   const roundedHeight = Math.round(height);
-  const maxLeft = Math.max(HOVER_VIEWPORT_PADDING, viewport.width - HOVER_VIEWPORT_PADDING - roundedWidth);
-  const maxTop = Math.max(HOVER_VIEWPORT_PADDING, viewport.height - HOVER_VIEWPORT_PADDING - roundedHeight);
+  const maxLeft = Math.max(
+    HOVER_VIEWPORT_PADDING,
+    viewport.width - HOVER_VIEWPORT_PADDING - roundedWidth,
+  );
+  const maxTop = Math.max(
+    HOVER_VIEWPORT_PADDING,
+    viewport.height - HOVER_VIEWPORT_PADDING - roundedHeight,
+  );
   const left = clamp(
     flip ? anchor.x - HOVER_CURSOR_GAP - roundedWidth : anchor.x + HOVER_CURSOR_GAP,
     HOVER_VIEWPORT_PADDING,

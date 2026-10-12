@@ -16,7 +16,12 @@ export function AccountDataController() {
   const previousIdentityUserId = useRef<string | null>(identityUserId);
 
   useEffect(() => {
-    if (identityStatus === "authenticated" && identityUserId && previousIdentityUserId.current && previousIdentityUserId.current !== identityUserId) {
+    if (
+      identityStatus === "authenticated" &&
+      identityUserId &&
+      previousIdentityUserId.current &&
+      previousIdentityUserId.current !== identityUserId
+    ) {
       resetWallet();
       resetMembershipTasks();
     }
@@ -46,7 +51,14 @@ export function AccountDataController() {
       window.removeEventListener("focus", refreshAccount);
       document.removeEventListener("visibilitychange", refreshVisibleAccount);
     };
-  }, [identityStatus, identityUserId, loadMembershipTasks, loadWalletSummary, resetMembershipTasks, resetWallet]);
+  }, [
+    identityStatus,
+    identityUserId,
+    loadMembershipTasks,
+    loadWalletSummary,
+    resetMembershipTasks,
+    resetWallet,
+  ]);
 
   return null;
 }

@@ -1,4 +1,4 @@
-import type { MembershipTaskCenter } from "@kachang/contracts";
+import type { MembershipTaskCenter } from "@weftcanvas/contracts";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({
@@ -120,7 +120,9 @@ describe("membership task state", () => {
 
   it("leaves a failed node event retryable and succeeds on the next attempt", async () => {
     api.recordCanvasNodeCreated
-      .mockRejectedValueOnce(new CanvasApiError(503, "TASK_PROVIDER_UNAVAILABLE", "任务服务暂不可用"))
+      .mockRejectedValueOnce(
+        new CanvasApiError(503, "TASK_PROVIDER_UNAVAILABLE", "任务服务暂不可用"),
+      )
       .mockResolvedValueOnce({ message: "创建节点任务已完成", granted: true });
 
     await useMembershipTaskStore.getState().recordNodeCreated();
@@ -186,7 +188,10 @@ describe("membership task state", () => {
     expect(wallet.loadLedger).toHaveBeenCalledWith(true);
 
     refresh.resolve(taskCenter());
-    await useMembershipTaskStore.getState().load(true).catch(() => undefined);
+    await useMembershipTaskStore
+      .getState()
+      .load(true)
+      .catch(() => undefined);
     expect(useMembershipTaskStore.getState().data?.items[0]?.claimed).toBe(false);
   });
 
@@ -214,18 +219,20 @@ function setAuthenticated(userId: string) {
 
 function taskCenter(): MembershipTaskCenter {
   return {
-    items: [{
-      key: "canvas_create_node",
-      title: "创建一个画布节点",
-      description: "在画布中成功创建任意节点",
-      rewardDays: 1,
-      rewardCredits: 0,
-      rewardTier: "basic",
-      claimed: false,
-      ready: true,
-      progress: null,
-      kind: "claim",
-    }],
+    items: [
+      {
+        key: "canvas_create_node",
+        title: "创建一个画布节点",
+        description: "在画布中成功创建任意节点",
+        rewardDays: 1,
+        rewardCredits: 0,
+        rewardTier: "basic",
+        claimed: false,
+        ready: true,
+        progress: null,
+        kind: "claim",
+      },
+    ],
     lifetimeCreditsSpent: 0,
     nextSpendMilestone: 1_000,
     hub: {

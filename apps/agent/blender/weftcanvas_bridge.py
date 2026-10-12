@@ -1,4 +1,4 @@
-"""卡藏画布 Blender 桥接（Blender 插件形态）。
+"""纬线画布 Blender 桥接（Blender 插件形态）。
 
 两种工作模式，面板里切换：
 
@@ -10,7 +10,7 @@
 协议：
   · 远程：POST {server}/api/external/v1/connectors/poll   （Bearer 配对令牌）
           POST {server}/api/external/v1/connectors/results
-  · 本机：一行一个 JSON，见 KachangBridgeServer。
+  · 本机：一行一个 JSON，见 WeftcanvasBridgeServer。
 
 run_python 会在 Blender 主线程执行任意 Python，两种模式都等同于把 Blender 交给已配对的一方控制；
 因此配对令牌等同于本机代码执行权限，不要分享，怀疑泄露就在画布面板里重新配对。
@@ -27,12 +27,12 @@ import traceback
 import bpy
 
 bl_info = {
-    "name": "卡藏画布桥接",
-    "author": "Kachang Canvas",
+    "name": "纬线画布桥接",
+    "author": "Weftcanvas",
     "version": (1, 1, 0),
     "blender": (3, 6, 0),
-    "location": "View3D > Sidebar > 卡藏",
-    "description": "让卡藏画布 Agent 在本机 Blender 中执行 Python",
+    "location": "View3D > Sidebar > 纬线",
+    "description": "让纬线画布 Agent 在本机 Blender 中执行 Python",
     "category": "Development",
 }
 
@@ -53,12 +53,12 @@ def _execute(code):
     _STDOUT_BUFFER.seek(0)
     _STDOUT_BUFFER.truncate(0)
     scope = {
-        "__name__": "__kachang__",
+        "__name__": "__weftcanvas__",
         "bpy": bpy,
         "RESULT": None,
     }
     with contextlib.redirect_stdout(_STDOUT_BUFFER):
-        exec(compile(code, "<kachang_bridge>", "exec"), scope)
+        exec(compile(code, "<weftcanvas_bridge>", "exec"), scope)
     return _STDOUT_BUFFER.getvalue(), scope.get("RESULT")
 
 
@@ -157,7 +157,7 @@ def _pump():
     return 0.05
 
 
-class KachangBridgeServer(threading.Thread):
+class WeftcanvasBridgeServer(threading.Thread):
     def __init__(self, host=DEFAULT_HOST, port=DEFAULT_PORT):
         super().__init__(daemon=True)
         self.host = host
@@ -233,12 +233,12 @@ class KachangBridgeServer(threading.Thread):
 
 def _host():
     scene = getattr(bpy.context, "scene", None)
-    return getattr(scene, "kachang_bridge_host", DEFAULT_HOST) or DEFAULT_HOST
+    return getattr(scene, "weftcanvas_bridge_host", DEFAULT_HOST) or DEFAULT_HOST
 
 
 def _port():
     scene = getattr(bpy.context, "scene", None)
-    return int(getattr(scene, "kachang_bridge_port", DEFAULT_PORT) or DEFAULT_PORT)
+    return int(getattr(scene, "weftcanvas_bridge_port", DEFAULT_PORT) or DEFAULT_PORT)
 
 
 def start_bridge(host=None, port=None):
@@ -248,7 +248,7 @@ def start_bridge(host=None, port=None):
         return True, "桥接已在运行 %s:%s" % (_SERVER.host, _SERVER.port)
     target_host = host or _host()
     target_port = int(port or _port())
-    server = KachangBridgeServer(host=target_host, port=target_port)
+    server = WeftcanvasBridgeServer(host=target_host, port=target_port)
     try:
         server.start()
     except OSError as error:
@@ -425,11 +425,11 @@ def remote_status():
 
 def _auto_start_enabled():
     scene = getattr(bpy.context, "scene", None)
-    return bool(getattr(scene, "kachang_bridge_auto_start", True))
+    return bool(getattr(scene, "weftcanvas_bridge_auto_start", True))
 
 
-class KACHANG_OT_start_bridge(bpy.types.Operator):
-    bl_idname = "kachang.start_bridge"
+class WEFTCANVAS_OT_start_bridge(bpy.types.Operator):
+    bl_idname = "weftcanvas.start_bridge"
     bl_label = "启动本机监听"
 
     def execute(self, context):
@@ -438,8 +438,8 @@ class KACHANG_OT_start_bridge(bpy.types.Operator):
         return {"FINISHED"} if ok else {"CANCELLED"}
 
 
-class KACHANG_OT_stop_bridge(bpy.types.Operator):
-    bl_idname = "kachang.stop_bridge"
+class WEFTCANVAS_OT_stop_bridge(bpy.types.Operator):
+    bl_idname = "weftcanvas.stop_bridge"
     bl_label = "停止本机监听"
 
     def execute(self, context):
@@ -447,8 +447,8 @@ class KACHANG_OT_stop_bridge(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class KACHANG_OT_start_remote(bpy.types.Operator):
-    bl_idname = "kachang.start_remote"
+class WEFTCANVAS_OT_start_remote(bpy.types.Operator):
+    bl_idname = "weftcanvas.start_remote"
     bl_label = "连接画布"
 
     def execute(self, context):
@@ -457,8 +457,8 @@ class KACHANG_OT_start_remote(bpy.types.Operator):
         return {"FINISHED"} if ok else {"CANCELLED"}
 
 
-class KACHANG_OT_stop_remote(bpy.types.Operator):
-    bl_idname = "kachang.stop_remote"
+class WEFTCANVAS_OT_stop_remote(bpy.types.Operator):
+    bl_idname = "weftcanvas.stop_remote"
     bl_label = "断开画布"
 
     def execute(self, context):
@@ -466,7 +466,7 @@ class KACHANG_OT_stop_remote(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class KACHANG_AP_preferences(bpy.types.AddonPreferences):
+class WEFTCANVAS_AP_preferences(bpy.types.AddonPreferences):
     """令牌放在插件偏好里（userpref），不会随 .blend 文件外传。"""
 
     bl_idname = __package__ or __name__
@@ -485,19 +485,19 @@ class KACHANG_AP_preferences(bpy.types.AddonPreferences):
 
 def _mode():
     scene = getattr(bpy.context, "scene", None)
-    return getattr(scene, "kachang_bridge_mode", "remote")
+    return getattr(scene, "weftcanvas_bridge_mode", "remote")
 
 
-class KACHANG_PT_bridge_panel(bpy.types.Panel):
-    bl_label = "卡藏桥接"
-    bl_idname = "KACHANG_PT_bridge_panel"
+class WEFTCANVAS_PT_bridge_panel(bpy.types.Panel):
+    bl_label = "纬线桥接"
+    bl_idname = "WEFTCANVAS_PT_bridge_panel"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = "卡藏"
+    bl_category = "纬线"
 
     def draw(self, context):
         layout = self.layout
-        layout.prop(context.scene, "kachang_bridge_mode", text="模式")
+        layout.prop(context.scene, "weftcanvas_bridge_mode", text="模式")
 
         if _mode() == "remote":
             active = _remote_active()
@@ -510,22 +510,22 @@ class KACHANG_PT_bridge_panel(bpy.types.Panel):
             else:
                 layout.label(text="（--python 运行：请在插件偏好里配置令牌）", icon="ERROR")
             row = layout.row(align=True)
-            row.operator("kachang.start_remote", icon="PLAY")
-            row.operator("kachang.stop_remote", icon="PAUSE")
+            row.operator("weftcanvas.start_remote", icon="PLAY")
+            row.operator("weftcanvas.stop_remote", icon="PAUSE")
         else:
             running = bool(_SERVER and _SERVER.is_alive())
             layout.label(text="状态：%s" % (_STATUS if not running else "运行中"), icon="PLAY" if running else "PAUSE")
             row = layout.row(align=True)
-            row.operator("kachang.start_bridge", icon="PLAY")
-            row.operator("kachang.stop_bridge", icon="PAUSE")
+            row.operator("weftcanvas.start_bridge", icon="PLAY")
+            row.operator("weftcanvas.stop_bridge", icon="PAUSE")
             column = layout.column(align=True)
-            column.prop(context.scene, "kachang_bridge_host", text="地址")
-            column.prop(context.scene, "kachang_bridge_port", text="端口")
+            column.prop(context.scene, "weftcanvas_bridge_host", text="地址")
+            column.prop(context.scene, "weftcanvas_bridge_port", text="端口")
 
-        layout.prop(context.scene, "kachang_bridge_auto_start", text="随 Blender 自动启动")
+        layout.prop(context.scene, "weftcanvas_bridge_auto_start", text="随 Blender 自动启动")
 
 
-_CLASSES = (KACHANG_OT_start_bridge, KACHANG_OT_stop_bridge, KACHANG_OT_start_remote, KACHANG_OT_stop_remote, KACHANG_PT_bridge_panel)
+_CLASSES = (WEFTCANVAS_OT_start_bridge, WEFTCANVAS_OT_stop_bridge, WEFTCANVAS_OT_start_remote, WEFTCANVAS_OT_stop_remote, WEFTCANVAS_PT_bridge_panel)
 
 
 def register():
@@ -537,14 +537,14 @@ def register():
     # 只有作为插件安装时才有 AddonPreferences；直接 --python 运行时跳过。
     if __package__:
         with contextlib.suppress(Exception):
-            bpy.utils.register_class(KACHANG_AP_preferences)
+            bpy.utils.register_class(WEFTCANVAS_AP_preferences)
     for cls in _CLASSES:
         bpy.utils.register_class(cls)
-    if not hasattr(bpy.types.Scene, "kachang_bridge_host"):
-        bpy.types.Scene.kachang_bridge_host = bpy.props.StringProperty(name="地址", default=DEFAULT_HOST)
-        bpy.types.Scene.kachang_bridge_port = bpy.props.IntProperty(name="端口", default=DEFAULT_PORT, min=1, max=65535)
-    if not hasattr(bpy.types.Scene, "kachang_bridge_mode"):
-        bpy.types.Scene.kachang_bridge_mode = bpy.props.EnumProperty(
+    if not hasattr(bpy.types.Scene, "weftcanvas_bridge_host"):
+        bpy.types.Scene.weftcanvas_bridge_host = bpy.props.StringProperty(name="地址", default=DEFAULT_HOST)
+        bpy.types.Scene.weftcanvas_bridge_port = bpy.props.IntProperty(name="端口", default=DEFAULT_PORT, min=1, max=65535)
+    if not hasattr(bpy.types.Scene, "weftcanvas_bridge_mode"):
+        bpy.types.Scene.weftcanvas_bridge_mode = bpy.props.EnumProperty(
             name="模式",
             items=(
                 ("remote", "连接画布", "主动连到画布服务端（托管站点用户选这个）"),
@@ -552,8 +552,8 @@ def register():
             ),
             default="remote",
         )
-    if not hasattr(bpy.types.Scene, "kachang_bridge_auto_start"):
-        bpy.types.Scene.kachang_bridge_auto_start = bpy.props.BoolProperty(
+    if not hasattr(bpy.types.Scene, "weftcanvas_bridge_auto_start"):
+        bpy.types.Scene.weftcanvas_bridge_auto_start = bpy.props.BoolProperty(
             name="随 Blender 自动启动", default=True,
         )
     if _auto_start_enabled():
@@ -573,8 +573,8 @@ def unregister():
             bpy.utils.unregister_class(cls)
     if __package__:
         with contextlib.suppress(Exception):
-            bpy.utils.unregister_class(KACHANG_AP_preferences)
-    for prop in ("kachang_bridge_host", "kachang_bridge_port", "kachang_bridge_mode", "kachang_bridge_auto_start"):
+            bpy.utils.unregister_class(WEFTCANVAS_AP_preferences)
+    for prop in ("weftcanvas_bridge_host", "weftcanvas_bridge_port", "weftcanvas_bridge_mode", "weftcanvas_bridge_auto_start"):
         if hasattr(bpy.types.Scene, prop):
             with contextlib.suppress(AttributeError):
                 delattr(bpy.types.Scene, prop)
@@ -582,4 +582,4 @@ def unregister():
 
 if __name__ == "__main__":
     register()
-    print("[kachang] 模式=%s 状态=%s。在画布 Agent 面板的「外部连接」里配对。" % (_mode(), remote_status() if _mode() == "remote" else _STATUS))
+    print("[weftcanvas] 模式=%s 状态=%s。在画布 Agent 面板的「外部连接」里配对。" % (_mode(), remote_status() if _mode() == "remote" else _STATUS))

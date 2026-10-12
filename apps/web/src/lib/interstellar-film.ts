@@ -23,7 +23,10 @@ const PI = Math.PI;
 const TAU = PI * 2;
 const clamp = (x: number, a = 0, b = 1) => Math.max(a, Math.min(b, x));
 const mix = (a: number, b: number, t: number) => a + (b - a) * t;
-const smooth = (x: number) => { x = clamp(x); return x * x * (3 - 2 * x); };
+const smooth = (x: number) => {
+  x = clamp(x);
+  return x * x * (3 - 2 * x);
+};
 
 type Vec3 = [number, number, number];
 const V = (x = 0, y = 0, z = 0): Vec3 => [x, y, z];
@@ -31,13 +34,19 @@ const add = (a: Vec3, b: Vec3): Vec3 => a.map((v, i) => v + b[i]) as Vec3;
 const sub = (a: Vec3, b: Vec3): Vec3 => a.map((v, i) => v - b[i]) as Vec3;
 const mul = (a: number[], s: number) => a.map((v) => v * s);
 const dot = (a: number[], b: number[]) => a.reduce((r, v, i) => r + v * b[i], 0);
-const cross = (a: number[], b: number[]): Vec3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const cross = (a: number[], b: number[]): Vec3 => [
+  a[1] * b[2] - a[2] * b[1],
+  a[2] * b[0] - a[0] * b[2],
+  a[0] * b[1] - a[1] * b[0],
+];
 const norm = (a: number[]): Vec3 => mul(a, 1 / (Math.hypot(...a) || 1)) as Vec3;
 const lerp = (a: Vec3, b: Vec3, t: number): Vec3 => a.map((v, i) => mix(v, b[i], t)) as Vec3;
 
 function matmul(a: Float32Array, b: Float32Array) {
   const c = new Float32Array(16);
-  for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) for (let k = 0; k < 4; k++) c[j * 4 + i] += a[k * 4 + i] * b[j * 4 + k];
+  for (let j = 0; j < 4; j++)
+    for (let i = 0; i < 4; i++)
+      for (let k = 0; k < 4; k++) c[j * 4 + i] += a[k * 4 + i] * b[j * 4 + k];
   return c;
 }
 
@@ -48,19 +57,41 @@ function matmul(a: Float32Array, b: Float32Array) {
 //   in the per-frame render loop where the buffer is uploaded immediately and
 //   never outlives the call, removing the per-frame allocation.
 function buildMatrix(out: Float32Array, pos: number[], rot: number[], scale: number | number[]) {
-  let [x, y, z] = rot, cx = Math.cos(x), sx = Math.sin(x), cy = Math.cos(y), sy = Math.sin(y), cz = Math.cos(z), sz = Math.sin(z);
+  let [x, y, z] = rot,
+    cx = Math.cos(x),
+    sx = Math.sin(x),
+    cy = Math.cos(y),
+    sy = Math.sin(y),
+    cz = Math.cos(z),
+    sz = Math.sin(z);
   let s = Array.isArray(scale) ? scale : [scale, scale, scale];
-  out[0] = (cy * cz) * s[0]; out[1] = (cy * sz) * s[0]; out[2] = -sy * s[0]; out[3] = 0;
-  out[4] = (sx * sy * cz - cx * sz) * s[1]; out[5] = (sx * sy * sz + cx * cz) * s[1]; out[6] = (sx * cy) * s[1]; out[7] = 0;
-  out[8] = (cx * sy * cz + sx * sz) * s[2]; out[9] = (cx * sy * sz - sx * cz) * s[2]; out[10] = (cx * cy) * s[2]; out[11] = 0;
-  out[12] = pos[0]; out[13] = pos[1]; out[14] = pos[2]; out[15] = 1;
+  out[0] = cy * cz * s[0];
+  out[1] = cy * sz * s[0];
+  out[2] = -sy * s[0];
+  out[3] = 0;
+  out[4] = (sx * sy * cz - cx * sz) * s[1];
+  out[5] = (sx * sy * sz + cx * cz) * s[1];
+  out[6] = sx * cy * s[1];
+  out[7] = 0;
+  out[8] = (cx * sy * cz + sx * sz) * s[2];
+  out[9] = (cx * sy * sz - sx * cz) * s[2];
+  out[10] = cx * cy * s[2];
+  out[11] = 0;
+  out[12] = pos[0];
+  out[13] = pos[1];
+  out[14] = pos[2];
+  out[15] = 1;
   return out;
 }
 
 // Shared scratch for per-frame model matrices (uploaded to GL immediately).
 const MODEL_MATRIX_SCRATCH = new Float32Array(16);
 
-function matrix(pos: number[] = [0, 0, 0], rot: number[] = [0, 0, 0], scale: number | number[] = 1) {
+function matrix(
+  pos: number[] = [0, 0, 0],
+  rot: number[] = [0, 0, 0],
+  scale: number | number[] = 1,
+) {
   return buildMatrix(new Float32Array(16), pos, rot, scale);
 }
 
@@ -76,34 +107,79 @@ function camera(p: number[], target: number[], fov: number, roll: number, aspect
   let f = norm(sub(target as Vec3, p as Vec3));
   let r = norm(cross(f, [0, 1, 0]));
   let u = cross(r, f);
-  let c = Math.cos(roll), s = Math.sin(roll);
+  let c = Math.cos(roll),
+    s = Math.sin(roll);
   [r, u] = [add(mul(r, c), mul(u, s)), add(mul(u, c), mul(r, -s))];
-  const view = new Float32Array([r[0], u[0], -f[0], 0, r[1], u[1], -f[1], 0, r[2], u[2], -f[2], 0, -dot(r, p), -dot(u, p), dot(f, p), 1]);
-  let k = 1 / Math.tan(fov * PI / 360), near = .035, far = 4000;
-  const proj = new Float32Array([k / aspect, 0, 0, 0, 0, k, 0, 0, 0, 0, -(far + near) / (far - near), -1, 0, 0, -2 * far * near / (far - near), 0]);
+  const view = new Float32Array([
+    r[0],
+    u[0],
+    -f[0],
+    0,
+    r[1],
+    u[1],
+    -f[1],
+    0,
+    r[2],
+    u[2],
+    -f[2],
+    0,
+    -dot(r, p),
+    -dot(u, p),
+    dot(f, p),
+    1,
+  ]);
+  let k = 1 / Math.tan((fov * PI) / 360),
+    near = 0.035,
+    far = 4000;
+  const proj = new Float32Array([
+    k / aspect,
+    0,
+    0,
+    0,
+    0,
+    k,
+    0,
+    0,
+    0,
+    0,
+    -(far + near) / (far - near),
+    -1,
+    0,
+    0,
+    (-2 * far * near) / (far - near),
+    0,
+  ]);
   return { vp: matmul(proj, view), r, u, f, lens: 1 / k, p };
 }
 
 let randState = 8732;
-function rand() { randState = (Math.imul(randState, 1664525) + 1013904223) >>> 0; return randState / 4294967296; }
+function rand() {
+  randState = (Math.imul(randState, 1664525) + 1013904223) >>> 0;
+  return randState / 4294967296;
+}
 
 type GL = WebGL2RenderingContext;
 
-interface ProgramBundle { p: WebGLProgram; u: Record<string, WebGLUniformLocation | null>; }
+interface ProgramBundle {
+  p: WebGLProgram;
+  u: Record<string, WebGLUniformLocation | null>;
+}
 
 function makeProgram(gl: GL, name: string, vs: string, fs: string): ProgramBundle {
   function compile(type: number, source: string) {
     const sh = gl.createShader(type)!;
     gl.shaderSource(sh, source);
     gl.compileShader(sh);
-    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(name + " " + gl.getShaderInfoLog(sh));
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS))
+      throw new Error(name + " " + gl.getShaderInfoLog(sh));
     return sh;
   }
   const p = gl.createProgram()!;
   gl.attachShader(p, compile(gl.VERTEX_SHADER, vs));
   gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs));
   gl.linkProgram(p);
-  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(name + " " + gl.getProgramInfoLog(p));
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS))
+    throw new Error(name + " " + gl.getProgramInfoLog(p));
   const u: Record<string, WebGLUniformLocation | null> = {};
   for (let i = 0, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS); i < n; i++) {
     const q = gl.getActiveUniform(p, i)!;
@@ -112,7 +188,13 @@ function makeProgram(gl: GL, name: string, vs: string, fs: string): ProgramBundl
   return { p, u };
 }
 
-function setSampler(gl: GL, pr: ProgramBundle, name: string, tex: WebGLTexture | null, unit: number) {
+function setSampler(
+  gl: GL,
+  pr: ProgramBundle,
+  name: string,
+  tex: WebGLTexture | null,
+  unit: number,
+) {
   if (pr.u[name] === undefined) return;
   gl.activeTexture(gl.TEXTURE0 + unit);
   gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -228,61 +310,147 @@ c+=vec3(uFlash);c=aces(c*uExposure);c=pow(c,vec3(1./2.2));float vignette=1.-dot(
 
 // --- Geometry builders (verbatim logic) -------------------------------------
 
-interface MeshData { vao: WebGLVertexArrayObject; count: number; }
+interface MeshData {
+  vao: WebGLVertexArrayObject;
+  count: number;
+}
 
 class Builder {
   data: number[] = [];
   gl: GL;
-  constructor(gl: GL) { this.gl = gl; }
-  face(points: number[][], col: number[] = [.65, .66, .63], rough = .48, em = 0, m: Float32Array | null = null) {
-    let n = norm(cross(sub(points[1], points[0]), sub(points[2], points[0])));
-    if (m) { points = points.map((p) => transform(m, p)); n = norm(transform(m, n, 0)); }
-    let tx = norm(sub(points[1], points[0])), ty = cross(n, tx);
-    let uv = points.map((p) => [dot(sub(p, points[0]), tx), dot(sub(p, points[0]), ty)]);
-    let ux = Math.min(...uv.map((v) => v[0])), uy = Math.min(...uv.map((v) => v[1]));
-    let sx = Math.max(...uv.map((v) => v[0])) - ux, sy = Math.max(...uv.map((v) => v[1])) - uy;
-    for (let i = 1; i < points.length - 1; i++) for (const j of [0, i, i + 1]) this.data.push(...points[j], ...n, ...col, rough, em, uv[j][0] - ux, uv[j][1] - uy, sx, sy);
+  constructor(gl: GL) {
+    this.gl = gl;
   }
-  outward(points: number[][], col: number[], rough: number, em: number, m: Float32Array | null = null) {
-    const center = mul(points.reduce((a, p) => add(a, p as Vec3), [0, 0, 0]), 1 / points.length);
+  face(
+    points: number[][],
+    col: number[] = [0.65, 0.66, 0.63],
+    rough = 0.48,
+    em = 0,
+    m: Float32Array | null = null,
+  ) {
+    let n = norm(cross(sub(points[1], points[0]), sub(points[2], points[0])));
+    if (m) {
+      points = points.map((p) => transform(m, p));
+      n = norm(transform(m, n, 0));
+    }
+    let tx = norm(sub(points[1], points[0])),
+      ty = cross(n, tx);
+    let uv = points.map((p) => [dot(sub(p, points[0]), tx), dot(sub(p, points[0]), ty)]);
+    let ux = Math.min(...uv.map((v) => v[0])),
+      uy = Math.min(...uv.map((v) => v[1]));
+    let sx = Math.max(...uv.map((v) => v[0])) - ux,
+      sy = Math.max(...uv.map((v) => v[1])) - uy;
+    for (let i = 1; i < points.length - 1; i++)
+      for (const j of [0, i, i + 1])
+        this.data.push(...points[j], ...n, ...col, rough, em, uv[j][0] - ux, uv[j][1] - uy, sx, sy);
+  }
+  outward(
+    points: number[][],
+    col: number[],
+    rough: number,
+    em: number,
+    m: Float32Array | null = null,
+  ) {
+    const center = mul(
+      points.reduce((a, p) => add(a, p as Vec3), [0, 0, 0]),
+      1 / points.length,
+    );
     const n = cross(sub(points[1], points[0]), sub(points[2], points[0]));
     if (dot(center, n) < 0) points = points.slice().reverse();
     this.face(points, col, rough, em, m);
   }
-  box(pos: number[], size: number[], col: number[] = [.65, .66, .63], rot: number[] = [0, 0, 0], bevel = .035, rough = .48, em = 0) {
-    const m = matrix(pos, rot), h = size.map((v) => v / 2), b = Math.min(bevel, ...h.map((v) => v * .35));
+  box(
+    pos: number[],
+    size: number[],
+    col: number[] = [0.65, 0.66, 0.63],
+    rot: number[] = [0, 0, 0],
+    bevel = 0.035,
+    rough = 0.48,
+    em = 0,
+  ) {
+    const m = matrix(pos, rot),
+      h = size.map((v) => v / 2),
+      b = Math.min(bevel, ...h.map((v) => v * 0.35));
     for (let axis = 0; axis < 3; axis++) {
-      const j = (axis + 1) % 3, k = (axis + 2) % 3;
+      const j = (axis + 1) % 3,
+        k = (axis + 2) % 3;
       for (const sign of [-1, 1]) {
         const pts: number[][] = [];
-        for (const [sj, sk] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { let p = [0, 0, 0]; p[axis] = sign * h[axis]; p[j] = sj * (h[j] - b); p[k] = sk * (h[k] - b); pts.push(p); }
+        for (const [sj, sk] of [
+          [-1, -1],
+          [1, -1],
+          [1, 1],
+          [-1, 1],
+        ]) {
+          let p = [0, 0, 0];
+          p[axis] = sign * h[axis];
+          p[j] = sj * (h[j] - b);
+          p[k] = sk * (h[k] - b);
+          pts.push(p);
+        }
         this.outward(pts, col, rough, em, m);
       }
     }
     if (b > 0) {
-      for (let a = 0; a < 3; a++) for (let baxis = a + 1; baxis < 3; baxis++) {
-        let c = 3 - a - baxis;
-        for (let sa of [-1, 1]) for (let sb of [-1, 1]) {
-          let pts: number[][] = [];
-          for (let [e, sc] of [[0, -1], [1, -1], [1, 1], [0, 1]]) { let p = [0, 0, 0]; p[a] = sa * (h[a] - (e ? b : 0)); p[baxis] = sb * (h[baxis] - (e ? 0 : b)); p[c] = sc * (h[c] - b); pts.push(p); }
-          this.outward(pts, col, rough * .9, em, m);
+      for (let a = 0; a < 3; a++)
+        for (let baxis = a + 1; baxis < 3; baxis++) {
+          let c = 3 - a - baxis;
+          for (let sa of [-1, 1])
+            for (let sb of [-1, 1]) {
+              let pts: number[][] = [];
+              for (let [e, sc] of [
+                [0, -1],
+                [1, -1],
+                [1, 1],
+                [0, 1],
+              ]) {
+                let p = [0, 0, 0];
+                p[a] = sa * (h[a] - (e ? b : 0));
+                p[baxis] = sb * (h[baxis] - (e ? 0 : b));
+                p[c] = sc * (h[c] - b);
+                pts.push(p);
+              }
+              this.outward(pts, col, rough * 0.9, em, m);
+            }
         }
-      }
-      for (let sx of [-1, 1]) for (let sy of [-1, 1]) for (let sz of [-1, 1]) {
-        let pts = [[sx * h[0], sy * (h[1] - b), sz * (h[2] - b)], [sx * (h[0] - b), sy * h[1], sz * (h[2] - b)], [sx * (h[0] - b), sy * (h[1] - b), sz * h[2]]];
-        this.outward(pts, col, rough, em, m);
-      }
+      for (let sx of [-1, 1])
+        for (let sy of [-1, 1])
+          for (let sz of [-1, 1]) {
+            let pts = [
+              [sx * h[0], sy * (h[1] - b), sz * (h[2] - b)],
+              [sx * (h[0] - b), sy * h[1], sz * (h[2] - b)],
+              [sx * (h[0] - b), sy * (h[1] - b), sz * h[2]],
+            ];
+            this.outward(pts, col, rough, em, m);
+          }
     }
     return this;
   }
-  cylinder(pos: number[], r: number, length: number, col: number[] = [.4, .42, .42], rot: number[] = [0, 0, 0], segments = 20, rough = .4, inner = 0, em = 0) {
+  cylinder(
+    pos: number[],
+    r: number,
+    length: number,
+    col: number[] = [0.4, 0.42, 0.42],
+    rot: number[] = [0, 0, 0],
+    segments = 20,
+    rough = 0.4,
+    inner = 0,
+    em = 0,
+  ) {
     let m = matrix(pos, rot);
     for (let i = 0; i < segments; i++) {
-      let a = i * TAU / segments, b = (i + 1) * TAU / segments;
-      let p0 = [Math.cos(a) * r, Math.sin(a) * r, -length / 2], p1 = [Math.cos(b) * r, Math.sin(b) * r, -length / 2], p2 = [p1[0], p1[1], length / 2], p3 = [p0[0], p0[1], length / 2];
+      let a = (i * TAU) / segments,
+        b = ((i + 1) * TAU) / segments;
+      let p0 = [Math.cos(a) * r, Math.sin(a) * r, -length / 2],
+        p1 = [Math.cos(b) * r, Math.sin(b) * r, -length / 2],
+        p2 = [p1[0], p1[1], length / 2],
+        p3 = [p0[0], p0[1], length / 2];
       this.face([p0, p1, p2, p3], col, rough, em, m);
       if (inner > 0) {
-        let q0 = [Math.cos(a) * inner, Math.sin(a) * inner, -length / 2], q1 = [Math.cos(b) * inner, Math.sin(b) * inner, -length / 2], q2 = [q1[0], q1[1], length / 2], q3 = [q0[0], q0[1], length / 2];
+        let q0 = [Math.cos(a) * inner, Math.sin(a) * inner, -length / 2],
+          q1 = [Math.cos(b) * inner, Math.sin(b) * inner, -length / 2],
+          q2 = [q1[0], q1[1], length / 2],
+          q3 = [q0[0], q0[1], length / 2];
         this.face([q1, q0, q3, q2], col, rough, em, m);
         this.face([p3, p2, q2, q3], col, rough, em, m);
         this.face([p1, p0, q0, q1], col, rough, em, m);
@@ -293,23 +461,64 @@ class Builder {
     }
     return this;
   }
-  rod(a: number[], b: number[], r: number, col: number[] = [.3, .33, .33], rough = .36) {
-    let d = sub(a as Vec3, b as Vec3), f = norm(d), right = norm(cross(Math.abs(f[1]) > .96 ? [1, 0, 0] : [0, 1, 0], f)), up = cross(f, right);
-    let m = new Float32Array([...right, 0, ...up, 0, ...f, 0, ...mul(add(a as Vec3, b as Vec3), .5), 1]);
+  rod(a: number[], b: number[], r: number, col: number[] = [0.3, 0.33, 0.33], rough = 0.36) {
+    let d = sub(a as Vec3, b as Vec3),
+      f = norm(d),
+      right = norm(cross(Math.abs(f[1]) > 0.96 ? [1, 0, 0] : [0, 1, 0], f)),
+      up = cross(f, right);
+    let m = new Float32Array([
+      ...right,
+      0,
+      ...up,
+      0,
+      ...f,
+      0,
+      ...mul(add(a as Vec3, b as Vec3), 0.5),
+      1,
+    ]);
     let len = Math.hypot(...d);
     for (let i = 0; i < 8; i++) {
-      let x = i * TAU / 8, y = (i + 1) * TAU / 8;
-      this.face([[r * Math.cos(x), r * Math.sin(x), -len / 2], [r * Math.cos(y), r * Math.sin(y), -len / 2], [r * Math.cos(y), r * Math.sin(y), len / 2], [r * Math.cos(x), r * Math.sin(x), len / 2]], col, rough, 0, m);
+      let x = (i * TAU) / 8,
+        y = ((i + 1) * TAU) / 8;
+      this.face(
+        [
+          [r * Math.cos(x), r * Math.sin(x), -len / 2],
+          [r * Math.cos(y), r * Math.sin(y), -len / 2],
+          [r * Math.cos(y), r * Math.sin(y), len / 2],
+          [r * Math.cos(x), r * Math.sin(x), len / 2],
+        ],
+        col,
+        rough,
+        0,
+        m,
+      );
     }
     return this;
   }
-  sphere(pos: number[], r: number, col: number[], scale: number[] = [1, 1, 1], rough = .4, em = 0) {
+  sphere(
+    pos: number[],
+    r: number,
+    col: number[],
+    scale: number[] = [1, 1, 1],
+    rough = 0.4,
+    em = 0,
+  ) {
     let m = matrix(pos, [0, 0, 0], scale);
-    for (let i = 0; i < 10; i++) for (let j = 0; j < 16; j++) {
-      let pts: number[][] = [];
-      for (const [di, dj] of [[0, 0], [0, 1], [1, 1], [1, 0]]) { let a = (i + di) * PI / 10, b = (j + dj) * TAU / 16; pts.push([r * Math.sin(a) * Math.cos(b), r * Math.cos(a), r * Math.sin(a) * Math.sin(b)]); }
-      this.outward(pts, col, rough, em, m);
-    }
+    for (let i = 0; i < 10; i++)
+      for (let j = 0; j < 16; j++) {
+        let pts: number[][] = [];
+        for (const [di, dj] of [
+          [0, 0],
+          [0, 1],
+          [1, 1],
+          [1, 0],
+        ]) {
+          let a = ((i + di) * PI) / 10,
+            b = ((j + dj) * TAU) / 16;
+          pts.push([r * Math.sin(a) * Math.cos(b), r * Math.cos(a), r * Math.sin(a) * Math.sin(b)]);
+        }
+        this.outward(pts, col, rough, em, m);
+      }
     return this;
   }
   mesh(): MeshData {
@@ -320,7 +529,13 @@ class Builder {
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.data), gl.STATIC_DRAW);
     const stride = 60;
-    for (const [i, size, offset] of [[0, 3, 0], [1, 3, 12], [2, 3, 24], [3, 2, 36], [4, 4, 44]] as const) {
+    for (const [i, size, offset] of [
+      [0, 3, 0],
+      [1, 3, 12],
+      [2, 3, 24],
+      [3, 2, 36],
+      [4, 4, 44],
+    ] as const) {
       gl.enableVertexAttribArray(i);
       gl.vertexAttribPointer(i, size, gl.FLOAT, false, stride, offset);
     }
@@ -343,10 +558,10 @@ export const FILM_DURATION = DURATION;
 export const FILM_CHAPTER_LABELS = ["坠入黑洞", "旋转对接", "海水星球", "进入虫洞"] as const;
 
 function reverseTime(t: number) {
-  if (t < 55) return 151 + t;          // black hole  [151, 206)
-  if (t < 100) return 106 + (t - 55);  // docking     [106, 151)
-  if (t < 162) return 44 + (t - 100);  // ocean world [44, 106)
-  return t - 162;                      // wormhole    [0, 44)
+  if (t < 55) return 151 + t; // black hole  [151, 206)
+  if (t < 100) return 106 + (t - 55); // docking     [106, 151)
+  if (t < 162) return 44 + (t - 100); // ocean world [44, 106)
+  return t - 162; // wormhole    [0, 44)
 }
 
 function getShot(t: number) {
@@ -355,85 +570,371 @@ function getShot(t: number) {
   return Math.min(i, 16);
 }
 
-type SceneObject = { mesh: MeshData; p: number[]; r: number[]; scale: number | number[]; alpha: number; burn: number; reflection: number };
-type SceneParticle = { p: number[]; r: number[]; scale: number; kind: number; amount: number; time: number; count: number };
+type SceneObject = {
+  mesh: MeshData;
+  p: number[];
+  r: number[];
+  scale: number | number[];
+  alpha: number;
+  burn: number;
+  reflection: number;
+};
+type SceneParticle = {
+  p: number[];
+  r: number[];
+  scale: number;
+  kind: number;
+  amount: number;
+  time: number;
+  count: number;
+};
 
 type Scene = {
-  shot: number; mode: number; local: number; phase: number; wave: number; dilate: number; cloud: number;
-  cam: number[]; target: number[]; roll: number; fov: number; sun: Vec3; objects: SceneObject[]; particles: SceneParticle[];
-  warp: number; blur: number; cockpit: number; drop: number; exposure: number; flash: number; fade: number; craft?: Vec3;
+  shot: number;
+  mode: number;
+  local: number;
+  phase: number;
+  wave: number;
+  dilate: number;
+  cloud: number;
+  cam: number[];
+  target: number[];
+  roll: number;
+  fov: number;
+  sun: Vec3;
+  objects: SceneObject[];
+  particles: SceneParticle[];
+  warp: number;
+  blur: number;
+  cockpit: number;
+  drop: number;
+  exposure: number;
+  flash: number;
+  fade: number;
+  craft?: Vec3;
 };
 
 function stateAt(t: number, meshes: MeshSet): Scene {
-  const shot = getShot(t), a = cutStarts[shot], b = cutStarts[shot + 1], v = clamp((t - a) / (b - a)), s = smooth(v), st = t - a;
-  const S: Scene = { shot, mode: 0, local: t, phase: v, wave: -430, dilate: 0, cloud: 0, cam: [0, 1, 18], target: [0, 0, 0], roll: 0, fov: 48, sun: norm([-.75, .45, .85]), objects: [], particles: [], warp: 0, blur: 0, cockpit: 0, drop: 0, exposure: 1, flash: 0, fade: 1 };
-  const O = (mesh: MeshData, p: number[], r: number[] = [0, 0, 0], scale: number | number[] = 1, alpha = 1, burn = 0, reflection = 0) => S.objects.push({ mesh, p, r, scale, alpha, burn, reflection });
-  const P = (p: number[], r: number[], scale: number, kind: number, amount: number, time: number, count: number) => S.particles.push({ p, r, scale, kind, amount, time, count });
+  const shot = getShot(t),
+    a = cutStarts[shot],
+    b = cutStarts[shot + 1],
+    v = clamp((t - a) / (b - a)),
+    s = smooth(v),
+    st = t - a;
+  const S: Scene = {
+    shot,
+    mode: 0,
+    local: t,
+    phase: v,
+    wave: -430,
+    dilate: 0,
+    cloud: 0,
+    cam: [0, 1, 18],
+    target: [0, 0, 0],
+    roll: 0,
+    fov: 48,
+    sun: norm([-0.75, 0.45, 0.85]),
+    objects: [],
+    particles: [],
+    warp: 0,
+    blur: 0,
+    cockpit: 0,
+    drop: 0,
+    exposure: 1,
+    flash: 0,
+    fade: 1,
+  };
+  const O = (
+    mesh: MeshData,
+    p: number[],
+    r: number[] = [0, 0, 0],
+    scale: number | number[] = 1,
+    alpha = 1,
+    burn = 0,
+    reflection = 0,
+  ) => S.objects.push({ mesh, p, r, scale, alpha, burn, reflection });
+  const P = (
+    p: number[],
+    r: number[],
+    scale: number,
+    kind: number,
+    amount: number,
+    time: number,
+    count: number,
+  ) => S.particles.push({ p, r, scale, kind, amount, time, count });
   const ship = (p: number[], r: number[], sc: number, burn = 0, land = false, reflect = false) => {
     const craftMesh = shot >= 9 && shot <= 12 ? meshes.lander : meshes.ranger;
     if (reflect) {
-      O(meshes.ranger, [p[0], -p[1], p[2]], [-r[0], r[1], -r[2]], [sc, -sc, sc], .21, 0, 1);
-      if (land) O(meshes.gear, [p[0], -p[1], p[2]], [-r[0], r[1], -r[2]], [sc, -sc, sc], .12, 0, 1);
+      O(meshes.ranger, [p[0], -p[1], p[2]], [-r[0], r[1], -r[2]], [sc, -sc, sc], 0.21, 0, 1);
+      if (land)
+        O(meshes.gear, [p[0], -p[1], p[2]], [-r[0], r[1], -r[2]], [sc, -sc, sc], 0.12, 0, 1);
     }
     O(craftMesh, p, r, sc, 1, burn);
     if (land) O(meshes.gear, p, r, sc);
-    if (burn > .01) {
+    if (burn > 0.01) {
       let m = matrix(p, r, sc);
-      for (const pos of (craftMesh === meshes.lander ? [[-1.45, -.39, 3.36], [-1.45, .43, 3.36], [1.45, -.39, 3.36], [1.45, .43, 3.36]] : [[-.83, -.1, 3.2], [.83, -.1, 3.2]])) P(transform(m, pos), r, sc, 2, burn, t, 250);
+      for (const pos of craftMesh === meshes.lander
+        ? [
+            [-1.45, -0.39, 3.36],
+            [-1.45, 0.43, 3.36],
+            [1.45, -0.39, 3.36],
+            [1.45, 0.43, 3.36],
+          ]
+        : [
+            [-0.83, -0.1, 3.2],
+            [0.83, -0.1, 3.2],
+          ])
+        P(transform(m, pos), r, sc, 2, burn, t, 250);
     }
     S.craft = p as Vec3;
   };
-  if (shot === 0) { S.cam = lerp([8, 2.6, 20], [5.8, 1.8, 17.3], s); S.target = [0, .1, 0]; S.fov = 47; O(meshes.endurance, [-3.65, -.9, 6.0], [.14, -.43, t * .074], .28); }
-  else if (shot === 1) { S.cam = lerp([4.4, 1.1, 10.3], [3.25, .68, 8.9], s); S.target = [-.35, .05, .7]; S.fov = 52; O(meshes.endurance, [-1.63, -.70, 4.9], [.18, -.35, t * .074], .245); }
-  else if (shot === 2) { S.cam = lerp([.95, .26, 7.1], [.02, .01, 3.16], s); S.target = [0, 0, -2]; S.fov = mix(52, 64, s); O(meshes.endurance, [0, -.38, 2.5 - s * .8], [.1, -.15, t * .074], mix(.12, .021, s), 1 - smooth((v - .62) / .23)); S.warp = s * .25; }
-  else if (shot === 3) { S.mode = 1; S.cam = [0, 0, 12]; S.target = [0, 0, 0]; S.roll = Math.sin(st * .4) * .20; S.fov = 64; S.warp = .5 + .4 * Math.sin(v * PI); S.blur = .008; S.exposure = .8; O(meshes.endurance, [.08 * Math.sin(st), -.29, 0], [.1, .1, t * .21], .04 * (1 - s), .32 * (1 - s)); }
-  else if (shot >= 4 && shot <= 8) {
-    S.mode = 2; S.local = t - 44; S.fov = 48; S.sun = norm([-.55, .69, .58]); S.exposure = .90;
-    if (shot === 4) { let p = [0, mix(105, 18, s), 0]; S.cam = lerp([35, 139, 88], [24, 39, 50], s); S.target = add(p, [0, 0, -5]); S.roll = -.08 + .05 * s; S.fov = 52; S.cloud = .77 * (1 - s); S.wave = -650 + s * 80; ship(p, [.10, -.15, .04], 2.1, .34, false); }
-    if (shot === 5) { let y = 2.58 + 12 * Math.pow(1 - s, 2); let p = [0, y, 0]; S.cam = lerp([23, 8, 28], [16, 3.5, 23], s); S.target = [0, 3, -2]; S.wave = -510 + s * 60; S.fov = 49; ship(p, [.015, mix(-.15, 1.86, s), .008 * Math.sin(t)], 1.9, .55 * (1 - s), true, true); P([0, .1, 0], [0, 0, 0], 1.5, 0, Math.sin(v * PI) * 1.4 + .13, t, 1200); }
-    if (shot === 6) { S.cam = lerp([-22, 2.6, 39], [-17.0, 1.9, 32], s); S.target = [0, 26, -150]; S.wave = -278 + s * 30; S.fov = 54; ship([0, 2.60, -1], [0, 1.86, 0], 1.9, 0, true, true); O(meshes.astronaut, [9 + v * .7, 0, 5.5 - v * 1.9], [0, -.50, .01 * Math.sin(t * 2)], 1.05); O(meshes.astronaut, [11, 0, -12.5 - v * .7], [0, .1, 0], .99); O(meshes.robot, [4.7, 0, 3.5], [0, -.22, 0], 1); }
-    if (shot === 7) { S.cam = lerp([13, 1.8, 31], [12, 1.65, 29.6], s); S.target = [-3, 24, -125]; S.wave = -210 + v * 1.2; S.dilate = smooth(v * 7) * smooth((1 - v) * 7); S.drop = S.dilate; S.fov = 50; ship([-3, 2.6, -8], [0, 1.86, 0], 1.9, 0, true, true); O(meshes.astronaut, [5.0, .01, -4.6 - v * .05], [0, -.13, 0], 1.08); O(meshes.robot, [1.5, .01, -9], [0, .2, 0], 1); S.sun = norm([Math.cos(t * .69) * .8, .7, .6 + Math.sin(t * .69) * .4]); S.exposure = .83 + .07 * Math.sin(t * 1.5); P([7, .08, -4], [0, 0, 0], .28, 0, .32, 31 + st * .035, 160); }
-    if (shot === 8) { let lift = Math.pow(clamp((v - .13) / .87), 1.8); let p = [0, 2.65 + lift * 93, v * v * 34]; S.cam = lerp([28, 7.2, 29], [55, 27, 77], s); S.target = add(p, [0, 5, -7]); S.fov = 53; S.roll = Math.sin(st * 5) * .004 * (1 - v); S.wave = -159 + v * 87; S.cloud = smooth((v - .86) / .14) * .38; ship(p, [-.12 * s, mix(1.86, PI - .18, s), .025 * Math.sin(st * .7)], 1.9, .30 + smooth(v * 4) * .8, v < .24, v < .26); P([0, .2, 0], [0, 0, 0], 2.1, 0, 1.4 * (1 - smooth(v * 2.4)), t, 1300); }
-  }
-  else if (shot >= 9 && shot <= 12) {
-    S.mode = 3; S.local = t - 106; let d = S.local;
-    let spin = d < 36 ? d * 1.57 : 36 * 1.57 + 1.57 * ((d - 36) - (d - 36) * (d - 36) / 18);
-    S.sun = norm([.65, .47, .79]); S.exposure = .91;
-    let ringR: number[] = [.07, .045, spin];
-    if (shot === 9) { S.cam = lerp([14, 7.5, 27], [10.8, 5, 24], s); S.target = [0, 0, 1]; S.fov = 51; ship(lerp([8, -5.7, 17], [6, -3.8, 12.5], s), [.06, -.15, spin * .10], .65, .24); S.flash = .15 * Math.exp(-st * 2.3); }
-    if (shot === 10) { S.cam = lerp([3.0, -1, 22], [.8, -.3, 15.4], s); S.target = [0, 0, 0]; S.fov = 53; S.roll = spin * s * .24; ship([mix(3, 0, s), mix(-2, 0, s), mix(11.5, 7.1, s)], [0, 0, mix(spin * .18, spin, s)], .65, .52); S.blur = .006; }
-    if (shot === 11) { S.cam = lerp([0, 0, 13.5], [0, 0, 7.4], s); S.target = [0, 0, 0]; S.roll = spin; S.fov = 59; S.cockpit = smooth(st * 3) * smooth((12 - st) * 3); S.blur = .003; ringR = [0, 0, spin]; }
-    if (shot === 12) { let base = lerp([8.3, 2, 9], [5.2, 1.0, 7], s), m = matrix([0, 0, 0], [0, 0, spin]); S.cam = transform(m, base); S.target = [0, 0, 2.6]; S.roll = spin; S.fov = 49; ringR = [0, 0, spin]; ship([0, 0, mix(4.30, 4.04, s)], [0, 0, spin], .65, mix(.75, .16, s)); S.blur = .003 * (1 - s); }
+  if (shot === 0) {
+    S.cam = lerp([8, 2.6, 20], [5.8, 1.8, 17.3], s);
+    S.target = [0, 0.1, 0];
+    S.fov = 47;
+    O(meshes.endurance, [-3.65, -0.9, 6.0], [0.14, -0.43, t * 0.074], 0.28);
+  } else if (shot === 1) {
+    S.cam = lerp([4.4, 1.1, 10.3], [3.25, 0.68, 8.9], s);
+    S.target = [-0.35, 0.05, 0.7];
+    S.fov = 52;
+    O(meshes.endurance, [-1.63, -0.7, 4.9], [0.18, -0.35, t * 0.074], 0.245);
+  } else if (shot === 2) {
+    S.cam = lerp([0.95, 0.26, 7.1], [0.02, 0.01, 3.16], s);
+    S.target = [0, 0, -2];
+    S.fov = mix(52, 64, s);
+    O(
+      meshes.endurance,
+      [0, -0.38, 2.5 - s * 0.8],
+      [0.1, -0.15, t * 0.074],
+      mix(0.12, 0.021, s),
+      1 - smooth((v - 0.62) / 0.23),
+    );
+    S.warp = s * 0.25;
+  } else if (shot === 3) {
+    S.mode = 1;
+    S.cam = [0, 0, 12];
+    S.target = [0, 0, 0];
+    S.roll = Math.sin(st * 0.4) * 0.2;
+    S.fov = 64;
+    S.warp = 0.5 + 0.4 * Math.sin(v * PI);
+    S.blur = 0.008;
+    S.exposure = 0.8;
+    O(
+      meshes.endurance,
+      [0.08 * Math.sin(st), -0.29, 0],
+      [0.1, 0.1, t * 0.21],
+      0.04 * (1 - s),
+      0.32 * (1 - s),
+    );
+  } else if (shot >= 4 && shot <= 8) {
+    S.mode = 2;
+    S.local = t - 44;
+    S.fov = 48;
+    S.sun = norm([-0.55, 0.69, 0.58]);
+    S.exposure = 0.9;
+    if (shot === 4) {
+      let p = [0, mix(105, 18, s), 0];
+      S.cam = lerp([35, 139, 88], [24, 39, 50], s);
+      S.target = add(p, [0, 0, -5]);
+      S.roll = -0.08 + 0.05 * s;
+      S.fov = 52;
+      S.cloud = 0.77 * (1 - s);
+      S.wave = -650 + s * 80;
+      ship(p, [0.1, -0.15, 0.04], 2.1, 0.34, false);
+    }
+    if (shot === 5) {
+      let y = 2.58 + 12 * Math.pow(1 - s, 2);
+      let p = [0, y, 0];
+      S.cam = lerp([23, 8, 28], [16, 3.5, 23], s);
+      S.target = [0, 3, -2];
+      S.wave = -510 + s * 60;
+      S.fov = 49;
+      ship(p, [0.015, mix(-0.15, 1.86, s), 0.008 * Math.sin(t)], 1.9, 0.55 * (1 - s), true, true);
+      P([0, 0.1, 0], [0, 0, 0], 1.5, 0, Math.sin(v * PI) * 1.4 + 0.13, t, 1200);
+    }
+    if (shot === 6) {
+      S.cam = lerp([-22, 2.6, 39], [-17.0, 1.9, 32], s);
+      S.target = [0, 26, -150];
+      S.wave = -278 + s * 30;
+      S.fov = 54;
+      ship([0, 2.6, -1], [0, 1.86, 0], 1.9, 0, true, true);
+      O(meshes.astronaut, [9 + v * 0.7, 0, 5.5 - v * 1.9], [0, -0.5, 0.01 * Math.sin(t * 2)], 1.05);
+      O(meshes.astronaut, [11, 0, -12.5 - v * 0.7], [0, 0.1, 0], 0.99);
+      O(meshes.robot, [4.7, 0, 3.5], [0, -0.22, 0], 1);
+    }
+    if (shot === 7) {
+      S.cam = lerp([13, 1.8, 31], [12, 1.65, 29.6], s);
+      S.target = [-3, 24, -125];
+      S.wave = -210 + v * 1.2;
+      S.dilate = smooth(v * 7) * smooth((1 - v) * 7);
+      S.drop = S.dilate;
+      S.fov = 50;
+      ship([-3, 2.6, -8], [0, 1.86, 0], 1.9, 0, true, true);
+      O(meshes.astronaut, [5.0, 0.01, -4.6 - v * 0.05], [0, -0.13, 0], 1.08);
+      O(meshes.robot, [1.5, 0.01, -9], [0, 0.2, 0], 1);
+      S.sun = norm([Math.cos(t * 0.69) * 0.8, 0.7, 0.6 + Math.sin(t * 0.69) * 0.4]);
+      S.exposure = 0.83 + 0.07 * Math.sin(t * 1.5);
+      P([7, 0.08, -4], [0, 0, 0], 0.28, 0, 0.32, 31 + st * 0.035, 160);
+    }
+    if (shot === 8) {
+      let lift = Math.pow(clamp((v - 0.13) / 0.87), 1.8);
+      let p = [0, 2.65 + lift * 93, v * v * 34];
+      S.cam = lerp([28, 7.2, 29], [55, 27, 77], s);
+      S.target = add(p, [0, 5, -7]);
+      S.fov = 53;
+      S.roll = Math.sin(st * 5) * 0.004 * (1 - v);
+      S.wave = -159 + v * 87;
+      S.cloud = smooth((v - 0.86) / 0.14) * 0.38;
+      ship(
+        p,
+        [-0.12 * s, mix(1.86, PI - 0.18, s), 0.025 * Math.sin(st * 0.7)],
+        1.9,
+        0.3 + smooth(v * 4) * 0.8,
+        v < 0.24,
+        v < 0.26,
+      );
+      P([0, 0.2, 0], [0, 0, 0], 2.1, 0, 1.4 * (1 - smooth(v * 2.4)), t, 1300);
+    }
+  } else if (shot >= 9 && shot <= 12) {
+    S.mode = 3;
+    S.local = t - 106;
+    let d = S.local;
+    let spin = d < 36 ? d * 1.57 : 36 * 1.57 + 1.57 * (d - 36 - ((d - 36) * (d - 36)) / 18);
+    S.sun = norm([0.65, 0.47, 0.79]);
+    S.exposure = 0.91;
+    let ringR: number[] = [0.07, 0.045, spin];
+    if (shot === 9) {
+      S.cam = lerp([14, 7.5, 27], [10.8, 5, 24], s);
+      S.target = [0, 0, 1];
+      S.fov = 51;
+      ship(lerp([8, -5.7, 17], [6, -3.8, 12.5], s), [0.06, -0.15, spin * 0.1], 0.65, 0.24);
+      S.flash = 0.15 * Math.exp(-st * 2.3);
+    }
+    if (shot === 10) {
+      S.cam = lerp([3.0, -1, 22], [0.8, -0.3, 15.4], s);
+      S.target = [0, 0, 0];
+      S.fov = 53;
+      S.roll = spin * s * 0.24;
+      ship(
+        [mix(3, 0, s), mix(-2, 0, s), mix(11.5, 7.1, s)],
+        [0, 0, mix(spin * 0.18, spin, s)],
+        0.65,
+        0.52,
+      );
+      S.blur = 0.006;
+    }
+    if (shot === 11) {
+      S.cam = lerp([0, 0, 13.5], [0, 0, 7.4], s);
+      S.target = [0, 0, 0];
+      S.roll = spin;
+      S.fov = 59;
+      S.cockpit = smooth(st * 3) * smooth((12 - st) * 3);
+      S.blur = 0.003;
+      ringR = [0, 0, spin];
+    }
+    if (shot === 12) {
+      let base = lerp([8.3, 2, 9], [5.2, 1.0, 7], s),
+        m = matrix([0, 0, 0], [0, 0, spin]);
+      S.cam = transform(m, base);
+      S.target = [0, 0, 2.6];
+      S.roll = spin;
+      S.fov = 49;
+      ringR = [0, 0, spin];
+      ship([0, 0, mix(4.3, 4.04, s)], [0, 0, spin], 0.65, mix(0.75, 0.16, s));
+      S.blur = 0.003 * (1 - s);
+    }
     O(meshes.damagedEndurance, [0, 0, 0], ringR, 1);
     for (let i = 0; i < meshes.debris.length; i++) {
       const q = meshes.debris[i];
       let p = add(q.p as Vec3, mul(q.v as number[], d + 3));
       if (Math.hypot(p[0], p[1]) < 5) p[1] += 6;
-      O(meshes.shard, p, q.r.map((r, j) => r + d * (j + 1) * .055), q.s);
+      O(
+        meshes.shard,
+        p,
+        q.r.map((r, j) => r + d * (j + 1) * 0.055),
+        q.s,
+      );
     }
-    P([0, 4.9, 0], [0, 0, 0], 1, 1, .48, d, 350);
-  }
-  else {
-    S.mode = 4; S.local = t - 151; S.sun = norm([-.7, .2, -.45]); S.exposure = .87; S.fov = 49;
-    if (shot === 13) { S.cam = lerp([.3, 3.0, 25], [1.0, 2.75, 23], s); S.target = [0, 0, 0]; O(meshes.damagedEndurance, [3.2, .45, 17.7], [.38, .51, t * .092], .102); ship([3.20, .44, 18.10], [0, 0, t * .092], .045, .05); }
-    if (shot === 14) { S.cam = lerp([3.0, 2, 19.4], [2.2, 1.65, 16.2], s); S.target = [0, 0, 0]; O(meshes.damagedEndurance, lerp([2.4, -.08, 12.4], [3.9, .7, 10.5], s), [.37, .65, t * .09], .105); let p = lerp([2.20, -.30, 12.8], [.25, -.62, 7.6], s); ship(p, [.22, -.2, t * .25], .075, .12 * (1 - s)); }
-    if (shot === 15) { S.cam = lerp([1.15, 1.37, 14.4], [.35, .45, 5.5], s); S.target = [0, 0, 0]; S.fov = mix(49, 60, s); let p = lerp([.38, -.25, 6.5], [.02, -.055, 1.8], Math.pow(s, .8)); let r = [t * .13, t * .31, t * .25]; for (let i = 3; i >= 1; i--) { let q = add(p as Vec3, [i * .07, -i * .014, i * .23]); O(meshes.ranger, q, r.map((x) => x - i * .06), .054, .065 * (1 - i / 5) * Math.sin(v * PI)); } ship(p, r, .055, 0); S.warp = .06 + s * .2; S.blur = .002 + s * .009; S.roll = v * v * .27; P(add(S.cam as Vec3, [0, 0, -1]), [0, 0, 0], 1, 3, s * .7, t, 350); }
-    if (shot === 16) { S.cam = lerp([.28, .38, 5.45], [0, .008, .81], Math.pow(s, .8)); S.target = [0, 0, 0]; S.fov = mix(61, 94, s); S.roll = .27 + s * 1.7; S.warp = .15 + Math.sin(v * PI) * .6; S.blur = .002 + Math.sin(v * PI) * .015; S.exposure = .87 * (1 - smooth((v - .71) / .23)); if (v < .62) P(add(S.cam as Vec3, [0, 0, -.2]), [0, 0, 0], .1, 3, Math.sin(v * PI) * .6, t, 700); }
+    P([0, 4.9, 0], [0, 0, 0], 1, 1, 0.48, d, 350);
+  } else {
+    S.mode = 4;
+    S.local = t - 151;
+    S.sun = norm([-0.7, 0.2, -0.45]);
+    S.exposure = 0.87;
+    S.fov = 49;
+    if (shot === 13) {
+      S.cam = lerp([0.3, 3.0, 25], [1.0, 2.75, 23], s);
+      S.target = [0, 0, 0];
+      O(meshes.damagedEndurance, [3.2, 0.45, 17.7], [0.38, 0.51, t * 0.092], 0.102);
+      ship([3.2, 0.44, 18.1], [0, 0, t * 0.092], 0.045, 0.05);
+    }
+    if (shot === 14) {
+      S.cam = lerp([3.0, 2, 19.4], [2.2, 1.65, 16.2], s);
+      S.target = [0, 0, 0];
+      O(
+        meshes.damagedEndurance,
+        lerp([2.4, -0.08, 12.4], [3.9, 0.7, 10.5], s),
+        [0.37, 0.65, t * 0.09],
+        0.105,
+      );
+      let p = lerp([2.2, -0.3, 12.8], [0.25, -0.62, 7.6], s);
+      ship(p, [0.22, -0.2, t * 0.25], 0.075, 0.12 * (1 - s));
+    }
+    if (shot === 15) {
+      S.cam = lerp([1.15, 1.37, 14.4], [0.35, 0.45, 5.5], s);
+      S.target = [0, 0, 0];
+      S.fov = mix(49, 60, s);
+      let p = lerp([0.38, -0.25, 6.5], [0.02, -0.055, 1.8], Math.pow(s, 0.8));
+      let r = [t * 0.13, t * 0.31, t * 0.25];
+      for (let i = 3; i >= 1; i--) {
+        let q = add(p as Vec3, [i * 0.07, -i * 0.014, i * 0.23]);
+        O(
+          meshes.ranger,
+          q,
+          r.map((x) => x - i * 0.06),
+          0.054,
+          0.065 * (1 - i / 5) * Math.sin(v * PI),
+        );
+      }
+      ship(p, r, 0.055, 0);
+      S.warp = 0.06 + s * 0.2;
+      S.blur = 0.002 + s * 0.009;
+      S.roll = v * v * 0.27;
+      P(add(S.cam as Vec3, [0, 0, -1]), [0, 0, 0], 1, 3, s * 0.7, t, 350);
+    }
+    if (shot === 16) {
+      S.cam = lerp([0.28, 0.38, 5.45], [0, 0.008, 0.81], Math.pow(s, 0.8));
+      S.target = [0, 0, 0];
+      S.fov = mix(61, 94, s);
+      S.roll = 0.27 + s * 1.7;
+      S.warp = 0.15 + Math.sin(v * PI) * 0.6;
+      S.blur = 0.002 + Math.sin(v * PI) * 0.015;
+      S.exposure = 0.87 * (1 - smooth((v - 0.71) / 0.23));
+      if (v < 0.62)
+        P(add(S.cam as Vec3, [0, 0, -0.2]), [0, 0, 0], 0.1, 3, Math.sin(v * PI) * 0.6, t, 700);
+    }
   }
   let fade = smooth(t / 1.8);
   if (t > 202) fade *= 1 - smooth((t - 202) / 2);
-  for (const start of [44, 106, 151]) if (Math.abs(t - start) < .55) fade *= smooth(Math.abs(t - start) / .55);
+  for (const start of [44, 106, 151])
+    if (Math.abs(t - start) < 0.55) fade *= smooth(Math.abs(t - start) / 0.55);
   S.fade = fade;
   if ([3, 4, 8, 10, 16].includes(shot)) {
-    let amp = shot === 8 ? .023 : shot === 4 ? .012 : shot === 3 ? .014 : .004;
-    S.cam = add(S.cam as Vec3, [Math.sin(t * 17.3) * amp, Math.sin(t * 23.7 + .3) * amp, 0]);
+    let amp = shot === 8 ? 0.023 : shot === 4 ? 0.012 : shot === 3 ? 0.014 : 0.004;
+    S.cam = add(S.cam as Vec3, [Math.sin(t * 17.3) * amp, Math.sin(t * 23.7 + 0.3) * amp, 0]);
   }
   return S;
 }
 
 // --- Render targets ---------------------------------------------------------
 
-type RenderTarget = { tex: WebGLTexture; fb: WebGLFramebuffer; db: WebGLRenderbuffer | null; w: number; h: number };
+type RenderTarget = {
+  tex: WebGLTexture;
+  fb: WebGLFramebuffer;
+  db: WebGLRenderbuffer | null;
+  w: number;
+  h: number;
+};
 
 // --- Public API -------------------------------------------------------------
 
@@ -451,8 +952,14 @@ export interface InterstellarFilm {
 }
 
 interface MeshSet {
-  endurance: MeshData; damagedEndurance: MeshData; ranger: MeshData; lander: MeshData;
-  gear: MeshData; astronaut: MeshData; robot: MeshData; shard: MeshData;
+  endurance: MeshData;
+  damagedEndurance: MeshData;
+  ranger: MeshData;
+  lander: MeshData;
+  gear: MeshData;
+  astronaut: MeshData;
+  robot: MeshData;
+  shard: MeshData;
   debris: Array<{ p: number[]; v: number[]; r: number[]; s: number }>;
 }
 
@@ -462,7 +969,10 @@ interface MeshSet {
  *   循环；改用 `ready` + `renderAt(秒)` 由外部逐帧驱动。渲染是纯时间驱动且
  *   随机种子固定，同一时间点的画面完全确定，可离线重放整部电影。
  */
-export function createInterstellarFilm(canvas: HTMLCanvasElement, options: { stills?: boolean } = {}): InterstellarFilm | null {
+export function createInterstellarFilm(
+  canvas: HTMLCanvasElement,
+  options: { stills?: boolean } = {},
+): InterstellarFilm | null {
   const stills = options.stills === true;
   // stills 采集模式额外开 preserveDrawingBuffer：没有 rAF 循环时，合成器何时
   // 取帧不确定，Preserve 保证截图/离线读回永远拿到最后一次渲染的完整画面。
@@ -482,7 +992,11 @@ export function createInterstellarFilm(canvas: HTMLCanvasElement, options: { sti
   if (!stills && /swiftshader|llvmpipe|software renderer|basic render/i.test(gpuName)) return null;
   const floating = !!gl.getExtension("EXT_color_buffer_float");
 
-  let envP: ProgramBundle, meshP: ProgramBundle, particleP: ProgramBundle, blurP: ProgramBundle, postP: ProgramBundle;
+  let envP: ProgramBundle,
+    meshP: ProgramBundle,
+    particleP: ProgramBundle,
+    blurP: ProgramBundle,
+    postP: ProgramBundle;
   try {
     envP = makeProgram(gl, "environment", fullVS, envFS);
     meshP = makeProgram(gl, "spacecraft", meshVS, meshFS);
@@ -494,164 +1008,445 @@ export function createInterstellarFilm(canvas: HTMLCanvasElement, options: { sti
   }
 
   const emptyVAO = gl.createVertexArray();
-  const white = [.58, .60, .58], gray = [.24, .27, .27], dark = [.035, .045, .048], foil = [.31, .21, .09], steel = [.36, .39, .40], glass = [.006, .013, .021];
+  const white = [0.58, 0.6, 0.58],
+    gray = [0.24, 0.27, 0.27],
+    dark = [0.035, 0.045, 0.048],
+    foil = [0.31, 0.21, 0.09],
+    steel = [0.36, 0.39, 0.4],
+    glass = [0.006, 0.013, 0.021];
 
-  const buildMesh = (build: (b: Builder) => void) => { const b = new Builder(gl); build(b); return b.mesh(); };
-  const makeEndurance = (damaged = false) => buildMesh((b) => {
-    for (let i = 0; i < 12; i++) {
-      let a = i * TAU / 12 + PI / 12, m = matrix([Math.cos(a) * 5.1, Math.sin(a) * 5.1, 0], [0, 0, a - PI / 2]);
-      const B = (p: number[], s: number[], c: number[] = white, r: number[] = [0, 0, 0], be = .025, ro = .5, em = 0) => { let p2 = transform(m, p); b.box(p2, s, c, [r[0], r[1], r[2] + a - PI / 2], be, ro, em); };
-      if (damaged && i === 2) {
-        for (let j = 0; j < 9; j++) {
-          let pp = transform(m, [(rand() - .5) * 2, (rand() - .5) * .6, (rand() - .5) * .7]);
-          b.box(pp, [.2 + rand() * .4, .12 + rand() * .2, .13], j % 3 === 0 ? [.10, .045, .017] : [.08, .09, .09], [rand(), rand(), a], .012, .65, j === 3 ? .28 : 0);
+  const buildMesh = (build: (b: Builder) => void) => {
+    const b = new Builder(gl);
+    build(b);
+    return b.mesh();
+  };
+  const makeEndurance = (damaged = false) =>
+    buildMesh((b) => {
+      for (let i = 0; i < 12; i++) {
+        let a = (i * TAU) / 12 + PI / 12,
+          m = matrix([Math.cos(a) * 5.1, Math.sin(a) * 5.1, 0], [0, 0, a - PI / 2]);
+        const B = (
+          p: number[],
+          s: number[],
+          c: number[] = white,
+          r: number[] = [0, 0, 0],
+          be = 0.025,
+          ro = 0.5,
+          em = 0,
+        ) => {
+          let p2 = transform(m, p);
+          b.box(p2, s, c, [r[0], r[1], r[2] + a - PI / 2], be, ro, em);
+        };
+        if (damaged && i === 2) {
+          for (let j = 0; j < 9; j++) {
+            let pp = transform(m, [(rand() - 0.5) * 2, (rand() - 0.5) * 0.6, (rand() - 0.5) * 0.7]);
+            b.box(
+              pp,
+              [0.2 + rand() * 0.4, 0.12 + rand() * 0.2, 0.13],
+              j % 3 === 0 ? [0.1, 0.045, 0.017] : [0.08, 0.09, 0.09],
+              [rand(), rand(), a],
+              0.012,
+              0.65,
+              j === 3 ? 0.28 : 0,
+            );
+          }
+          continue;
         }
-        continue;
-      }
-      B([0, 0, 0], [2.27, 1.16, 1.34]); B([0, .04, 0], [2.40, .54, .90], gray, [0, 0, 0], .035, .42); B([0, 0, .67], [2.08, 1.04, .10], white); B([0, 0, -.67], [2.08, 1.04, .10], [.38, .40, .38]);
-      for (const side of [-1, 1]) {
-        for (let j = 0; j < 5; j++) {
-          B([-.85 + j * .425, .03, side * .732], [.34, .76, .023], j === 1 ? foil : [.29, .32, .32], [0, 0, 0], .006, .42);
-          for (let k = 0; k < 4; k++) B([-.85 + j * .425, -.28 + k * .2, side * .752], [.285, .014, .008], [.11, .14, .14], [0, 0, 0], 0, .4);
+        B([0, 0, 0], [2.27, 1.16, 1.34]);
+        B([0, 0.04, 0], [2.4, 0.54, 0.9], gray, [0, 0, 0], 0.035, 0.42);
+        B([0, 0, 0.67], [2.08, 1.04, 0.1], white);
+        B([0, 0, -0.67], [2.08, 1.04, 0.1], [0.38, 0.4, 0.38]);
+        for (const side of [-1, 1]) {
+          for (let j = 0; j < 5; j++) {
+            B(
+              [-0.85 + j * 0.425, 0.03, side * 0.732],
+              [0.34, 0.76, 0.023],
+              j === 1 ? foil : [0.29, 0.32, 0.32],
+              [0, 0, 0],
+              0.006,
+              0.42,
+            );
+            for (let k = 0; k < 4; k++)
+              B(
+                [-0.85 + j * 0.425, -0.28 + k * 0.2, side * 0.752],
+                [0.285, 0.014, 0.008],
+                [0.11, 0.14, 0.14],
+                [0, 0, 0],
+                0,
+                0.4,
+              );
+          }
+          B([0, -0.42, side * 0.73], [2.08, 0.08, 0.065], white);
+          B([0, 0.47, side * 0.73], [2.08, 0.07, 0.055], white);
+          B(
+            [0.93, 0.32, side * 0.78],
+            [0.06, 0.06, 0.035],
+            side === 1 ? [0.1, 0.17, 0.19] : [0.24, 0.045, 0.015],
+            [0, 0, 0],
+            0.009,
+            0.3,
+            0.32,
+          );
         }
-        B([0, -.42, side * .73], [2.08, .08, .065], white); B([0, .47, side * .73], [2.08, .07, .055], white);
-        B([.93, .32, side * .78], [.06, .06, .035], side === 1 ? [.10, .17, .19] : [.24, .045, .015], [0, 0, 0], .009, .3, .32);
+        B([0.52, 0.61, 0], [0.65, 0.13, 1.08], dark);
+        for (let j = 0; j < 7; j++)
+          B([0.25 + j * 0.087, 0.685, 0], [0.022, 0.017, 0.93], steel, [0, 0, 0], 0, 0.3);
+        B([-0.62, 0.64, 0], [0.5, 0.2, 0.59], foil);
+        B([-0.6, 0.8, 0], [0.42, 0.05, 0.51], white);
+        for (const side of [-1, 1]) {
+          const p0 = transform(m, [side * 1.1, 0, 0]),
+            p1 = transform(m, [side * 1.4, 0, 0]);
+          b.rod(p0, p1, 0.17, steel);
+          b.rod(transform(m, [-1, -0.42, 0.49]), transform(m, [1, -0.42, 0.49]), 0.025, steel);
+        }
+        const a2 = a + TAU / 12;
+        b.rod(
+          [Math.cos(a) * 4.4, Math.sin(a) * 4.4, -0.3],
+          [Math.cos(a2) * 4.4, Math.sin(a2) * 4.4, -0.3],
+          0.047,
+          steel,
+        );
       }
-      B([.52, .61, 0], [.65, .13, 1.08], dark);
-      for (let j = 0; j < 7; j++) B([.25 + j * .087, .685, 0], [.022, .017, .93], steel, [0, 0, 0], 0, .3);
-      B([-.62, .64, 0], [.50, .2, .59], foil); B([-.60, .80, 0], [.42, .05, .51], white);
+      for (let i = 0; i < 3; i++) {
+        let a = (i * TAU) / 3 + PI / 2;
+        let tip = [Math.cos(a) * 4.65, Math.sin(a) * 4.65, -0.2];
+        b.rod([Math.cos(a) * 0.44, Math.sin(a) * 0.44, 0], tip, 0.1, white);
+        b.rod(
+          [Math.cos(a + 0.2) * 0.48, Math.sin(a + 0.2) * 0.48, 0.38],
+          [tip[0], tip[1], 0.28],
+          0.035,
+          steel,
+        );
+        b.rod(
+          [Math.cos(a - 0.2) * 0.48, Math.sin(a - 0.2) * 0.48, -0.38],
+          [tip[0], tip[1], -0.28],
+          0.035,
+          steel,
+        );
+      }
+      b.cylinder([0, 0, 0], 0.57, 0.89, gray, [0, 0, 0], 28, 0.36);
+      b.cylinder([0, 0, 0.63], 0.46, 0.45, white, [0, 0, 0], 28, 0.42, 0.3);
+      b.cylinder([0, 0, 1.0], 0.4, 0.29, steel, [0, 0, 0], 28, 0.26, 0.27);
+      b.cylinder([0, 0, 1.16], 0.45, 0.09, dark, [0, 0, 0], 28, 0.4, 0.26);
+      b.cylinder([0, 0, 1.22], 0.38, 0.035, [0.62, 0.57, 0.45], [0, 0, 0], 28, 0.23, 0.29);
+      b.cylinder([0, 0, 1.18], 0.285, 0.015, dark, [0, 0, 0], 28, 0.52);
+      for (let i = 0; i < 8; i++) {
+        let a = (i * TAU) / 8;
+        b.box(
+          [Math.cos(a) * 0.41, Math.sin(a) * 0.41, 1.23],
+          [0.065, 0.08, 0.13],
+          white,
+          [0, 0, a],
+          0.009,
+          0.36,
+        );
+      }
+      b.cylinder([0, 0, -0.72], 0.35, 0.54, white, [0, 0, 0], 18, 0.42);
+    });
+  const makeRanger = () =>
+    buildMesh((b) => {
+      const sec = [
+        [-4, 0.2, 0.0, -0.18],
+        [-2.35, 1.08, 0.53, -0.41],
+        [-0.73, 1.39, 1.0, -0.55],
+        [1.35, 1.51, 0.72, -0.51],
+        [3.0, 1.36, 0.29, -0.4],
+      ];
+      for (let i = 0; i < sec.length - 1; i++) {
+        const [z, w, y, lo] = sec[i],
+          [zz, ww, yy, ll] = sec[i + 1];
+        b.face(
+          [
+            [-w, y, z],
+            [-ww, yy, zz],
+            [ww, yy, zz],
+            [w, y, z],
+          ],
+          white,
+          0.47,
+        );
+        b.face(
+          [
+            [-w, lo, z],
+            [w, lo, z],
+            [ww, ll, zz],
+            [-ww, ll, zz],
+          ],
+          dark,
+          0.7,
+        );
+        b.face(
+          [
+            [w, y, z],
+            [ww, yy, zz],
+            [ww, ll, zz],
+            [w, lo, z],
+          ],
+          [0.4, 0.43, 0.43],
+          0.53,
+        );
+        b.face(
+          [
+            [-w, y, z],
+            [-w, lo, z],
+            [-ww, ll, zz],
+            [-ww, yy, zz],
+          ],
+          [0.47, 0.49, 0.47],
+          0.53,
+        );
+      }
+      b.face(
+        [
+          [-1.36, 0.29, 3],
+          [-1.36, -0.4, 3],
+          [1.36, -0.4, 3],
+          [1.36, 0.29, 3],
+        ],
+        gray,
+        0.55,
+      );
       for (const side of [-1, 1]) {
-        const p0 = transform(m, [side * 1.1, 0, 0]), p1 = transform(m, [side * 1.40, 0, 0]);
-        b.rod(p0, p1, .17, steel);
-        b.rod(transform(m, [-1, -.42, .49]), transform(m, [1, -.42, .49]), .025, steel);
+        let pts = [
+          [side * 0.95, 0.0, -2.48],
+          [side * 3.65, -0.19, 1.78],
+          [side * 3.43, -0.21, 2.94],
+          [side * 1.23, 0.23, 2.64],
+        ];
+        if (side < 0) pts.reverse();
+        b.face(pts, [0.63, 0.66, 0.65], 0.5);
+        let underside = pts.map((p) => [p[0], p[1] - 0.25, p[2]]).reverse();
+        b.face(underside, [0.046, 0.058, 0.06], 0.69);
+        for (let j = 0; j < pts.length; j++) {
+          let p = pts[j],
+            q = pts[(j + 1) % pts.length];
+          b.face(
+            [p, [p[0], p[1] - 0.25, p[2]], [q[0], q[1] - 0.25, q[2]], q],
+            j === 0 ? dark : [0.33, 0.36, 0.36],
+            0.55,
+          );
+        }
+        b.rod([side * 1.17, 0.025, -2.12], [side * 3.57, -0.16, 1.84], 0.025, dark, 0.6);
+        b.rod([side * 1.51, 0.3, 0.45], [side * 3.36, -0.17, 2.68], 0.024, [0.21, 0.24, 0.25], 0.5);
+        b.rod(
+          [side * 1.47, 0.24, 1.57],
+          [side * 2.92, -0.1, 2.74],
+          0.018,
+          [0.24, 0.27, 0.27],
+          0.55,
+        );
+        b.box([side * 2.95, -0.2, 2.12], [0.6, 0.06, 0.49], dark, [0, side * 0.07, 0], 0.015, 0.7);
+        b.box(
+          [side * 2.99, -0.154, 2.13],
+          [0.38, 0.022, 0.3],
+          [0.36, 0.37, 0.33],
+          [0, side * 0.07, 0],
+          0.004,
+          0.5,
+        );
+        b.cylinder([side * 0.83, -0.1, 3.03], 0.47, 0.25, steel, [0, 0, 0], 20, 0.3, 0.3);
+        b.cylinder([side * 0.83, -0.1, 3.18], 0.31, 0.05, dark, [0, 0, 0], 20, 0.6);
+        b.cylinder(
+          [side * 0.83, -0.1, 3.21],
+          0.245,
+          0.014,
+          [0.27, 0.51, 0.76],
+          [0, 0, 0],
+          20,
+          0.22,
+          0,
+          4.0,
+        );
+        b.box([side * 1.3, 0.31, 1.65], [0.19, 0.36, 1.44], white, [0, 0, 0], 0.045, 0.46);
+        for (let j = 0; j < 8; j++)
+          b.box(
+            [side * 1.415, 0.29, 0.98 + j * 0.15],
+            [0.03, 0.18, 0.065],
+            dark,
+            [0, 0, 0],
+            0.004,
+            0.5,
+          );
+        b.box(
+          [side * 0.77, 0.721, 1.17],
+          [0.72, 0.024, 0.62],
+          [0.39, 0.42, 0.41],
+          [0, 0, 0],
+          0.015,
+          0.51,
+        );
+        for (let j = 0; j < 4; j++)
+          b.box([side * 0.77, 0.74, 0.97 + j * 0.13], [0.59, 0.01, 0.012], gray, [0, 0, 0], 0, 0.5);
+        b.box([side * 0.96, 0.39, 2.48], [0.42, 0.05, 0.54], foil, [0.06, 0, 0], 0.01, 0.53);
       }
-      const a2 = a + TAU / 12;
-      b.rod([Math.cos(a) * 4.40, Math.sin(a) * 4.40, -.3], [Math.cos(a2) * 4.40, Math.sin(a2) * 4.40, -.3], .047, steel);
-    }
-    for (let i = 0; i < 3; i++) {
-      let a = i * TAU / 3 + PI / 2;
-      let tip = [Math.cos(a) * 4.65, Math.sin(a) * 4.65, -.2];
-      b.rod([Math.cos(a) * .44, Math.sin(a) * .44, 0], tip, .10, white);
-      b.rod([Math.cos(a + .2) * .48, Math.sin(a + .2) * .48, .38], [tip[0], tip[1], .28], .035, steel);
-      b.rod([Math.cos(a - .2) * .48, Math.sin(a - .2) * .48, -.38], [tip[0], tip[1], -.28], .035, steel);
-    }
-    b.cylinder([0, 0, 0], .57, .89, gray, [0, 0, 0], 28, .36);
-    b.cylinder([0, 0, .63], .46, .45, white, [0, 0, 0], 28, .42, .30);
-    b.cylinder([0, 0, 1.0], .40, .29, steel, [0, 0, 0], 28, .26, .27);
-    b.cylinder([0, 0, 1.16], .45, .09, dark, [0, 0, 0], 28, .4, .26);
-    b.cylinder([0, 0, 1.22], .38, .035, [.62, .57, .45], [0, 0, 0], 28, .23, .29);
-    b.cylinder([0, 0, 1.18], .285, .015, dark, [0, 0, 0], 28, .52);
-    for (let i = 0; i < 8; i++) { let a = i * TAU / 8; b.box([Math.cos(a) * .41, Math.sin(a) * .41, 1.23], [.065, .08, .13], white, [0, 0, a], .009, .36); }
-    b.cylinder([0, 0, -.72], .35, .54, white, [0, 0, 0], 18, .42);
-  });
-  const makeRanger = () => buildMesh((b) => {
-    const sec = [[-4, .20, .0, -.18], [-2.35, 1.08, .53, -.41], [-.73, 1.39, 1.00, -.55], [1.35, 1.51, .72, -.51], [3.0, 1.36, .29, -.40]];
-    for (let i = 0; i < sec.length - 1; i++) {
-      const [z, w, y, lo] = sec[i], [zz, ww, yy, ll] = sec[i + 1];
-      b.face([[-w, y, z], [-ww, yy, zz], [ww, yy, zz], [w, y, z]], white, .47);
-      b.face([[-w, lo, z], [w, lo, z], [ww, ll, zz], [-ww, ll, zz]], dark, .7);
-      b.face([[w, y, z], [ww, yy, zz], [ww, ll, zz], [w, lo, z]], [.40, .43, .43], .53);
-      b.face([[-w, y, z], [-w, lo, z], [-ww, ll, zz], [-ww, yy, zz]], [.47, .49, .47], .53);
-    }
-    b.face([[-1.36, .29, 3], [-1.36, -.4, 3], [1.36, -.4, 3], [1.36, .29, 3]], gray, .55);
-    for (const side of [-1, 1]) {
-      let pts = [[side * .95, .0, -2.48], [side * 3.65, -.19, 1.78], [side * 3.43, -.21, 2.94], [side * 1.23, .23, 2.64]];
-      if (side < 0) pts.reverse();
-      b.face(pts, [.63, .66, .65], .5);
-      let underside = pts.map((p) => [p[0], p[1] - .25, p[2]]).reverse();
-      b.face(underside, [.046, .058, .060], .69);
-      for (let j = 0; j < pts.length; j++) { let p = pts[j], q = pts[(j + 1) % pts.length]; b.face([p, [p[0], p[1] - .25, p[2]], [q[0], q[1] - .25, q[2]], q], j === 0 ? dark : [.33, .36, .36], .55); }
-      b.rod([side * 1.17, .025, -2.12], [side * 3.57, -.16, 1.84], .025, dark, .6);
-      b.rod([side * 1.51, .30, .45], [side * 3.36, -.17, 2.68], .024, [.21, .24, .25], .5);
-      b.rod([side * 1.47, .24, 1.57], [side * 2.92, -.10, 2.74], .018, [.24, .27, .27], .55);
-      b.box([side * 2.95, -.20, 2.12], [.60, .06, .49], dark, [0, side * .07, 0], .015, .7);
-      b.box([side * 2.99, -.154, 2.13], [.38, .022, .30], [.36, .37, .33], [0, side * .07, 0], .004, .5);
-      b.cylinder([side * .83, -.10, 3.03], .47, .25, steel, [0, 0, 0], 20, .3, .30);
-      b.cylinder([side * .83, -.10, 3.18], .31, .05, dark, [0, 0, 0], 20, .6);
-      b.cylinder([side * .83, -.10, 3.21], .245, .014, [.27, .51, .76], [0, 0, 0], 20, .22, 0, 4.0);
-      b.box([side * 1.30, .31, 1.65], [.19, .36, 1.44], white, [0, 0, 0], .045, .46);
-      for (let j = 0; j < 8; j++) b.box([side * 1.415, .29, .98 + j * .15], [.03, .18, .065], dark, [0, 0, 0], .004, .5);
-      b.box([side * .77, .721, 1.17], [.72, .024, .62], [.39, .42, .41], [0, 0, 0], .015, .51);
-      for (let j = 0; j < 4; j++) b.box([side * .77, .74, .97 + j * .13], [.59, .01, .012], gray, [0, 0, 0], 0, .5);
-      b.box([side * .96, .39, 2.48], [.42, .05, .54], foil, [.06, 0, 0], .01, .53);
-    }
-    for (const side of [-1, 1]) {
-      let pane = [[side * .09, .554, -2.27], [side * .95, .554, -2.27], [side * 1.23, .973, -.83], [side * .09, .973, -.83]];
-      if (side > 0) pane.reverse();
-      b.face(pane, glass, .095);
-      let small = [[side * 1.105, .55, -2.19], [side * 1.335, .77, -1.05], [side * 1.35, .41, -.99], [side * 1.075, .30, -2.17]];
-      if (side < 0) small.reverse();
-      b.face(small, glass, .1);
-    }
-    b.rod([0, .57, -2.29], [0, 1.025, -.71], .041, [.73, .73, .69]);
-    b.rod([-1.27, .985, -.80], [1.27, .985, -.80], .041, white);
-    b.box([0, 1.04, -.61], [.22, .06, .21], gray, [0, 0, 0], .014, .4);
-    b.box([0, .86, .29], [.76, .08, .56], white, [.12, 0, 0], .03, .5);
-    b.cylinder([0, .695, 1.38], .30, .04, [.22, .25, .26], [PI / 2, 0, 0], 20, .5);
-    b.box([0, .675, 1.92], [.33, .07, .25], white, [.08, 0, 0], .02, .4);
-    b.box([0, .553, 2.37], [.16, .04, .23], gray, [.1, 0, 0], .01, .5);
-  });
-  const makeLander = () => buildMesh((b) => {
-    b.box([0, -.04, .28], [2.7, 1.25, 5.85], white, [0, 0, 0], .13, .53);
-    b.box([0, -.70, .34], [3.35, .28, 5.49], dark, [0, 0, 0], .06, .66);
-    b.box([0, .10, -2.85], [3.14, .75, 1.85], white, [0, 0, 0], .12, .5);
-    b.box([0, .02, -3.89], [2.90, .49, .23], gray, [0, 0, 0], .025, .42);
-    b.face([[-1.48, .52, -3.56], [-1.48, 1.04, -1.98], [1.48, 1.04, -1.98], [1.48, .52, -3.56]], white, .49);
-    for (const side of [-1, 1]) {
-      let pane = [[side * .10, .567, -3.43], [side * 1.30, .567, -3.43], [side * 1.30, .977, -2.15], [side * .10, .977, -2.15]];
-      if (side > 0) pane.reverse();
-      b.face(pane, glass, .09);
-      b.box([side * 1.55, -.02, .77], [1.18, 1.75, 4.73], white, [0, 0, 0], .13, .54);
-      b.box([side * 1.55, .91, .48], [1.10, .15, 3.24], dark, [0, 0, 0], .025, .48);
-      for (let j = 0; j < 7; j++) b.box([side * 1.56, 1.00, -.88 + j * .43], [.98, .026, .23], j % 3 === 0 ? foil : steel, [0, 0, 0], .008, .43);
-      b.box([side * 2.17, .07, .27], [.09, 1.30, 2.14], gray, [0, 0, 0], .022, .5);
-      for (let j = 0; j < 6; j++) b.box([side * 2.23, .08, -.70 + j * .34], [.025, 1.16, .065], steel, [0, 0, 0], .003, .4);
-      b.rod([side * 2.19, .58, -1.43], [side * 2.19, .58, 2.78], .047, white);
-      b.rod([side * 2.17, -.57, -1.30], [side * 2.17, -.57, 2.68], .04, steel);
-      b.box([side * 1.65, -.54, 2.87], [1.21, .42, .87], dark, [0, 0, 0], .045, .64);
-      b.box([side * 1.65, .17, 2.89], [1.16, 1.38, .34], gray, [0, 0, 0], .06, .43);
-      for (const y of [-.39, .43]) { b.cylinder([side * 1.45, y, 3.18], .34, .33, steel, [0, 0, 0], 18, .3, .24); b.cylinder([side * 1.45, y, 3.36], .245, .06, [.35, .56, .74], [0, 0, 0], 18, .3, 0, 4.0); }
-      b.box([side * .68, .71, 1.35], [.77, .20, 1.27], foil, [0, 0, 0], .03, .5);
-      for (let j = 0; j < 4; j++) b.box([side * .69, .85, .86 + j * .29], [.66, .024, .043], white, [0, 0, 0], .003, .42);
-    }
-    b.rod([0, .586, -3.46], [0, 1.034, -2.04], .06, white);
-    b.box([0, 1.06, -1.84], [2.74, .12, .26], white, [0, 0, 0], .03, .4);
-    b.cylinder([0, 0, -4.01], .38, .25, steel, [0, 0, 0], 24, .35, .25);
-    b.cylinder([0, 0, -4.16], .30, .075, dark, [0, 0, 0], 24, .4, .24);
-    b.box([0, .92, -.77], [.93, .55, 1.28], white, [0, 0, 0], .06, .55);
-    b.box([0, 1.22, -.77], [.67, .035, .96], gray, [0, 0, 0], .02, .5);
-    b.box([0, .64, 2.36], [2.61, .19, .35], white, [0, 0, 0], .05, .53);
-  });
-  const makeGear = () => buildMesh((b) => {
-    for (const [x, z] of [[-1.66, 1.83], [1.66, 1.83], [0, -2.61]]) {
-      b.rod([x, -.3, z], [x * 1.1, -1.30, z + .25], .075, steel);
-      b.rod([x * .75, -.43, z - .43], [x * 1.1, -1.17, z + .22], .038, gray);
-      b.box([x * 1.1, -1.35, z + .25], [.49, .11, .60], dark, [0, 0, 0], .04, .65);
-    }
-  });
-  const makeAstronaut = () => buildMesh((b) => {
-    const suit = [.68, .67, .58];
-    b.box([0, 1.04, 0], [.47, .58, .30], suit, [.03, 0, 0], .065, .78);
-    b.box([0, 1.03, .25], [.43, .50, .23], [.37, .39, .36], [0, 0, 0], .055, .7);
-    for (const s of [-1, 1]) {
-      b.box([s * .14, .49, 0], [.19, .54, .21], suit, [s * .06, 0, s * .035], .055, .8);
-      b.box([s * .16, .10, -.045], [.23, .16, .33], [.14, .16, .15], [0, 0, 0], .045, .8);
-      b.box([s * .335, 1.00, 0], [.18, .48, .20], suit, [.10, 0, s * .17], .052, .8);
-      b.sphere([s * .377, .74, -.03], .115, [.11, .13, .13], [.7, 1, .85], .72);
-    }
-    b.sphere([0, 1.51, 0], .247, suit, [1, 1.06, 1], .45);
-    b.sphere([0, 1.53, -.147], .20, [.019, .027, .031], [1, .73, .46], .085);
-    b.box([0, 1.13, -.167], [.29, .20, .029], gray, [0, 0, 0], .016, .6);
-    b.box([-.1, 1.22, -.20], [.052, .036, .016], [.50, .32, .12], [0, 0, 0], .001, .4, .18);
-  });
-  const makeRobot = () => buildMesh((b) => {
-    for (let i = 0; i < 4; i++) {
-      let x = (i - 1.5) * .235;
-      b.box([x, .93, i % 2 * .06], [.225, 1.86, .29], i % 2 ? steel : [.22, .25, .25], [0, 0, 0], .025, .28);
-      b.box([x, 1.39, -.151], [.16, .018, .008], [.14, .26, .26], [0, 0, 0], 0, .2, .3);
-      b.box([x, 1.56, -.15], [.14, .19, .015], dark, [0, 0, 0], .008, .4);
-    }
-  });
+      for (const side of [-1, 1]) {
+        let pane = [
+          [side * 0.09, 0.554, -2.27],
+          [side * 0.95, 0.554, -2.27],
+          [side * 1.23, 0.973, -0.83],
+          [side * 0.09, 0.973, -0.83],
+        ];
+        if (side > 0) pane.reverse();
+        b.face(pane, glass, 0.095);
+        let small = [
+          [side * 1.105, 0.55, -2.19],
+          [side * 1.335, 0.77, -1.05],
+          [side * 1.35, 0.41, -0.99],
+          [side * 1.075, 0.3, -2.17],
+        ];
+        if (side < 0) small.reverse();
+        b.face(small, glass, 0.1);
+      }
+      b.rod([0, 0.57, -2.29], [0, 1.025, -0.71], 0.041, [0.73, 0.73, 0.69]);
+      b.rod([-1.27, 0.985, -0.8], [1.27, 0.985, -0.8], 0.041, white);
+      b.box([0, 1.04, -0.61], [0.22, 0.06, 0.21], gray, [0, 0, 0], 0.014, 0.4);
+      b.box([0, 0.86, 0.29], [0.76, 0.08, 0.56], white, [0.12, 0, 0], 0.03, 0.5);
+      b.cylinder([0, 0.695, 1.38], 0.3, 0.04, [0.22, 0.25, 0.26], [PI / 2, 0, 0], 20, 0.5);
+      b.box([0, 0.675, 1.92], [0.33, 0.07, 0.25], white, [0.08, 0, 0], 0.02, 0.4);
+      b.box([0, 0.553, 2.37], [0.16, 0.04, 0.23], gray, [0.1, 0, 0], 0.01, 0.5);
+    });
+  const makeLander = () =>
+    buildMesh((b) => {
+      b.box([0, -0.04, 0.28], [2.7, 1.25, 5.85], white, [0, 0, 0], 0.13, 0.53);
+      b.box([0, -0.7, 0.34], [3.35, 0.28, 5.49], dark, [0, 0, 0], 0.06, 0.66);
+      b.box([0, 0.1, -2.85], [3.14, 0.75, 1.85], white, [0, 0, 0], 0.12, 0.5);
+      b.box([0, 0.02, -3.89], [2.9, 0.49, 0.23], gray, [0, 0, 0], 0.025, 0.42);
+      b.face(
+        [
+          [-1.48, 0.52, -3.56],
+          [-1.48, 1.04, -1.98],
+          [1.48, 1.04, -1.98],
+          [1.48, 0.52, -3.56],
+        ],
+        white,
+        0.49,
+      );
+      for (const side of [-1, 1]) {
+        let pane = [
+          [side * 0.1, 0.567, -3.43],
+          [side * 1.3, 0.567, -3.43],
+          [side * 1.3, 0.977, -2.15],
+          [side * 0.1, 0.977, -2.15],
+        ];
+        if (side > 0) pane.reverse();
+        b.face(pane, glass, 0.09);
+        b.box([side * 1.55, -0.02, 0.77], [1.18, 1.75, 4.73], white, [0, 0, 0], 0.13, 0.54);
+        b.box([side * 1.55, 0.91, 0.48], [1.1, 0.15, 3.24], dark, [0, 0, 0], 0.025, 0.48);
+        for (let j = 0; j < 7; j++)
+          b.box(
+            [side * 1.56, 1.0, -0.88 + j * 0.43],
+            [0.98, 0.026, 0.23],
+            j % 3 === 0 ? foil : steel,
+            [0, 0, 0],
+            0.008,
+            0.43,
+          );
+        b.box([side * 2.17, 0.07, 0.27], [0.09, 1.3, 2.14], gray, [0, 0, 0], 0.022, 0.5);
+        for (let j = 0; j < 6; j++)
+          b.box(
+            [side * 2.23, 0.08, -0.7 + j * 0.34],
+            [0.025, 1.16, 0.065],
+            steel,
+            [0, 0, 0],
+            0.003,
+            0.4,
+          );
+        b.rod([side * 2.19, 0.58, -1.43], [side * 2.19, 0.58, 2.78], 0.047, white);
+        b.rod([side * 2.17, -0.57, -1.3], [side * 2.17, -0.57, 2.68], 0.04, steel);
+        b.box([side * 1.65, -0.54, 2.87], [1.21, 0.42, 0.87], dark, [0, 0, 0], 0.045, 0.64);
+        b.box([side * 1.65, 0.17, 2.89], [1.16, 1.38, 0.34], gray, [0, 0, 0], 0.06, 0.43);
+        for (const y of [-0.39, 0.43]) {
+          b.cylinder([side * 1.45, y, 3.18], 0.34, 0.33, steel, [0, 0, 0], 18, 0.3, 0.24);
+          b.cylinder(
+            [side * 1.45, y, 3.36],
+            0.245,
+            0.06,
+            [0.35, 0.56, 0.74],
+            [0, 0, 0],
+            18,
+            0.3,
+            0,
+            4.0,
+          );
+        }
+        b.box([side * 0.68, 0.71, 1.35], [0.77, 0.2, 1.27], foil, [0, 0, 0], 0.03, 0.5);
+        for (let j = 0; j < 4; j++)
+          b.box(
+            [side * 0.69, 0.85, 0.86 + j * 0.29],
+            [0.66, 0.024, 0.043],
+            white,
+            [0, 0, 0],
+            0.003,
+            0.42,
+          );
+      }
+      b.rod([0, 0.586, -3.46], [0, 1.034, -2.04], 0.06, white);
+      b.box([0, 1.06, -1.84], [2.74, 0.12, 0.26], white, [0, 0, 0], 0.03, 0.4);
+      b.cylinder([0, 0, -4.01], 0.38, 0.25, steel, [0, 0, 0], 24, 0.35, 0.25);
+      b.cylinder([0, 0, -4.16], 0.3, 0.075, dark, [0, 0, 0], 24, 0.4, 0.24);
+      b.box([0, 0.92, -0.77], [0.93, 0.55, 1.28], white, [0, 0, 0], 0.06, 0.55);
+      b.box([0, 1.22, -0.77], [0.67, 0.035, 0.96], gray, [0, 0, 0], 0.02, 0.5);
+      b.box([0, 0.64, 2.36], [2.61, 0.19, 0.35], white, [0, 0, 0], 0.05, 0.53);
+    });
+  const makeGear = () =>
+    buildMesh((b) => {
+      for (const [x, z] of [
+        [-1.66, 1.83],
+        [1.66, 1.83],
+        [0, -2.61],
+      ]) {
+        b.rod([x, -0.3, z], [x * 1.1, -1.3, z + 0.25], 0.075, steel);
+        b.rod([x * 0.75, -0.43, z - 0.43], [x * 1.1, -1.17, z + 0.22], 0.038, gray);
+        b.box([x * 1.1, -1.35, z + 0.25], [0.49, 0.11, 0.6], dark, [0, 0, 0], 0.04, 0.65);
+      }
+    });
+  const makeAstronaut = () =>
+    buildMesh((b) => {
+      const suit = [0.68, 0.67, 0.58];
+      b.box([0, 1.04, 0], [0.47, 0.58, 0.3], suit, [0.03, 0, 0], 0.065, 0.78);
+      b.box([0, 1.03, 0.25], [0.43, 0.5, 0.23], [0.37, 0.39, 0.36], [0, 0, 0], 0.055, 0.7);
+      for (const s of [-1, 1]) {
+        b.box([s * 0.14, 0.49, 0], [0.19, 0.54, 0.21], suit, [s * 0.06, 0, s * 0.035], 0.055, 0.8);
+        b.box(
+          [s * 0.16, 0.1, -0.045],
+          [0.23, 0.16, 0.33],
+          [0.14, 0.16, 0.15],
+          [0, 0, 0],
+          0.045,
+          0.8,
+        );
+        b.box([s * 0.335, 1.0, 0], [0.18, 0.48, 0.2], suit, [0.1, 0, s * 0.17], 0.052, 0.8);
+        b.sphere([s * 0.377, 0.74, -0.03], 0.115, [0.11, 0.13, 0.13], [0.7, 1, 0.85], 0.72);
+      }
+      b.sphere([0, 1.51, 0], 0.247, suit, [1, 1.06, 1], 0.45);
+      b.sphere([0, 1.53, -0.147], 0.2, [0.019, 0.027, 0.031], [1, 0.73, 0.46], 0.085);
+      b.box([0, 1.13, -0.167], [0.29, 0.2, 0.029], gray, [0, 0, 0], 0.016, 0.6);
+      b.box(
+        [-0.1, 1.22, -0.2],
+        [0.052, 0.036, 0.016],
+        [0.5, 0.32, 0.12],
+        [0, 0, 0],
+        0.001,
+        0.4,
+        0.18,
+      );
+    });
+  const makeRobot = () =>
+    buildMesh((b) => {
+      for (let i = 0; i < 4; i++) {
+        let x = (i - 1.5) * 0.235;
+        b.box(
+          [x, 0.93, (i % 2) * 0.06],
+          [0.225, 1.86, 0.29],
+          i % 2 ? steel : [0.22, 0.25, 0.25],
+          [0, 0, 0],
+          0.025,
+          0.28,
+        );
+        b.box([x, 1.39, -0.151], [0.16, 0.018, 0.008], [0.14, 0.26, 0.26], [0, 0, 0], 0, 0.2, 0.3);
+        b.box([x, 1.56, -0.15], [0.14, 0.19, 0.015], dark, [0, 0, 0], 0.008, 0.4);
+      }
+    });
 
   // Mesh geometry (hundreds of thousands of triangles across the spacecraft /
   // character meshes) is built in idled slices instead of one long synchronous
@@ -660,9 +1455,26 @@ export function createInterstellarFilm(canvas: HTMLCanvasElement, options: { sti
   // inputs. Slicing at ~8ms per idle callback keeps typing/clicking responsive
   // while the build completes in the background, in parallel with texture
   // fetches. Only the trivial shard/debris remain inline.
-  const shard = buildMesh((b) => b.box([0, 0, 0], [.22, .36, .05], [.28, .31, .31], [0, 0, 0], .009, .4));
+  const shard = buildMesh((b) =>
+    b.box([0, 0, 0], [0.22, 0.36, 0.05], [0.28, 0.31, 0.31], [0, 0, 0], 0.009, 0.4),
+  );
   const emptyMesh: MeshData = { vao: gl.createVertexArray()!, count: 0 };
-  const meshes: MeshSet = { endurance: emptyMesh, damagedEndurance: emptyMesh, ranger: emptyMesh, lander: emptyMesh, gear: emptyMesh, astronaut: emptyMesh, robot: emptyMesh, shard, debris: Array.from({ length: 48 }, () => ({ p: [(rand() - .5) * 16, (rand() - .5) * 13, (rand() - .5) * 8], v: [(rand() - .5) * .14, (rand() - .5) * .12, (rand() - .5) * .12], r: [rand() * TAU, rand() * TAU, rand() * TAU], s: .22 + rand() * 1.1 })) };
+  const meshes: MeshSet = {
+    endurance: emptyMesh,
+    damagedEndurance: emptyMesh,
+    ranger: emptyMesh,
+    lander: emptyMesh,
+    gear: emptyMesh,
+    astronaut: emptyMesh,
+    robot: emptyMesh,
+    shard,
+    debris: Array.from({ length: 48 }, () => ({
+      p: [(rand() - 0.5) * 16, (rand() - 0.5) * 13, (rand() - 0.5) * 8],
+      v: [(rand() - 0.5) * 0.14, (rand() - 0.5) * 0.12, (rand() - 0.5) * 0.12],
+      r: [rand() * TAU, rand() * TAU, rand() * TAU],
+      s: 0.22 + rand() * 1.1,
+    })),
+  };
   // Safari still ships without requestIdleCallback: fall back to a ~0ms
   // timeout, which still yields to the event loop between slices.
   const scheduleIdle = (callback: (deadline: { timeRemaining?: () => number }) => void) =>
@@ -670,32 +1482,47 @@ export function createInterstellarFilm(canvas: HTMLCanvasElement, options: { sti
       ? window.requestIdleCallback(callback)
       : (window.setTimeout(() => callback({}), 0) as unknown as number);
   const buildQueue: Array<() => void> = [
-    () => { meshes.endurance = makeEndurance(); },
-    () => { meshes.damagedEndurance = makeEndurance(true); },
-    () => { meshes.ranger = makeRanger(); },
-    () => { meshes.lander = makeLander(); },
-    () => { meshes.gear = makeGear(); },
-    () => { meshes.astronaut = makeAstronaut(); },
-    () => { meshes.robot = makeRobot(); },
+    () => {
+      meshes.endurance = makeEndurance();
+    },
+    () => {
+      meshes.damagedEndurance = makeEndurance(true);
+    },
+    () => {
+      meshes.ranger = makeRanger();
+    },
+    () => {
+      meshes.lander = makeLander();
+    },
+    () => {
+      meshes.gear = makeGear();
+    },
+    () => {
+      meshes.astronaut = makeAstronaut();
+    },
+    () => {
+      meshes.robot = makeRobot();
+    },
   ];
   let meshBuildHandle: number | null = null;
-  const buildMeshesSliced = () => new Promise<void>((resolve) => {
-    const runSlice = (deadline: { timeRemaining?: () => number }) => {
-      const hasBudget = typeof deadline.timeRemaining === "function";
-      const startedAt = performance.now();
-      while (buildQueue.length) {
-        buildQueue.shift()!();
-        // Long tasks are the enemy here: yield once a slice has run ~8ms, or
-        // when idle-callback budget is reported exhausted.
-        if (performance.now() - startedAt > 8 || (hasBudget && deadline.timeRemaining!() <= 2)) {
-          meshBuildHandle = scheduleIdle(runSlice);
-          return;
+  const buildMeshesSliced = () =>
+    new Promise<void>((resolve) => {
+      const runSlice = (deadline: { timeRemaining?: () => number }) => {
+        const hasBudget = typeof deadline.timeRemaining === "function";
+        const startedAt = performance.now();
+        while (buildQueue.length) {
+          buildQueue.shift()!();
+          // Long tasks are the enemy here: yield once a slice has run ~8ms, or
+          // when idle-callback budget is reported exhausted.
+          if (performance.now() - startedAt > 8 || (hasBudget && deadline.timeRemaining!() <= 2)) {
+            meshBuildHandle = scheduleIdle(runSlice);
+            return;
+          }
         }
-      }
-      resolve();
-    };
-    meshBuildHandle = scheduleIdle(runSlice);
-  });
+        resolve();
+      };
+      meshBuildHandle = scheduleIdle(runSlice);
+    });
   const particleVAO = gl.createVertexArray();
   gl.bindVertexArray(particleVAO);
   const particleBuffer = gl.createBuffer();
@@ -726,11 +1553,17 @@ export function createInterstellarFilm(canvas: HTMLCanvasElement, options: { sti
     });
   }
 
-  let width = 1, height = 1, bufferWidth = 1, bufferHeight = 1;
+  let width = 1,
+    height = 1,
+    bufferWidth = 1,
+    bufferHeight = 1;
   // 已被写进缓冲区的画质档位；与 quality 不一致时 resize() 必须重建目标。
   let appliedQuality = -1;
-  let sceneTarget: RenderTarget | null = null, bloomA: RenderTarget | null = null, bloomB: RenderTarget | null = null;
-  let skyTex: WebGLTexture | null = null, noiseTex: WebGLTexture | null = null;
+  let sceneTarget: RenderTarget | null = null,
+    bloomA: RenderTarget | null = null,
+    bloomB: RenderTarget | null = null;
+  let skyTex: WebGLTexture | null = null,
+    noiseTex: WebGLTexture | null = null;
 
   // Reused uniform scratch vectors (uRes / bloom step): rebuilt on resize only,
   // so render() allocates nothing per frame.
@@ -749,7 +1582,17 @@ export function createInterstellarFilm(canvas: HTMLCanvasElement, options: { sti
   function target(w: number, h: number, depth = false): RenderTarget {
     const tex = gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, floating ? gl.RGBA16F : gl.RGBA8, w, h, 0, gl.RGBA, floating ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE, null);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      floating ? gl.RGBA16F : gl.RGBA8,
+      w,
+      h,
+      0,
+      gl.RGBA,
+      floating ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE,
+      null,
+    );
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -764,7 +1607,8 @@ export function createInterstellarFilm(canvas: HTMLCanvasElement, options: { sti
       gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, w, h);
       gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, db);
     }
-    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) throw new Error("Framebuffer incomplete");
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE)
+      throw new Error("Framebuffer incomplete");
     return { tex, fb, db, w, h };
   }
 
@@ -785,8 +1629,14 @@ export function createInterstellarFilm(canvas: HTMLCanvasElement, options: { sti
     // quality 也在这个守卫里：自适应降档时容器尺寸没变，漏掉它就会让
     // "算出来的档位"永远落不到缓冲区上——实测弱机 quality 已经降到 0.5，
     // 画布仍是满分辨率 1440×900，电影继续吃满 GPU，登录页定格在 ~22fps。
-    if (!force && sceneTarget && quality === appliedQuality
-      && Math.abs(nextWidth - width) < 2 && Math.abs(nextHeight - height) < 2) return;
+    if (
+      !force &&
+      sceneTarget &&
+      quality === appliedQuality &&
+      Math.abs(nextWidth - width) < 2 &&
+      Math.abs(nextHeight - height) < 2
+    )
+      return;
     width = nextWidth;
     height = nextHeight;
     canvas.style.width = "100%";
@@ -868,9 +1718,15 @@ export function createInterstellarFilm(canvas: HTMLCanvasElement, options: { sti
     setU(meshU[MESH_TIME], t);
     setU(meshU[MESH_WATER], S.mode === 2 ? 1 : 0);
     for (const o of S.objects) {
-      if (o.alpha < .002) continue;
-      if (o.alpha < .999) { gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); }
-      else { gl.disable(gl.BLEND); gl.depthMask(true); }
+      if (o.alpha < 0.002) continue;
+      if (o.alpha < 0.999) {
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.depthMask(false);
+      } else {
+        gl.disable(gl.BLEND);
+        gl.depthMask(true);
+      }
       setU(meshU[MESH_MODEL], buildMatrix(MODEL_MATRIX_SCRATCH, o.p, o.r, o.scale));
       setU(meshU[MESH_ALPHA], o.alpha);
       setU(meshU[MESH_BURN], o.burn);
@@ -885,7 +1741,7 @@ export function createInterstellarFilm(canvas: HTMLCanvasElement, options: { sti
     gl.enable(gl.BLEND);
     gl.depthMask(false);
     for (const p of S.particles) {
-      if (p.amount < .003) continue;
+      if (p.amount < 0.003) continue;
       gl.blendFunc(gl.SRC_ALPHA, p.kind === 2 || p.kind === 3 ? gl.ONE : gl.ONE_MINUS_SRC_ALPHA);
       setU(particleU[PARTICLE_MODEL], buildMatrix(MODEL_MATRIX_SCRATCH, p.p, p.r, p.scale));
       setU(particleU[PARTICLE_TIME], p.time);
@@ -945,15 +1801,25 @@ export function createInterstellarFilm(canvas: HTMLCanvasElement, options: { sti
     }
     return pick;
   })();
-  let playing = true, ready = false, lastStamp = 0, filmTime = startOffset, frameId = 0;
+  let playing = true,
+    ready = false,
+    lastStamp = 0,
+    filmTime = startOffset,
+    frameId = 0;
   let chapterListeners: Array<(chapter: InterstellarChapter) => void> = [];
   let currentChapter: InterstellarChapter = chapterAt(startOffset);
-  let slowTicks = 0, fastTicks = 0, lastAdapt = 0, lastQualityDrop = -60_000, deliveryAverage = 33.4;
+  let slowTicks = 0,
+    fastTicks = 0,
+    lastAdapt = 0,
+    lastQualityDrop = -60_000,
+    deliveryAverage = 33.4;
   let lastRenderStamp = 0;
   // 最近一次指针/键盘活动的时间戳，供 loop() 判断是否该为交互让路。
   const INTERACTION_IDLE_MS = 500;
   let lastInputAt = 0;
-  const markInput = () => { lastInputAt = performance.now(); };
+  const markInput = () => {
+    lastInputAt = performance.now();
+  };
   let resizeObserver: ResizeObserver | null = null;
   let resizeTimer = 0;
   // rAF timestamp of the first rendered frame: anchors the startup fast-track
@@ -961,7 +1827,7 @@ export function createInterstellarFilm(canvas: HTMLCanvasElement, options: { sti
   let startStamp = 0;
 
   // Cross-surface motion budget: App.tsx samples real fps shortly after load
-  // and flags weak GPUs with data-kc-motion="lite" (entry hero animations
+  // and flags weak GPUs with data-wc-motion="lite" (entry hero animations
   // degrade). The film is far heavier than those layers, so the same flag
   // starts it at reduced quality — on machines where the entry page already
   // chokes, the film would otherwise spend its first seconds pinned at full
@@ -973,14 +1839,15 @@ export function createInterstellarFilm(canvas: HTMLCanvasElement, options: { sti
     if (motionBudget === "lite") {
       // 已被 App.tsx 的采样判定为弱机：起步就落在可维持档位，而不是先全分辨率
       // 卡几秒再靠上面的快速降档兜底。0.66 × 1.4Mpx ≈ 0.9Mpx。
-      quality = .66;
+      quality = 0.66;
       lastQualityDrop = 0; // suppress the early fast-track for a while
     }
   }
 
   function chapterAt(time: number): InterstellarChapter {
     let ch: InterstellarChapter = 0;
-    for (let i = 0; i < REVERSE_CHAPTER_STARTS.length; i++) if (time >= REVERSE_CHAPTER_STARTS[i]) ch = i as InterstellarChapter;
+    for (let i = 0; i < REVERSE_CHAPTER_STARTS.length; i++)
+      if (time >= REVERSE_CHAPTER_STARTS[i]) ch = i as InterstellarChapter;
     return ch;
   }
 
@@ -1004,30 +1871,128 @@ export function createInterstellarFilm(canvas: HTMLCanvasElement, options: { sti
     return names.map((name) => {
       const location = pr.u[name];
       if (location === undefined || location === null) return null;
-      const size = /uVP|uModel/.test(name) ? 16 : /uRes|uStep/.test(name) ? 2 : /uCam|uRight|uUp|uForward|uSun|uCraft/.test(name) ? 3 : 1;
+      const size = /uVP|uModel/.test(name)
+        ? 16
+        : /uRes|uStep/.test(name)
+          ? 2
+          : /uCam|uRight|uUp|uForward|uSun|uCraft/.test(name)
+            ? 3
+            : 1;
       return { location, size: size as 1 | 2 | 3 | 4 | 16 };
     });
   }
   function setU(entry: UniformSetter, value: number | readonly number[] | Float32Array) {
     if (!entry) return;
     if (entry.size === 16) gl.uniformMatrix4fv(entry.location, false, value as Float32Array);
-    else if (entry.size === 3) gl.uniform3f(entry.location, (value as readonly number[])[0] ?? 0, (value as readonly number[])[1] ?? 0, (value as readonly number[])[2] ?? 0);
-    else if (entry.size === 2) gl.uniform2f(entry.location, (value as readonly number[])[0] ?? 0, (value as readonly number[])[1] ?? 0);
+    else if (entry.size === 3)
+      gl.uniform3f(
+        entry.location,
+        (value as readonly number[])[0] ?? 0,
+        (value as readonly number[])[1] ?? 0,
+        (value as readonly number[])[2] ?? 0,
+      );
+    else if (entry.size === 2)
+      gl.uniform2f(
+        entry.location,
+        (value as readonly number[])[0] ?? 0,
+        (value as readonly number[])[1] ?? 0,
+      );
     else gl.uniform1f(entry.location, value as number);
   }
   // env uniforms, ordered: uRes(2f) uTime uMode uLocal uShot uPhase uLens uWave
   // uDilate uCloud uCam(3f) uRight(3f) uUp(3f) uForward(3f) uSun(3f) uCraft(3f)
-  const ENV_UNIFORM_NAMES = ["uRes", "uTime", "uMode", "uLocal", "uShot", "uPhase", "uLens", "uWave", "uDilate", "uCloud", "uCam", "uRight", "uUp", "uForward", "uSun", "uCraft"];
+  const ENV_UNIFORM_NAMES = [
+    "uRes",
+    "uTime",
+    "uMode",
+    "uLocal",
+    "uShot",
+    "uPhase",
+    "uLens",
+    "uWave",
+    "uDilate",
+    "uCloud",
+    "uCam",
+    "uRight",
+    "uUp",
+    "uForward",
+    "uSun",
+    "uCraft",
+  ];
   const envU = locationsOf(envP, ENV_UNIFORM_NAMES);
-  const meshU = locationsOf(meshP, ["uVP", "uCam", "uSun", "uTime", "uWater", "uModel", "uAlpha", "uBurn", "uReflect"]);
-  const MESH_VP = 0, MESH_CAM = 1, MESH_SUN = 2, MESH_TIME = 3, MESH_WATER = 4, MESH_MODEL = 5, MESH_ALPHA = 6, MESH_BURN = 7, MESH_REFLECT = 8;
-  const ENV_RES = 0, ENV_TIME = 1, ENV_MODE = 2, ENV_LOCAL = 3, ENV_SHOT = 4, ENV_PHASE = 5, ENV_LENS = 6, ENV_WAVE = 7, ENV_DILATE = 8, ENV_CLOUD = 9, ENV_CAM = 10, ENV_RIGHT = 11, ENV_UP = 12, ENV_FORWARD = 13, ENV_SUN = 14, ENV_CRAFT = 15;
-  const particleU = locationsOf(particleP, ["uVP", "uModel", "uTime", "uKind", "uAmount", "uPixel"]);
-  const PARTICLE_VP = 0, PARTICLE_MODEL = 1, PARTICLE_TIME = 2, PARTICLE_KIND = 3, PARTICLE_AMOUNT = 4, PARTICLE_PIXEL = 5;
-  const postU = locationsOf(postP, ["uRes", "uTime", "uFade", "uWarp", "uRollBlur", "uCockpit", "uDroplet", "uFlash", "uExposure"]);
-  const POST_RES = 0, POST_TIME = 1, POST_FADE = 2, POST_WARP = 3, POST_ROLLBLUR = 4, POST_COCKPIT = 5, POST_DROPLET = 6, POST_FLASH = 7, POST_EXPOSURE = 8;
+  const meshU = locationsOf(meshP, [
+    "uVP",
+    "uCam",
+    "uSun",
+    "uTime",
+    "uWater",
+    "uModel",
+    "uAlpha",
+    "uBurn",
+    "uReflect",
+  ]);
+  const MESH_VP = 0,
+    MESH_CAM = 1,
+    MESH_SUN = 2,
+    MESH_TIME = 3,
+    MESH_WATER = 4,
+    MESH_MODEL = 5,
+    MESH_ALPHA = 6,
+    MESH_BURN = 7,
+    MESH_REFLECT = 8;
+  const ENV_RES = 0,
+    ENV_TIME = 1,
+    ENV_MODE = 2,
+    ENV_LOCAL = 3,
+    ENV_SHOT = 4,
+    ENV_PHASE = 5,
+    ENV_LENS = 6,
+    ENV_WAVE = 7,
+    ENV_DILATE = 8,
+    ENV_CLOUD = 9,
+    ENV_CAM = 10,
+    ENV_RIGHT = 11,
+    ENV_UP = 12,
+    ENV_FORWARD = 13,
+    ENV_SUN = 14,
+    ENV_CRAFT = 15;
+  const particleU = locationsOf(particleP, [
+    "uVP",
+    "uModel",
+    "uTime",
+    "uKind",
+    "uAmount",
+    "uPixel",
+  ]);
+  const PARTICLE_VP = 0,
+    PARTICLE_MODEL = 1,
+    PARTICLE_TIME = 2,
+    PARTICLE_KIND = 3,
+    PARTICLE_AMOUNT = 4,
+    PARTICLE_PIXEL = 5;
+  const postU = locationsOf(postP, [
+    "uRes",
+    "uTime",
+    "uFade",
+    "uWarp",
+    "uRollBlur",
+    "uCockpit",
+    "uDroplet",
+    "uFlash",
+    "uExposure",
+  ]);
+  const POST_RES = 0,
+    POST_TIME = 1,
+    POST_FADE = 2,
+    POST_WARP = 3,
+    POST_ROLLBLUR = 4,
+    POST_COCKPIT = 5,
+    POST_DROPLET = 6,
+    POST_FLASH = 7,
+    POST_EXPOSURE = 8;
   const blurU = locationsOf(blurP, ["uStep", "uFirst"]);
-  const BLUR_STEP = 0, BLUR_FIRST = 1;
+  const BLUR_STEP = 0,
+    BLUR_FIRST = 1;
 
   function loop(stamp: number) {
     frameId = requestAnimationFrame(loop);
@@ -1041,15 +2006,15 @@ export function createInterstellarFilm(canvas: HTMLCanvasElement, options: { sti
     // 活动期间停画：filmTime 不推进，恢复后无缝续播，不会跳帧。性能达标的
     // 机器完全不受影响，照常全速播放。
     if (deliveryAverage > 39 && stamp - lastInputAt < INTERACTION_IDLE_MS) return;
-    filmTime += Math.min(dt, .18);
+    filmTime += Math.min(dt, 0.18);
     if (filmTime >= DURATION) filmTime %= DURATION;
-    if (stamp - lastRenderStamp < RENDER_MIN_INTERVAL - 1.5) return;    // Delivery interval = actual ms between completed renders. Healthy ~33ms;
+    if (stamp - lastRenderStamp < RENDER_MIN_INTERVAL - 1.5) return; // Delivery interval = actual ms between completed renders. Healthy ~33ms;
     // sagging toward 50ms means the GPU is missing even the 30fps target.
     const interval = lastRenderStamp ? stamp - lastRenderStamp : RENDER_MIN_INTERVAL;
     lastRenderStamp = stamp;
     if (!startStamp) startStamp = stamp;
     render(filmTime);
-    deliveryAverage = deliveryAverage * .95 + Math.min(interval, 150) * .05;
+    deliveryAverage = deliveryAverage * 0.95 + Math.min(interval, 150) * 0.05;
     // Quality adaptation with a hysteresis band and a cooldown: without it the
     // up/down thresholds oscillate, and every step rebuilds the render targets
     // (visible sharpness pop = the "flicker" reported on the auth screen).
@@ -1063,17 +2028,17 @@ export function createInterstellarFilm(canvas: HTMLCanvasElement, options: { sti
     const adaptWindow = earlyPhase ? 600 : 4_000;
     const slowNeeded = earlyPhase ? 2 : 12;
     if (stamp - lastAdapt > adaptWindow && filmTime > 1.2) {
-      if (deliveryAverage > 39 && quality > .5) {
+      if (deliveryAverage > 39 && quality > 0.5) {
         slowTicks++;
         if (slowTicks > slowNeeded) {
-          quality = Math.max(.5, quality * (earlyPhase ? .72 : .85));
+          quality = Math.max(0.5, quality * (earlyPhase ? 0.72 : 0.85));
           resize();
           lastAdapt = stamp;
           lastQualityDrop = stamp;
           slowTicks = 0;
           fastTicks = 0;
         }
-      } else if (deliveryAverage < 34.6 && quality < .99 && stamp - lastQualityDrop > 20_000) {
+      } else if (deliveryAverage < 34.6 && quality < 0.99 && stamp - lastQualityDrop > 20_000) {
         fastTicks++;
         if (fastTicks > 240) {
           quality = Math.min(1, quality * 1.06);
@@ -1105,7 +2070,9 @@ export function createInterstellarFilm(canvas: HTMLCanvasElement, options: { sti
   // 窗口失焦（分屏、切去聊天窗）时页面仍可见，GPU 会继续烧 30fps 的体积渲染，
   // 挤占用户正在交互的前台应用。失焦即暂停，回焦立即恢复——电影进度不回退，
   // 用户感知只是画面停了一拍。
-  const onWindowBlur = () => { playing = false; };
+  const onWindowBlur = () => {
+    playing = false;
+  };
   const onWindowFocus = () => {
     if (!pausedByApi && !document.hidden) {
       playing = true;
@@ -1114,8 +2081,13 @@ export function createInterstellarFilm(canvas: HTMLCanvasElement, options: { sti
   };
   let pausedByApi = false;
 
-  const onContextLost = (event: Event) => { event.preventDefault(); ready = false; };
-  const onContextRestored = () => { window.location.reload(); };
+  const onContextLost = (event: Event) => {
+    event.preventDefault();
+    ready = false;
+  };
+  const onContextRestored = () => {
+    window.location.reload();
+  };
 
   const scheduleResize = () => {
     window.clearTimeout(resizeTimer);
@@ -1144,28 +2116,35 @@ export function createInterstellarFilm(canvas: HTMLCanvasElement, options: { sti
   let destroyed = false;
   // stills 采集：构建完成即就绪，不启动播放循环，外部用 renderAt 逐帧驱动。
   let resolveStillsReady: (() => void) | null = null;
-  const stillsReady = new Promise<void>((resolve) => { resolveStillsReady = resolve; });
+  const stillsReady = new Promise<void>((resolve) => {
+    resolveStillsReady = resolve;
+  });
   // Film startup = sliced mesh build ∥ texture fetch. Neither runs as a long
   // synchronous task, so the login form mounts, paints and stays interactive
   // while the scene materializes in the background.
-  void Promise.all([buildMeshesSliced(), Promise.all([loadTexture(SKY_DATA), loadTexture(NOISE_DATA)])]).then(([, [a, b]]) => {
-    if (destroyed) return;
-    skyTex = a;
-    noiseTex = b;
-    resize(true);
-    ready = true;
-    render(filmTime);
-    if (stills) {
-      resolveStillsReady?.();
-      return;
-    }
-    lastStamp = performance.now();
-    frameId = requestAnimationFrame(loop);
-    // Align the scene caption with the random starting chapter immediately.
-    for (const listener of chapterListeners) listener(currentChapter);
-  }).catch(() => {
-    // Texture decode failed on exotic browsers; the auth form remains usable.
-  });
+  void Promise.all([
+    buildMeshesSliced(),
+    Promise.all([loadTexture(SKY_DATA), loadTexture(NOISE_DATA)]),
+  ])
+    .then(([, [a, b]]) => {
+      if (destroyed) return;
+      skyTex = a;
+      noiseTex = b;
+      resize(true);
+      ready = true;
+      render(filmTime);
+      if (stills) {
+        resolveStillsReady?.();
+        return;
+      }
+      lastStamp = performance.now();
+      frameId = requestAnimationFrame(loop);
+      // Align the scene caption with the random starting chapter immediately.
+      for (const listener of chapterListeners) listener(currentChapter);
+    })
+    .catch(() => {
+      // Texture decode failed on exotic browsers; the auth form remains usable.
+    });
 
   return {
     destroy() {
@@ -1174,7 +2153,8 @@ export function createInterstellarFilm(canvas: HTMLCanvasElement, options: { sti
       ready = false;
       cancelAnimationFrame(frameId);
       buildQueue.length = 0; // stop the sliced mesh build if still running
-      if (meshBuildHandle !== null && window.cancelIdleCallback) window.cancelIdleCallback(meshBuildHandle);
+      if (meshBuildHandle !== null && window.cancelIdleCallback)
+        window.cancelIdleCallback(meshBuildHandle);
       window.clearTimeout(resizeTimer);
       resizeObserver?.disconnect();
       window.removeEventListener("resize", scheduleResize);
@@ -1194,19 +2174,24 @@ export function createInterstellarFilm(canvas: HTMLCanvasElement, options: { sti
     setPaused(paused: boolean) {
       pausedByApi = paused;
       if (paused) playing = false;
-      else if (!document.hidden) { playing = true; lastStamp = performance.now(); }
+      else if (!document.hidden) {
+        playing = true;
+        lastStamp = performance.now();
+      }
     },
     onChapter(listener: (chapter: InterstellarChapter) => void) {
       chapterListeners.push(listener);
     },
-    ...(stills ? {
-      ready: stillsReady,
-      renderAt(seconds: number) {
-        filmTime = seconds;
-        // 返回渲染结果（null = 目标/贴图未就绪被早退），采集脚本据此断言。
-        return ready ? render(filmTime) : null;
-      },
-    } : {}),
+    ...(stills
+      ? {
+          ready: stillsReady,
+          renderAt(seconds: number) {
+            filmTime = seconds;
+            // 返回渲染结果（null = 目标/贴图未就绪被早退），采集脚本据此断言。
+            return ready ? render(filmTime) : null;
+          },
+        }
+      : {}),
   };
 }
 

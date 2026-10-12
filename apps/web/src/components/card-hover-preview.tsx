@@ -3,7 +3,10 @@ import { createPortal } from "react-dom";
 
 import { computeHoverPreviewPlacement } from "../lib/hover-preview-placement";
 
-export { computeHoverPreviewPlacement, type HoverPreviewPlacement } from "../lib/hover-preview-placement";
+export {
+  computeHoverPreviewPlacement,
+  type HoverPreviewPlacement,
+} from "../lib/hover-preview-placement";
 
 /**
  * 卡片悬浮大图快览（卡片库 + 社区弹层共用）。
@@ -53,10 +56,13 @@ export function rememberHoverPreviewImage(key: string, url: string): void {
 }
 
 /** 展示图选择：原图可用且未加载失败时用原图，否则回退缩略图。 */
-export function pickHoverPreviewImage(largeUrl: string, largeBroken: boolean, thumbnailUrl: string): string {
+export function pickHoverPreviewImage(
+  largeUrl: string,
+  largeBroken: boolean,
+  thumbnailUrl: string,
+): string {
   return largeUrl && !largeBroken ? largeUrl : thumbnailUrl;
 }
-
 
 export function CardHoverPreview({ source }: { source: CardHoverPreviewSource | null }) {
   // 触屏/无悬停设备上整个能力静默关闭（tap 走点击预览层）。
@@ -110,7 +116,10 @@ export function CardHoverPreview({ source }: { source: CardHoverPreviewSource | 
       return;
     }
     window.clearTimeout(appearTimer.current);
-    appearTimer.current = window.setTimeout(() => setDisplay(source), HOVER_PREVIEW_APPEAR_DELAY_MS);
+    appearTimer.current = window.setTimeout(
+      () => setDisplay(source),
+      HOVER_PREVIEW_APPEAR_DELAY_MS,
+    );
     return () => window.clearTimeout(appearTimer.current);
     // display 是"是否已有层在展示"的读数，刻意不进依赖：换卡时以当次渲染
     // 的快照判断即可，语义等价且避免每次换卡重排 effect。
@@ -125,10 +134,11 @@ export function CardHoverPreview({ source }: { source: CardHoverPreviewSource | 
     }
     setAnchor(latestPointer.current);
     setViewport(readViewportSize());
-    const onResize = () => setViewport((current) => {
-      const next = readViewportSize();
-      return current.width === next.width && current.height === next.height ? current : next;
-    });
+    const onResize = () =>
+      setViewport((current) => {
+        const next = readViewportSize();
+        return current.width === next.width && current.height === next.height ? current : next;
+      });
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, [display]);
@@ -142,7 +152,8 @@ export function CardHoverPreview({ source }: { source: CardHoverPreviewSource | 
     }
     setLargeUrl("");
     let stale = false;
-    void display.resolveImages()
+    void display
+      .resolveImages()
       .then((urls) => {
         if (stale) return;
         const first = urls.find((url) => url);
@@ -151,24 +162,35 @@ export function CardHoverPreview({ source }: { source: CardHoverPreviewSource | 
         setLargeUrl(first);
       })
       .catch(() => undefined);
-    return () => { stale = true; };
+    return () => {
+      stale = true;
+    };
   }, [display]);
 
-  const placement = useMemo(() => computeHoverPreviewPlacement({
-    anchor: anchor ?? { x: viewport.width / 2, y: viewport.height / 2 },
-    viewport,
-    aspect,
-    hasCaption: Boolean(display?.title),
-  }), [anchor, viewport, aspect, display?.title]);
+  const placement = useMemo(
+    () =>
+      computeHoverPreviewPlacement({
+        anchor: anchor ?? { x: viewport.width / 2, y: viewport.height / 2 },
+        viewport,
+        aspect,
+        hasCaption: Boolean(display?.title),
+      }),
+    [anchor, viewport, aspect, display?.title],
+  );
 
   if (!canHover || !display) return null;
   const shown = pickHoverPreviewImage(largeUrl, largeBroken, display.thumbnailUrl);
   const isVideo = display.mediaKind === "video";
   return createPortal(
     <figure
-      className="kc-card-hover-preview"
+      className="wc-card-hover-preview"
       aria-hidden="true"
-      style={{ left: placement.left, top: placement.top, width: placement.width, maxHeight: placement.maxHeight }}
+      style={{
+        left: placement.left,
+        top: placement.top,
+        width: placement.width,
+        maxHeight: placement.maxHeight,
+      }}
     >
       {shown ? (
         isVideo ? (
@@ -186,7 +208,9 @@ export function CardHoverPreview({ source }: { source: CardHoverPreviewSource | 
                 setAspect(node.videoWidth / node.videoHeight);
               }
             }}
-            onError={() => { if (shown === largeUrl) setLargeBroken(true); }}
+            onError={() => {
+              if (shown === largeUrl) setLargeBroken(true);
+            }}
           />
         ) : (
           <img
@@ -201,7 +225,9 @@ export function CardHoverPreview({ source }: { source: CardHoverPreviewSource | 
                 setAspect(node.naturalWidth / node.naturalHeight);
               }
             }}
-            onError={() => { if (shown === largeUrl) setLargeBroken(true); }}
+            onError={() => {
+              if (shown === largeUrl) setLargeBroken(true);
+            }}
           />
         )
       ) : null}

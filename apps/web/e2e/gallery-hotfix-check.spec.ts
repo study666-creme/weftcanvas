@@ -6,7 +6,9 @@ import { mockAuthenticatedBackgroundApis } from "./authenticated-background.fixt
 // 临时验证：结果卡画廊在多任务（含一直加载中的媒体）下，媒体方块必须保持
 // aspect-ratio 稳定高度，不允许塌缩成纯文字卡（20260904 线上事故的回归验证）。
 
-const visiblePng = readFileSync(new URL("../src/assets/resource-library-mark.png", import.meta.url));
+const visiblePng = readFileSync(
+  new URL("../src/assets/resource-library-mark.png", import.meta.url),
+);
 const videoFixture = readFileSync(new URL("./video-frame.mp4", import.meta.url));
 
 const now = new Date();
@@ -35,7 +37,13 @@ function videoModel() {
     input: { textRequired: true, images: { min: 0, max: 2, multiple: true } },
     output: { type: "video", minCount: 1, maxCount: 1 },
     parameters: [
-      { name: "prompt", label: "提示词", type: "string", required: true, mutuallyExclusiveWith: [] },
+      {
+        name: "prompt",
+        label: "提示词",
+        type: "string",
+        required: true,
+        mutuallyExclusiveWith: [],
+      },
     ],
     pricing: {
       mode: "fixed",
@@ -93,16 +101,18 @@ function seedJobs(request: Record<string, unknown>) {
         pricingVersion: "pricing-hotfix",
         expiresAt,
       },
-      artifacts: [{
-        id: `artifact-hotfix-${i}`,
-        kind: "video",
-        mediaId: `media-hotfix-${i}`,
-        name: `result-${i}.mp4`,
-        mimeType: "video/mp4",
-        size: videoFixture.byteLength,
-        duration: 4.086009,
-        createdAt,
-      }],
+      artifacts: [
+        {
+          id: `artifact-hotfix-${i}`,
+          kind: "video",
+          mediaId: `media-hotfix-${i}`,
+          name: `result-${i}.mp4`,
+          mimeType: "video/mp4",
+          size: videoFixture.byteLength,
+          duration: 4.086009,
+          createdAt,
+        },
+      ],
       error: null,
       createdAt,
       updatedAt: createdAt,
@@ -117,23 +127,31 @@ function seedJobs(request: Record<string, unknown>) {
 async function mockGallery(page: Page, options: { mediaMode: "ok" | "never" }) {
   await mockAuthenticatedBackgroundApis(page);
   // 画廊 normalize 时要求 projectId/nodeId 与工作台常量完全一致
-  const jobs = seedJobs({ projectId: "home-direct-generation", nodeId: "home-direct-video", parameters: { prompt: "x" } });
+  const jobs = seedJobs({
+    projectId: "home-direct-generation",
+    nodeId: "home-direct-video",
+    parameters: { prompt: "x" },
+  });
 
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({ json: { ok: true, data: session() } }));
-  await page.route("**/api/v1/wallet", (route) => route.fulfill({
-    json: {
-      ok: true,
-      data: {
-        credits: 100,
-        creditsPermanent: 100,
-        dailyCredits: 0,
-        creditGrantMode: "bundle",
-        dailyCreditsNote: "",
-        membership: { tier: null, until: null, active: false, genDiscount: null },
-        lifetimeCreditsSpent: 0,
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({ json: { ok: true, data: session() } }),
+  );
+  await page.route("**/api/v1/wallet", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        data: {
+          credits: 100,
+          creditsPermanent: 100,
+          dailyCredits: 0,
+          creditGrantMode: "bundle",
+          dailyCreditsNote: "",
+          membership: { tier: null, until: null, active: false, genDiscount: null },
+          lifetimeCreditsSpent: 0,
+        },
       },
-    },
-  }));
+    }),
+  );
   await page.route("**/api/v1/model-catalog**", (route) => {
     return route.fulfill({
       json: {
@@ -151,10 +169,13 @@ async function mockGallery(page: Page, options: { mediaMode: "ok" | "never" }) {
     });
   });
   await page.route("**/api/v1/generation-jobs*", (route) => {
-    if (route.request().method() !== "POST") return route.fulfill({ json: { ok: true, data: jobs } });
+    if (route.request().method() !== "POST")
+      return route.fulfill({ json: { ok: true, data: jobs } });
     return route.fulfill({ status: 202, json: { ok: true, data: jobs[0] } });
   });
-  await page.route("**/api/v1/generation-jobs/*", (route) => route.fulfill({ json: { ok: true, data: null } }));
+  await page.route("**/api/v1/generation-jobs/*", (route) =>
+    route.fulfill({ json: { ok: true, data: null } }),
+  );
   await page.route(/\/api\/v1\/media\/media-hotfix-\d+\/content.*/, async (route) => {
     if (options.mediaMode === "never") {
       // 一直挂着不响应：模拟用户遇到的“加载中”卡死场景
@@ -166,9 +187,9 @@ async function mockGallery(page: Page, options: { mediaMode: "ok" | "never" }) {
 
 async function measureGallery(page: Page) {
   return page.evaluate(() => {
-    const tiles = [...document.querySelectorAll(".kc-direct-result-tile")];
+    const tiles = [...document.querySelectorAll(".wc-direct-result-tile")];
     return tiles.slice(0, 6).map((tile) => {
-      const media = tile.querySelector(".kc-direct-result-media");
+      const media = tile.querySelector(".wc-direct-result-media");
       const mr = media?.getBoundingClientRect();
       const tr = tile.getBoundingClientRect();
       const img = media?.querySelector("img");
@@ -189,7 +210,7 @@ test("gallery keeps media square when all media load", async ({ page }) => {
   await mockGallery(page, { mediaMode: "ok" });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/generate/video");
-  await page.waitForSelector(".kc-direct-result-tile", { timeout: 20_000 });
+  await page.waitForSelector(".wc-direct-result-tile", { timeout: 20_000 });
   await page.waitForTimeout(2_500);
   const tiles = await measureGallery(page);
   console.log("MEDIA-OK:", JSON.stringify(tiles));
@@ -205,7 +226,7 @@ test("gallery keeps media square while media never resolve (loading)", async ({ 
   await mockGallery(page, { mediaMode: "never" });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/generate/video");
-  await page.waitForSelector(".kc-direct-result-tile", { timeout: 20_000 });
+  await page.waitForSelector(".wc-direct-result-tile", { timeout: 20_000 });
   await page.waitForTimeout(2_500);
   const tiles = await measureGallery(page);
   console.log("MEDIA-NEVER:", JSON.stringify(tiles));

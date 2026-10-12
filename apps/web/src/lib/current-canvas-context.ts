@@ -1,6 +1,4 @@
-import { create } from "zustand";
-
-import type { AgentCanvasContext, AgentCreativeGuidance } from "@kachang/contracts";
+import type { AgentCanvasContext, AgentCreativeGuidance } from "@weftcanvas/contracts";
 
 import { createAgentCanvasContext, readAgentDirectorStageContext } from "./agent-context";
 import { readAgentCreativeGuidance } from "./agent-creative-guidance";
@@ -11,7 +9,9 @@ import { useDirectorStageLaunchStore } from "../state/director-stage-launch-stor
  * 读取当前画布的有界摘要。Agent 对话与外部连接（Codex 画布通道）共用同一份，
  * 保证两边的 contextRevision 与节点 id 完全一致。
  */
-export function readCurrentAgentCanvasContext(creativeGuidance?: AgentCreativeGuidance): AgentCanvasContext {
+export function readCurrentAgentCanvasContext(
+  creativeGuidance?: AgentCreativeGuidance,
+): AgentCanvasContext {
   const canvas = useCanvasStore.getState();
   const director = useDirectorStageLaunchStore.getState();
   return createAgentCanvasContext({

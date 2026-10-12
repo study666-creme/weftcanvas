@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { PluginSettingsPanel } from "./plugin-settings-panel";
 import { installPlugin, uninstallPlugin } from "../lib/plugin-host";
-import type { Plugin } from "@kachang/plugin-sdk";
+import type { Plugin } from "@weftcanvas/plugin-sdk";
 
 describe("plugin settings panel", () => {
   it("lists an installed plugin with its version and drops it after uninstall", async () => {

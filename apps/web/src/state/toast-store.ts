@@ -1,4 +1,4 @@
-import { createId } from "@kachang/canvas-core";
+import { createId } from "@weftcanvas/canvas-core";
 import { create } from "zustand";
 
 export type ToastTone = "info" | "success" | "error";

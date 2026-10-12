@@ -33,7 +33,7 @@ export async function seedStarterCanvas(page: Page) {
     config: { modality: "image" } | null,
   ) => ({
     id,
-    type: "kachang",
+    type: "weftcanvas",
     position: { x, y },
     width,
     height,
@@ -55,9 +55,19 @@ export async function seedStarterCanvas(page: Page) {
   const project = {
     schemaVersion: 1,
     id: "e2e-starter-canvas",
-    name: "卡藏画布 1",
+    name: "纬线画布 1",
     nodes: [
-      node("starter-text", "text", 40, 40, 308, 176, "低机位跟拍，湿润石板路反射零散霓虹。人物从画面右侧冲入，急促回头，远处渡轮鸣笛。", "jade", null),
+      node(
+        "starter-text",
+        "text",
+        40,
+        40,
+        308,
+        176,
+        "低机位跟拍，湿润石板路反射零散霓虹。人物从画面右侧冲入，急促回头，远处渡轮鸣笛。",
+        "jade",
+        null,
+      ),
       node("starter-config", "config", 40, 260, 308, 176, "", "jade", { modality: "image" }),
       node("starter-image", "image", 440, 42, 340, 214, "16:9 · 冷雨夜 · 暖色实景光", "blue", null),
     ],
@@ -76,19 +86,33 @@ export async function seedStarterCanvas(page: Page) {
     updatedAt: now,
   };
   await page.addInitScript((seed) => {
-    if (sessionStorage.getItem("kachang-e2e-starter-seeded")) return;
-    sessionStorage.setItem("kachang-e2e-starter-seeded", "1");
+    if (sessionStorage.getItem("weftcanvas-e2e-starter-seeded")) return;
+    sessionStorage.setItem("weftcanvas-e2e-starter-seeded", "1");
     const width = window.innerWidth;
     const zoom = 0.9;
     const graphLeft = 40;
     const graphWidth = 1108;
     const centeredX = (width - graphWidth * zoom) / 2 - graphLeft * zoom;
     const viewport = { x: Math.max(96, Math.round(centeredX)), y: 138, zoom };
-    localStorage.setItem(`kachang-canvas:project-data:v1:${encodeURIComponent(seed.id)}`, JSON.stringify({ ...seed, viewport }));
-    localStorage.setItem("kachang-canvas:projects:v1", JSON.stringify({
-      version: 1,
-      projects: [{ id: seed.id, name: seed.name, createdAt: seed.createdAt, updatedAt: seed.updatedAt, nodeCount: seed.nodes.length }],
-    }));
-    localStorage.setItem("kachang-canvas:active-project:v1", seed.id);
+    localStorage.setItem(
+      `weftcanvas:project-data:v1:${encodeURIComponent(seed.id)}`,
+      JSON.stringify({ ...seed, viewport }),
+    );
+    localStorage.setItem(
+      "weftcanvas:projects:v1",
+      JSON.stringify({
+        version: 1,
+        projects: [
+          {
+            id: seed.id,
+            name: seed.name,
+            createdAt: seed.createdAt,
+            updatedAt: seed.updatedAt,
+            nodeCount: seed.nodes.length,
+          },
+        ],
+      }),
+    );
+    localStorage.setItem("weftcanvas:active-project:v1", seed.id);
   }, project);
 }

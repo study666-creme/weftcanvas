@@ -1,4 +1,4 @@
-import type { PublicModel } from "@kachang/contracts";
+import type { PublicModel } from "@weftcanvas/contracts";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Sparkles } from "lucide-react";
 
@@ -36,33 +36,85 @@ type Category = {
  *   Runway / Wan / Seedance; leftovers go to 其他.
  * No "全部" tab — users pick by subcategory only.
  */
-const VIDEO_CATEGORY_RULES: { id: string; label: string; match: (model: PublicModel) => boolean }[] = [
+const VIDEO_CATEGORY_RULES: {
+  id: string;
+  label: string;
+  match: (model: PublicModel) => boolean;
+}[] = [
   // 2.5 必须排在 2.0 前面：hasS20Marker 同时认 2.0 和 2.5，若 2.0 先匹配，
   // S-2.5-* 会被并进 2.0 分类（运营要求两代分开）。
   { id: "2.5", label: "2.5", match: (model) => isS25(model) },
   { id: "2.0", label: "2.0", match: (model) => isS20(model) },
   { id: "2.0fast", label: "2.0fast", match: (model) => isS20Fast(model) },
   { id: "2.0mini", label: "2.0mini", match: (model) => isS20Mini(model) },
-  { id: "minimax", label: "Minimax", match: (model) => /minimax|mini-h3/i.test(model.id) || /minimax/i.test(model.label) },
-  { id: "kling", label: "可灵", match: (model) => /kling|可灵/i.test(model.id) || /可灵/i.test(model.label) },
-  { id: "veo", label: "Veo", match: (model) => /veo|gemini-omni/i.test(model.id) || /veo|gemini.omni/i.test(model.label) },
-  { id: "runway", label: "Runway", match: (model) => /runway/i.test(model.id) || /runway/i.test(model.label) },
+  {
+    id: "minimax",
+    label: "Minimax",
+    match: (model) => /minimax|mini-h3/i.test(model.id) || /minimax/i.test(model.label),
+  },
+  {
+    id: "kling",
+    label: "可灵",
+    match: (model) => /kling|可灵/i.test(model.id) || /可灵/i.test(model.label),
+  },
+  {
+    id: "veo",
+    label: "Veo",
+    match: (model) => /veo|gemini-omni/i.test(model.id) || /veo|gemini.omni/i.test(model.label),
+  },
+  {
+    id: "runway",
+    label: "Runway",
+    match: (model) => /runway/i.test(model.id) || /runway/i.test(model.label),
+  },
   { id: "wan", label: "Wan", match: (model) => /wan/i.test(model.id) || /wan/i.test(model.label) },
   // xAI：grok-imagine-video（按秒）与 grok-imagine-video-1.5（按次）是两条独立
   // 上架项，缺这条规则时它们全落进「其他」。
-  { id: "grok", label: "Grok", match: (model) => /grok/i.test(model.id) || /grok/i.test(model.label) },
+  {
+    id: "grok",
+    label: "Grok",
+    match: (model) => /grok/i.test(model.id) || /grok/i.test(model.label),
+  },
   // 字节 Seedance：按 token 计费的 doubao-seedance-* 与按秒分档的
   // firefly-seedance2-*。缺这条规则时它们全落进「其他」。
   // 标注「官方」：这里是站点官转渠道，与 S 系「线路」Self-Host 渠道区分开。
-  { id: "seedance", label: "Seedance官方", match: (model) => /seedance/i.test(model.id) || /seedance/i.test(model.label) },
+  {
+    id: "seedance",
+    label: "Seedance官方",
+    match: (model) => /seedance/i.test(model.id) || /seedance/i.test(model.label),
+  },
 ];
 
-const IMAGE_CATEGORY_RULES: { id: string; label: string; match: (model: PublicModel) => boolean }[] = [
-  { id: "banana", label: "香蕉", match: (model) => /banana|香蕉/i.test(model.id) || /香蕉/i.test(model.label) },
-  { id: "universal2", label: "全能模型2", match: (model) => isUniversalImage(model) && !isUniversal25(model) },
-  { id: "universal25", label: "全能模型2.5", match: (model) => isUniversalImage(model) && isUniversal25(model) },
-  { id: "midjourney", label: "Midjourney", match: (model) => /mj-|midjourney/i.test(model.id) || /midjourney/i.test(model.label) },
-  { id: "seedream", label: "Seedream", match: (model) => /seedream/i.test(model.id) || /seedream/i.test(model.label) },
+const IMAGE_CATEGORY_RULES: {
+  id: string;
+  label: string;
+  match: (model: PublicModel) => boolean;
+}[] = [
+  {
+    id: "banana",
+    label: "香蕉",
+    match: (model) => /banana|香蕉/i.test(model.id) || /香蕉/i.test(model.label),
+  },
+  {
+    id: "universal2",
+    label: "全能模型2",
+    match: (model) => isUniversalImage(model) && !isUniversal25(model),
+  },
+  {
+    id: "universal25",
+    label: "全能模型2.5",
+    match: (model) => isUniversalImage(model) && isUniversal25(model),
+  },
+  {
+    id: "midjourney",
+    label: "Midjourney",
+    match: (model) => /mj-|midjourney/i.test(model.id) || /midjourney/i.test(model.label),
+  },
+  {
+    id: "seedream",
+    label: "Seedream",
+    match: (model) => /seedream/i.test(model.id) || /seedream/i.test(model.label),
+  },
 ];
 
 /**
@@ -118,9 +170,14 @@ function isS20(model: PublicModel) {
   return !/fast/i.test(haystack) && !/mini/i.test(haystack);
 }
 
-export function buildCategories(modality: PublicModel["modality"], models: PublicModel[]): Category[] {
-  if (isCustomModelKey(models[0]?.id ?? "")) return [{ id: "custom", label: "自有 API", match: () => true }];
-  const rules = modality === "video" ? VIDEO_CATEGORY_RULES : modality === "image" ? IMAGE_CATEGORY_RULES : [];
+export function buildCategories(
+  modality: PublicModel["modality"],
+  models: PublicModel[],
+): Category[] {
+  if (isCustomModelKey(models[0]?.id ?? ""))
+    return [{ id: "custom", label: "自有 API", match: () => true }];
+  const rules =
+    modality === "video" ? VIDEO_CATEGORY_RULES : modality === "image" ? IMAGE_CATEGORY_RULES : [];
   const categories: Category[] = [];
   const assigned = new Set<string>();
   for (const rule of rules) {
@@ -131,7 +188,12 @@ export function buildCategories(modality: PublicModel["modality"], models: Publi
   }
   // Anything not covered by a named rule falls into "其他" so nothing is lost.
   const rest = models.filter((model) => !assigned.has(model.id));
-  if (rest.length) categories.push({ id: "other", label: "其他", match: (model) => rest.some((item) => item.id === model.id) });
+  if (rest.length)
+    categories.push({
+      id: "other",
+      label: "其他",
+      match: (model) => rest.some((item) => item.id === model.id),
+    });
   return categories.length ? categories : [{ id: "all", label: "全部", match: () => true }];
 }
 
@@ -141,7 +203,10 @@ export function buildCategories(modality: PublicModel["modality"], models: Publi
  * 分界处展示 PROMO_MODEL_NOTICE。分类 match 是按 id/label 的正则谓词，
  * 直接对全量模型分类即可。
  */
-export function buildZonedCategories(modality: PublicModel["modality"], models: PublicModel[]): Category[] {
+export function buildZonedCategories(
+  modality: PublicModel["modality"],
+  models: PublicModel[],
+): Category[] {
   return buildCategories(modality, models);
 }
 
@@ -170,7 +235,9 @@ export function CategorizedModelSelect({
   const selected = models.find((model) => model.id === value) ?? null;
   const selectedCategory = useMemo(() => {
     if (!selected) return categories[0] ?? FALLBACK_CATEGORY;
-    return categories.find((category) => category.match(selected)) ?? categories[0] ?? FALLBACK_CATEGORY;
+    return (
+      categories.find((category) => category.match(selected)) ?? categories[0] ?? FALLBACK_CATEGORY
+    );
   }, [categories, selected]);
   const [activeCategoryId, setActiveCategoryId] = useState(selectedCategory.id);
 
@@ -194,7 +261,10 @@ export function CategorizedModelSelect({
     };
   }, [open]);
 
-  const activeCategory = categories.find((category) => category.id === activeCategoryId) ?? categories[0] ?? FALLBACK_CATEGORY;
+  const activeCategory =
+    categories.find((category) => category.id === activeCategoryId) ??
+    categories[0] ??
+    FALLBACK_CATEGORY;
   // 分类内稳定在上、特惠贴底；分界处插入免责声明。
   const activeModels = useMemo(
     () => partitionModelsByZone(models.filter((model) => activeCategory.match(model))),
@@ -203,32 +273,36 @@ export function CategorizedModelSelect({
 
   if (!models.length) {
     return (
-      <button type="button" className="kc-cat-select-trigger" disabled aria-label={ariaLabel}>
+      <button type="button" className="wc-cat-select-trigger" disabled aria-label={ariaLabel}>
         <span>{placeholder}</span>
       </button>
     );
   }
 
   return (
-    <div className="kc-cat-select" ref={rootRef}>
+    <div className="wc-cat-select" ref={rootRef}>
       <button
         type="button"
-        className="kc-cat-select-trigger"
+        className="wc-cat-select-trigger"
         aria-label={ariaLabel}
         aria-expanded={open}
         disabled={disabled}
         onClick={() => setOpen((value) => !value)}
       >
-        <Sparkles aria-hidden="true" className="kc-cat-select-icon" />
-        <span className="kc-cat-select-value">{selected ? modelPickerLabel(selected) : placeholder}</span>
-        {selected && isPromoZoneModel(selected) ? <span className="kc-cat-select-promo-badge">特惠</span> : null}
-        {selected ? <span className="kc-cat-select-meta">{modelPriceLabel(selected)}</span> : null}
-        <ChevronDown aria-hidden="true" className="kc-cat-select-caret" />
+        <Sparkles aria-hidden="true" className="wc-cat-select-icon" />
+        <span className="wc-cat-select-value">
+          {selected ? modelPickerLabel(selected) : placeholder}
+        </span>
+        {selected && isPromoZoneModel(selected) ? (
+          <span className="wc-cat-select-promo-badge">特惠</span>
+        ) : null}
+        {selected ? <span className="wc-cat-select-meta">{modelPriceLabel(selected)}</span> : null}
+        <ChevronDown aria-hidden="true" className="wc-cat-select-caret" />
       </button>
 
       {open ? (
-        <div className="kc-cat-select-menu" role="listbox" aria-label={ariaLabel}>
-          <div className="kc-cat-select-tabs" role="tablist" aria-label="模型分类">
+        <div className="wc-cat-select-menu" role="listbox" aria-label={ariaLabel}>
+          <div className="wc-cat-select-tabs" role="tablist" aria-label="模型分类">
             {categories.map((category) => (
               <button
                 key={category.id}
@@ -243,15 +317,18 @@ export function CategorizedModelSelect({
               </button>
             ))}
           </div>
-          <div className="kc-cat-select-options">
+          <div className="wc-cat-select-options">
             {activeModels.map((model, index) => {
               const active = model.id === value;
               const promo = isPromoZoneModel(model);
-              const isPromoBlockStart = promo && (index === 0 || !isPromoZoneModel(activeModels[index - 1]!));
+              const isPromoBlockStart =
+                promo && (index === 0 || !isPromoZoneModel(activeModels[index - 1]!));
               return (
                 <Fragment key={model.id}>
                   {promo && isPromoBlockStart ? (
-                    <p className="kc-cat-select-promo-note" role="note">{PROMO_MODEL_NOTICE}</p>
+                    <p className="wc-cat-select-promo-note" role="note">
+                      {PROMO_MODEL_NOTICE}
+                    </p>
                   ) : null}
                   <button
                     type="button"
@@ -263,13 +340,13 @@ export function CategorizedModelSelect({
                       setOpen(false);
                     }}
                   >
-                    <span className="kc-cat-select-option-copy">
+                    <span className="wc-cat-select-option-copy">
                       <strong>{modelPickerLabel(model)}</strong>
                       {/* 价格紧跟模型名：原来 price 推到行尾，名字与价格隔得太远不好对照 */}
-                      <span className="kc-cat-select-option-price">{modelPriceLabel(model)}</span>
-                      {promo ? <span className="kc-cat-select-promo-badge">特惠</span> : null}
+                      <span className="wc-cat-select-option-price">{modelPriceLabel(model)}</span>
+                      {promo ? <span className="wc-cat-select-promo-badge">特惠</span> : null}
                     </span>
-                    {active ? <Check aria-hidden="true" className="kc-cat-select-check" /> : null}
+                    {active ? <Check aria-hidden="true" className="wc-cat-select-check" /> : null}
                   </button>
                 </Fragment>
               );

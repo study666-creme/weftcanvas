@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { builtinCanvasNodeKinds, type CanvasNodeKind } from "@kachang/contracts";
+import { builtinCanvasNodeKinds, type CanvasNodeKind } from "@weftcanvas/contracts";
 import { FileText } from "lucide-react";
 
 import "../builtin-nodes";
@@ -14,7 +14,7 @@ import {
   registerNode,
   type NodeDefinition,
 } from "../node-registry";
-import type { KachangNode } from "../../types";
+import type { WeftcanvasNode } from "../../types";
 
 /** 测试用演示定义：kind 不在闭合枚举里，注册表/菜单层面的行为与正式节点一致。 */
 function demoDefinition(kind: string, overrides: Partial<NodeDefinition> = {}): NodeDefinition {
@@ -28,8 +28,8 @@ function demoDefinition(kind: string, overrides: Partial<NodeDefinition> = {}): 
   };
 }
 
-function nodeFixture(id: string, kind: CanvasNodeKind): KachangNode {
-  return { id, data: { kind } } as KachangNode;
+function nodeFixture(id: string, kind: CanvasNodeKind): WeftcanvasNode {
+  return { id, data: { kind } } as WeftcanvasNode;
 }
 
 describe("node registry builtins", () => {
@@ -62,9 +62,19 @@ describe("node registry builtins", () => {
     const image = createCanvasNode("image", { x: 0, y: 0 });
     expect(image.data).toMatchObject({ kind: "image", accent: "blue", config: null, edit: null });
     const config = createCanvasNode("config", { x: 0, y: 0 });
-    expect(config.data).toMatchObject({ kind: "config", accent: "jade", config: { modality: "image" }, edit: null });
+    expect(config.data).toMatchObject({
+      kind: "config",
+      accent: "jade",
+      config: { modality: "image" },
+      edit: null,
+    });
     const edit = createCanvasNode("edit", { x: 0, y: 0 });
-    expect(edit.data).toMatchObject({ kind: "edit", accent: "blue", config: null, edit: { clips: [] } });
+    expect(edit.data).toMatchObject({
+      kind: "edit",
+      accent: "blue",
+      config: null,
+      edit: { clips: [] },
+    });
   });
 
   it("marks the edit node creatable while the clip editor flag is on", () => {
@@ -77,10 +87,14 @@ describe("node registry dynamics", () => {
   it("unregistering removes the definition from both lists", () => {
     const unregister = registerNode(demoDefinition("spec-removable"));
     expect(getNodeDefinition("spec-removable")).not.toBeNull();
-    expect(listCreatableNodes().some((definition) => (definition.kind as string) === "spec-removable")).toBe(true);
+    expect(
+      listCreatableNodes().some((definition) => (definition.kind as string) === "spec-removable"),
+    ).toBe(true);
     unregister();
     expect(getNodeDefinition("spec-removable")).toBeNull();
-    expect(listCreatableNodes().some((definition) => (definition.kind as string) === "spec-removable")).toBe(false);
+    expect(
+      listCreatableNodes().some((definition) => (definition.kind as string) === "spec-removable"),
+    ).toBe(false);
   });
 
   it("rejects duplicate kind registration instead of silently overriding", () => {
@@ -93,8 +107,12 @@ describe("node registry dynamics", () => {
   it("honours creatable: false without touching rendering eligibility", () => {
     const unregister = registerNode(demoDefinition("spec-hidden", { creatable: false }));
     expect(getNodeDefinition("spec-hidden")).not.toBeNull();
-    expect(listCreatableNodes().some((definition) => (definition.kind as string) === "spec-hidden")).toBe(false);
-    expect(listNodes().some((definition) => (definition.kind as string) === "spec-hidden")).toBe(true);
+    expect(
+      listCreatableNodes().some((definition) => (definition.kind as string) === "spec-hidden"),
+    ).toBe(false);
+    expect(listNodes().some((definition) => (definition.kind as string) === "spec-hidden")).toBe(
+      true,
+    );
     unregister();
   });
 });
@@ -102,38 +120,48 @@ describe("node registry dynamics", () => {
 describe("connection policy", () => {
   it("falls back to the global rule when no definition declares a policy", () => {
     const nodes = [nodeFixture("a", "text"), nodeFixture("b", "image")];
-    expect(connectionPolicyAllows(
-      { sourceId: "a", targetId: "b", sourceHandle: null, targetHandle: null },
-      nodes,
-    )).toBe(true);
+    expect(
+      connectionPolicyAllows(
+        { sourceId: "a", targetId: "b", sourceHandle: null, targetHandle: null },
+        nodes,
+      ),
+    ).toBe(true);
   });
 
   it("consults the source and target definition policies", () => {
-    const sourceUnregister = registerNode(demoDefinition("spec-policy-source", {
-      connectionPolicy: (ctx) => ctx.targetKind !== "spec-policy-forbidden" as CanvasNodeKind,
-    }));
+    const sourceUnregister = registerNode(
+      demoDefinition("spec-policy-source", {
+        connectionPolicy: (ctx) => ctx.targetKind !== ("spec-policy-forbidden" as CanvasNodeKind),
+      }),
+    );
     const targetUnregister = registerNode(demoDefinition("spec-policy-forbidden"));
     const nodes = [
       nodeFixture("a", "spec-policy-source" as CanvasNodeKind),
       nodeFixture("b", "spec-policy-forbidden" as CanvasNodeKind),
       nodeFixture("c", "text"),
     ];
-    expect(connectionPolicyAllows(
-      { sourceId: "a", targetId: "b", sourceHandle: null, targetHandle: null },
-      nodes,
-    )).toBe(false);
-    expect(connectionPolicyAllows(
-      { sourceId: "a", targetId: "c", sourceHandle: null, targetHandle: null },
-      nodes,
-    )).toBe(true);
+    expect(
+      connectionPolicyAllows(
+        { sourceId: "a", targetId: "b", sourceHandle: null, targetHandle: null },
+        nodes,
+      ),
+    ).toBe(false);
+    expect(
+      connectionPolicyAllows(
+        { sourceId: "a", targetId: "c", sourceHandle: null, targetHandle: null },
+        nodes,
+      ),
+    ).toBe(true);
     sourceUnregister();
     targetUnregister();
   });
 
   it("skips policy checks when an endpoint is missing from the graph", () => {
-    expect(connectionPolicyAllows(
-      { sourceId: "ghost", targetId: "a", sourceHandle: null, targetHandle: null },
-      [nodeFixture("a", "text")],
-    )).toBe(true);
+    expect(
+      connectionPolicyAllows(
+        { sourceId: "ghost", targetId: "a", sourceHandle: null, targetHandle: null },
+        [nodeFixture("a", "text")],
+      ),
+    ).toBe(true);
   });
 });

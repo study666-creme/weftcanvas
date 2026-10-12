@@ -56,7 +56,15 @@ const textModel = {
   output: { type: "text", minCount: 1, maxCount: 1 },
   parameters: [
     { name: "messages", label: "消息", type: "array", required: true, mutuallyExclusiveWith: [] },
-    { name: "max_tokens", label: "最大输出令牌", type: "integer", required: false, min: 1, max: 131072, mutuallyExclusiveWith: [] },
+    {
+      name: "max_tokens",
+      label: "最大输出令牌",
+      type: "integer",
+      required: false,
+      min: 1,
+      max: 131072,
+      mutuallyExclusiveWith: [],
+    },
   ],
   pricing: {
     mode: "token",
@@ -117,10 +125,10 @@ function summary(credits: number) {
 
 test("文本节点可通过生成设置使用目录文本模型：报价、提交、文本产物回填节点", async ({ page }) => {
   await page.addInitScript(() => {
-    if (sessionStorage.getItem("kc-e2e-seeded") !== "1") {
+    if (sessionStorage.getItem("wc-e2e-seeded") !== "1") {
       localStorage.clear();
       sessionStorage.clear();
-      sessionStorage.setItem("kc-e2e-seeded", "1");
+      sessionStorage.setItem("wc-e2e-seeded", "1");
     }
     const popup = {
       closed: false,
@@ -139,20 +147,39 @@ test("文本节点可通过生成设置使用目录文本模型：报价、提�
   await mockAuthenticatedBackgroundApis(page);
 
   let credits = 100;
-  const quotes: Array<{ modality: string; parameters: Record<string, unknown>; inputTokens?: number; maxOutputTokens?: number }> = [];
+  const quotes: Array<{
+    modality: string;
+    parameters: Record<string, unknown>;
+    inputTokens?: number;
+    maxOutputTokens?: number;
+  }> = [];
   const submissions: Array<Record<string, unknown>> = [];
   const idempotencyKeys: string[] = [];
   const jobs: Array<Record<string, unknown>> = [];
 
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({
-    json: { ok: true, data: session, capabilities },
-  }));
-  await page.route("**/api/v1/model-catalog*", (route) => route.fulfill({
-    json: { ok: true, data: catalog() },
-  }));
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      json: { ok: true, data: session, capabilities },
+    }),
+  );
+  await page.route("**/api/v1/model-catalog*", (route) =>
+    route.fulfill({
+      json: { ok: true, data: catalog() },
+    }),
+  );
   await page.route("**/api/v1/generation-quotes", (route) => {
-    const body = route.request().postDataJSON() as { modality: string; parameters: Record<string, unknown>; inputTokens?: number; maxOutputTokens?: number };
-    quotes.push({ modality: body.modality, parameters: body.parameters, inputTokens: body.inputTokens, maxOutputTokens: body.maxOutputTokens });
+    const body = route.request().postDataJSON() as {
+      modality: string;
+      parameters: Record<string, unknown>;
+      inputTokens?: number;
+      maxOutputTokens?: number;
+    };
+    quotes.push({
+      modality: body.modality,
+      parameters: body.parameters,
+      inputTokens: body.inputTokens,
+      maxOutputTokens: body.maxOutputTokens,
+    });
     return route.fulfill({ json: { ok: true, data: textQuote(body.parameters) } });
   });
   await page.route("**/api/v1/generation-jobs*", async (route) => {
@@ -161,7 +188,11 @@ test("文本节点可通过生成设置使用目录文本模型：报价、提�
     if (url.pathname.endsWith("/events")) return route.fulfill({ status: 204, body: "" });
     if (request.method() === "GET") return route.fulfill({ json: { ok: true, data: jobs } });
 
-    const body = request.postDataJSON() as { projectId: string; nodeId: string; parameters: Record<string, unknown> };
+    const body = request.postDataJSON() as {
+      projectId: string;
+      nodeId: string;
+      parameters: Record<string, unknown>;
+    };
     submissions.push(body);
     idempotencyKeys.push(String(body.idempotencyKey));
     credits -= 1;
@@ -177,12 +208,14 @@ test("文本节点可通过生成设置使用目录文本模型：报价、提�
       status: "completed",
       progress: 100,
       quote: textQuote(body.parameters),
-      artifacts: [{
-        id: "artifact-text-result",
-        kind: "text",
-        text: "夜色渐深，站台上的雨丝被暖黄灯光拉成细线。",
-        createdAt: NOW,
-      }],
+      artifacts: [
+        {
+          id: "artifact-text-result",
+          kind: "text",
+          text: "夜色渐深，站台上的雨丝被暖黄灯光拉成细线。",
+          createdAt: NOW,
+        },
+      ],
       error: null,
       createdAt: NOW,
       updatedAt: NOW,
@@ -192,30 +225,44 @@ test("文本节点可通过生成设置使用目录文本模型：报价、提�
     jobs.push(created);
     return route.fulfill({ status: 202, json: { ok: true, data: created } });
   });
-  await page.route("**/api/v1/wallet", (route) => route.fulfill({ json: { ok: true, data: summary(credits) } }));
+  await page.route("**/api/v1/wallet", (route) =>
+    route.fulfill({ json: { ok: true, data: summary(credits) } }),
+  );
 
   await page.goto("/canvas");
-  await expect(page.locator('[data-save-state]')).toBeVisible();
+  await expect(page.locator("[data-save-state]")).toBeVisible();
 
-  await page.getByRole("navigation", { name: "创建工具" }).locator(".kc-create-rail-plus-wrapper").hover();
-  await page.getByRole("navigation", { name: "创建工具" }).getByRole("menuitem", { name: "添加文本节点" }).click();
-  const textNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="text"])').last();
-  await textNode.locator(".kc-node-drag-strip").click();
+  await page
+    .getByRole("navigation", { name: "创建工具" })
+    .locator(".wc-create-rail-plus-wrapper")
+    .hover();
+  await page
+    .getByRole("navigation", { name: "创建工具" })
+    .getByRole("menuitem", { name: "添加文本节点" })
+    .click();
+  const textNode = page
+    .locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="text"])')
+    .last();
+  await textNode.locator(".wc-node-drag-strip").click();
   await expect(page.locator("[data-node-prompt-composer]")).toBeVisible();
 
   await textNode.hover();
-  await page.locator('.kc-node-action-toolbar[data-node-kind="text"] [data-toolbar-action="generate"]').click();
+  await page
+    .locator('.wc-node-action-toolbar[data-node-kind="text"] [data-toolbar-action="generate"]')
+    .click();
   const dialog = page.getByRole("dialog", { name: "文本节点生成设置" });
   await expect(dialog).toBeVisible();
   await expect(dialog.locator("[data-generation-model-select]")).toHaveValue("e2e-text-model");
 
   const prompt = "写一段雨夜站台的分镜描述";
-  await dialog.locator(".kc-generation-prompt textarea").fill(prompt);
-  await dialog.locator('.kc-generation-field:has(> span:text("最大输出令牌")) input[type="number"]').fill("2048");
+  await dialog.locator(".wc-generation-prompt textarea").fill(prompt);
+  await dialog
+    .locator('.wc-generation-field:has(> span:text("最大输出令牌")) input[type="number"]')
+    .fill("2048");
   await expect.poll(() => quotes.some((entry) => entry.modality === "text")).toBe(true);
-  await expect(dialog.locator(".kc-generation-quote")).toContainText("0.195");
+  await expect(dialog.locator(".wc-generation-quote")).toContainText("0.195");
 
-  const submit = dialog.locator(".kc-generation-submit");
+  const submit = dialog.locator(".wc-generation-submit");
   await expect(submit).toBeEnabled();
   await submit.click();
 
@@ -231,14 +278,20 @@ test("文本节点可通过生成设置使用目录文本模型：报价、提�
   expect(parameters.max_tokens).toBe(2048);
   expect(submitted.inputTokens).toBeGreaterThan(0);
   expect(submitted.maxOutputTokens).toBe(2048);
-  expect(submitted.inputs).toEqual({ images: [], styleImages: [], elementImages: [], videos: [], audios: [] });
+  expect(submitted.inputs).toEqual({
+    images: [],
+    styleImages: [],
+    elementImages: [],
+    videos: [],
+    audios: [],
+  });
   expect(submitted.expectedQuote).toMatchObject({ id: "quote-text", modelId: "e2e-text-model" });
   expect(idempotencyKeys).toEqual([expect.stringMatching(/^job:[0-9a-f]{8}-/)]);
 
-  await expect(textNode.locator(".kc-node-wrap")).toHaveAttribute("data-node-status", "success");
-  await expect(textNode.locator(".kc-node-text-preview")).toContainText("夜色渐深，站台上的雨丝");
+  await expect(textNode.locator(".wc-node-wrap")).toHaveAttribute("data-node-status", "success");
+  await expect(textNode.locator(".wc-node-text-preview")).toContainText("夜色渐深，站台上的雨丝");
   await expect(page.getByLabel("文本节点提示词")).toContainText("夜色渐深，站台上的雨丝");
-  await expect(page.locator(".kc-credit-trigger")).toContainText("99");
+  await expect(page.locator(".wc-credit-trigger")).toContainText("99");
 
   expect(network.unmocked, `unmocked /api requests: ${network.unmocked.join(", ")}`).toEqual([]);
   expect(network.external, `external network requests: ${network.external.join(", ")}`).toEqual([]);

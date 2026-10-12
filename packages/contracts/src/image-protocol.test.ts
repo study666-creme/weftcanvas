@@ -39,9 +39,17 @@ describe("image.v1 protocol", () => {
   });
 
   it("accepts a stable canonical image output", () => {
-    expect(imageProtocolResponseSchema.parse({
-      type: "image",
-      outputs: [{ type: "image", content_url: "https://media.example/result.png", mime_type: "image/png" }],
-    }).outputs[0]?.content_url).toBe("https://media.example/result.png");
+    expect(
+      imageProtocolResponseSchema.parse({
+        type: "image",
+        outputs: [
+          {
+            type: "image",
+            content_url: "https://media.example/result.png",
+            mime_type: "image/png",
+          },
+        ],
+      }).outputs[0]?.content_url,
+    ).toBe("https://media.example/result.png");
   });
 });

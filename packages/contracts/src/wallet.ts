@@ -79,22 +79,25 @@ const MAX_META_STRING_LENGTH = 240;
 const normalizeUpstreamLedgerItem = (input: unknown): unknown => {
   if (!input || typeof input !== "object" || Array.isArray(input)) return input;
   const record = input as Record<string, unknown>;
-  const reason = typeof record.reason === "string" && record.reason.trim()
-    ? record.reason
-    : typeof record.type === "string" && record.type.trim()
-      ? record.type
-      : "ledger";
-  const reasonLabel = typeof record.reasonLabel === "string" && record.reasonLabel.trim()
-    ? record.reasonLabel
-    : typeof record.reason === "string" && record.reason.trim()
+  const reason =
+    typeof record.reason === "string" && record.reason.trim()
       ? record.reason
       : typeof record.type === "string" && record.type.trim()
         ? record.type
-        : "积分变动";
+        : "ledger";
+  const reasonLabel =
+    typeof record.reasonLabel === "string" && record.reasonLabel.trim()
+      ? record.reasonLabel
+      : typeof record.reason === "string" && record.reason.trim()
+        ? record.reason
+        : typeof record.type === "string" && record.type.trim()
+          ? record.type
+          : "积分变动";
   const refId = typeof record.refId === "string" && record.refId.trim() ? record.refId : null;
-  const meta = record.meta && typeof record.meta === "object" && !Array.isArray(record.meta)
-    ? boundUpstreamMeta(record.meta, 0)
-    : null;
+  const meta =
+    record.meta && typeof record.meta === "object" && !Array.isArray(record.meta)
+      ? boundUpstreamMeta(record.meta, 0)
+      : null;
   return {
     id: record.id,
     delta: record.delta,
@@ -178,18 +181,33 @@ export const walletProductSchema = z.discriminatedUnion("kind", [
 ]);
 export type WalletProduct = z.infer<typeof walletProductSchema>;
 
-const hasAtMostTwoDecimalPlaces = (value: number) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-6;
+const hasAtMostTwoDecimalPlaces = (value: number) =>
+  Math.abs(value * 100 - Math.round(value * 100)) < 1e-6;
 
-export const walletCustomCreditTopUpSchema = z.object({
-  productId: z.string().trim().min(1).max(64),
-  minAmount: z.number().finite().positive().refine(hasAtMostTwoDecimalPlaces, "amount must use at most two decimals"),
-  maxAmount: z.number().finite().positive().refine(hasAtMostTwoDecimalPlaces, "amount must use at most two decimals"),
-  creditsPerYuan: z.number().finite().positive(),
-}).superRefine((value, context) => {
-  if (value.maxAmount < value.minAmount) {
-    context.addIssue({ code: "custom", path: ["maxAmount"], message: "maxAmount must be greater than or equal to minAmount" });
-  }
-});
+export const walletCustomCreditTopUpSchema = z
+  .object({
+    productId: z.string().trim().min(1).max(64),
+    minAmount: z
+      .number()
+      .finite()
+      .positive()
+      .refine(hasAtMostTwoDecimalPlaces, "amount must use at most two decimals"),
+    maxAmount: z
+      .number()
+      .finite()
+      .positive()
+      .refine(hasAtMostTwoDecimalPlaces, "amount must use at most two decimals"),
+    creditsPerYuan: z.number().finite().positive(),
+  })
+  .superRefine((value, context) => {
+    if (value.maxAmount < value.minAmount) {
+      context.addIssue({
+        code: "custom",
+        path: ["maxAmount"],
+        message: "maxAmount must be greater than or equal to minAmount",
+      });
+    }
+  });
 export type WalletCustomCreditTopUp = z.infer<typeof walletCustomCreditTopUpSchema>;
 
 /**
@@ -197,54 +215,65 @@ export type WalletCustomCreditTopUp = z.infer<typeof walletCustomCreditTopUpSche
  * custom top-up rules beside it. Accept the newer embedded form as well, but
  * expose one canonical shape to callers.
  */
-export const walletProductsResponseSchema = z.preprocess((input) => {
-  if (!input || typeof input !== "object") return input;
-  const value = input as { data?: unknown; customCreditTopUp?: unknown };
-  if (!value.data || typeof value.data !== "object" || Array.isArray(value.data)) return input;
-  const embedded = value.data as { products?: unknown; customCreditTopUp?: unknown };
-  if (!Array.isArray(embedded.products)) return input;
-  return {
-    ...value,
-    data: embedded.products,
-    customCreditTopUp: value.customCreditTopUp ?? embedded.customCreditTopUp,
-  };
-}, z.object({
-  ok: z.literal(true),
-  data: z.array(walletProductSchema).max(64),
-  customCreditTopUp: walletCustomCreditTopUpSchema.nullable().optional().default(null),
-}));
+export const walletProductsResponseSchema = z.preprocess(
+  (input) => {
+    if (!input || typeof input !== "object") return input;
+    const value = input as { data?: unknown; customCreditTopUp?: unknown };
+    if (!value.data || typeof value.data !== "object" || Array.isArray(value.data)) return input;
+    const embedded = value.data as { products?: unknown; customCreditTopUp?: unknown };
+    if (!Array.isArray(embedded.products)) return input;
+    return {
+      ...value,
+      data: embedded.products,
+      customCreditTopUp: value.customCreditTopUp ?? embedded.customCreditTopUp,
+    };
+  },
+  z.object({
+    ok: z.literal(true),
+    data: z.array(walletProductSchema).max(64),
+    customCreditTopUp: walletCustomCreditTopUpSchema.nullable().optional().default(null),
+  }),
+);
 
 export const walletPaymentMethodSchema = z.enum(["alipay", "wxpay"]);
 export type WalletPaymentMethod = z.infer<typeof walletPaymentMethodSchema>;
 
-export const walletCheckoutRequestSchema = z.object({
-  productId: z.string().trim().min(1).max(64),
-  paymentMethod: walletPaymentMethodSchema,
-  creditGrantMode: z.enum(["daily", "bundle"]).optional(),
-  customAmount: z.number()
-    .finite()
-    .min(5)
-    .max(5000)
-    .refine(hasAtMostTwoDecimalPlaces, "custom amount must use at most two decimals")
-    .optional(),
-}).strict();
+export const walletCheckoutRequestSchema = z
+  .object({
+    productId: z.string().trim().min(1).max(64),
+    paymentMethod: walletPaymentMethodSchema,
+    creditGrantMode: z.enum(["daily", "bundle"]).optional(),
+    customAmount: z
+      .number()
+      .finite()
+      .min(5)
+      .max(5000)
+      .refine(hasAtMostTwoDecimalPlaces, "custom amount must use at most two decimals")
+      .optional(),
+  })
+  .strict();
 export type WalletCheckoutRequest = z.infer<typeof walletCheckoutRequestSchema>;
 
 export const walletCheckoutResponseSchema = z.object({
   ok: z.literal(true),
   data: z.object({
     orderNo: z.string().regex(/^PAY[A-Z0-9]+$/),
-    checkoutUrl: z.string().url().refine((value) => {
-      const protocol = new URL(value).protocol;
-      return protocol === "https:";
-    }, "checkout URL must use HTTPS"),
+    checkoutUrl: z
+      .string()
+      .url()
+      .refine((value) => {
+        const protocol = new URL(value).protocol;
+        return protocol === "https:";
+      }, "checkout URL must use HTTPS"),
   }),
 });
 
-export const walletRedeemRequestSchema = z.object({
-  code: z.string().trim().min(1).max(64),
-  creditGrantMode: z.enum(["daily", "bundle"]).optional(),
-}).strict();
+export const walletRedeemRequestSchema = z
+  .object({
+    code: z.string().trim().min(1).max(64),
+    creditGrantMode: z.enum(["daily", "bundle"]).optional(),
+  })
+  .strict();
 export type WalletRedeemRequest = z.infer<typeof walletRedeemRequestSchema>;
 
 export const walletRedeemResponseSchema = z.object({

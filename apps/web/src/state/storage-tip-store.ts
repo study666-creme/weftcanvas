@@ -1,4 +1,4 @@
-import type { CloudProjectUsage, CloudStorageGrace } from "@kachang/contracts";
+import type { CloudProjectUsage } from "@weftcanvas/contracts";
 import { create } from "zustand";
 
 /**
@@ -16,12 +16,15 @@ export type StorageTipState = {
   level: StorageTipLevel | null;
   /** 当前档位对应的用量百分比（grace 态无百分比）。 */
   percent: number | null;
-  reevaluate: (usage: CloudProjectUsage | null, grace?: CloudProjectUsage["storageGrace"] | null) => void;
+  reevaluate: (
+    usage: CloudProjectUsage | null,
+    grace?: CloudProjectUsage["storageGrace"] | null,
+  ) => void;
   dismiss: () => void;
   reset: () => void;
 };
 
-const DISMISSED_KEY = "kachang-canvas:storage-tip-dismissed:v1";
+const DISMISSED_KEY = "weftcanvas:storage-tip-dismissed:v1";
 const NEARING_THRESHOLD = 0.8;
 const CRITICAL_THRESHOLD = 0.95;
 
@@ -48,20 +51,33 @@ function writeDismissed(record: DismissedRecord | null) {
   }
 }
 
-const LEVEL_SEVERITY: Record<StorageTipLevel, number> = { nearing: 0, critical: 1, over: 2, grace: 3 };
+const LEVEL_SEVERITY: Record<StorageTipLevel, number> = {
+  nearing: 0,
+  critical: 1,
+  over: 2,
+  grace: 3,
+};
 
 /**
  * 判断 dismissed 记录是否仍应压制当前提示：
  * - 更严重档位 → 重新出现；
  * - 同档位但百分比恶化超过 5 个百分点 → 重新出现（渐进恶化仍可见）。
  */
-function suppressionStillValid(dismissed: DismissedRecord, level: StorageTipLevel, percent: number | null) {
+function suppressionStillValid(
+  dismissed: DismissedRecord,
+  level: StorageTipLevel,
+  percent: number | null,
+) {
   if (LEVEL_SEVERITY[level] > LEVEL_SEVERITY[dismissed.level]) return false;
-  if (percent !== null && dismissed.percent !== null && percent - dismissed.percent >= 5) return false;
+  if (percent !== null && dismissed.percent !== null && percent - dismissed.percent >= 5)
+    return false;
   return true;
 }
 
-export function quotaLevel(usage: CloudProjectUsage | null): { level: StorageTipLevel | null; percent: number | null } {
+export function quotaLevel(usage: CloudProjectUsage | null): {
+  level: StorageTipLevel | null;
+  percent: number | null;
+} {
   if (!usage) return { level: null, percent: null };
   const quota = usage.entitlements.mediaStorageBytes;
   if (!quota) return { level: null, percent: null };

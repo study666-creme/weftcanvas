@@ -1,8 +1,8 @@
 export type ThemeMode = "light" | "dark";
 export type ThemeScheduleMode = "auto" | "manual";
 
-export const THEME_STORAGE_KEY = "kachang-canvas:theme";
-export const THEME_MODE_STORAGE_KEY = "kachang-canvas:theme-mode";
+export const THEME_STORAGE_KEY = "weftcanvas:theme";
+export const THEME_MODE_STORAGE_KEY = "weftcanvas:theme-mode";
 
 /** 自动日程：每天 08:00 切白天，19:00 切黑夜。 */
 export const THEME_DAY_HOUR = 8;
@@ -66,11 +66,12 @@ export function initialTheme(): ThemeMode {
 export function msUntilNextThemeFlip(now = new Date()): number {
   const next = new Date(now);
   next.setSeconds(0, 0);
-  const targetHour = now.getHours() < THEME_DAY_HOUR
-    ? THEME_DAY_HOUR
-    : now.getHours() < THEME_NIGHT_HOUR
-      ? THEME_NIGHT_HOUR
-      : THEME_DAY_HOUR;
+  const targetHour =
+    now.getHours() < THEME_DAY_HOUR
+      ? THEME_DAY_HOUR
+      : now.getHours() < THEME_NIGHT_HOUR
+        ? THEME_NIGHT_HOUR
+        : THEME_DAY_HOUR;
   if (now.getHours() >= THEME_NIGHT_HOUR) next.setDate(next.getDate() + 1);
   next.setHours(targetHour, 0, 0, 0);
   return Math.max(1_000, next.getTime() - now.getTime());

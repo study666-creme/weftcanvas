@@ -1,4 +1,4 @@
-import type { GenerationJobInput } from "@kachang/contracts";
+import type { GenerationJobInput } from "@weftcanvas/contracts";
 
 import { MediaService, MediaServiceError } from "../media/service.js";
 import type { GenerationInputAuthorizer, GenerationInputAuthorizationResult } from "./service.js";

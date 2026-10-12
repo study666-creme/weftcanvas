@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import type { PrivateModelRoute } from "../catalog/execution-route.js";
 import {
-  KachangGenerationProvider,
+  WeftcanvasGenerationProvider,
   type GenerationReferenceResolver,
-} from "./kachang-provider.js";
+} from "./weftcanvas-provider.js";
 import {
   stagedGenerationResultSchema,
   type GenerationResultStagingStore,
@@ -13,18 +13,31 @@ import {
 } from "./result-staging.js";
 import type { ProviderGenerationRequest } from "./types.js";
 
-describe("Kachang generation provider", () => {
+describe("Weftcanvas generation provider", () => {
   it("submits private text routes and stages text plus usage", async () => {
-    const network = scriptedFetch([jsonResponse({
-      choices: [{ message: { content: [{ type: "text", text: "第一段" }, { type: "text", text: "第二段" }] } }],
-      usage: { prompt_tokens: 120, completion_tokens: 45 },
-    })]);
+    const network = scriptedFetch([
+      jsonResponse({
+        choices: [
+          {
+            message: {
+              content: [
+                { type: "text", text: "第一段" },
+                { type: "text", text: "第二段" },
+              ],
+            },
+          },
+        ],
+        usage: { prompt_tokens: 120, completion_tokens: 45 },
+      }),
+    ]);
     const staging = new MemoryStagingStore();
     const provider = createProvider(network.fetch, staging);
-    const result = await provider.submit(request(textRoute(), "text", {
-      messages: [{ role: "user", content: "改写这段文字" }],
-      stream: false,
-    }));
+    const result = await provider.submit(
+      request(textRoute(), "text", {
+        messages: [{ role: "user", content: "改写这段文字" }],
+        stream: false,
+      }),
+    );
 
     expect(result).toMatchObject({ kind: "output" });
     expect(await stagedResult(staging, result)).toEqual({
@@ -44,12 +57,14 @@ describe("Kachang generation provider", () => {
   });
 
   it("binds multiple image references and stages URL and base64 results", async () => {
-    const network = scriptedFetch([jsonResponse({
-      data: [
-        { url: "https://media.example/result.png", revised_prompt: "revised" },
-        { b64_json: "aW1hZ2U=" },
-      ],
-    })]);
+    const network = scriptedFetch([
+      jsonResponse({
+        data: [
+          { url: "https://media.example/result.png", revised_prompt: "revised" },
+          { b64_json: "aW1hZ2U=" },
+        ],
+      }),
+    ]);
     const staging = new MemoryStagingStore();
     const references = new MapReferenceResolver({
       "media-1": "https://media.example/reference-1.png",
@@ -80,7 +95,10 @@ describe("Kachang generation provider", () => {
 
   it("resolves relative image result URLs against the configured provider origin", async () => {
     const staging = new MemoryStagingStore();
-    const provider = createProvider(scriptedFetch([jsonResponse({ data: [{ url: "/files/result.png" }] })]).fetch, staging);
+    const provider = createProvider(
+      scriptedFetch([jsonResponse({ data: [{ url: "/files/result.png" }] })]).fetch,
+      staging,
+    );
     const result = await provider.submit(request(imageRoute(), "image", { prompt: "test" }));
 
     expect(await stagedResult(staging, result)).toEqual({
@@ -113,9 +131,13 @@ describe("Kachang generation provider", () => {
       }),
     ]);
     const staging = new MemoryStagingStore();
-    const provider = createProvider(network.fetch, staging, new MapReferenceResolver({
-      reference: "https://media.example/reference.png",
-    }));
+    const provider = createProvider(
+      network.fetch,
+      staging,
+      new MapReferenceResolver({
+        reference: "https://media.example/reference.png",
+      }),
+    );
     const job = {
       ...request(midjourneyRoute(), "image", {
         prompt: "cinematic city",
@@ -128,8 +150,16 @@ describe("Kachang generation provider", () => {
       inputs: { images: ["reference"], styleImages: [], elementImages: [], videos: [], audios: [] },
     };
 
-    expect(await provider.submit(job)).toEqual({ kind: "queued", taskId: "task-public", progress: 0 });
-    expect(await provider.poll("task-public", job)).toEqual({ kind: "running", taskId: "task-public", progress: 52 });
+    expect(await provider.submit(job)).toEqual({
+      kind: "queued",
+      taskId: "task-public",
+      progress: 0,
+    });
+    expect(await provider.poll("task-public", job)).toEqual({
+      kind: "running",
+      taskId: "task-public",
+      progress: 52,
+    });
     const completed = await provider.poll("task-public", job);
 
     expect(await stagedResult(staging, completed)).toEqual({
@@ -154,20 +184,27 @@ describe("Kachang generation provider", () => {
 
   it("keeps polling when a Midjourney task completes before its gallery is visible", async () => {
     const provider = createProvider(
-      scriptedFetch([jsonResponse({ data: { task_id: "task-public", status: "completed", progress: "100%" } })]).fetch,
+      scriptedFetch([
+        jsonResponse({ data: { task_id: "task-public", status: "completed", progress: "100%" } }),
+      ]).fetch,
       new MemoryStagingStore(),
     );
-    await expect(provider.poll("task-public", request(midjourneyRoute(), "image", { prompt: "test" })))
-      .rejects.toMatchObject({ code: "IMAGE_RESULT_PENDING", outcome: "transient" });
+    await expect(
+      provider.poll("task-public", request(midjourneyRoute(), "image", { prompt: "test" })),
+    ).rejects.toMatchObject({ code: "IMAGE_RESULT_PENDING", outcome: "transient" });
   });
 
   it("binds frame, style, and element image slots by route path without model-specific rules", async () => {
     const network = scriptedFetch([jsonResponse({ id: "task-1", status: "queued" })]);
-    const provider = createProvider(network.fetch, new MemoryStagingStore(), new MapReferenceResolver({
-      frame: "https://media.example/frame.png",
-      style: "https://media.example/style.png",
-      element: "https://media.example/element.png",
-    }));
+    const provider = createProvider(
+      network.fetch,
+      new MemoryStagingStore(),
+      new MapReferenceResolver({
+        frame: "https://media.example/frame.png",
+        style: "https://media.example/style.png",
+        element: "https://media.example/element.png",
+      }),
+    );
     const route: PrivateModelRoute = {
       sourceModelId: "private-reference-video",
       modality: "video",
@@ -175,14 +212,35 @@ describe("Kachang generation provider", () => {
       parameters: [
         { name: "model", path: "model", type: "string", fixed: "private-reference-video" },
         { name: "prompt", path: "prompt", type: "string" },
-        { name: "referenceImages", path: "images", type: "array", itemsFormat: "uri-or-data-image" },
-        { name: "referenceImages", path: "style_references", type: "array", itemsFormat: "uri-or-data-image" },
-        { name: "referenceImages", path: "element_references", type: "array", itemsFormat: "uri-or-data-image" },
+        {
+          name: "referenceImages",
+          path: "images",
+          type: "array",
+          itemsFormat: "uri-or-data-image",
+        },
+        {
+          name: "referenceImages",
+          path: "style_references",
+          type: "array",
+          itemsFormat: "uri-or-data-image",
+        },
+        {
+          name: "referenceImages",
+          path: "element_references",
+          type: "array",
+          itemsFormat: "uri-or-data-image",
+        },
       ],
     };
     await provider.submit({
       ...request(route, "video", { prompt: "test" }),
-      inputs: { images: ["frame"], styleImages: ["style"], elementImages: ["element"], videos: [], audios: [] },
+      inputs: {
+        images: ["frame"],
+        styleImages: ["style"],
+        elementImages: ["element"],
+        videos: [],
+        audios: [],
+      },
     });
 
     expect(network.calls[0]?.body).toMatchObject({
@@ -203,11 +261,15 @@ describe("Kachang generation provider", () => {
     ["sd2.0-720p", "reference_images"],
   ])("binds every %s image to its all-purpose reference array", async (modelId, referencePath) => {
     const network = scriptedFetch([jsonResponse({ id: "task-1", status: "queued" })]);
-    const provider = createProvider(network.fetch, new MemoryStagingStore(), new MapReferenceResolver({
-      first: "https://media.example/first.png",
-      second: "https://media.example/second.png",
-      third: "https://media.example/third.png",
-    }));
+    const provider = createProvider(
+      network.fetch,
+      new MemoryStagingStore(),
+      new MapReferenceResolver({
+        first: "https://media.example/first.png",
+        second: "https://media.example/second.png",
+        third: "https://media.example/third.png",
+      }),
+    );
     const route = allPurposeReferenceVideoRoute(modelId, referencePath);
 
     await provider.submit({
@@ -232,10 +294,14 @@ describe("Kachang generation provider", () => {
 
   it("keeps pure first-last-frame routes on their two-frame contract", async () => {
     const network = scriptedFetch([jsonResponse({ id: "task-1", status: "queued" })]);
-    const provider = createProvider(network.fetch, new MemoryStagingStore(), new MapReferenceResolver({
-      first: "https://media.example/first.png",
-      last: "https://media.example/last.png",
-    }));
+    const provider = createProvider(
+      network.fetch,
+      new MemoryStagingStore(),
+      new MapReferenceResolver({
+        first: "https://media.example/first.png",
+        last: "https://media.example/last.png",
+      }),
+    );
     const route = firstLastFrameVideoRoute();
 
     await provider.submit({
@@ -261,9 +327,13 @@ describe("Kachang generation provider", () => {
 
   it("binds a singular reference video parameter as a URL", async () => {
     const network = scriptedFetch([jsonResponse({ id: "task-1", status: "queued" })]);
-    const provider = createProvider(network.fetch, new MemoryStagingStore(), new MapReferenceResolver({
-      source: "https://media.example/source.mp4",
-    }));
+    const provider = createProvider(
+      network.fetch,
+      new MemoryStagingStore(),
+      new MapReferenceResolver({
+        source: "https://media.example/source.mp4",
+      }),
+    );
     const route: PrivateModelRoute = {
       sourceModelId: "private-reference-video",
       modality: "video",
@@ -271,7 +341,12 @@ describe("Kachang generation provider", () => {
       parameters: [
         { name: "model", path: "model", type: "string", fixed: "private-reference-video" },
         { name: "prompt", path: "prompt", type: "string" },
-        { name: "referenceVideos", path: "input_video", type: "string", format: "uri-or-data-video" },
+        {
+          name: "referenceVideos",
+          path: "input_video",
+          type: "string",
+          format: "uri-or-data-video",
+        },
       ],
     };
     await provider.submit({
@@ -282,7 +357,9 @@ describe("Kachang generation provider", () => {
     expect(network.calls[0]?.body).toMatchObject({
       version: "video.v1",
       operation: "video_to_video",
-      media_inputs: [{ kind: "video", role: "source_video", url: "https://media.example/source.mp4" }],
+      media_inputs: [
+        { kind: "video", role: "source_video", url: "https://media.example/source.mp4" },
+      ],
     });
   });
 
@@ -290,14 +367,27 @@ describe("Kachang generation provider", () => {
     const network = scriptedFetch([
       jsonResponse({ id: "task-1", status: "queued", progress: 2 }),
       jsonResponse({ id: "task-1", status: "in_progress", progress: 46 }),
-      jsonResponse({ id: "task-1", status: "completed", progress: 100, content: { video_url: "https://media.example/result.mp4" } }),
+      jsonResponse({
+        id: "task-1",
+        status: "completed",
+        progress: 100,
+        content: { video_url: "https://media.example/result.mp4" },
+      }),
     ]);
     const staging = new MemoryStagingStore();
     const provider = createProvider(network.fetch, staging);
-    const job = request(videoRoute(), "video", { prompt: "人物转身", duration: 6, aspect_ratio: "16:9" });
+    const job = request(videoRoute(), "video", {
+      prompt: "人物转身",
+      duration: 6,
+      aspect_ratio: "16:9",
+    });
 
     expect(await provider.submit(job)).toEqual({ kind: "queued", taskId: "task-1", progress: 2 });
-    expect(await provider.poll("task-1", job)).toEqual({ kind: "running", taskId: "task-1", progress: 46 });
+    expect(await provider.poll("task-1", job)).toEqual({
+      kind: "running",
+      taskId: "task-1",
+      progress: 46,
+    });
     const completed = await provider.poll("task-1", job);
 
     expect(await stagedResult(staging, completed)).toEqual({
@@ -313,10 +403,16 @@ describe("Kachang generation provider", () => {
   });
 
   it("submits the fixed-resolution nine-image route with duration, ratio, and resolution", async () => {
-    const network = scriptedFetch([jsonResponse({ id: "task-nine", status: "queued", progress: 0 })]);
-    const provider = createProvider(network.fetch, new MemoryStagingStore(), new MapReferenceResolver({
-      reference: "https://media.example/reference.png",
-    }));
+    const network = scriptedFetch([
+      jsonResponse({ id: "task-nine", status: "queued", progress: 0 }),
+    ]);
+    const provider = createProvider(
+      network.fetch,
+      new MemoryStagingStore(),
+      new MapReferenceResolver({
+        reference: "https://media.example/reference.png",
+      }),
+    );
     const route: PrivateModelRoute = {
       sourceModelId: "S-2.0-9图版",
       modality: "video",
@@ -332,16 +428,24 @@ describe("Kachang generation provider", () => {
       ],
     };
 
-    await expect(provider.submit({
-      ...request(route, "video", {
-        prompt: "人物自然转身",
-        duration_seconds: 15,
-        aspect_ratio: "9:16",
-        resolution: "720p",
+    await expect(
+      provider.submit({
+        ...request(route, "video", {
+          prompt: "人物自然转身",
+          duration_seconds: 15,
+          aspect_ratio: "9:16",
+          resolution: "720p",
+        }),
+        modelId: "S-2.0-9图版",
+        inputs: {
+          images: ["reference"],
+          styleImages: [],
+          elementImages: [],
+          videos: [],
+          audios: [],
+        },
       }),
-      modelId: "S-2.0-9图版",
-      inputs: { images: ["reference"], styleImages: [], elementImages: [], videos: [], audios: [] },
-    })).resolves.toEqual({ kind: "queued", taskId: "task-nine", progress: 0 });
+    ).resolves.toEqual({ kind: "queued", taskId: "task-nine", progress: 0 });
 
     expect(network.calls[0]?.body).toEqual({
       version: "video.v1",
@@ -351,7 +455,9 @@ describe("Kachang generation provider", () => {
       duration_seconds: 15,
       aspect_ratio: "9:16",
       resolution: "720p",
-      media_inputs: [{ kind: "image", role: "reference", url: "https://media.example/reference.png" }],
+      media_inputs: [
+        { kind: "image", role: "reference", url: "https://media.example/reference.png" },
+      ],
       options: { async: true, n: 1 },
     });
   });
@@ -360,7 +466,11 @@ describe("Kachang generation provider", () => {
     const network = scriptedFetch([
       jsonResponse({ id: "image-task-1", status: "queued", progress: 3 }),
       jsonResponse({ id: "image-task-1", status: "running", progress: 48 }),
-      jsonResponse({ id: "image-task-1", status: "completed", url: "https://media.example/image2-a.png" }),
+      jsonResponse({
+        id: "image-task-1",
+        status: "completed",
+        url: "https://media.example/image2-a.png",
+      }),
     ]);
     const staging = new MemoryStagingStore();
     const provider = createProvider(network.fetch, staging);
@@ -403,9 +513,16 @@ describe("Kachang generation provider", () => {
 
   it("resolves relative video result URLs against the configured provider origin", async () => {
     const staging = new MemoryStagingStore();
-    const provider = createProvider(scriptedFetch([
-      jsonResponse({ id: "task-1", status: "completed", content: { video_url: "/files/result.mp4" } }),
-    ]).fetch, staging);
+    const provider = createProvider(
+      scriptedFetch([
+        jsonResponse({
+          id: "task-1",
+          status: "completed",
+          content: { video_url: "/files/result.mp4" },
+        }),
+      ]).fetch,
+      staging,
+    );
     const result = await provider.submit(request(videoRoute(), "video", { prompt: "test" }));
 
     expect(await stagedResult(staging, result)).toEqual({
@@ -420,30 +537,51 @@ describe("Kachang generation provider", () => {
       scriptedFetch([jsonResponse({ id: "task-1", status: "completed", progress: 100 })]).fetch,
       new MemoryStagingStore(),
     );
-    await expect(provider.poll("task-1", request(videoRoute(), "video", { prompt: "test" })))
-      .rejects.toMatchObject({ code: "VIDEO_RESULT_PENDING", outcome: "transient" });
+    await expect(
+      provider.poll("task-1", request(videoRoute(), "video", { prompt: "test" })),
+    ).rejects.toMatchObject({ code: "VIDEO_RESULT_PENDING", outcome: "transient" });
   });
 
   it("classifies definitive rejection, ambiguous submission, and transient polling failures", async () => {
-    const rejectedProvider = createProvider(scriptedFetch([jsonResponse({ error: {} }, 400)]).fetch, new MemoryStagingStore());
-    await expect(rejectedProvider.submit(request(imageRoute(), "image", { prompt: "test" }))).rejects.toMatchObject({
+    const rejectedProvider = createProvider(
+      scriptedFetch([jsonResponse({ error: {} }, 400)]).fetch,
+      new MemoryStagingStore(),
+    );
+    await expect(
+      rejectedProvider.submit(request(imageRoute(), "image", { prompt: "test" })),
+    ).rejects.toMatchObject({
       code: "GENERATION_REQUEST_FAILED",
       outcome: "rejected",
     });
 
-    const uncertainProvider = createProvider(scriptedFetch([jsonResponse({ error: {} }, 503)]).fetch, new MemoryStagingStore());
-    await expect(uncertainProvider.submit(request(imageRoute(), "image", { prompt: "test" }))).rejects.toMatchObject({
+    const uncertainProvider = createProvider(
+      scriptedFetch([jsonResponse({ error: {} }, 503)]).fetch,
+      new MemoryStagingStore(),
+    );
+    await expect(
+      uncertainProvider.submit(request(imageRoute(), "image", { prompt: "test" })),
+    ).rejects.toMatchObject({
       outcome: "unknown",
     });
 
-    const disconnectedProvider = createProvider(scriptedFetch([new Error("socket closed")]).fetch, new MemoryStagingStore());
-    await expect(disconnectedProvider.submit(request(imageRoute(), "image", { prompt: "test" }))).rejects.toMatchObject({
+    const disconnectedProvider = createProvider(
+      scriptedFetch([new Error("socket closed")]).fetch,
+      new MemoryStagingStore(),
+    );
+    await expect(
+      disconnectedProvider.submit(request(imageRoute(), "image", { prompt: "test" })),
+    ).rejects.toMatchObject({
       code: "GENERATION_SUBMISSION_UNCONFIRMED",
       outcome: "unknown",
     });
 
-    const pollingProvider = createProvider(scriptedFetch([jsonResponse({ error: {} }, 503)]).fetch, new MemoryStagingStore());
-    await expect(pollingProvider.poll("task-1", request(videoRoute(), "video", { prompt: "test" }))).rejects.toMatchObject({
+    const pollingProvider = createProvider(
+      scriptedFetch([jsonResponse({ error: {} }, 503)]).fetch,
+      new MemoryStagingStore(),
+    );
+    await expect(
+      pollingProvider.poll("task-1", request(videoRoute(), "video", { prompt: "test" })),
+    ).rejects.toMatchObject({
       code: "GENERATION_REQUEST_FAILED",
       outcome: "transient",
     });
@@ -455,9 +593,15 @@ describe("Kachang generation provider", () => {
     const route = imageRoute();
     route.endpoint.path = "/internal/admin";
 
-    await expect(provider.submit(request(route, "image", { prompt: "test" }))).rejects.toMatchObject({ code: "EXECUTION_ROUTE_INVALID" });
-    await expect(provider.submit(request(textRoute(), "text", { messages: [], stream: true }))).rejects.toMatchObject({ code: "STREAMING_UNAVAILABLE" });
-    await expect(provider.submit({ ...request(imageRoute(), "image", { prompt: "test" }), quantity: 2 })).rejects.toMatchObject({ code: "BATCH_GENERATION_UNAVAILABLE" });
+    await expect(
+      provider.submit(request(route, "image", { prompt: "test" })),
+    ).rejects.toMatchObject({ code: "EXECUTION_ROUTE_INVALID" });
+    await expect(
+      provider.submit(request(textRoute(), "text", { messages: [], stream: true })),
+    ).rejects.toMatchObject({ code: "STREAMING_UNAVAILABLE" });
+    await expect(
+      provider.submit({ ...request(imageRoute(), "image", { prompt: "test" }), quantity: 2 }),
+    ).rejects.toMatchObject({ code: "BATCH_GENERATION_UNAVAILABLE" });
     expect(network.calls).toHaveLength(0);
   });
 
@@ -473,12 +617,16 @@ describe("Kachang generation provider", () => {
         { name: "prompt", path: "prompt", type: "string" },
       ],
     };
-    await expect(provider.submit(request(route, "audio", { prompt: "生成一段音乐" }))).rejects.toMatchObject({
+    await expect(
+      provider.submit(request(route, "audio", { prompt: "生成一段音乐" })),
+    ).rejects.toMatchObject({
       code: "MODEL_MODALITY_UNAVAILABLE",
       message: "当前音频模型暂不支持生成",
       outcome: "rejected",
     });
-    await expect(provider.poll("task-1", request(route, "audio", { prompt: "生成一段音乐" }))).rejects.toMatchObject({
+    await expect(
+      provider.poll("task-1", request(route, "audio", { prompt: "生成一段音乐" })),
+    ).rejects.toMatchObject({
       code: "TASK_POLLING_UNAVAILABLE",
       outcome: "rejected",
     });
@@ -488,28 +636,70 @@ describe("Kachang generation provider", () => {
 
 describe("video failure parsing", () => {
   it.each([
-    ["plain string", { id: "task-1", status: "failed", error: "触发内容审核，请调整提示词" }, "VIDEO_GENERATION_CONTENT_REJECTED", "触发内容审核，请调整提示词"],
-    ["code and message", { id: "task-1", status: "failed", error: { code: "429", message: "请求过于频繁" } }, "VIDEO_GENERATION_RATE_LIMITED", "请求过于频繁"],
-    ["nested error object", { id: "task-1", status: "failed", error: { error: { message: "账户余额不足，请充值" } } }, "VIDEO_GENERATION_BALANCE_EXHAUSTED", "账户余额不足，请充值"],
-    ["deep data error", { id: "task-1", status: "failed", data: { error: { message: "生成超时，请稍后重试" } } }, "VIDEO_GENERATION_TIMED_OUT", "生成超时，请稍后重试"],
-    ["empty error", { id: "task-1", status: "failed", error: {} }, "VIDEO_GENERATION_FAILED", "视频生成失败"],
-    ["null error", { id: "task-1", status: "failed", error: null }, "VIDEO_GENERATION_FAILED", "视频生成失败"],
-  ])("classifies a %s failure response into a stable product message", async (_label, body, code, message) => {
-    const provider = createProvider(scriptedFetch([jsonResponse(body)]).fetch, new MemoryStagingStore());
+    [
+      "plain string",
+      { id: "task-1", status: "failed", error: "触发内容审核，请调整提示词" },
+      "VIDEO_GENERATION_CONTENT_REJECTED",
+      "触发内容审核，请调整提示词",
+    ],
+    [
+      "code and message",
+      { id: "task-1", status: "failed", error: { code: "429", message: "请求过于频繁" } },
+      "VIDEO_GENERATION_RATE_LIMITED",
+      "请求过于频繁",
+    ],
+    [
+      "nested error object",
+      { id: "task-1", status: "failed", error: { error: { message: "账户余额不足，请充值" } } },
+      "VIDEO_GENERATION_BALANCE_EXHAUSTED",
+      "账户余额不足，请充值",
+    ],
+    [
+      "deep data error",
+      { id: "task-1", status: "failed", data: { error: { message: "生成超时，请稍后重试" } } },
+      "VIDEO_GENERATION_TIMED_OUT",
+      "生成超时，请稍后重试",
+    ],
+    [
+      "empty error",
+      { id: "task-1", status: "failed", error: {} },
+      "VIDEO_GENERATION_FAILED",
+      "视频生成失败",
+    ],
+    [
+      "null error",
+      { id: "task-1", status: "failed", error: null },
+      "VIDEO_GENERATION_FAILED",
+      "视频生成失败",
+    ],
+  ])(
+    "classifies a %s failure response into a stable product message",
+    async (_label, body, code, message) => {
+      const provider = createProvider(
+        scriptedFetch([jsonResponse(body)]).fetch,
+        new MemoryStagingStore(),
+      );
 
-    const state = await provider.submit(request(videoRoute(), "video", { prompt: "test" }));
+      const state = await provider.submit(request(videoRoute(), "video", { prompt: "test" }));
 
-    expect(state).toEqual({ kind: "failed", code, message, retryable: false });
-  });
+      expect(state).toEqual({ kind: "failed", code, message, retryable: false });
+    },
+  );
 
   it("redacts credentials, signed URLs, and private links from the upstream reason", async () => {
-    const provider = createProvider(scriptedFetch([jsonResponse({
-      id: "task-1",
-      status: "failed",
-      error: {
-        message: "请查看 https://gateway.example.com/private/tasks/task-1?token=abc123\nBearer server-secret-here 处理进度，账户余额不足",
-      },
-    })]).fetch, new MemoryStagingStore());
+    const provider = createProvider(
+      scriptedFetch([
+        jsonResponse({
+          id: "task-1",
+          status: "failed",
+          error: {
+            message:
+              "请查看 https://gateway.example.com/private/tasks/task-1?token=abc123\nBearer server-secret-here 处理进度，账户余额不足",
+          },
+        }),
+      ]).fetch,
+      new MemoryStagingStore(),
+    );
 
     const state = await provider.submit(request(videoRoute(), "video", { prompt: "test" }));
 
@@ -521,35 +711,61 @@ describe("video failure parsing", () => {
   });
 
   it("keeps a stable message for an invalid JSON success response", async () => {
-    const provider = createProvider(scriptedFetch([
-      new Response("not-json", { status: 200, headers: { "Content-Type": "application/json" } }),
-    ]).fetch, new MemoryStagingStore());
+    const provider = createProvider(
+      scriptedFetch([
+        new Response("not-json", { status: 200, headers: { "Content-Type": "application/json" } }),
+      ]).fetch,
+      new MemoryStagingStore(),
+    );
 
-    await expect(provider.submit(request(videoRoute(), "video", { prompt: "test" })))
-      .rejects.toMatchObject({ code: "GENERATION_RESPONSE_INVALID", message: "生成服务返回格式异常" });
+    await expect(
+      provider.submit(request(videoRoute(), "video", { prompt: "test" })),
+    ).rejects.toMatchObject({
+      code: "GENERATION_RESPONSE_INVALID",
+      message: "生成服务返回格式异常",
+    });
   });
 
   it("extracts a sanitized specific reason from an HTTP error body while keeping a stable code", async () => {
-    const provider = createProvider(scriptedFetch([jsonResponse({
-      error: { code: "4007", message: "当前模型暂不可用，请稍后再试" },
-    }, 400)]).fetch, new MemoryStagingStore());
+    const provider = createProvider(
+      scriptedFetch([
+        jsonResponse(
+          {
+            error: { code: "4007", message: "当前模型暂不可用，请稍后再试" },
+          },
+          400,
+        ),
+      ]).fetch,
+      new MemoryStagingStore(),
+    );
 
-    await expect(provider.submit(request(videoRoute(), "video", { prompt: "test" })))
-      .rejects.toMatchObject({
-        code: "GENERATION_REQUEST_FAILED",
-        outcome: "rejected",
-        message: "当前模型暂不可用，请稍后再试",
-      });
+    await expect(
+      provider.submit(request(videoRoute(), "video", { prompt: "test" })),
+    ).rejects.toMatchObject({
+      code: "GENERATION_REQUEST_FAILED",
+      outcome: "rejected",
+      message: "当前模型暂不可用，请稍后再试",
+    });
   });
 
   it("never leaks a private URL, query token, or Bearer secret from an HTTP 400 body", async () => {
-    const provider = createProvider(scriptedFetch([jsonResponse({
-      error: {
-        message: "请查看 https://gateway.example.com/private/tasks/task-1?token=super-secret-token 处理进度\nBearer server-secret-here 账户余额不足",
-      },
-    }, 400)]).fetch, new MemoryStagingStore());
+    const provider = createProvider(
+      scriptedFetch([
+        jsonResponse(
+          {
+            error: {
+              message:
+                "请查看 https://gateway.example.com/private/tasks/task-1?token=super-secret-token 处理进度\nBearer server-secret-here 账户余额不足",
+            },
+          },
+          400,
+        ),
+      ]).fetch,
+      new MemoryStagingStore(),
+    );
 
-    const error = await provider.submit(request(videoRoute(), "video", { prompt: "test" }))
+    const error = await provider
+      .submit(request(videoRoute(), "video", { prompt: "test" }))
       .catch((cause) => cause as Error);
 
     expect(error).toMatchObject({ code: "GENERATION_REQUEST_FAILED", outcome: "rejected" });
@@ -560,29 +776,42 @@ describe("video failure parsing", () => {
   });
 
   it("falls back to a bounded product message when the HTTP body is not usable", async () => {
-    const provider = createProvider(scriptedFetch([
-      new Response("gateway hiccup", { status: 502, headers: { "Content-Type": "text/plain" } }),
-    ]).fetch, new MemoryStagingStore());
+    const provider = createProvider(
+      scriptedFetch([
+        new Response("gateway hiccup", { status: 502, headers: { "Content-Type": "text/plain" } }),
+      ]).fetch,
+      new MemoryStagingStore(),
+    );
 
-    await expect(provider.submit(request(videoRoute(), "video", { prompt: "test" })))
-      .rejects.toMatchObject({
-        code: "GENERATION_REQUEST_FAILED",
-        outcome: "unknown",
-        message: "生成服务暂时不可用",
-      });
+    await expect(
+      provider.submit(request(videoRoute(), "video", { prompt: "test" })),
+    ).rejects.toMatchObject({
+      code: "GENERATION_REQUEST_FAILED",
+      outcome: "unknown",
+      message: "生成服务暂时不可用",
+    });
   });
 
   it("uses the status-specific fallback when a 4xx error body has no usable message", async () => {
-    const provider = createProvider(scriptedFetch([jsonResponse({
-      error: { code: "4007" },
-    }, 400)]).fetch, new MemoryStagingStore());
+    const provider = createProvider(
+      scriptedFetch([
+        jsonResponse(
+          {
+            error: { code: "4007" },
+          },
+          400,
+        ),
+      ]).fetch,
+      new MemoryStagingStore(),
+    );
 
-    await expect(provider.submit(request(videoRoute(), "video", { prompt: "test" })))
-      .rejects.toMatchObject({
-        code: "GENERATION_REQUEST_FAILED",
-        outcome: "rejected",
-        message: "当前参数无法提交",
-      });
+    await expect(
+      provider.submit(request(videoRoute(), "video", { prompt: "test" })),
+    ).rejects.toMatchObject({
+      code: "GENERATION_REQUEST_FAILED",
+      outcome: "rejected",
+      message: "当前参数无法提交",
+    });
   });
 });
 
@@ -591,7 +820,7 @@ function createProvider(
   staging: GenerationResultStagingStore,
   references: GenerationReferenceResolver = new MapReferenceResolver({}),
 ) {
-  return new KachangGenerationProvider({
+  return new WeftcanvasGenerationProvider({
     baseUrl: "http://127.0.0.1",
     apiKey: "server-secret",
     staging,
@@ -665,7 +894,11 @@ function midjourneyRoute(): PrivateModelRoute {
   return {
     sourceModelId: "mj-v8.1",
     modality: "image",
-    endpoint: { method: "POST", path: "/v1/midjourney/generations", contentType: "application/json" },
+    endpoint: {
+      method: "POST",
+      path: "/v1/midjourney/generations",
+      contentType: "application/json",
+    },
     parameters: [
       { name: "model", path: "model", type: "string", fixed: "mj-v8.1" },
       { name: "prompt", path: "prompt", type: "string" },
@@ -703,7 +936,12 @@ function allPurposeReferenceVideoRoute(modelId: string, referencePath: string): 
     parameters: [
       { name: "model", path: "model", type: "string", fixed: modelId },
       { name: "prompt", path: "prompt", type: "string" },
-      { name: "referenceImages", path: referencePath, type: "array", itemsFormat: "uri-or-data-image" },
+      {
+        name: "referenceImages",
+        path: referencePath,
+        type: "array",
+        itemsFormat: "uri-or-data-image",
+      },
       { name: "first_image", path: "first_image", type: "string", format: "uri-or-data-image" },
       { name: "last_image", path: "last_image", type: "string", format: "uri-or-data-image" },
     ],
@@ -740,7 +978,8 @@ function scriptedFetch(responses: Array<Response | Error>) {
     body: Record<string, unknown> | null;
   }> = [];
   const fetcher: typeof fetch = async (input, init) => {
-    const body = typeof init?.body === "string" ? JSON.parse(init.body) as Record<string, unknown> : null;
+    const body =
+      typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : null;
     calls.push({
       url: String(input),
       method: init?.method ?? "GET",
@@ -785,11 +1024,21 @@ class MemoryStagingStore implements GenerationResultStagingStore {
 }
 
 class MapReferenceResolver implements GenerationReferenceResolver {
-  readonly calls: Array<{ ownerId: string; mediaId: string; kind: "image" | "video" | "audio"; format?: string }> = [];
+  readonly calls: Array<{
+    ownerId: string;
+    mediaId: string;
+    kind: "image" | "video" | "audio";
+    format?: string;
+  }> = [];
 
   constructor(private readonly values: Record<string, string>) {}
 
-  async resolve(input: { ownerId: string; mediaId: string; kind: "image" | "video" | "audio"; format?: string }) {
+  async resolve(input: {
+    ownerId: string;
+    mediaId: string;
+    kind: "image" | "video" | "audio";
+    format?: string;
+  }) {
     this.calls.push(input);
     const value = this.values[input.mediaId];
     if (!value) throw new Error(`Missing media ${input.mediaId}`);
@@ -797,7 +1046,10 @@ class MapReferenceResolver implements GenerationReferenceResolver {
   }
 }
 
-async function stagedResult(staging: GenerationResultStagingStore, state: { kind: string; resultRef?: string }) {
+async function stagedResult(
+  staging: GenerationResultStagingStore,
+  state: { kind: string; resultRef?: string },
+) {
   if (state.kind !== "output" || !state.resultRef) throw new Error("expected staged output");
   return (await staging.read(state.resultRef)).result;
 }

@@ -46,7 +46,8 @@ export const StorageTipBanner = memo(function StorageTipBanner() {
       <>
         <strong>云端空间将在 {daysRemaining(usage.storageGrace.deadline)} 天后调整</strong>
         <span>
-          会员配额已变化（已用 {formatGb(usage.storageGrace.usageBytes)} / 可用 {formatGb(usage.storageGrace.quotaBytes)}）。
+          会员配额已变化（已用 {formatGb(usage.storageGrace.usageBytes)} / 可用{" "}
+          {formatGb(usage.storageGrace.quotaBytes)}）。
           请整理素材或续费会员；到期后将自动从最旧的未绑定素材开始清理至配额内，画布节点引用的素材最后才会被清理。
         </span>
       </>
@@ -55,7 +56,10 @@ export const StorageTipBanner = memo(function StorageTipBanner() {
     body = (
       <>
         <strong>云端素材空间已用满</strong>
-        <span>继续保存将自动清理最旧的未绑定素材为新内容腾出空间（已用 {formatGb(used)} / {formatGb(quota)}）。</span>
+        <span>
+          继续保存将自动清理最旧的未绑定素材为新内容腾出空间（已用 {formatGb(used)} /{" "}
+          {formatGb(quota)}）。
+        </span>
       </>
     );
   } else {
@@ -71,16 +75,26 @@ export const StorageTipBanner = memo(function StorageTipBanner() {
 
   return (
     <div
-      className={`kc-storage-tip kc-storage-tip--${level}`}
+      className={`wc-storage-tip wc-storage-tip--${level}`}
       role="status"
       data-quota-level={level}
     >
-      {level === "nearing" || level === "critical" ? <Database aria-hidden="true" /> : <TriangleAlert aria-hidden="true" />}
-      <div className="kc-storage-tip-body">{body}</div>
-      <button type="button" className="kc-storage-tip-clean" onClick={openCloudResources}>
-        <Eraser aria-hidden="true" />清理云端资源
+      {level === "nearing" || level === "critical" ? (
+        <Database aria-hidden="true" />
+      ) : (
+        <TriangleAlert aria-hidden="true" />
+      )}
+      <div className="wc-storage-tip-body">{body}</div>
+      <button type="button" className="wc-storage-tip-clean" onClick={openCloudResources}>
+        <Eraser aria-hidden="true" />
+        清理云端资源
       </button>
-      <button type="button" className="kc-storage-tip-close" aria-label="关闭提示" onClick={dismiss}>
+      <button
+        type="button"
+        className="wc-storage-tip-close"
+        aria-label="关闭提示"
+        onClick={dismiss}
+      >
         <X aria-hidden="true" />
       </button>
     </div>

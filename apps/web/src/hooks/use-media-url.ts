@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
-import type { CanvasMedia } from "@kachang/contracts";
+import type { CanvasMedia } from "@weftcanvas/contracts";
 
 import { mediaContentPath } from "../lib/api-client";
-import { ensureLocalThumbBlob, thumbLodLevelForZoom, type ThumbLodLevel } from "../lib/local-media-thumb";import { acquireMediaObjectUrl, releaseMediaObjectUrl } from "../lib/media-object-url-cache";
+import {
+  ensureLocalThumbBlob,
+  thumbLodLevelForZoom,
+  type ThumbLodLevel,
+} from "../lib/local-media-thumb";
+import { acquireMediaObjectUrl, releaseMediaObjectUrl } from "../lib/media-object-url-cache";
 import { readMedia } from "../lib/media-store";
 import { useCanvasStore } from "../state/canvas-store";
 import { useCloudProjectStore } from "../state/cloud-project-store";
@@ -52,7 +57,12 @@ export function useMediaLodThumbUrlForProject(
   zoom: number,
 ) {
   const level = thumbLodLevelForZoom(zoom);
-  return useMediaUrlForProject(media, projectId, cloudLinked, level === 1 ? "thumb" : `thumb-${level}`);
+  return useMediaUrlForProject(
+    media,
+    projectId,
+    cloudLinked,
+    level === 1 ? "thumb" : `thumb-${level}`,
+  );
 }
 
 export function useMediaUrlForProject(
@@ -60,14 +70,14 @@ export function useMediaUrlForProject(
   projectId: string,
   cloudLinked: boolean,
   variant?: "thumb" | `thumb-${ThumbLodLevel}`,
-) {  const [url, setUrl] = useState<string | null>(null);
+) {
+  const [url, setUrl] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
   const [loading, setLoading] = useState(false);
-  const remoteMediaId = durableMediaId(media?.serverId)
-    ?? (media?.source === "server" ? media.id : null);
-  const mediaProjectId = cloudLinked && remoteMediaId && !remoteMediaId.startsWith("phm_")
-    ? projectId
-    : undefined;
+  const remoteMediaId =
+    durableMediaId(media?.serverId) ?? (media?.source === "server" ? media.id : null);
+  const mediaProjectId =
+    cloudLinked && remoteMediaId && !remoteMediaId.startsWith("phm_") ? projectId : undefined;
 
   useEffect(() => {
     let active = true;
@@ -82,9 +92,14 @@ export function useMediaUrlForProject(
 
     const serverUrl = remoteMediaId
       ? mediaContentPath(remoteMediaId, mediaProjectId, {
-        // 远端只有单级缩略端点：多级档位统一请求 thumb。
-        variant: variant === "thumb-2" || variant === "thumb-3" ? "thumb" : variant === "thumb-1" ? "thumb" : variant,
-      })
+          // 远端只有单级缩略端点：多级档位统一请求 thumb。
+          variant:
+            variant === "thumb-2" || variant === "thumb-3"
+              ? "thumb"
+              : variant === "thumb-1"
+                ? "thumb"
+                : variant,
+        })
       : null;
     const useServerUrl = () => {
       if (!active || !serverUrl) return;

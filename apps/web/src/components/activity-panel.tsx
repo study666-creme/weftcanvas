@@ -11,7 +11,7 @@ import {
   RefreshCw,
   X,
 } from "lucide-react";
-import type { PublicGenerationJob, WalletLedgerItem } from "@kachang/contracts";
+import type { PublicGenerationJob, WalletLedgerItem } from "@weftcanvas/contracts";
 
 import { fetchGenerationJob, listGenerationJobs } from "../lib/api-client";
 import { useIdentityStore } from "../state/identity-store";
@@ -62,58 +62,103 @@ export function ActivityPanel({
   }, [identityStatus, projectId]);
 
   return (
-    <aside className={`kc-activity-panel kc-activity-panel--${surface}`} aria-label="任务记录与积分">
-      <header className="kc-activity-header">
-        <span className="kc-activity-title">
+    <aside
+      className={`wc-activity-panel wc-activity-panel--${surface}`}
+      aria-label="任务记录与积分"
+    >
+      <header className="wc-activity-header">
+        <span className="wc-activity-title">
           <ClipboardList aria-hidden="true" />
           <strong>任务记录</strong>
         </span>
-        <div className="kc-activity-tabs" role="tablist" aria-label="切换视图">
-          <button type="button" role="tab" aria-selected={tab === "jobs"} className={tab === "jobs" ? "is-active" : undefined} onClick={() => setTab("jobs")}>
+        <div className="wc-activity-tabs" role="tablist" aria-label="切换视图">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "jobs"}
+            className={tab === "jobs" ? "is-active" : undefined}
+            onClick={() => setTab("jobs")}
+          >
             任务日志
           </button>
-          <button type="button" role="tab" aria-selected={tab === "credits"} className={tab === "credits" ? "is-active" : undefined} onClick={() => setTab("credits")}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "credits"}
+            className={tab === "credits" ? "is-active" : undefined}
+            onClick={() => setTab("credits")}
+          >
             积分明细
           </button>
         </div>
-        <button type="button" className="kc-activity-close" aria-label="关闭" onClick={onClose}>
+        <button type="button" className="wc-activity-close" aria-label="关闭" onClick={onClose}>
           <X aria-hidden="true" />
         </button>
       </header>
 
       {identityStatus !== "authenticated" ? (
-        <div className="kc-activity-empty">
+        <div className="wc-activity-empty">
           <p>登录后可查看任务日志与积分明细。</p>
         </div>
       ) : tab === "jobs" ? (
-        <div className="kc-activity-body">
-          <div className="kc-activity-toolbar">
+        <div className="wc-activity-body">
+          <div className="wc-activity-toolbar">
             <span>{jobs ? `${jobs.length} 个任务` : "读取中"}</span>
-            <button type="button" onClick={() => void loadJobs()} disabled={jobsLoading} aria-label="刷新任务">
+            <button
+              type="button"
+              onClick={() => void loadJobs()}
+              disabled={jobsLoading}
+              aria-label="刷新任务"
+            >
               <RefreshCw aria-hidden="true" className={jobsLoading ? "is-spinning" : undefined} />
             </button>
           </div>
-          {jobsError ? <p className="kc-activity-error"><CircleAlert aria-hidden="true" />{jobsError}</p> : null}
-          {jobsLoading && !jobs ? <p className="kc-activity-loading"><LoaderCircle aria-hidden="true" className="is-spinning" />正在读取任务…</p> : null}
-          {jobs && !jobs.length ? <div className="kc-activity-empty"><p>还没有生成任务。</p></div> : null}
-          {jobs?.map((job) => <JobRow key={job.id} job={job} />)}
+          {jobsError ? (
+            <p className="wc-activity-error">
+              <CircleAlert aria-hidden="true" />
+              {jobsError}
+            </p>
+          ) : null}
+          {jobsLoading && !jobs ? (
+            <p className="wc-activity-loading">
+              <LoaderCircle aria-hidden="true" className="is-spinning" />
+              正在读取任务…
+            </p>
+          ) : null}
+          {jobs && !jobs.length ? (
+            <div className="wc-activity-empty">
+              <p>还没有生成任务。</p>
+            </div>
+          ) : null}
+          {jobs?.map((job) => (
+            <JobRow key={job.id} job={job} />
+          ))}
         </div>
       ) : (
-        <div className="kc-activity-body">
+        <div className="wc-activity-body">
           {summary ? (
-            <div className="kc-activity-balance">
+            <div className="wc-activity-balance">
               <Coins aria-hidden="true" />
               <span>当前余额</span>
               <strong>{formatCredits(summary.credits)}</strong>
             </div>
           ) : null}
-          {ledgerStatus === "loading" && !ledger.length ? <p className="kc-activity-loading"><LoaderCircle aria-hidden="true" className="is-spinning" />正在读取积分明细…</p> : null}
-          {ledgerStatus === "ready" && !ledger.length ? <div className="kc-activity-empty"><p>还没有积分变动。</p></div> : null}
+          {ledgerStatus === "loading" && !ledger.length ? (
+            <p className="wc-activity-loading">
+              <LoaderCircle aria-hidden="true" className="is-spinning" />
+              正在读取积分明细…
+            </p>
+          ) : null}
+          {ledgerStatus === "ready" && !ledger.length ? (
+            <div className="wc-activity-empty">
+              <p>还没有积分变动。</p>
+            </div>
+          ) : null}
           {ledger.map((item) => (
             <LedgerRow
               key={item.id}
               item={item}
-              job={item.refId ? jobs?.find((job) => job.id === item.refId) ?? null : null}
+              job={item.refId ? (jobs?.find((job) => job.id === item.refId) ?? null) : null}
               onOpenJob={() => setTab("jobs")}
             />
           ))}
@@ -158,33 +203,56 @@ function JobRow({ job }: { job: PublicGenerationJob }) {
   }, [detail, job]);
 
   return (
-    <article className={`kc-activity-job is-${status.tone}`}>
-      <button type="button" className="kc-activity-job-main" onClick={() => void toggle()} aria-expanded={open}>
-        <span className="kc-activity-job-caret">{open ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}</span>
-        <span className="kc-activity-job-copy">
-          <strong>{job.modelLabel}</strong>
-          <small>{formatTime(job.createdAt)} · {status.text}{referenceCount ? ` · ${referenceCount} 个参考` : ""}</small>
+    <article className={`wc-activity-job is-${status.tone}`}>
+      <button
+        type="button"
+        className="wc-activity-job-main"
+        onClick={() => void toggle()}
+        aria-expanded={open}
+      >
+        <span className="wc-activity-job-caret">
+          {open ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}
         </span>
-        <span className={`kc-activity-job-status is-${status.tone}`}>{status.badge}</span>
+        <span className="wc-activity-job-copy">
+          <strong>{job.modelLabel}</strong>
+          <small>
+            {formatTime(job.createdAt)} · {status.text}
+            {referenceCount ? ` · ${referenceCount} 个参考` : ""}
+          </small>
+        </span>
+        <span className={`wc-activity-job-status is-${status.tone}`}>{status.badge}</span>
       </button>
       {job.error ? (
-        <p className="kc-activity-job-error">
+        <p className="wc-activity-job-error">
           <CircleAlert aria-hidden="true" />
-          <span>{job.error.message}{job.error.retryable ? "（可重试）" : ""}</span>
+          <span>
+            {job.error.message}
+            {job.error.retryable ? "（可重试）" : ""}
+          </span>
         </p>
       ) : null}
       {open ? (
-        <div className="kc-activity-job-detail">
-          {detailLoading ? <p className="kc-activity-loading"><LoaderCircle aria-hidden="true" className="is-spinning" />读取请求体…</p> : null}
-          <div className="kc-activity-request">
-            <div className="kc-activity-request-head">
-              <span><Receipt aria-hidden="true" />请求体</span>
+        <div className="wc-activity-job-detail">
+          {detailLoading ? (
+            <p className="wc-activity-loading">
+              <LoaderCircle aria-hidden="true" className="is-spinning" />
+              读取请求体…
+            </p>
+          ) : null}
+          <div className="wc-activity-request">
+            <div className="wc-activity-request-head">
+              <span>
+                <Receipt aria-hidden="true" />
+                请求体
+              </span>
               <CopyButton value={JSON.stringify(requestBody, null, 2)} />
             </div>
             <pre>{JSON.stringify(requestBody, null, 2)}</pre>
           </div>
           {referenceCount === 0 && hasReferenceIntent(job) ? (
-            <p className="kc-activity-warn">提示词里提到了参考素材，但请求体没有带入任何参考图 —— 参考图可能在上传或提交时丢失。</p>
+            <p className="wc-activity-warn">
+              提示词里提到了参考素材，但请求体没有带入任何参考图 —— 参考图可能在上传或提交时丢失。
+            </p>
           ) : null}
         </div>
       ) : null}
@@ -206,21 +274,31 @@ function LedgerRow({
   const meta = (item.meta ?? {}) as Record<string, unknown>;
   const model = typeof meta.model === "string" && meta.model ? meta.model : null;
   const duration = typeof meta.duration === "number" && meta.duration > 0 ? meta.duration : null;
-  const resolution = typeof meta.resolution === "string" && meta.resolution ? meta.resolution : null;
+  const resolution =
+    typeof meta.resolution === "string" && meta.resolution ? meta.resolution : null;
   const spec = [model, duration ? `${duration}s` : null, resolution].filter(Boolean).join(" · ");
   return (
-    <article className="kc-activity-ledger">
-      <span className={`kc-activity-ledger-delta ${positive ? "is-positive" : "is-negative"}`}>
-        {positive ? "+" : ""}{formatCredits(item.delta)}
+    <article className="wc-activity-ledger">
+      <span className={`wc-activity-ledger-delta ${positive ? "is-positive" : "is-negative"}`}>
+        {positive ? "+" : ""}
+        {formatCredits(item.delta)}
       </span>
-      <span className="kc-activity-ledger-copy">
+      <span className="wc-activity-ledger-copy">
         <strong>{item.reasonLabel}</strong>
-        {spec ? <small className="kc-activity-ledger-spec">{spec}</small> : null}
-        <small>{formatTime(item.createdAt)}{item.refId ? ` · ${item.refId.slice(0, 8)}` : ""}</small>
+        {spec ? <small className="wc-activity-ledger-spec">{spec}</small> : null}
+        <small>
+          {formatTime(item.createdAt)}
+          {item.refId ? ` · ${item.refId.slice(0, 8)}` : ""}
+        </small>
       </span>
-      <span className="kc-activity-ledger-balance">余 {formatCredits(item.balanceAfter)}</span>
+      <span className="wc-activity-ledger-balance">余 {formatCredits(item.balanceAfter)}</span>
       {job && onOpenJob ? (
-        <button type="button" className="kc-activity-ledger-link" onClick={onOpenJob} title="在任务日志中查看这笔扣费对应的任务">
+        <button
+          type="button"
+          className="wc-activity-ledger-link"
+          onClick={onOpenJob}
+          title="在任务日志中查看这笔扣费对应的任务"
+        >
           查看任务
         </button>
       ) : null}
@@ -233,13 +311,15 @@ function CopyButton({ value }: { value: string }) {
   return (
     <button
       type="button"
-      className="kc-activity-copy"
+      className="wc-activity-copy"
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(value);
           setCopied(true);
           window.setTimeout(() => setCopied(false), 1200);
-        } catch { /* clipboard unavailable */ }
+        } catch {
+          /* clipboard unavailable */
+        }
       }}
       aria-label="复制请求体"
     >
@@ -252,7 +332,13 @@ function CopyButton({ value }: { value: string }) {
 function countReferences(job: PublicGenerationJob) {
   const inputs = job.inputs;
   if (!inputs) return 0;
-  return (inputs.images?.length ?? 0) + (inputs.styleImages?.length ?? 0) + (inputs.elementImages?.length ?? 0) + (inputs.videos?.length ?? 0) + (inputs.audios?.length ?? 0);
+  return (
+    (inputs.images?.length ?? 0) +
+    (inputs.styleImages?.length ?? 0) +
+    (inputs.elementImages?.length ?? 0) +
+    (inputs.videos?.length ?? 0) +
+    (inputs.audios?.length ?? 0)
+  );
 }
 
 function hasReferenceIntent(job: PublicGenerationJob) {
@@ -261,13 +347,22 @@ function hasReferenceIntent(job: PublicGenerationJob) {
   return /参考|素材|这张图|这张图|reference/i.test(prompt);
 }
 
-function jobStatusLabel(job: PublicGenerationJob): { tone: "ok" | "warn" | "err" | "run"; text: string; badge: string } {
+function jobStatusLabel(job: PublicGenerationJob): {
+  tone: "ok" | "warn" | "err" | "run";
+  text: string;
+  badge: string;
+} {
   switch (job.status) {
-    case "completed": return { tone: "ok", text: "已完成", badge: "成功" };
-    case "failed": return { tone: "err", text: "已失败", badge: "失败" };
-    case "submission_unknown": return { tone: "warn", text: "提交状态未知", badge: "待确认" };
-    case "queued": return { tone: "run", text: "排队中", badge: "排队" };
-    default: return { tone: "run", text: `进行中 ${job.progress}%`, badge: `${job.progress}%` };
+    case "completed":
+      return { tone: "ok", text: "已完成", badge: "成功" };
+    case "failed":
+      return { tone: "err", text: "已失败", badge: "失败" };
+    case "submission_unknown":
+      return { tone: "warn", text: "提交状态未知", badge: "待确认" };
+    case "queued":
+      return { tone: "run", text: "排队中", badge: "排队" };
+    default:
+      return { tone: "run", text: `进行中 ${job.progress}%`, badge: `${job.progress}%` };
   }
 }
 
@@ -282,5 +377,10 @@ function formatTime(value: string) {
   if (elapsed < 60_000) return "刚刚";
   if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)} 分钟前`;
   if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)} 小时前`;
-  return new Intl.DateTimeFormat("zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }

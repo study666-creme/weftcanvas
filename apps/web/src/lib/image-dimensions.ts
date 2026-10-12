@@ -18,10 +18,12 @@ export async function readBlobImageDimensions(blob: Blob): Promise<ImageDimensio
   try {
     const slice = blob.slice(0, Math.min(blob.size, HEADER_SCAN_BYTES));
     const bytes = new Uint8Array(await slice.arrayBuffer());
-    return readPngDimensions(bytes)
-      ?? readGifDimensions(bytes)
-      ?? readWebpDimensions(bytes)
-      ?? readJpegDimensions(bytes);
+    return (
+      readPngDimensions(bytes) ??
+      readGifDimensions(bytes) ??
+      readWebpDimensions(bytes) ??
+      readJpegDimensions(bytes)
+    );
   } catch {
     // Restricted or detached blobs fall back to a real decode.
     return null;
@@ -29,10 +31,12 @@ export async function readBlobImageDimensions(blob: Blob): Promise<ImageDimensio
 }
 
 export function readImageHeaderDimensions(bytes: Uint8Array): ImageDimensions | null {
-  return readPngDimensions(bytes)
-    ?? readGifDimensions(bytes)
-    ?? readWebpDimensions(bytes)
-    ?? readJpegDimensions(bytes);
+  return (
+    readPngDimensions(bytes) ??
+    readGifDimensions(bytes) ??
+    readWebpDimensions(bytes) ??
+    readJpegDimensions(bytes)
+  );
 }
 
 function readPngDimensions(bytes: Uint8Array): ImageDimensions | null {
@@ -90,10 +94,8 @@ function readJpegDimensions(bytes: Uint8Array): ImageDimensions | null {
       return { width: readUint16BE(bytes, offset + 7), height: readUint16BE(bytes, offset + 5) };
     }
     // 独立标记与填充字节没有长度字段。
-    const standalone = marker === 0x01
-      || marker === 0xd8
-      || marker === 0xd9
-      || (marker >= 0xd0 && marker <= 0xd7);
+    const standalone =
+      marker === 0x01 || marker === 0xd8 || marker === 0xd9 || (marker >= 0xd0 && marker <= 0xd7);
     if (standalone) {
       offset += 2;
       continue;
@@ -108,10 +110,12 @@ function readJpegDimensions(bytes: Uint8Array): ImageDimensions | null {
 
 function isStartOfFrameMarker(marker: number) {
   // SOF0-SOF3、SOF5-SOF7、SOF9-SOF11、SOF13-SOF15；C4/C8/CC 分别是 DHT/JPG/DAC。
-  return (marker >= 0xc0 && marker <= 0xc3)
-    || (marker >= 0xc5 && marker <= 0xc7)
-    || (marker >= 0xc9 && marker <= 0xcb)
-    || (marker >= 0xcd && marker <= 0xcf);
+  return (
+    (marker >= 0xc0 && marker <= 0xc3) ||
+    (marker >= 0xc5 && marker <= 0xc7) ||
+    (marker >= 0xc9 && marker <= 0xcb) ||
+    (marker >= 0xcd && marker <= 0xcf)
+  );
 }
 
 function matches(bytes: Uint8Array, offset: number, expected: readonly number[]) {
@@ -140,13 +144,17 @@ function readUint16LE(bytes: Uint8Array, offset: number) {
 }
 
 function readUint32BE(bytes: Uint8Array, offset: number) {
-  return ((bytes[offset] ?? 0) * 0x1_00_00_00)
-    + (((bytes[offset + 1] ?? 0) << 16) | ((bytes[offset + 2] ?? 0) << 8) | (bytes[offset + 3] ?? 0));
+  return (
+    (bytes[offset] ?? 0) * 0x1_00_00_00 +
+    (((bytes[offset + 1] ?? 0) << 16) | ((bytes[offset + 2] ?? 0) << 8) | (bytes[offset + 3] ?? 0))
+  );
 }
 
 function readUint32LE(bytes: Uint8Array, offset: number) {
-  return ((bytes[offset] ?? 0) | ((bytes[offset + 1] ?? 0) << 8) | ((bytes[offset + 2] ?? 0) << 16))
-    + ((bytes[offset + 3] ?? 0) * 0x1_00_00_00);
+  return (
+    ((bytes[offset] ?? 0) | ((bytes[offset + 1] ?? 0) << 8) | ((bytes[offset + 2] ?? 0) << 16)) +
+    (bytes[offset + 3] ?? 0) * 0x1_00_00_00
+  );
 }
 
 function readUint24LE(bytes: Uint8Array, offset: number) {

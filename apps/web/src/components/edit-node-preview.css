@@ -8,7 +8,7 @@
 /* 整片灰阶画布里非常扎眼，也显得廉价。                                  */
 /* ------------------------------------------------------------------ */
 
-.kc-edit-node-preview {
+.wc-edit-node-preview {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -18,7 +18,7 @@
 }
 
 /* 序列条：一段一格，宽度按时长占比，格与格之间 1px 缝。 */
-.kc-edit-node-strips {
+.wc-edit-node-strips {
   position: relative;
   display: flex;
   gap: 1px;
@@ -27,54 +27,58 @@
   overflow: hidden;
   border: 1px solid rgb(255 255 255 / 9%);
   border-radius: 3px;
-  background: color-mix(in srgb, var(--kc-canvas) 62%, transparent);
+  background: color-mix(in srgb, var(--wc-canvas) 62%, transparent);
 }
 
-.kc-edit-node-strip {
+.wc-edit-node-strip {
   position: relative;
   display: inline-flex;
   flex: 0 1 auto;
   min-width: 5px;
-  background: color-mix(in srgb, var(--kc-text) 8%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--kc-text) 13%, transparent);
+  background: color-mix(in srgb, var(--wc-text) 8%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--wc-text) 13%, transparent);
   transition: opacity 160ms ease;
 }
 
 /* 首格略亮，读作"从这里开始"；其余按同一色阶递减排列。 */
-.kc-edit-node-strip:first-child {
-  background: color-mix(in srgb, var(--kc-text) 15%, transparent);
+.wc-edit-node-strip:first-child {
+  background: color-mix(in srgb, var(--wc-text) 15%, transparent);
 }
 
 /* 音频格：同一色阶，用细竖纹和居中基线区分，不换成绿色。 */
-.kc-edit-node-strip--audio {
+.wc-edit-node-strip--audio {
   background:
-    repeating-linear-gradient(90deg, color-mix(in srgb, var(--kc-text) 20%, transparent) 0 1px, transparent 1px 4px),
-    color-mix(in srgb, var(--kc-text) 5%, transparent);
+    repeating-linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--wc-text) 20%, transparent) 0 1px,
+      transparent 1px 4px
+    ),
+    color-mix(in srgb, var(--wc-text) 5%, transparent);
 }
 
 /* 播放头停在 0 点，也就是第一帧的位置。 */
-.kc-edit-node-playhead {
+.wc-edit-node-playhead {
   position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
   width: 1px;
-  background: color-mix(in srgb, var(--kc-text) 55%, transparent);
+  background: color-mix(in srgb, var(--wc-text) 55%, transparent);
 }
 
-.kc-edit-node-playhead::before {
+.wc-edit-node-playhead::before {
   content: "";
   position: absolute;
   top: 0;
   left: -2px;
   width: 5px;
   height: 3px;
-  background: color-mix(in srgb, var(--kc-text) 62%, transparent);
+  background: color-mix(in srgb, var(--wc-text) 62%, transparent);
   clip-path: polygon(0 0, 100% 0, 50% 100%);
 }
 
 /* 音频单独一条细轨，有才画。 */
-.kc-edit-node-audio-lane {
+.wc-edit-node-audio-lane {
   display: flex;
   gap: 1px;
   align-items: stretch;
@@ -82,28 +86,32 @@
   overflow: hidden;
   border: 1px solid rgb(255 255 255 / 9%);
   border-radius: 2px;
-  background: color-mix(in srgb, var(--kc-canvas) 62%, transparent);
+  background: color-mix(in srgb, var(--wc-canvas) 62%, transparent);
 }
 
-.kc-edit-node-audio-clip {
+.wc-edit-node-audio-clip {
   display: inline-flex;
   flex: 0 1 auto;
   min-width: 5px;
   background:
-    repeating-linear-gradient(90deg, color-mix(in srgb, var(--kc-text) 22%, transparent) 0 1px, transparent 1px 4px),
-    color-mix(in srgb, var(--kc-text) 5%, transparent);
+    repeating-linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--wc-text) 22%, transparent) 0 1px,
+      transparent 1px 4px
+    ),
+    color-mix(in srgb, var(--wc-text) 5%, transparent);
 }
 
-.kc-edit-node-meta {
+.wc-edit-node-meta {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   font-size: 11.5px;
-  color: var(--kc-text-secondary);
+  color: var(--wc-text-secondary);
 }
 
-.kc-edit-node-meta span {
+.wc-edit-node-meta span {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -113,46 +121,46 @@
   text-overflow: ellipsis;
 }
 
-.kc-edit-node-meta svg {
+.wc-edit-node-meta svg {
   flex: none;
   width: 13px;
   height: 13px;
   opacity: 0.72;
 }
 
-.kc-edit-node-meta strong {
+.wc-edit-node-meta strong {
   flex: none;
   font-size: 13px;
   font-weight: 600;
-  color: var(--kc-text);
+  color: var(--wc-text);
   font-variant-numeric: tabular-nums;
 }
 
-.kc-edit-node-hint {
+.wc-edit-node-hint {
   margin-top: auto;
   overflow: hidden;
   font-size: 10.5px;
-  color: var(--kc-text-tertiary);
+  color: var(--wc-text-tertiary);
   white-space: nowrap;
   text-overflow: ellipsis;
   letter-spacing: 0;
 }
 
 /* 空时间线：不摆假片段，只留一条虚线基线，诚实表达"这里还没有序列"。 */
-.kc-edit-node-preview[data-empty="true"] .kc-edit-node-strips {
+.wc-edit-node-preview[data-empty="true"] .wc-edit-node-strips {
   border-style: dashed;
   background: transparent;
 }
 
-.kc-edit-node-empty-baseline {
+.wc-edit-node-empty-baseline {
   align-self: center;
   width: 100%;
   height: 1px;
-  background: color-mix(in srgb, var(--kc-border-strong) 70%, transparent);
+  background: color-mix(in srgb, var(--wc-border-strong) 70%, transparent);
 }
 
 /* 缩小到 overview 档位时不退化成裸文本：同色阶的微型序列 + 时长。 */
-.kc-edit-node-preview--overview {
+.wc-edit-node-preview--overview {
   flex-direction: row;
   gap: 9px;
   align-items: center;
@@ -160,7 +168,7 @@
   padding: 0 12px;
 }
 
-.kc-edit-node-overview-strip {
+.wc-edit-node-overview-strip {
   display: flex;
   flex: 1 1 auto;
   gap: 1px;
@@ -170,41 +178,45 @@
   overflow: hidden;
   border: 1px solid rgb(255 255 255 / 9%);
   border-radius: 2px;
-  background: color-mix(in srgb, var(--kc-canvas) 62%, transparent);
+  background: color-mix(in srgb, var(--wc-canvas) 62%, transparent);
 }
 
-.kc-edit-node-preview--overview[data-empty="true"] .kc-edit-node-overview-strip {
+.wc-edit-node-preview--overview[data-empty="true"] .wc-edit-node-overview-strip {
   border-style: dashed;
   background: transparent;
 }
 
-.kc-edit-node-overview-block {
+.wc-edit-node-overview-block {
   flex: 0 1 auto;
   min-width: 4px;
   height: 100%;
-  background: color-mix(in srgb, var(--kc-text) 12%, transparent);
+  background: color-mix(in srgb, var(--wc-text) 12%, transparent);
 }
 
-.kc-edit-node-overview-block:first-child {
-  background: color-mix(in srgb, var(--kc-text) 20%, transparent);
+.wc-edit-node-overview-block:first-child {
+  background: color-mix(in srgb, var(--wc-text) 20%, transparent);
 }
 
-.kc-edit-node-overview-block.is-audio {
-  background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--kc-text) 22%, transparent) 0 1px, transparent 1px 4px);
+.wc-edit-node-overview-block.is-audio {
+  background: repeating-linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--wc-text) 22%, transparent) 0 1px,
+    transparent 1px 4px
+  );
 }
 
-.kc-edit-node-overview-time {
+.wc-edit-node-overview-time {
   flex: none;
   font-size: 11px;
   font-weight: 600;
-  color: var(--kc-text-secondary);
+  color: var(--wc-text-secondary);
   font-variant-numeric: tabular-nums;
 }
 
-/* 剪辑节点的框线用字面值而不是 --kc-border：界面档位（classic）会整组重写主题
+/* 剪辑节点的框线用字面值而不是 --wc-border：界面档位（classic）会整组重写主题
    令牌，节点边框跟着令牌走会在切换界面风格时变色。浅色主题单独给一档。 */
-:root[data-theme="light"] .kc-edit-node-strips,
-:root[data-theme="light"] .kc-edit-node-audio-lane,
-:root[data-theme="light"] .kc-edit-node-overview-strip {
+:root[data-theme="light"] .wc-edit-node-strips,
+:root[data-theme="light"] .wc-edit-node-audio-lane,
+:root[data-theme="light"] .wc-edit-node-overview-strip {
   border-color: rgb(26 34 31 / 20%);
 }

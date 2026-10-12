@@ -1,4 +1,8 @@
-import type { AgentCanvasContext, AgentConversationDetail, AgentModelCatalog } from "@kachang/contracts";
+import type {
+  AgentCanvasContext,
+  AgentConversationDetail,
+  AgentModelCatalog,
+} from "@weftcanvas/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({
@@ -17,7 +21,7 @@ vi.mock("../lib/api-client", async (importOriginal) => {
   };
 });
 
-const STORAGE_KEY = "kachang-canvas:agent-model:v1";
+const STORAGE_KEY = "weftcanvas:agent-model:v1";
 const catalog: AgentModelCatalog = {
   defaultModelId: "gpt-default",
   models: [
@@ -55,11 +59,17 @@ describe("agent model state", () => {
       modelError: null,
       selectedModelId: "gpt-default",
     });
-    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!)).toMatchObject({ modelId: "gpt-default", catalog });
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!)).toMatchObject({
+      modelId: "gpt-default",
+      catalog,
+    });
 
     useAgentStore.getState().setSelectedModelId("gpt-pro");
     expect(useAgentStore.getState().selectedModelId).toBe("gpt-pro");
-    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!)).toMatchObject({ modelId: "gpt-pro", catalog });
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!)).toMatchObject({
+      modelId: "gpt-pro",
+      catalog,
+    });
     useAgentStore.getState().setSelectedModelId("not-in-catalog");
     expect(useAgentStore.getState().selectedModelId).toBe("gpt-pro");
   });
@@ -78,11 +88,16 @@ describe("agent model state", () => {
       selectedModelId: "gpt-pro",
     });
 
-    await expect(useAgentStore.getState().send("project-1", "  Continue  ", canvasContext)).resolves.toBe(true);
-    expect(api.submitAgentMessage).toHaveBeenCalledWith(detail.conversation.id, expect.objectContaining({
-      content: "Continue",
-      modelId: "gpt-pro",
-    }));
+    await expect(
+      useAgentStore.getState().send("project-1", "  Continue  ", canvasContext),
+    ).resolves.toBe(true);
+    expect(api.submitAgentMessage).toHaveBeenCalledWith(
+      detail.conversation.id,
+      expect.objectContaining({
+        content: "Continue",
+        modelId: "gpt-pro",
+      }),
+    );
   });
 
   it("keeps conversation history visible when the model catalog fails", async () => {
@@ -103,11 +118,14 @@ describe("agent model state", () => {
   });
 
   it("hydrates a saved catalog immediately and keeps it usable when background refresh fails", async () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      modelId: "gpt-pro",
-      catalog,
-      loadedAt: Date.now() - 2 * 60_000,
-    }));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        modelId: "gpt-pro",
+        catalog,
+        loadedAt: Date.now() - 2 * 60_000,
+      }),
+    );
     api.fetchAgentModels.mockRejectedValue(new Error("offline"));
     const { useAgentStore } = await import("./agent-store");
 
@@ -155,14 +173,16 @@ function conversationDetail(): AgentConversationDetail {
       createdAt: "2026-07-22T00:00:00.000Z",
       updatedAt: "2026-07-22T00:00:00.000Z",
     },
-    messages: [{
-      schemaVersion: 1,
-      id: "22222222-2222-4222-8222-222222222222",
-      conversationId: "11111111-1111-4111-8111-111111111111",
-      role: "user",
-      content: "Existing history",
-      createdAt: "2026-07-22T00:00:00.000Z",
-    }],
+    messages: [
+      {
+        schemaVersion: 1,
+        id: "22222222-2222-4222-8222-222222222222",
+        conversationId: "11111111-1111-4111-8111-111111111111",
+        role: "user",
+        content: "Existing history",
+        createdAt: "2026-07-22T00:00:00.000Z",
+      },
+    ],
     latestRun: null,
   };
 }
@@ -170,12 +190,18 @@ function conversationDetail(): AgentConversationDetail {
 function installMemoryStorage() {
   const entries = new Map<string, string>();
   const storage: Storage = {
-    get length() { return entries.size; },
+    get length() {
+      return entries.size;
+    },
     clear: () => entries.clear(),
     getItem: (key) => entries.get(key) ?? null,
     key: (index) => [...entries.keys()][index] ?? null,
-    removeItem: (key) => { entries.delete(key); },
-    setItem: (key, value) => { entries.set(key, value); },
+    removeItem: (key) => {
+      entries.delete(key);
+    },
+    setItem: (key, value) => {
+      entries.set(key, value);
+    },
   };
   Object.defineProperty(globalThis, "localStorage", { configurable: true, value: storage });
 }

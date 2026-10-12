@@ -1,6 +1,6 @@
-import type { PublicGenerationJob } from "@kachang/contracts";
+import type { PublicGenerationJob } from "@weftcanvas/contracts";
 
-import type { KachangCatalogAdapter } from "../catalog/adapter.js";
+import type { WeftcanvasCatalogAdapter } from "../catalog/adapter.js";
 import type { HostedGenerationResult } from "../generation/hosted-result.js";
 import type { MediaService } from "../media/service.js";
 import type { MembershipTaskProvider, WalletProvider } from "../wallet/provider.js";
@@ -9,15 +9,15 @@ import type { MembershipTaskProvider, WalletProvider } from "../wallet/provider.
  * 画布 API 的 Provider SPI（docs/PLUGIN-ROADMAP.md §5 P2）。
  *
  * app.ts 只依赖这里声明的结构化接口，不 import 任何具体 provider 实现；
- * server.ts 按 `CANVAS_API_PROVIDER`（dev-test / kachang，见 spi/assembly.ts）
+ * server.ts 按 `CANVAS_API_PROVIDER`（dev-test / weftcanvas，见 spi/assembly.ts）
  * 装配。IdentityProvider 已在 identity/provider.ts 定义，这里是转出口。
  */
 export type { IdentityProvider } from "../identity/provider.js";
 export { IdentityProviderError } from "../identity/provider.js";
 
-/** 模型目录 + 报价：KachangCatalogAdapter 是参考实现，任何等价对象都可装配。 */
+/** 模型目录 + 报价：WeftcanvasCatalogAdapter 是参考实现，任何等价对象都可装配。 */
 export type CatalogProvider = Pick<
-  KachangCatalogAdapter,
+  WeftcanvasCatalogAdapter,
   "getCatalog" | "getModel" | "getExecutionRoute"
 >;
 
@@ -39,8 +39,16 @@ export type HostedAccountProvider = WalletProvider & MembershipTaskProvider;
  * HostedGenerationResult 信封。原为 app.ts 内联类型，随 P2 上收到 SPI。
  */
 export type GenerationProvider = {
-  submit(ownerId: string, value: unknown, token?: string): Promise<PublicGenerationJob | HostedGenerationResult<PublicGenerationJob>>;
-  get(ownerId: string, jobId: string, token?: string): Promise<PublicGenerationJob | HostedGenerationResult<PublicGenerationJob>>;
+  submit(
+    ownerId: string,
+    value: unknown,
+    token?: string,
+  ): Promise<PublicGenerationJob | HostedGenerationResult<PublicGenerationJob>>;
+  get(
+    ownerId: string,
+    jobId: string,
+    token?: string,
+  ): Promise<PublicGenerationJob | HostedGenerationResult<PublicGenerationJob>>;
   list(
     ownerId: string,
     value: { projectId?: string; limit?: number },

@@ -1,4 +1,4 @@
-import type { CloudResource, CloudResourceUsage } from "@kachang/contracts";
+import type { CloudResource, CloudResourceUsage } from "@weftcanvas/contracts";
 
 import type { CloudResourceStore, OwnedCloudMedia } from "./cloud-resource-store.js";
 import { thumbObjectKey } from "./service.js";
@@ -103,10 +103,12 @@ export class CloudResourceService {
 
   private async releaseObjects(evicted: readonly MediaEvictionItem[]) {
     // 数据库记录已删；对象删除尽力而为，失败不影响配额回收。
-    await Promise.all(evicted.flatMap((item) => [
-      this.objects.remove(item.objectKey).catch(() => undefined),
-      this.objects.remove(thumbObjectKey(item.objectKey)).catch(() => undefined),
-    ]));
+    await Promise.all(
+      evicted.flatMap((item) => [
+        this.objects.remove(item.objectKey).catch(() => undefined),
+        this.objects.remove(thumbObjectKey(item.objectKey)).catch(() => undefined),
+      ]),
+    );
   }
 }
 

@@ -1,0 +1,66 @@
+name: Bug report
+description: Something does not work as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    value: |
+      Thanks for taking the time to file a detailed report. Canvas feel issues
+      (latency, jank, pointer behavior) are especially valuable with a screen
+      recording.
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS + browser (and version), or Node/pnpm version for server issues
+      placeholder: Windows 11 / Chrome 130; or Node 22 / pnpm 11
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Canvas (pointer / pan / zoom / nodes / edges)
+        - Generation (text / image / video / jobs)
+        - Custom API / BYOK
+        - Agent
+        - Media / assets
+        - Projects / storage
+        - API / worker (self-hosting)
+        - Plugins
+        - Docs
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the canvas
+        2. Drag a node from ...
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include browser console output if any (redact anything that looks like a key)
+    validations:
+      required: true
+  - type: textarea
+    id: recordings
+    attributes:
+      label: Screenshots or recordings
+      description: Drag and drop files here
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context

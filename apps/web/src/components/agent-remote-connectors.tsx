@@ -1,4 +1,4 @@
-import type { AgentConnectorId, ConnectorClientStatus } from "@kachang/contracts";
+import type { AgentConnectorId, ConnectorClientStatus } from "@weftcanvas/contracts";
 import { Check, CircleAlert, Copy, LoaderCircle } from "lucide-react";
 import { memo, useCallback, useEffect, useState } from "react";
 
@@ -32,7 +32,7 @@ const SPECS: readonly ConnectorSpec[] = [
     showsPresence: true,
     testable: true,
     steps: [
-      "Blender → Preferences → Add-ons → Install…，选 kachang_bridge.py（仓库 apps/agent/blender/）并启用。",
+      "Blender → Preferences → Add-ons → Install…，选 weftcanvas_bridge.py（仓库 apps/agent/blender/）并启用。",
       "在该插件偏好里粘贴配对令牌；模式保持「连接画布」。",
       "回到这里点「测试连接」，应返回 Blender 版本号。",
     ],
@@ -112,7 +112,12 @@ export const AgentRemoteConnectors = memo(function AgentRemoteConnectors() {
     setBusy(`test:${connectorId}`);
     setTestResult(null);
     try {
-      const result = await runConnectorTask({ connectorId, method: "ping", params: {}, waitMs: 20_000 });
+      const result = await runConnectorTask({
+        connectorId,
+        method: "ping",
+        params: {},
+        waitMs: 20_000,
+      });
       if (result.status === "completed") {
         const text = result.stdout.trim() || "已连通";
         setTestResult({ ok: true, text });
@@ -132,17 +137,18 @@ export const AgentRemoteConnectors = memo(function AgentRemoteConnectors() {
   };
 
   const copy = (token: string) => {
-    void navigator.clipboard?.writeText(token)
+    void navigator.clipboard
+      ?.writeText(token)
       .then(() => showToast("令牌已复制", "success"))
       .catch(() => showToast("复制失败，请手动选中复制", "error"));
   };
 
   return (
-    <section className="kc-remote-connectors" aria-label="远程连接（运行在你自己的机器上）">
-      <header className="kc-connectors-head">
+    <section className="wc-remote-connectors" aria-label="远程连接（运行在你自己的机器上）">
+      <header className="wc-connectors-head">
         <span>运行在你自己的机器上</span>
       </header>
-      <p className="kc-connectors-note">
+      <p className="wc-connectors-note">
         画布是托管站点，服务器上没有你的 Blender，也不该往你的机器上写配置。这里生成
         只属于你的配对令牌：客户端带着它主动连过来，画布里的需求就落到你自己的机器上执行。
         令牌等同于该客户端在本机的执行权限，别分享；怀疑泄露就重新配对。
@@ -155,73 +161,94 @@ export const AgentRemoteConnectors = memo(function AgentRemoteConnectors() {
         const stateLabel = !client?.paired
           ? "未配对"
           : spec.showsPresence
-            ? (connected ? "已在线" : "已配对 · 离线")
+            ? connected
+              ? "已在线"
+              : "已配对 · 离线"
             : "已配对";
         return (
           <div
             key={spec.id}
-            className="kc-connector"
+            className="wc-connector"
             data-connector={spec.id}
-            data-state={client?.paired && (!spec.showsPresence || connected) ? "ready" : "unavailable"}
+            data-state={
+              client?.paired && (!spec.showsPresence || connected) ? "ready" : "unavailable"
+            }
           >
-            <div className="kc-connector-main">
-              <div className="kc-connector-copy">
+            <div className="wc-connector-main">
+              <div className="wc-connector-copy">
                 <strong>{spec.label}</strong>
                 <small>{SERVER_ORIGIN}</small>
               </div>
               <span
-                className="kc-connector-state"
-                data-state={client?.paired && (!spec.showsPresence || connected) ? "ready" : "unavailable"}
+                className="wc-connector-state"
+                data-state={
+                  client?.paired && (!spec.showsPresence || connected) ? "ready" : "unavailable"
+                }
               >
-                {client?.paired && (!spec.showsPresence || connected) ? <Check aria-hidden="true" /> : <i aria-hidden="true" />}
+                {client?.paired && (!spec.showsPresence || connected) ? (
+                  <Check aria-hidden="true" />
+                ) : (
+                  <i aria-hidden="true" />
+                )}
                 {stateLabel}
               </span>
               <button
                 type="button"
-                className="kc-connector-action"
+                className="wc-connector-action"
                 data-primary={client?.paired ? undefined : "true"}
                 disabled={busy !== null}
                 onClick={() => void pair(spec.id)}
               >
-                {busy === `pair:${spec.id}` ? "生成中…" : client?.paired ? "重新配对" : "生成配对令牌"}
+                {busy === `pair:${spec.id}`
+                  ? "生成中…"
+                  : client?.paired
+                    ? "重新配对"
+                    : "生成配对令牌"}
               </button>
             </div>
 
             {client?.lastSeenAt && spec.showsPresence ? (
-              <p className="kc-connector-detail">最近一次心跳：{new Date(client.lastSeenAt).toLocaleString("zh-CN")}</p>
+              <p className="wc-connector-detail">
+                最近一次心跳：{new Date(client.lastSeenAt).toLocaleString("zh-CN")}
+              </p>
             ) : null}
 
             {token ? (
-              <div className="kc-connector-token">
+              <div className="wc-connector-token">
                 <span>配对令牌（只显示这一次，请立刻复制）</span>
                 <div>
                   <code>{token}</code>
-                  <button type="button" className="kc-connector-action" onClick={() => copy(token)}>
+                  <button type="button" className="wc-connector-action" onClick={() => copy(token)}>
                     <Copy aria-hidden="true" /> 复制
                   </button>
                 </div>
               </div>
             ) : null}
 
-            <ol className="kc-connector-steps">
-              {spec.steps.map((step) => <li key={step}>{step}</li>)}
+            <ol className="wc-connector-steps">
+              {spec.steps.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
             </ol>
 
-            <div className="kc-connector-footer">
+            <div className="wc-connector-footer">
               {spec.testable ? (
                 <button
                   type="button"
-                  className="kc-connector-action"
+                  className="wc-connector-action"
                   disabled={busy !== null || !connected}
                   onClick={() => void test(spec.id)}
                 >
-                  {busy === `test:${spec.id}` ? <LoaderCircle className="is-spinning" aria-hidden="true" /> : null} 测试连接
+                  {busy === `test:${spec.id}` ? (
+                    <LoaderCircle className="is-spinning" aria-hidden="true" />
+                  ) : null}{" "}
+                  测试连接
                 </button>
               ) : null}
               {client?.paired ? (
                 <button
                   type="button"
-                  className="kc-connector-action"
+                  className="wc-connector-action"
                   disabled={busy !== null}
                   onClick={() => void revoke(spec.id)}
                 >
@@ -229,13 +256,16 @@ export const AgentRemoteConnectors = memo(function AgentRemoteConnectors() {
                 </button>
               ) : null}
               {testResult && spec.testable ? (
-                <span className="kc-connector-detail" data-ok={testResult.ok ? "true" : undefined}>{testResult.text}</span>
+                <span className="wc-connector-detail" data-ok={testResult.ok ? "true" : undefined}>
+                  {testResult.text}
+                </span>
               ) : null}
             </div>
 
             {spec.showsPresence && !connected && client?.paired ? (
-              <p className="kc-connector-detail">
-                还没收到心跳：确认 Blender 已打开、插件已启用、令牌已粘贴，且能访问 {SERVER_ORIGIN}。
+              <p className="wc-connector-detail">
+                还没收到心跳：确认 Blender 已打开、插件已启用、令牌已粘贴，且能访问 {SERVER_ORIGIN}
+                。
               </p>
             ) : null}
           </div>
@@ -243,10 +273,13 @@ export const AgentRemoteConnectors = memo(function AgentRemoteConnectors() {
       })}
 
       {statusError ? (
-        <div className="kc-connectors-error" role="alert"><CircleAlert aria-hidden="true" /><span>{statusError}</span></div>
+        <div className="wc-connectors-error" role="alert">
+          <CircleAlert aria-hidden="true" />
+          <span>{statusError}</span>
+        </div>
       ) : null}
 
-      <p className="kc-connectors-note">
+      <p className="wc-connectors-note">
         配对记录目前存在 API 进程内存里：服务重启后需要重新配对（面板会显示"未配对"）。
       </p>
     </section>

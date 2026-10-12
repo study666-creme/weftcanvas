@@ -25,11 +25,12 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
       - run: pnpm typecheck
       - run: pnpm test
 
       # E2E 在公开树的规格核对完成后启用（部分规格依赖私有 fixture 或生产端点）：
-      # - run: pnpm --filter @kachang/canvas-web exec playwright install --with-deps chromium
+      # - run: pnpm --filter @weftcanvas/canvas-web exec playwright install --with-deps chromium
       # - run: pnpm test:e2e
 
   secrets:

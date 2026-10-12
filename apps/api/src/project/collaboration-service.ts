@@ -7,7 +7,7 @@ import {
   cloudProjectMemberSchema,
   type CloudProjectInvitation,
   type CloudProjectMember,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 
 import { StaticCloudProjectEntitlementResolver } from "./entitlements.js";
 import {
@@ -17,9 +17,7 @@ import {
   type CollaborationSeatEntitlementResolver,
 } from "./collaboration-seat-entitlements.js";
 import type { CloudProjectEntitlementResolver, CloudProjectServiceResult } from "./types.js";
-import type {
-  CloudProjectCollaborationStore,
-} from "./collaboration-store.js";
+import type { CloudProjectCollaborationStore } from "./collaboration-store.js";
 import { CloudProjectAccessAmbiguousError } from "./collaboration-store.js";
 
 const DEFAULT_INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1_000;
@@ -74,48 +72,69 @@ export class CloudProjectCollaborationService {
     if (!Number.isFinite(this.extraSeatPriceCny) || this.extraSeatPriceCny <= 0) {
       throw new Error("extraSeatPriceCny must be positive");
     }
-    this.seatEntitlements = options.seatEntitlements ?? new IncludedCollaborationSeatEntitlementResolver();
+    this.seatEntitlements =
+      options.seatEntitlements ?? new IncludedCollaborationSeatEntitlementResolver();
   }
 
-  async listMembers(actorId: string, projectId: string, token?: string, ownerId?: string): Promise<CloudProjectServiceResult<{
-    members: CloudProjectMember[];
-    invitations: CloudProjectInvitation[];
-    seatUsage?: { limit: number; used: number } | null;
-  }>> {
+  async listMembers(
+    actorId: string,
+    projectId: string,
+    token?: string,
+    ownerId?: string,
+  ): Promise<
+    CloudProjectServiceResult<{
+      members: CloudProjectMember[];
+      invitations: CloudProjectInvitation[];
+      seatUsage?: { limit: number; used: number } | null;
+    }>
+  > {
     const access = await this.findAccess(projectId, actorId, ownerId);
     if (!access) throw projectNotFound();
-    const resolved = access.role === "owner"
-      ? undefined
-      : await this.requireMemberAndOwnerPro(actorId, access.ownerId, token);
+    const resolved =
+      access.role === "owner"
+        ? undefined
+        : await this.requireMemberAndOwnerPro(actorId, access.ownerId, token);
     const now = new Date(this.now()).toISOString();
-    const [members, invitations] = access.role === "owner"
-      ? await Promise.all([
-          this.store.listMembers(access.ownerId, projectId),
-          this.store.listProjectInvitations(access.ownerId, projectId, now, 100),
-        ])
-      : [await this.store.listMembersForActor(access.ownerId, projectId, actorId), []] as const;
+    const [members, invitations] =
+      access.role === "owner"
+        ? await Promise.all([
+            this.store.listMembers(access.ownerId, projectId),
+            this.store.listProjectInvitations(access.ownerId, projectId, now, 100),
+          ])
+        : ([await this.store.listMembersForActor(access.ownerId, projectId, actorId), []] as const);
     if (!members) throw projectNotFound();
-    const seatUsage = access.role === "owner"
-      ? {
-          limit: await resolveCollaborationSeatLimit(this.seatEntitlements, access.ownerId),
-          used: await this.store.countOccupiedSeats(access.ownerId, now),
-        }
-      : null;
-    const data = cloudProjectMemberListResponseSchema.shape.data.parse({ members, invitations, seatUsage });
+    const seatUsage =
+      access.role === "owner"
+        ? {
+            limit: await resolveCollaborationSeatLimit(this.seatEntitlements, access.ownerId),
+            used: await this.store.countOccupiedSeats(access.ownerId, now),
+          }
+        : null;
+    const data = cloudProjectMemberListResponseSchema.shape.data.parse({
+      members,
+      invitations,
+      seatUsage,
+    });
     return resolved ? withRefresh(data, resolved) : { data };
   }
 
-  async invite(actorId: string, projectId: string, value: unknown, token?: string): Promise<CloudProjectServiceResult<CloudProjectInvitation>> {
+  async invite(
+    actorId: string,
+    projectId: string,
+    value: unknown,
+    token?: string,
+  ): Promise<CloudProjectServiceResult<CloudProjectInvitation>> {
     const resolved = await this.requirePro(actorId, token);
     const input = cloudProjectInviteRequestSchema.parse(value);
     const access = await this.findAccess(projectId, actorId);
     if (!access) throw projectNotFound();
     if (access.role !== "owner") throw forbidden();
-    if (input.inviteeId === actorId) throw new CollaborationServiceError(
-      "COLLABORATION_ALREADY_MEMBER",
-      "The project owner is already a member",
-      409,
-    );
+    if (input.inviteeId === actorId)
+      throw new CollaborationServiceError(
+        "COLLABORATION_ALREADY_MEMBER",
+        "The project owner is already a member",
+        409,
+      );
 
     const now = new Date(this.now());
     const memberLimit = await resolveCollaborationSeatLimit(this.seatEntitlements, access.ownerId);
@@ -130,28 +149,52 @@ export class CloudProjectCollaborationService {
       memberLimit,
     });
     if (result.kind === "project_not_found") throw projectNotFound();
-    if (result.kind === "already_member") throw new CollaborationServiceError(
-      "COLLABORATION_ALREADY_MEMBER",
-      "The invitee is already a project member",
-      409,
-    );
-    if (result.kind === "duplicate") throw new CollaborationServiceError(
-      "COLLABORATION_INVITATION_EXISTS",
-      "A pending invitation already exists for this principal",
-      409,
-    );
+    if (result.kind === "already_member")
+      throw new CollaborationServiceError(
+        "COLLABORATION_ALREADY_MEMBER",
+        "The invitee is already a project member",
+        409,
+      );
+    if (result.kind === "duplicate")
+      throw new CollaborationServiceError(
+        "COLLABORATION_INVITATION_EXISTS",
+        "A pending invitation already exists for this principal",
+        409,
+      );
     if (result.kind === "seat_limit") throw seatLimit(this.extraSeatPriceCny);
-    return withRefresh(cloudProjectInvitationSchema.parse(publicInvitation(result.invitation)), resolved);
+    return withRefresh(
+      cloudProjectInvitationSchema.parse(publicInvitation(result.invitation)),
+      resolved,
+    );
   }
 
-  async listInvitations(actorId: string, token?: string): Promise<CloudProjectServiceResult<{
-    invitations: CloudProjectInvitation[];
-  }>> {
-    const invitations = await this.store.listInvitations(actorId, new Date(this.now()).toISOString(), 100);
-    return { data: { invitations: invitations.map((invitation) => cloudProjectInvitationSchema.parse(invitation)) } };
+  async listInvitations(
+    actorId: string,
+    _token?: string, // 统一服务面形状；列邀请只查成员身份，不解析 Pro 权益
+  ): Promise<
+    CloudProjectServiceResult<{
+      invitations: CloudProjectInvitation[];
+    }>
+  > {
+    const invitations = await this.store.listInvitations(
+      actorId,
+      new Date(this.now()).toISOString(),
+      100,
+    );
+    return {
+      data: {
+        invitations: invitations.map((invitation) =>
+          cloudProjectInvitationSchema.parse(invitation),
+        ),
+      },
+    };
   }
 
-  async acceptInvitation(actorId: string, invitationId: string, token?: string): Promise<CloudProjectServiceResult<CloudProjectMember>> {
+  async acceptInvitation(
+    actorId: string,
+    invitationId: string,
+    token?: string,
+  ): Promise<CloudProjectServiceResult<CloudProjectMember>> {
     const resolved = await this.requirePro(actorId, token);
     const ownerId = await this.store.findInvitationOwner(invitationId, actorId);
     if (!ownerId) throw invitationNotFound();
@@ -171,21 +214,31 @@ export class CloudProjectCollaborationService {
     return withRefresh(cloudProjectMemberSchema.parse(publicMember(result.member)), resolved);
   }
 
-  async removeMember(actorId: string, projectId: string, memberId: string, token?: string): Promise<CloudProjectServiceResult<{ ok: true }>> {
+  async removeMember(
+    actorId: string,
+    projectId: string,
+    memberId: string,
+    _token?: string, // 统一服务面形状；移除成员只查 owner 角色，不解析 Pro 权益
+  ): Promise<CloudProjectServiceResult<{ ok: true }>> {
     const access = await this.findAccess(projectId, actorId);
     if (!access) throw projectNotFound();
     if (access.role !== "owner") throw forbidden();
     if (memberId === actorId) throw forbidden();
     const result = await this.store.removeMember(access.ownerId, projectId, memberId);
-    if (result.kind === "not_found") throw new CollaborationServiceError(
-      "COLLABORATION_MEMBER_NOT_FOUND",
-      "The project member was not found",
-      404,
-    );
+    if (result.kind === "not_found")
+      throw new CollaborationServiceError(
+        "COLLABORATION_MEMBER_NOT_FOUND",
+        "The project member was not found",
+        404,
+      );
     return { data: { ok: true as const } };
   }
 
-  async revokeInvitation(actorId: string, projectId: string, invitationId: string): Promise<CloudProjectServiceResult<{ ok: true }>> {
+  async revokeInvitation(
+    actorId: string,
+    projectId: string,
+    invitationId: string,
+  ): Promise<CloudProjectServiceResult<{ ok: true }>> {
     const access = await this.findAccess(projectId, actorId);
     if (!access) throw projectNotFound();
     if (access.role !== "owner") throw forbidden();
@@ -194,7 +247,10 @@ export class CloudProjectCollaborationService {
     return { data: { ok: true as const } };
   }
 
-  async declineInvitation(actorId: string, invitationId: string): Promise<CloudProjectServiceResult<{ ok: true }>> {
+  async declineInvitation(
+    actorId: string,
+    invitationId: string,
+  ): Promise<CloudProjectServiceResult<{ ok: true }>> {
     const result = await this.store.declineInvitation(invitationId, actorId);
     if (result.kind === "not_found") throw invitationNotFound();
     return { data: { ok: true as const } };
@@ -202,11 +258,12 @@ export class CloudProjectCollaborationService {
 
   private async requirePro(actorId: string, token?: string) {
     const resolved = await this.entitlements.resolve(actorId, token, { allowStale: false });
-    if (!COLLABORATION_FREE_ACCESS_ENABLED && !isProTier(resolved.data.tier)) throw new CollaborationServiceError(
-      "COLLABORATION_PRO_REQUIRED",
-      "Project collaboration requires a Pro membership",
-      403,
-    );
+    if (!COLLABORATION_FREE_ACCESS_ENABLED && !isProTier(resolved.data.tier))
+      throw new CollaborationServiceError(
+        "COLLABORATION_PRO_REQUIRED",
+        "Project collaboration requires a Pro membership",
+        403,
+      );
     return resolved;
   }
 
@@ -236,11 +293,12 @@ export class CloudProjectCollaborationService {
     const owner = this.entitlements.resolveForPrincipal
       ? await this.entitlements.resolveForPrincipal(ownerId, { allowStale: false })
       : await this.entitlements.resolve(ownerId, undefined, { allowStale: false });
-    if (!isProTier(owner.data.tier)) throw new CollaborationServiceError(
-      "COLLABORATION_PRO_REQUIRED",
-      "Project collaboration requires an active Pro owner",
-      403,
-    );
+    if (!isProTier(owner.data.tier))
+      throw new CollaborationServiceError(
+        "COLLABORATION_PRO_REQUIRED",
+        "Project collaboration requires an active Pro owner",
+        403,
+      );
     return owner;
   }
 }
@@ -261,7 +319,10 @@ function publicInvitation(invitation: CloudProjectInvitationRecordLike) {
 
 type CloudProjectInvitationRecordLike = CloudProjectInvitation & { ownerId: string };
 
-function withRefresh<T>(data: T, resolved: Awaited<ReturnType<CloudProjectEntitlementResolver["resolve"]>>): CloudProjectServiceResult<T> {
+function withRefresh<T>(
+  data: T,
+  resolved: Awaited<ReturnType<CloudProjectEntitlementResolver["resolve"]>>,
+): CloudProjectServiceResult<T> {
   return {
     data,
     ...(resolved.refreshedToken ? { refreshedToken: resolved.refreshedToken } : {}),
@@ -270,23 +331,43 @@ function withRefresh<T>(data: T, resolved: Awaited<ReturnType<CloudProjectEntitl
 }
 
 function projectNotFound() {
-  return new CollaborationServiceError("COLLABORATION_PROJECT_NOT_FOUND", "Cloud project not found", 404);
+  return new CollaborationServiceError(
+    "COLLABORATION_PROJECT_NOT_FOUND",
+    "Cloud project not found",
+    404,
+  );
 }
 
 function forbidden() {
-  return new CollaborationServiceError("COLLABORATION_FORBIDDEN", "Only the project owner can manage members", 403);
+  return new CollaborationServiceError(
+    "COLLABORATION_FORBIDDEN",
+    "Only the project owner can manage members",
+    403,
+  );
 }
 
 function invitationNotFound() {
-  return new CollaborationServiceError("COLLABORATION_INVITATION_NOT_FOUND", "Invitation not found", 404);
+  return new CollaborationServiceError(
+    "COLLABORATION_INVITATION_NOT_FOUND",
+    "Invitation not found",
+    404,
+  );
 }
 
 function invitationExpired() {
-  return new CollaborationServiceError("COLLABORATION_INVITATION_EXPIRED", "This invitation has expired", 409);
+  return new CollaborationServiceError(
+    "COLLABORATION_INVITATION_EXPIRED",
+    "This invitation has expired",
+    409,
+  );
 }
 
 function invitationUnavailable() {
-  return new CollaborationServiceError("COLLABORATION_INVITATION_UNAVAILABLE", "This invitation is no longer pending", 409);
+  return new CollaborationServiceError(
+    "COLLABORATION_INVITATION_UNAVAILABLE",
+    "This invitation is no longer pending",
+    409,
+  );
 }
 
 function seatLimit(extraSeatPriceCny: number) {

@@ -31,8 +31,8 @@ export function useTouchCanvasNavigation({
   onGestureStart,
 }: TouchCanvasNavigationOptions) {
   const gestureRef = useRef<TouchGesture | null>(null);
-  const primaryPointerIsCoarse = typeof window !== "undefined"
-    && window.matchMedia("(pointer: coarse)").matches;
+  const primaryPointerIsCoarse =
+    typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
 
   useEffect(() => {
     const shell = flowShellRef.current;
@@ -129,14 +129,16 @@ export function useTouchCanvasNavigation({
 
     const handleTouchEnd = (event: TouchEvent) => {
       const gesture = gestureRef.current;
-      if (!gesture || gesture.touchIds.some((identifier) => touchById(event.touches, identifier))) return;
+      if (!gesture || gesture.touchIds.some((identifier) => touchById(event.touches, identifier)))
+        return;
       event.preventDefault();
       finishGesture();
     };
 
     const handleTouchCancel = (event: TouchEvent) => {
       const gesture = gestureRef.current;
-      if (!gesture || gesture.touchIds.some((identifier) => touchById(event.touches, identifier))) return;
+      if (!gesture || gesture.touchIds.some((identifier) => touchById(event.touches, identifier)))
+        return;
       finishGesture();
     };
 
@@ -186,7 +188,9 @@ export function useTouchCanvasNavigation({
 }
 
 function touchesInside(touches: TouchList, shell: HTMLElement) {
-  return Array.from(touches).filter((touch) => touch.target instanceof Node && shell.contains(touch.target));
+  return Array.from(touches).filter(
+    (touch) => touch.target instanceof Node && shell.contains(touch.target),
+  );
 }
 
 function touchById(touches: TouchList, identifier: number) {
@@ -209,21 +213,25 @@ function finishActiveNodeTouchDrag(flowRoot: HTMLElement, touches: TouchList) {
   if (!draggingNode) return;
 
   const activeTouches = Array.from(touches);
-  const draggedTouch = activeTouches.find((touch) => (
-    touch.target instanceof Node && draggingNode.contains(touch.target)
-  ));
+  const draggedTouch = activeTouches.find(
+    (touch) => touch.target instanceof Node && draggingNode.contains(touch.target),
+  );
   if (!draggedTouch) return;
 
-  const remainingTouches = activeTouches.filter((touch) => touch.identifier !== draggedTouch.identifier);
-  draggedTouch.target.dispatchEvent(new TouchEvent("touchend", {
-    bubbles: true,
-    cancelable: true,
-    composed: true,
-    view: window,
-    touches: remainingTouches,
-    targetTouches: remainingTouches,
-    changedTouches: [draggedTouch],
-  }));
+  const remainingTouches = activeTouches.filter(
+    (touch) => touch.identifier !== draggedTouch.identifier,
+  );
+  draggedTouch.target.dispatchEvent(
+    new TouchEvent("touchend", {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      view: window,
+      touches: remainingTouches,
+      targetTouches: remainingTouches,
+      changedTouches: [draggedTouch],
+    }),
+  );
 }
 
 function clamp(value: number, minimum: number, maximum: number) {

@@ -47,7 +47,9 @@ export function createDatabasePool(environment: DatabasePoolEnvironment = proces
   const pool = new Pool(config);
   pool.on("error", (error) => {
     const code = readSafeErrorCode(error);
-    console.error(code ? `Idle database connection failed (${code})` : "Idle database connection failed");
+    console.error(
+      code ? `Idle database connection failed (${code})` : "Idle database connection failed",
+    );
   });
   return pool;
 }
@@ -72,8 +74,15 @@ class HttpConnectStream extends Duplex {
 
   connect(portOrPath: number | string, host?: string) {
     if (this.#socket || this.destroyed) return this;
-    if (!Number.isInteger(portOrPath) || Number(portOrPath) < 1 || Number(portOrPath) > 65_535 || !host) {
-      queueMicrotask(() => this.destroy(new Error("Database proxy requires a TCP database host and port")));
+    if (
+      !Number.isInteger(portOrPath) ||
+      Number(portOrPath) < 1 ||
+      Number(portOrPath) > 65_535 ||
+      !host
+    ) {
+      queueMicrotask(() =>
+        this.destroy(new Error("Database proxy requires a TCP database host and port")),
+      );
       return this;
     }
 
@@ -81,7 +90,9 @@ class HttpConnectStream extends Duplex {
     try {
       authority = formatAuthority(host, Number(portOrPath));
     } catch (error) {
-      queueMicrotask(() => this.destroy(error instanceof Error ? error : new Error("Invalid database proxy target")));
+      queueMicrotask(() =>
+        this.destroy(error instanceof Error ? error : new Error("Invalid database proxy target")),
+      );
       return this;
     }
     const socket = new Socket();
@@ -144,7 +155,11 @@ class HttpConnectStream extends Duplex {
     if (this.#tunneled) this.#socket?.resume();
   }
 
-  override _write(chunk: Buffer | string, _encoding: BufferEncoding, callback: (error?: Error | null) => void) {
+  override _write(
+    chunk: Buffer | string,
+    _encoding: BufferEncoding,
+    callback: (error?: Error | null) => void,
+  ) {
     const socket = this.#socket;
     if (!socket || !this.#tunneled || socket.destroyed) {
       callback(new Error("Database proxy tunnel is not connected"));
@@ -197,7 +212,13 @@ class HttpConnectStream extends Duplex {
     const match = /^HTTP\/1\.[01] ([0-9]{3})(?:[ \t]|$)/.exec(statusLine);
     const status = match ? Number(match[1]) : 0;
     if (status < 200 || status >= 300) {
-      this.destroy(new Error(status ? `Database proxy CONNECT failed with status ${status}` : "Database proxy returned an invalid response"));
+      this.destroy(
+        new Error(
+          status
+            ? `Database proxy CONNECT failed with status ${status}`
+            : "Database proxy returned an invalid response",
+        ),
+      );
       return;
     }
 
@@ -223,7 +244,13 @@ function parseHttpProxy(value: string): HttpProxyEndpoint {
   } catch {
     throw new Error("DATABASE_PROXY_URL must be a valid http:// URL");
   }
-  if (url.protocol !== "http:" || !url.hostname || (url.pathname && url.pathname !== "/") || url.search || url.hash) {
+  if (
+    url.protocol !== "http:" ||
+    !url.hostname ||
+    (url.pathname && url.pathname !== "/") ||
+    url.search ||
+    url.hash
+  ) {
     throw new Error("DATABASE_PROXY_URL must be an http:// host and optional port");
   }
   const port = url.port ? Number(url.port) : 80;
@@ -236,9 +263,11 @@ function parseHttpProxy(value: string): HttpProxyEndpoint {
   return {
     hostname: url.hostname.startsWith("[") ? url.hostname.slice(1, -1) : url.hostname,
     port,
-    ...((username || password) ? {
-      authorization: `Basic ${Buffer.from(`${username}:${password}`, "utf8").toString("base64")}`,
-    } : {}),
+    ...(username || password
+      ? {
+          authorization: `Basic ${Buffer.from(`${username}:${password}`, "utf8").toString("base64")}`,
+        }
+      : {}),
   };
 }
 
@@ -286,8 +315,12 @@ function shouldDefaultToVerifiedTls(connectionString: string) {
 
 function isLoopbackHost(hostname: string) {
   const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, "");
-  return normalized === "localhost" || normalized === "::1" || normalized === "0:0:0:0:0:0:0:1"
-    || /^127(?:\.\d{1,3}){3}$/.test(normalized);
+  return (
+    normalized === "localhost" ||
+    normalized === "::1" ||
+    normalized === "0:0:0:0:0:0:0:1" ||
+    /^127(?:\.\d{1,3}){3}$/.test(normalized)
+  );
 }
 
 function readTimeout(value: string | undefined, fallback: number, name: string) {
@@ -300,7 +333,9 @@ function readTimeout(value: string | undefined, fallback: number, name: string) 
 }
 
 function databaseProxyConnectionError(cause: unknown) {
-  const error = new Error("Database proxy connection failed", { cause }) as Error & { code?: string };
+  const error = new Error("Database proxy connection failed", { cause }) as Error & {
+    code?: string;
+  };
   const code = readSafeErrorCode(cause);
   if (code) error.code = code;
   return error;

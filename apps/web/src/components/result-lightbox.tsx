@@ -1,4 +1,4 @@
-import type { CanvasMedia } from "@kachang/contracts";
+import type { CanvasMedia } from "@weftcanvas/contracts";
 import {
   AlertCircle,
   ArrowDownToLine,
@@ -44,10 +44,13 @@ export function ResultLightbox({
 }) {
   const item = items[index] ?? null;
 
-  const go = useCallback((delta: number) => {
-    if (!items.length) return;
-    onNavigate((index + delta + items.length) % items.length);
-  }, [index, items.length, onNavigate]);
+  const go = useCallback(
+    (delta: number) => {
+      if (!items.length) return;
+      onNavigate((index + delta + items.length) % items.length);
+    },
+    [index, items.length, onNavigate],
+  );
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -81,13 +84,28 @@ export function ResultLightbox({
   if (!item) return null;
 
   return (
-    <div className="kc-lightbox" role="dialog" aria-modal="true" aria-label="结果预览" onClick={onClose}>
-      <div className="kc-lightbox-surface" onClick={(event) => event.stopPropagation()}>
-
-        <header className="kc-lightbox-bar">
-          <span className="kc-lightbox-model">{item.modelLabel}</span>
-          {items.length > 1 ? <span className="kc-lightbox-count">{index + 1} / {items.length}</span> : null}
-          <button type="button" className="kc-lightbox-close" onClick={onClose} aria-label="关闭预览" title="关闭 (Esc)">
+    <div
+      className="wc-lightbox"
+      role="dialog"
+      aria-modal="true"
+      aria-label="结果预览"
+      onClick={onClose}
+    >
+      <div className="wc-lightbox-surface" onClick={(event) => event.stopPropagation()}>
+        <header className="wc-lightbox-bar">
+          <span className="wc-lightbox-model">{item.modelLabel}</span>
+          {items.length > 1 ? (
+            <span className="wc-lightbox-count">
+              {index + 1} / {items.length}
+            </span>
+          ) : null}
+          <button
+            type="button"
+            className="wc-lightbox-close"
+            onClick={onClose}
+            aria-label="关闭预览"
+            title="关闭 (Esc)"
+          >
             <X aria-hidden="true" />
           </button>
         </header>
@@ -101,10 +119,22 @@ export function ResultLightbox({
 
         {items.length > 1 ? (
           <>
-            <button type="button" className="kc-lightbox-nav is-prev" onClick={() => go(-1)} aria-label="上一个结果" title="上一个 (←)">
+            <button
+              type="button"
+              className="wc-lightbox-nav is-prev"
+              onClick={() => go(-1)}
+              aria-label="上一个结果"
+              title="上一个 (←)"
+            >
               <ChevronLeft aria-hidden="true" />
             </button>
-            <button type="button" className="kc-lightbox-nav is-next" onClick={() => go(1)} aria-label="下一个结果" title="下一个 (→)">
+            <button
+              type="button"
+              className="wc-lightbox-nav is-next"
+              onClick={() => go(1)}
+              aria-label="下一个结果"
+              title="下一个 (→)"
+            >
               <ChevronRight aria-hidden="true" />
             </button>
           </>
@@ -146,9 +176,9 @@ function LightboxContent({
 
   return (
     <>
-      <div className="kc-lightbox-stage">
+      <div className="wc-lightbox-stage">
         {!url ? (
-          <div className="kc-lightbox-empty" role="status">
+          <div className="wc-lightbox-empty" role="status">
             <LoaderCircle className="is-spinning" aria-hidden="true" />
             <span>正在读取结果</span>
           </div>
@@ -159,21 +189,29 @@ function LightboxContent({
         )}
       </div>
 
-      {item.prompt ? <p className="kc-lightbox-prompt">{item.prompt}</p> : null}
+      {item.prompt ? <p className="wc-lightbox-prompt">{item.prompt}</p> : null}
 
-      <footer className="kc-lightbox-actions">
+      <footer className="wc-lightbox-actions">
         <button type="button" onClick={() => onReusePrompt(item)} disabled={!item.prompt}>
-          <RotateCcw aria-hidden="true" />复用提示词
+          <RotateCcw aria-hidden="true" />
+          复用提示词
         </button>
         <button type="button" onClick={() => void handleDownload()} disabled={!url || downloading}>
-          <ArrowDownToLine aria-hidden="true" />{downloading ? "正在下载" : "下载"}
+          <ArrowDownToLine aria-hidden="true" />
+          {downloading ? "正在下载" : "下载"}
         </button>
         <button type="button" className="is-danger" onClick={() => onRemove(item)}>
-          <Trash2 aria-hidden="true" />删除
+          <Trash2 aria-hidden="true" />
+          删除
         </button>
       </footer>
 
-      {downloadError ? <p className="kc-lightbox-error" role="alert"><AlertCircle aria-hidden="true" />{downloadError}</p> : null}
+      {downloadError ? (
+        <p className="wc-lightbox-error" role="alert">
+          <AlertCircle aria-hidden="true" />
+          {downloadError}
+        </p>
+      ) : null}
     </>
   );
 }

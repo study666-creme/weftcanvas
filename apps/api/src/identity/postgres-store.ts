@@ -72,7 +72,12 @@ export class PostgresIdentityStore implements IdentityStore {
             id, owner_id, entry_type, available_delta_micros,
             reserved_delta_micros, metadata
           ) VALUES ($1, $2, 'credit', $3, 0, $4::JSONB)`,
-          [creditLedgerId, user.id, initialCreditMicros, JSON.stringify({ source: "registration" })],
+          [
+            creditLedgerId,
+            user.id,
+            initialCreditMicros,
+            JSON.stringify({ source: "registration" }),
+          ],
         );
       }
       await insertSession(client, session);

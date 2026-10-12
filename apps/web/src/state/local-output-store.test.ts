@@ -1,4 +1,4 @@
-import type { CanvasMedia, PublicGenerationJob } from "@kachang/contracts";
+import type { CanvasMedia, PublicGenerationJob } from "@weftcanvas/contracts";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -57,7 +57,15 @@ describe("local generation output queue", () => {
       imageArtifact("image-new", "2026-07-23T10:00:01.000Z"),
       imageArtifact("image-old", "2026-07-23T09:59:59.000Z"),
       videoArtifact("video-new", "2026-07-23T10:00:02.000Z"),
-      { id: "audio", kind: "audio", mediaId: "audio-media", name: "result.mp3", mimeType: "audio/mpeg", size: 12, createdAt: "2026-07-23T10:00:03.000Z" },
+      {
+        id: "audio",
+        kind: "audio",
+        mediaId: "audio-media",
+        name: "result.mp3",
+        mimeType: "audio/mpeg",
+        size: 12,
+        createdAt: "2026-07-23T10:00:03.000Z",
+      },
       { id: "text", kind: "text", text: "done", createdAt: "2026-07-23T10:00:03.000Z" },
     ]);
     const enabledAt = Date.parse("2026-07-23T10:00:00.000Z");
@@ -66,9 +74,17 @@ describe("local generation output queue", () => {
     const videos = buildGenerationOutputRecords(job, outputSettings("video", enabledAt));
 
     expect(images).toHaveLength(1);
-    expect(images[0]).toMatchObject({ kind: "image", outputKey: "hosted:job-1:image-new", media: { id: "media-image-new", source: "server" } });
+    expect(images[0]).toMatchObject({
+      kind: "image",
+      outputKey: "hosted:job-1:image-new",
+      media: { id: "media-image-new", source: "server" },
+    });
     expect(videos).toHaveLength(1);
-    expect(videos[0]).toMatchObject({ kind: "video", outputKey: "hosted:job-1:video-new", media: { id: "media-video-new", source: "server" } });
+    expect(videos[0]).toMatchObject({
+      kind: "video",
+      outputKey: "hosted:job-1:video-new",
+      media: { id: "media-video-new", source: "server" },
+    });
 
     const liveImages = buildGenerationOutputRecords(job, outputSettings("image", enabledAt), false);
     expect(liveImages.map((record) => record.outputKey)).toEqual([
@@ -95,13 +111,28 @@ describe("local generation output queue", () => {
 
   it("routes browser-owned media by MIME type and keeps its output key stable", () => {
     const image = media("image/png");
-    expect(buildGeneratedMediaOutputRecord({ outputKey: "job:media-1", createdAt: 2_000, media: image }, outputSettings("image", 1_000))).toMatchObject({
+    expect(
+      buildGeneratedMediaOutputRecord(
+        { outputKey: "job:media-1", createdAt: 2_000, media: image },
+        outputSettings("image", 1_000),
+      ),
+    ).toMatchObject({
       key: "target-image:browser:job:media-1",
       kind: "image",
       outputKey: "browser:job:media-1",
     });
-    expect(buildGeneratedMediaOutputRecord({ outputKey: "job:media-1", createdAt: 2_000, media: image }, outputSettings("video", 1_000))).toBeNull();
-    expect(buildGeneratedMediaOutputRecord({ outputKey: "job:media-1", createdAt: 999, media: image }, outputSettings("image", 1_000))).toBeNull();
+    expect(
+      buildGeneratedMediaOutputRecord(
+        { outputKey: "job:media-1", createdAt: 2_000, media: image },
+        outputSettings("video", 1_000),
+      ),
+    ).toBeNull();
+    expect(
+      buildGeneratedMediaOutputRecord(
+        { outputKey: "job:media-1", createdAt: 999, media: image },
+        outputSettings("image", 1_000),
+      ),
+    ).toBeNull();
   });
 });
 
@@ -110,7 +141,12 @@ describe("local output write lease", () => {
     const pending = outputRecord();
     const first = claimLocalOutputRecord(pending, "writer-a", 1_000, 100);
 
-    expect(first).toMatchObject({ state: "writing", leaseOwner: "writer-a", leaseUntil: 1_100, attempts: 1 });
+    expect(first).toMatchObject({
+      state: "writing",
+      leaseOwner: "writer-a",
+      leaseUntil: 1_100,
+      attempts: 1,
+    });
     expect(claimLocalOutputRecord(first!, "writer-b", 1_050, 100)).toBeNull();
     expect(claimLocalOutputRecord(first!, "writer-b", 1_101, 100)).toMatchObject({
       state: "writing",
@@ -156,7 +192,9 @@ describe("local output filenames", () => {
     const unsafe = buildLocalOutputFileName("../bad:name?.png", "image/png", "job:artifact");
     expect(unsafe).not.toMatch(/[<>:"/\\|?*]/);
     expect(unsafe).toMatch(/^_bad_name_-[a-f0-9]{8}-[a-f0-9]{24}\.png$/);
-    expect(buildLocalOutputFileName("CON.png", "image/png", "job:artifact")).toMatch(/^_CON-[a-f0-9]{8}-[a-f0-9]{24}\.png$/);
+    expect(buildLocalOutputFileName("CON.png", "image/png", "job:artifact")).toMatch(
+      /^_CON-[a-f0-9]{8}-[a-f0-9]{24}\.png$/,
+    );
     const first = buildLocalOutputFileName("没有扩展名", "video/mp4", "job:artifact");
     const second = buildLocalOutputFileName("没有扩展名", "video/mp4", "job:artifact");
     expect(first).not.toBe(second);
@@ -170,7 +208,8 @@ describe("local output filenames", () => {
     const handle: LocalDirectoryHandle = {
       kind: "directory",
       name: "images",
-      getFileHandle: vi.fn()
+      getFileHandle: vi
+        .fn()
         .mockResolvedValueOnce({ createWritable: vi.fn() })
         .mockRejectedValueOnce(notFound),
     };
@@ -244,9 +283,30 @@ function completedJob(artifacts: PublicGenerationJob["artifacts"]): PublicGenera
 }
 
 function imageArtifact(id: string, createdAt: string): PublicGenerationJob["artifacts"][number] {
-  return { id, kind: "image", mediaId: `media-${id}`, name: `${id}.png`, mimeType: "image/png", size: 12, width: 1, height: 1, createdAt };
+  return {
+    id,
+    kind: "image",
+    mediaId: `media-${id}`,
+    name: `${id}.png`,
+    mimeType: "image/png",
+    size: 12,
+    width: 1,
+    height: 1,
+    createdAt,
+  };
 }
 
 function videoArtifact(id: string, createdAt: string): PublicGenerationJob["artifacts"][number] {
-  return { id, kind: "video", mediaId: `media-${id}`, name: `${id}.mp4`, mimeType: "video/mp4", size: 12, width: 1, height: 1, duration: 1, createdAt };
+  return {
+    id,
+    kind: "video",
+    mediaId: `media-${id}`,
+    name: `${id}.mp4`,
+    mimeType: "video/mp4",
+    size: 12,
+    width: 1,
+    height: 1,
+    duration: 1,
+    createdAt,
+  };
 }

@@ -3,12 +3,15 @@ import {
   type AgentCanvasContext,
   type AgentCreativeGuidance,
   type AgentMessage,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 
-import { normalizeAgentCreativeGuidance, readProfessionalBaselineStatus } from "./creative-guidance.js";
+import {
+  normalizeAgentCreativeGuidance,
+  readProfessionalBaselineStatus,
+} from "./creative-guidance.js";
 
 const SYSTEM_PROMPT_BASE = [
-  "你是卡藏画布（Kachang Canvas）的私有创作助手。",
+  "你是纬线画布（Weftcanvas）的私有创作助手。",
   "你可以通过受控 actions 修改画布或导演台，但必须遵守 executionMode 与确认边界。",
   "没有修改时：executionMode 必须为 none，actions 必须为空数组，proposal 必须为 null。",
   "只有用户在当前消息中明确要求执行，并且全部动作都低风险、可逆时，才能使用 direct。direct 仅允许选择、连接、分组、调整视口、打开或选择导演台镜头、调整导演台对象空间参数。",
@@ -36,7 +39,7 @@ const NO_TOOL_OUTPUT_RULE = [
 const TOOL_OUTPUT_RULE = [
   "响应必须是一个 JSON 对象，字段只有 content、executionMode、proposal、actions、toolCalls。不要使用 Markdown 代码围栏。",
   "不要只输出 actions 数组，也不要只输出单个动作对象：外层必须是包含 content 的完整对象。",
-  "本轮有可用的本机工具时，用 toolCalls 表达调用：toolCalls 是最多两项的数组，每项形如 {\"name\":\"工具名\",\"arguments\":{...}}。",
+  '本轮有可用的本机工具时，用 toolCalls 表达调用：toolCalls 是最多两项的数组，每项形如 {"name":"工具名","arguments":{...}}。',
   "有 toolCalls 时 executionMode 必须为 none、actions 必须为空数组；运行时执行后会再把结果发给你，你才给出最终回复。",
   "不要臆造工具名或参数；工具失败时如实说明失败原因，不要假装已经完成。",
   "单个动作的 body/text 控制在 400 字以内，避免 JSON 被输出上限截断。",
@@ -62,10 +65,14 @@ export function buildChatMessages(
     { role: "system", content: systemPrompt(hasTools) },
     { role: "system", content: formatCanvasContext(canvasContext) },
     ...(hasTools ? [{ role: "system" as const, content: toolCatalog.trim().slice(0, 8_000) }] : []),
-    ...(knowledgeContext.trim() ? [{
-      role: "system" as const,
-      content: `本轮相关创作知识（仅隐性应用，不要逐条复述或暴露来源）：\n${knowledgeContext.trim().slice(0, 12_000)}`,
-    }] : []),
+    ...(knowledgeContext.trim()
+      ? [
+          {
+            role: "system" as const,
+            content: `本轮相关创作知识（仅隐性应用，不要逐条复述或暴露来源）：\n${knowledgeContext.trim().slice(0, 12_000)}`,
+          },
+        ]
+      : []),
     ...messages.map((message) => ({
       role: message.role,
       content: message.content,
@@ -75,7 +82,9 @@ export function buildChatMessages(
 
 export function formatCanvasContext(context: AgentCanvasContext) {
   const selected = context.nodes.filter((node) => node.selected);
-  const guidance = normalizeAgentCreativeGuidance(context.creativeGuidance ?? defaultCreativeGuidance());
+  const guidance = normalizeAgentCreativeGuidance(
+    context.creativeGuidance ?? defaultCreativeGuidance(),
+  );
   const lines = [
     "当前画布摘要（有界、已脱敏）：",
     `上下文修订：${context.contextRevision}`,
@@ -91,13 +100,18 @@ export function formatCanvasContext(context: AgentCanvasContext) {
     guidance.baseline.visualStyle ? `画风=${guidance.baseline.visualStyle}` : null,
     guidance.baseline.targetDuration ? `时长=${guidance.baseline.targetDuration}` : null,
   ].filter((value): value is string => Boolean(value));
-  if (baseline.length) lines.push(`基础设定${guidance.baseline.locked ? "（已锁定）" : "（可调整）"}：${baseline.join("；")}`);
+  if (baseline.length)
+    lines.push(
+      `基础设定${guidance.baseline.locked ? "（已锁定）" : "（可调整）"}：${baseline.join("；")}`,
+    );
 
   if (guidance.mode === "professional") {
     const baselineStatus = readProfessionalBaselineStatus(guidance);
-    lines.push(!baselineStatus.ready
-      ? `专业辅助阶段：先定基线（待确认：${baselineStatus.missing.join("、")}）。基线三项齐全并锁定前只澄清基线，不推进创作方案或画布操作。`
-      : "专业辅助阶段：比例、画风与时长基线已齐并锁定，可按专业阶段推进创作。");
+    lines.push(
+      !baselineStatus.ready
+        ? `专业辅助阶段：先定基线（待确认：${baselineStatus.missing.join("、")}）。基线三项齐全并锁定前只澄清基线，不推进创作方案或画布操作。`
+        : "专业辅助阶段：比例、画风与时长基线已齐并锁定，可按专业阶段推进创作。",
+    );
   }
 
   if (selected.length) {
@@ -115,15 +129,20 @@ export function formatCanvasContext(context: AgentCanvasContext) {
 
   if (context.groups.length) {
     lines.push("组合摘要：");
-    for (const group of context.groups.slice(0, 20)) lines.push(`- ${group.name}: ${group.nodeIds.join(", ")}`);
+    for (const group of context.groups.slice(0, 20))
+      lines.push(`- ${group.name}: ${group.nodeIds.join(", ")}`);
   }
 
   if (context.directorStage?.shots.length) {
-    lines.push(`导演台：${context.directorStage.open ? "已打开" : "已保存"}，${context.directorStage.shots.length} 个镜头`);
+    lines.push(
+      `导演台：${context.directorStage.open ? "已打开" : "已保存"}，${context.directorStage.shots.length} 个镜头`,
+    );
     for (const shot of context.directorStage.shots) {
       lines.push(`- 镜头 ${shot.shotId}: ${truncate(shot.title, 120)}`);
       for (const entity of shot.entities) {
-        lines.push(`  - ${entity.kind} ${entity.id} (${entity.label}) x=${entity.x} y=${entity.y} z=${entity.z} rotationY=${entity.rotationY} scale=${entity.scale}`);
+        lines.push(
+          `  - ${entity.kind} ${entity.id} (${entity.label}) x=${entity.x} y=${entity.y} z=${entity.z} rotationY=${entity.rotationY} scale=${entity.scale}`,
+        );
       }
     }
   }

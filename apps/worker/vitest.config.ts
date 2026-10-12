@@ -11,7 +11,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@kachang/canvas-api/worker": resolve(directory, "../api/src/worker-exports.ts"),
+      "@weftcanvas/canvas-api/worker": resolve(directory, "../api/src/worker-exports.ts"),
     },
   },
 });

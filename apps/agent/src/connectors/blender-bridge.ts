@@ -1,13 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { connect } from "node:net";
 
-import { connectorHostRejectionReason } from "@kachang/contracts";
+import { connectorHostRejectionReason } from "@weftcanvas/contracts";
 
 import { parseEndpoint } from "./probe.js";
 
 export type BlenderRunResult =
-  | { ok: true; value: unknown; stdout: string }
-  | { ok: false; error: string };
+  { ok: true; value: unknown; stdout: string } | { ok: false; error: string };
 
 type BridgeResponse = {
   id?: unknown;
@@ -21,7 +20,7 @@ const DEFAULT_TIMEOUT_MS = 120_000;
 
 /**
  * Blender 桥接客户端：一行 JSON 请求、一行 JSON 响应。
- * 协议实现见 apps/agent/blender/kachang_bridge.py。
+ * 协议实现见 apps/agent/blender/weftcanvas_bridge.py。
  */
 export class BlenderBridgeClient {
   constructor(
@@ -40,7 +39,11 @@ export class BlenderBridgeClient {
     return this.call("ping", {}, signal);
   }
 
-  private async call(method: string, params: Record<string, unknown>, signal?: AbortSignal): Promise<BlenderRunResult> {
+  private async call(
+    method: string,
+    params: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<BlenderRunResult> {
     const parsed = parseEndpoint(this.address);
     if (!parsed) return { ok: false, error: "Blender 桥接地址无效，需要 host:port" };
     const hostRejection = connectorHostRejectionReason(this.address);
@@ -61,7 +64,10 @@ export class BlenderBridgeClient {
       };
 
       const socket = connect({ host: parsed.host, port: parsed.port });
-      const timer = setTimeout(() => finish({ ok: false, error: "等待 Blender 响应超时" }), this.timeoutMs);
+      const timer = setTimeout(
+        () => finish({ ok: false, error: "等待 Blender 响应超时" }),
+        this.timeoutMs,
+      );
       const abort = () => finish({ ok: false, error: "已取消" });
       signal?.addEventListener("abort", abort, { once: true });
 
@@ -95,14 +101,19 @@ export class BlenderBridgeClient {
           });
           return;
         }
-        finish({ ok: false, error: typeof parsedResponse.error === "string" ? parsedResponse.error : "Blender 执行失败" });
+        finish({
+          ok: false,
+          error:
+            typeof parsedResponse.error === "string" ? parsedResponse.error : "Blender 执行失败",
+        });
       });
       socket.on("error", (error: NodeJS.ErrnoException) => {
         finish({
           ok: false,
-          error: error.code === "ECONNREFUSED"
-            ? "Blender 桥接没有在监听，请先在 Blender 里运行 kachang_bridge.py"
-            : `无法连接 Blender 桥接：${error.code ?? "未知错误"}`,
+          error:
+            error.code === "ECONNREFUSED"
+              ? "Blender 桥接没有在监听，请先在 Blender 里运行 weftcanvas_bridge.py"
+              : `无法连接 Blender 桥接：${error.code ?? "未知错误"}`,
         });
       });
       socket.on("close", () => finish({ ok: false, error: "Blender 桥接提前关闭了连接" }));

@@ -1,5 +1,5 @@
 {
-  "name": "@kachang/canvas-core",
+  "name": "@weftcanvas/canvas-core",
   "version": "0.1.0",
   "private": true,
   "type": "module",

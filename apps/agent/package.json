@@ -1,5 +1,5 @@
 {
-  "name": "@kachang/canvas-agent",
+  "name": "@weftcanvas/canvas-agent",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@hono/node-server": "2.0.11",
-    "@kachang/contracts": "workspace:*",
+    "@weftcanvas/contracts": "workspace:*",
     "hono": "4.12.30",
     "zod": "^4.4.3"
   },

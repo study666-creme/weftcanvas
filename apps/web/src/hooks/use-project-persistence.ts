@@ -1,7 +1,7 @@
-import type { CanvasProject } from "@kachang/contracts";
+import type { CanvasProject } from "@weftcanvas/contracts";
 import { useEffect } from "react";
 
-import type { KachangNode } from "../types";
+import type { WeftcanvasNode } from "../types";
 import { requestPersistentMediaStorage } from "../lib/media-store";
 import { readProject, writeProject } from "../lib/project-library";
 import { selectProject, useCanvasStore } from "../state/canvas-store";
@@ -14,21 +14,27 @@ import { useToastStore } from "../state/toast-store";
 const SAVE_FAILURE_TOAST_INTERVAL_MS = 30_000;
 let lastSaveFailureToastAt = 0;
 
-function isRunningProgressChange(previous: KachangNode | undefined, next: KachangNode | undefined) {
+function isRunningProgressChange(
+  previous: WeftcanvasNode | undefined,
+  next: WeftcanvasNode | undefined,
+) {
   if (!previous || !next) return false;
   const p = previous.data;
   const n = next.data;
   if (p.status !== "running" || n.status !== "running") return false;
   if (p.media !== n.media || p.body !== n.body) return false;
   if (
-    p.progress === n.progress
-    && p.generation.jobStatus === n.generation.jobStatus
-    && p.generation.jobVersion === n.generation.jobVersion
-  ) return false;
-  return p.generation.modelId === n.generation.modelId
-    && p.generation.jobId === n.generation.jobId
-    && p.generation.jobCreatedAt === n.generation.jobCreatedAt
-    && p.generation.error === n.generation.error;
+    p.progress === n.progress &&
+    p.generation.jobStatus === n.generation.jobStatus &&
+    p.generation.jobVersion === n.generation.jobVersion
+  )
+    return false;
+  return (
+    p.generation.modelId === n.generation.modelId &&
+    p.generation.jobId === n.generation.jobId &&
+    p.generation.jobCreatedAt === n.generation.jobCreatedAt &&
+    p.generation.error === n.generation.error
+  );
 }
 
 function updateProjectSummary(project: CanvasProject) {
@@ -40,8 +46,12 @@ function updateProjectSummary(project: CanvasProject) {
     nodeCount: project.nodes.length,
   };
   useProjectLibraryStore.setState((state) => ({
-    projects: [...state.projects.filter((item) => item.id !== summary.id), summary]
-      .sort((left, right) => right.updatedAt - left.updatedAt || right.createdAt - left.createdAt || left.name.localeCompare(right.name, "zh-CN")),
+    projects: [...state.projects.filter((item) => item.id !== summary.id), summary].sort(
+      (left, right) =>
+        right.updatedAt - left.updatedAt ||
+        right.createdAt - left.createdAt ||
+        left.name.localeCompare(right.name, "zh-CN"),
+    ),
   }));
 }
 
@@ -84,10 +94,13 @@ export function useProjectPersistence() {
     };
     const scheduleIdleFlush = () => {
       if (typeof window.requestIdleCallback === "function") {
-        idleHandle = window.requestIdleCallback(() => {
-          idleHandle = null;
-          flush();
-        }, { timeout: 640 });
+        idleHandle = window.requestIdleCallback(
+          () => {
+            idleHandle = null;
+            flush();
+          },
+          { timeout: 640 },
+        );
         return;
       }
       delayTimer = window.setTimeout(flush, 0);
@@ -105,14 +118,18 @@ export function useProjectPersistence() {
       if (document.visibilityState === "hidden") flush();
     };
     const unsubscribe = useCanvasStore.subscribe((state, previous) => {
-      const progressOnly = state.nodes !== previous.nodes
-        && state.edges === previous.edges
-        && state.groups === previous.groups
-        && state.viewport === previous.viewport
-        && state.projectName === previous.projectName
-        && state.projectId === previous.projectId
-        && state.nodes.length === previous.nodes.length
-        && state.nodes.every((node, index) => node === previous.nodes[index] || isRunningProgressChange(previous.nodes[index], node));
+      const progressOnly =
+        state.nodes !== previous.nodes &&
+        state.edges === previous.edges &&
+        state.groups === previous.groups &&
+        state.viewport === previous.viewport &&
+        state.projectName === previous.projectName &&
+        state.projectId === previous.projectId &&
+        state.nodes.length === previous.nodes.length &&
+        state.nodes.every(
+          (node, index) =>
+            node === previous.nodes[index] || isRunningProgressChange(previous.nodes[index], node),
+        );
       if (progressOnly) return;
       const projectChanged =
         state.nodes !== previous.nodes ||

@@ -2,14 +2,27 @@ import {
   publicModelCatalogSchema,
   type ModelModality,
   type PublicGenerationJob,
+  type PublicModel,
   type PublicModelCatalog,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 import { create } from "zustand";
 
-import { CanvasApiError, fetchGenerationJob, fetchModelCatalog, listGenerationJobs, reconcileGenerationJob, subscribeGenerationJob } from "../lib/api-client";
-import { browserSubmissionIdentity, isBrowserSubmissionInFlight, releaseBrowserSubmissionIdentity, resolvePendingSubmissionIdentity } from "../lib/browser-generation-runtime";
+import {
+  CanvasApiError,
+  fetchGenerationJob,
+  fetchModelCatalog,
+  listGenerationJobs,
+  reconcileGenerationJob,
+  subscribeGenerationJob,
+} from "../lib/api-client";
+import {
+  browserSubmissionIdentity,
+  isBrowserSubmissionInFlight,
+  releaseBrowserSubmissionIdentity,
+  resolvePendingSubmissionIdentity,
+} from "../lib/browser-generation-runtime";
 import { persistCompletedGenerationArtifacts } from "../lib/generated-artifact-persistence";
-import type { KachangNode } from "../types";
+import type { WeftcanvasNode } from "../types";
 import { useCanvasStore } from "./canvas-store";
 import { useIdentityStore } from "./identity-store";
 import { enqueueCompletedGenerationOutputs } from "./local-output-store";
@@ -36,11 +49,14 @@ type GenerationState = {
   watchJob: (job: PublicGenerationJob) => void;
   markObservationExhausted: (jobId: string) => void;
   recoverProject: (projectId: string) => Promise<void>;
-  beginHostedSubmission: (nodeId: string, createKey: () => string) => { key: string; reused: boolean };
+  beginHostedSubmission: (
+    nodeId: string,
+    createKey: () => string,
+  ) => { key: string; reused: boolean };
   clearRuntime: () => void;
 };
 
-const CATALOG_STORAGE_KEY = "kachang-canvas:model-catalogs:v1";
+const CATALOG_STORAGE_KEY = "weftcanvas:model-catalogs:v1";
 const CATALOG_REFRESH_INTERVAL_MS = 60_000;
 const CATALOG_MAX_STALE_MS = 7 * 24 * 60 * 60_000;
 /**
@@ -71,7 +87,8 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
 
   loadCatalog: async (modality, force = false) => {
     const current = get().catalogs[modality];
-    if (!force && current.data && Date.now() - current.loadedAt < CATALOG_REFRESH_INTERVAL_MS) return current.data;
+    if (!force && current.data && Date.now() - current.loadedAt < CATALOG_REFRESH_INTERVAL_MS)
+      return current.data;
     if (catalogRequest) {
       await catalogRequest;
       return get().catalogs[modality].data;
@@ -79,19 +96,21 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
 
     const hasCatalogs = Object.values(get().catalogs).some((catalog) => catalog.data);
     set((state) => ({
-      catalogs: Object.fromEntries(Object.entries(state.catalogs).map(([key, catalog]) => [
-        key,
-        catalog.data
-          ? { ...catalog, status: "ready" as const, refreshing: true, error: null }
-          : hasCatalogs
-            ? catalog
-            : { ...catalog, status: "loading" as const, refreshing: true, error: null },
-      ])) as Record<ModelModality, CatalogState>,
+      catalogs: Object.fromEntries(
+        Object.entries(state.catalogs).map(([key, catalog]) => [
+          key,
+          catalog.data
+            ? { ...catalog, status: "ready" as const, refreshing: true, error: null }
+            : hasCatalogs
+              ? catalog
+              : { ...catalog, status: "loading" as const, refreshing: true, error: null },
+        ]),
+      ) as Record<ModelModality, CatalogState>,
     }));
     const request = (async () => {
       try {
         const data = force ? await fetchModelCatalog(undefined, true) : await fetchModelCatalog();
-        set((state) => ({
+        set(() => ({
           catalogs: withDemoModels(splitCatalogByModality(data, Date.now())),
         }));
         writeStoredCatalogs(get().catalogs);
@@ -99,12 +118,14 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       } catch (cause) {
         const message = cause instanceof CanvasApiError ? cause.message : "模型列表暂时无法读取";
         set((state) => {
-          const errored = Object.fromEntries(Object.entries(state.catalogs).map(([key, catalog]) => [
-            key,
-            catalog.data
-              ? { ...catalog, status: "ready" as const, refreshing: false, error: message }
-              : { ...catalog, status: "error" as const, refreshing: false, error: message },
-          ])) as Record<ModelModality, CatalogState>;
+          const errored = Object.fromEntries(
+            Object.entries(state.catalogs).map(([key, catalog]) => [
+              key,
+              catalog.data
+                ? { ...catalog, status: "ready" as const, refreshing: false, error: message }
+                : { ...catalog, status: "error" as const, refreshing: false, error: message },
+            ]),
+          ) as Record<ModelModality, CatalogState>;
           return { catalogs: withDemoModels(errored) };
         });
         return get().catalogs[modality].data;
@@ -118,8 +139,9 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   },
 
   refreshLoadedCatalogs: async () => {
-    const firstLoaded = (Object.entries(get().catalogs) as [ModelModality, CatalogState][])
-      .find(([, value]) => value.data)?.[0];
+    const firstLoaded = (Object.entries(get().catalogs) as [ModelModality, CatalogState][]).find(
+      ([, value]) => value.data,
+    )?.[0];
     if (firstLoaded) await get().loadCatalog(firstLoaded, true);
   },
 
@@ -145,15 +167,15 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     // server failure, or explicit user abandonment.
     const firstWatchedFailure = wasWatched && job.status === "failed" && known?.status !== "failed";
     const current = state.jobsByNode[job.nodeId];
-    const isCurrent = !current
-      || current.id === job.id
-      || compareGenerationOrder(current, job) < 0;
+    const isCurrent = !current || current.id === job.id || compareGenerationOrder(current, job) < 0;
     // The canvas reducer handles ordering itself. This is important when two
     // paid requests target the same node: an older task may finish after the
     // newer one and still needs to contribute its artifacts.
     canvas.applyGenerationJob(job);
     const exhaustedObservations = state.exhaustedObservations[job.id]
-      ? Object.fromEntries(Object.entries(state.exhaustedObservations).filter(([id]) => id !== job.id))
+      ? Object.fromEntries(
+          Object.entries(state.exhaustedObservations).filter(([id]) => id !== job.id),
+        )
       : state.exhaustedObservations;
     set({
       jobsById: { ...state.jobsById, [job.id]: job },
@@ -163,7 +185,8 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     if (firstWatchedFailure) {
       useToastStore.getState().show(job.error?.message || "生成任务失败，请稍后重试", "error");
     }
-    if (!known || (!isSettlementBoundary(known) && isSettlementBoundary(job))) scheduleWalletRefresh();
+    if (!known || (!isSettlementBoundary(known) && isSettlementBoundary(job)))
+      scheduleWalletRefresh();
   },
 
   watchJob: (job) => {
@@ -205,8 +228,12 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       watchers.delete(jobId);
     }
     set((state) => {
-      const jobsById = Object.fromEntries(Object.entries(state.jobsById).filter(([, job]) => job.projectId === projectId));
-      const jobsByNode = Object.fromEntries(Object.entries(state.jobsByNode).filter(([, job]) => job.projectId === projectId));
+      const jobsById = Object.fromEntries(
+        Object.entries(state.jobsById).filter(([, job]) => job.projectId === projectId),
+      );
+      const jobsByNode = Object.fromEntries(
+        Object.entries(state.jobsByNode).filter(([, job]) => job.projectId === projectId),
+      );
       const exhaustedObservations = Object.fromEntries(
         Object.entries(state.exhaustedObservations).filter(([id]) => jobsById[id] !== undefined),
       );
@@ -223,13 +250,16 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
         const newestByNode = new Map<string, PublicGenerationJob>();
         for (const job of orderedJobs) {
           const current = newestByNode.get(job.nodeId);
-          if (!current || compareGenerationOrder(current, job) < 0) newestByNode.set(job.nodeId, job);
+          if (!current || compareGenerationOrder(current, job) < 0)
+            newestByNode.set(job.nodeId, job);
         }
         set({
           jobsById: Object.fromEntries(jobs.map((job) => [job.id, job])),
           jobsByNode: Object.fromEntries(newestByNode),
           exhaustedObservations: Object.fromEntries(
-            Object.entries(get().exhaustedObservations).filter(([id]) => jobs.some((job) => job.id === id)),
+            Object.entries(get().exhaustedObservations).filter(([id]) =>
+              jobs.some((job) => job.id === id),
+            ),
           ),
         });
         for (const job of orderedJobs) {
@@ -250,14 +280,16 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
         if (cause instanceof CanvasApiError && cause.status === 401) {
           useIdentityStore.getState().expire();
         } else if (activeRecoveryKey === key && recoveryRetryTimer === null) {
-          const retryAfter = cause instanceof CanvasApiError && cause.retryAfterSeconds !== null
-            ? cause.retryAfterSeconds * 1_000
-            : 0;
+          const retryAfter =
+            cause instanceof CanvasApiError && cause.retryAfterSeconds !== null
+              ? cause.retryAfterSeconds * 1_000
+              : 0;
           const delay = Math.max(recoveryRetryDelay, retryAfter);
           recoveryRetryDelay = Math.min(30_000, Math.round(recoveryRetryDelay * 1.7));
           recoveryRetryTimer = window.setTimeout(() => {
             recoveryRetryTimer = null;
-            if (activeRecoveryKey === key) void useGenerationStore.getState().recoverProject(projectId);
+            if (activeRecoveryKey === key)
+              void useGenerationStore.getState().recoverProject(projectId);
           }, delay);
         }
       } finally {
@@ -324,13 +356,22 @@ function readStoredCatalogs(): Record<ModelModality, CatalogState> {
   };
   if (typeof localStorage === "undefined") return catalogs;
   try {
-    const stored = JSON.parse(localStorage.getItem(CATALOG_STORAGE_KEY) || "null") as Record<string, unknown> | null;
+    const stored = JSON.parse(localStorage.getItem(CATALOG_STORAGE_KEY) || "null") as Record<
+      string,
+      unknown
+    > | null;
     if (!stored || typeof stored !== "object") return catalogs;
     for (const modality of Object.keys(catalogs) as ModelModality[]) {
       const entry = stored[modality] as { savedAt?: unknown; data?: unknown } | undefined;
-      if (!entry || typeof entry.savedAt !== "number" || Date.now() - entry.savedAt > CATALOG_MAX_STALE_MS) continue;
+      if (
+        !entry ||
+        typeof entry.savedAt !== "number" ||
+        Date.now() - entry.savedAt > CATALOG_MAX_STALE_MS
+      )
+        continue;
       const parsed = publicModelCatalogSchema.safeParse(entry.data);
-      if (!parsed.success || parsed.data.models.some((model) => model.modality !== modality)) continue;
+      if (!parsed.success || parsed.data.models.some((model) => model.modality !== modality))
+        continue;
       catalogs[modality] = {
         status: "ready",
         data: parsed.data,
@@ -348,15 +389,22 @@ function readStoredCatalogs(): Record<ModelModality, CatalogState> {
 function writeStoredCatalogs(catalogs: Record<ModelModality, CatalogState>) {
   if (typeof localStorage === "undefined") return;
   try {
-    const stored = Object.fromEntries((Object.entries(catalogs) as [ModelModality, CatalogState][])
-      .flatMap(([modality, catalog]) => catalog.data ? [[modality, { savedAt: catalog.loadedAt, data: catalog.data }]] : []));
+    const stored = Object.fromEntries(
+      (Object.entries(catalogs) as [ModelModality, CatalogState][]).flatMap(
+        ([modality, catalog]) =>
+          catalog.data ? [[modality, { savedAt: catalog.loadedAt, data: catalog.data }]] : [],
+      ),
+    );
     localStorage.setItem(CATALOG_STORAGE_KEY, JSON.stringify(stored));
   } catch {
     // Local storage can be unavailable in private browsing; in-memory data still works.
   }
 }
 
-function splitCatalogByModality(catalog: PublicModelCatalog, loadedAt: number): Record<ModelModality, CatalogState> {
+function splitCatalogByModality(
+  catalog: PublicModelCatalog,
+  loadedAt: number,
+): Record<ModelModality, CatalogState> {
   return {
     text: catalogForModality(catalog, "text", loadedAt),
     image: catalogForModality(catalog, "image", loadedAt),
@@ -365,42 +413,316 @@ function splitCatalogByModality(catalog: PublicModelCatalog, loadedAt: number): 
   };
 }
 
-function demoModel(modality: "image" | "video"): PublicModelCatalog["models"][number] {
+/**
+ * 演示目录：无 API（自托管未配置 / 本地服务不可用）时让模型选择器与工作台保持
+ * 完整形态。条目使用业界官方模型名与真实参数面，仅作展示——`quoteAvailable`
+ * 为 false，提交会被诚实拦截；配置自有 API 或登录托管后以真实清单为准。
+ */
+function demoParam(name: string, label: string, def: string, options: string[]) {
   return {
-    id: `demo-${modality}-model`,
-    label: modality === "image" ? "演示图片模型" : "演示视频模型",
-    description: "本地演示模型，用于预览工作台形态",
-    modality,
-    operation: "generate",
-    order: 0,
-    input: {
-      textRequired: true,
-      images: { min: 0, max: 4, multiple: true },
-      ...(modality === "video" ? { videos: { min: 0, max: 2, multiple: true } } : {}),
-    },
-    output: { type: modality, minCount: 1, maxCount: 1 },
-    pricing: {
-      mode: "fixed",
-      unit: modality === "image" ? "image" : "second",
-      currency: "CNY",
-      creditsPerYuan: 100,
-      baseCreditMicros: 2_000_000,
-      baseYuanMicros: 20_000,
-      tiers: [],
-    },
-    parameters: [
-      { name: "prompt", label: "提示词", type: "string", required: true, mutuallyExclusiveWith: [] },
-      ...(modality === "image"
-        ? [{ name: "size", label: "比例", type: "string" as const, required: false, default: "1:1", options: ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "5:4", "4:5", "21:9", "9:21", "2:1", "1:2", "5:3", "3:5", "7:5"], mutuallyExclusiveWith: [] }]
-        : [
-            { name: "duration", label: "时长", type: "number" as const, required: false, default: 5, min: 1, max: 10, step: 1, mutuallyExclusiveWith: [] },
-            { name: "size", label: "比例", type: "string" as const, required: false, default: "16:9", options: ["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "21:9", "9:21", "2:1", "1:2", "5:4", "4:5", "5:3", "3:5", "7:5"], mutuallyExclusiveWith: [] },
-          ]),
-    ],
+    name,
+    label,
+    type: "string" as const,
+    required: false,
+    default: def,
+    options,
+    mutuallyExclusiveWith: [],
   };
 }
 
-function withDemoModels(catalogs: Record<ModelModality, CatalogState>): Record<ModelModality, CatalogState> {
+function demoNumberParam(
+  name: string,
+  label: string,
+  def: number,
+  min: number,
+  max: number,
+  step = 1,
+) {
+  return {
+    name,
+    label,
+    type: "number" as const,
+    required: false,
+    default: def,
+    min,
+    max,
+    step,
+    mutuallyExclusiveWith: [],
+  };
+}
+
+function demoPricing(unit: "image" | "second", credits: number): PublicModel["pricing"] {
+  return {
+    mode: "fixed",
+    unit,
+    currency: "CNY",
+    creditsPerYuan: 100,
+    baseCreditMicros: Math.round(credits * 1_000_000),
+    baseYuanMicros: Math.round(credits * 10_000),
+    tiers: [],
+  };
+}
+
+const DEMO_IMAGE_SIZES = ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "21:9"];
+
+const DEMO_NOTE = "演示条目 · 接入自有 API 或登录托管后以真实清单为准";
+
+function demoModels(modality: "image" | "video"): PublicModel[] {
+  if (modality === "image") {
+    return [
+      {
+        id: "demo-gpt-image-2.5",
+        label: "GPT Image 2.5",
+        description: `OpenAI 图像模型，支持文字渲染与多图编辑。${DEMO_NOTE}`,
+        modality: "image",
+        operation: "generate",
+        order: 1,
+        input: { textRequired: true, images: { min: 0, max: 4, multiple: true } },
+        output: { type: "image", minCount: 1, maxCount: 4 },
+        parameters: [
+          {
+            name: "prompt",
+            label: "提示词",
+            type: "string",
+            required: true,
+            mutuallyExclusiveWith: [],
+          },
+          demoParam("size", "比例", "1:1", DEMO_IMAGE_SIZES),
+          demoParam("quality", "质量", "auto", ["auto", "low", "medium", "high"]),
+          demoNumberParam("count", "数量", 1, 1, 4),
+        ],
+        pricing: demoPricing("image", 2.2),
+      },
+      {
+        id: "demo-gemini-3-pro-image",
+        label: "Gemini 3 Pro Image",
+        description: `Google 图像模型，长上下文一致性与 1k/2k/4k 分辨率。${DEMO_NOTE}`,
+        modality: "image",
+        operation: "generate",
+        order: 2,
+        input: { textRequired: true, images: { min: 0, max: 4, multiple: true } },
+        output: { type: "image", minCount: 1, maxCount: 2 },
+        parameters: [
+          {
+            name: "prompt",
+            label: "提示词",
+            type: "string",
+            required: true,
+            mutuallyExclusiveWith: [],
+          },
+          demoParam("aspect_ratio", "比例", "1:1", DEMO_IMAGE_SIZES),
+          demoParam("resolution", "分辨率", "2k", ["1k", "2k", "4k"]),
+        ],
+        pricing: demoPricing("image", 3),
+      },
+      {
+        id: "demo-seedream-4",
+        label: "Seedream 4.0",
+        description: `字节跳动图像模型，中文语义与海报排版见长。${DEMO_NOTE}`,
+        modality: "image",
+        operation: "generate",
+        order: 3,
+        input: { textRequired: true, images: { min: 0, max: 4, multiple: true } },
+        output: { type: "image", minCount: 1, maxCount: 4 },
+        parameters: [
+          {
+            name: "prompt",
+            label: "提示词",
+            type: "string",
+            required: true,
+            mutuallyExclusiveWith: [],
+          },
+          demoParam("size", "比例", "1:1", DEMO_IMAGE_SIZES),
+          demoNumberParam("count", "数量", 1, 1, 4),
+        ],
+        pricing: demoPricing("image", 1.8),
+      },
+      {
+        id: "demo-midjourney-v7",
+        label: "Midjourney V7",
+        description: `美学与风格化标杆，支持草图与角色一致性。${DEMO_NOTE}`,
+        modality: "image",
+        operation: "generate",
+        order: 4,
+        input: { textRequired: true, images: { min: 0, max: 2, multiple: true } },
+        output: { type: "image", minCount: 1, maxCount: 4 },
+        parameters: [
+          {
+            name: "prompt",
+            label: "提示词",
+            type: "string",
+            required: true,
+            mutuallyExclusiveWith: [],
+          },
+          demoParam("ar", "比例", "1:1", DEMO_IMAGE_SIZES),
+          demoParam("stylize", "风格化", "medium", ["low", "medium", "high"]),
+        ],
+        pricing: demoPricing("image", 4),
+      },
+      {
+        id: "demo-flux-2-pro",
+        label: "FLUX.2 [pro]",
+        description: `Black Forest Labs 开源系模型，写实质感与快速迭代。${DEMO_NOTE}`,
+        modality: "image",
+        operation: "generate",
+        order: 5,
+        input: { textRequired: true, images: { min: 0, max: 4, multiple: true } },
+        output: { type: "image", minCount: 1, maxCount: 4 },
+        parameters: [
+          {
+            name: "prompt",
+            label: "提示词",
+            type: "string",
+            required: true,
+            mutuallyExclusiveWith: [],
+          },
+          demoParam("aspect_ratio", "比例", "1:1", DEMO_IMAGE_SIZES),
+          demoNumberParam("count", "数量", 1, 1, 4),
+        ],
+        pricing: demoPricing("image", 2.5),
+      },
+    ];
+  }
+  return [
+    {
+      id: "demo-veo-3.1",
+      label: "Veo 3.1",
+      description: `Google 视频模型，原生音画同步与电影感运镜。${DEMO_NOTE}`,
+      modality: "video",
+      operation: "generate",
+      order: 1,
+      input: {
+        textRequired: true,
+        images: { min: 0, max: 2, multiple: true },
+        videos: { min: 0, max: 1, multiple: false },
+      },
+      output: { type: "video", minCount: 1, maxCount: 1 },
+      parameters: [
+        {
+          name: "prompt",
+          label: "提示词",
+          type: "string",
+          required: true,
+          mutuallyExclusiveWith: [],
+        },
+        demoParam("aspect_ratio", "比例", "16:9", ["16:9", "9:16", "1:1"]),
+        demoParam("resolution", "分辨率", "1080p", ["720p", "1080p"]),
+        demoNumberParam("duration", "时长（秒）", 8, 4, 12, 2),
+      ],
+      pricing: demoPricing("second", 20),
+    },
+    {
+      id: "demo-kling-2.5",
+      label: "可灵 Kling 2.5",
+      description: `快手视频模型，人物运动与口型稳定。${DEMO_NOTE}`,
+      modality: "video",
+      operation: "generate",
+      order: 2,
+      input: {
+        textRequired: true,
+        images: { min: 0, max: 2, multiple: true },
+        videos: { min: 0, max: 1, multiple: false },
+      },
+      output: { type: "video", minCount: 1, maxCount: 1 },
+      parameters: [
+        {
+          name: "prompt",
+          label: "提示词",
+          type: "string",
+          required: true,
+          mutuallyExclusiveWith: [],
+        },
+        demoParam("aspect_ratio", "比例", "16:9", ["16:9", "9:16", "1:1"]),
+        demoParam("mode", "模式", "pro", ["std", "pro"]),
+        demoNumberParam("duration", "时长（秒）", 5, 5, 10, 5),
+      ],
+      pricing: demoPricing("second", 12),
+    },
+    {
+      id: "demo-seedance-1.1",
+      label: "Seedance 1.1",
+      description: `字节跳动视频模型，多镜头叙事与指令遵循。${DEMO_NOTE}`,
+      modality: "video",
+      operation: "generate",
+      order: 3,
+      input: {
+        textRequired: true,
+        images: { min: 0, max: 4, multiple: true },
+        videos: { min: 0, max: 2, multiple: true },
+      },
+      output: { type: "video", minCount: 1, maxCount: 1 },
+      parameters: [
+        {
+          name: "prompt",
+          label: "提示词",
+          type: "string",
+          required: true,
+          mutuallyExclusiveWith: [],
+        },
+        demoParam("aspect_ratio", "比例", "16:9", ["16:9", "9:16", "1:1", "4:3", "3:4"]),
+        demoParam("resolution", "分辨率", "1080p", ["720p", "1080p"]),
+        demoNumberParam("duration", "时长（秒）", 5, 5, 10, 5),
+      ],
+      pricing: demoPricing("second", 10),
+    },
+    {
+      id: "demo-wan-2.5",
+      label: "Wan 2.5",
+      description: `阿里通义万相视频模型，中文生态与图生视频。${DEMO_NOTE}`,
+      modality: "video",
+      operation: "generate",
+      order: 4,
+      input: {
+        textRequired: true,
+        images: { min: 0, max: 2, multiple: true },
+        videos: { min: 0, max: 1, multiple: false },
+      },
+      output: { type: "video", minCount: 1, maxCount: 1 },
+      parameters: [
+        {
+          name: "prompt",
+          label: "提示词",
+          type: "string",
+          required: true,
+          mutuallyExclusiveWith: [],
+        },
+        demoParam("aspect_ratio", "比例", "16:9", ["16:9", "9:16", "1:1"]),
+        demoNumberParam("duration", "时长（秒）", 5, 5, 10, 5),
+      ],
+      pricing: demoPricing("second", 8),
+    },
+    {
+      id: "demo-sora-2",
+      label: "Sora 2",
+      description: `OpenAI 视频模型，物理一致性与长镜头。${DEMO_NOTE}`,
+      modality: "video",
+      operation: "generate",
+      order: 5,
+      input: {
+        textRequired: true,
+        images: { min: 0, max: 1, multiple: false },
+        videos: { min: 0, max: 1, multiple: false },
+      },
+      output: { type: "video", minCount: 1, maxCount: 1 },
+      parameters: [
+        {
+          name: "prompt",
+          label: "提示词",
+          type: "string",
+          required: true,
+          mutuallyExclusiveWith: [],
+        },
+        demoParam("aspect_ratio", "比例", "16:9", ["16:9", "9:16", "1:1"]),
+        demoNumberParam("duration", "时长（秒）", 8, 4, 20, 4),
+      ],
+      pricing: demoPricing("second", 18),
+    },
+  ];
+}
+
+function withDemoModels(
+  catalogs: Record<ModelModality, CatalogState>,
+): Record<ModelModality, CatalogState> {
   const patch = (modality: "image" | "video"): CatalogState => {
     const catalog = catalogs[modality];
     if (catalog.data && catalog.data.models.length) return catalog;
@@ -414,7 +736,7 @@ function withDemoModels(catalogs: Record<ModelModality, CatalogState>): Record<M
         fetchedAt: base?.fetchedAt ?? new Date().toISOString(),
         expiresAt: base?.expiresAt ?? new Date(Date.now() + 60 * 60_000).toISOString(),
         quoteAvailable: base?.quoteAvailable ?? false,
-        models: [demoModel(modality)],
+        models: demoModels(modality),
       },
       error: catalog.error,
       loadedAt: catalog.loadedAt || Date.now(),
@@ -424,7 +746,11 @@ function withDemoModels(catalogs: Record<ModelModality, CatalogState>): Record<M
   return { ...catalogs, image: patch("image"), video: patch("video") };
 }
 
-function catalogForModality(catalog: PublicModelCatalog, modality: ModelModality, loadedAt: number): CatalogState {
+function catalogForModality(
+  catalog: PublicModelCatalog,
+  modality: ModelModality,
+  loadedAt: number,
+): CatalogState {
   return {
     status: "ready",
     data: {
@@ -441,7 +767,9 @@ function catalogForModality(catalog: PublicModelCatalog, modality: ModelModality
  * 恢复时不能只看当前画布：被删除、撤销或重做隐藏的节点仍会留在历史快照中。
  * 保留同一节点的不同任务记录，后续用 nodeId 与 jobId 精确终态化。
  */
-function listRecoveryGenerationNodes(canvas: Pick<ReturnType<typeof useCanvasStore.getState>, "nodes" | "past" | "future">) {
+function listRecoveryGenerationNodes(
+  canvas: Pick<ReturnType<typeof useCanvasStore.getState>, "nodes" | "past" | "future">,
+) {
   return [
     ...canvas.nodes,
     ...[...canvas.past].reverse().flatMap((snapshot) => snapshot.nodes),
@@ -453,14 +781,16 @@ function listRecoveryGenerationNodes(canvas: Pick<ReturnType<typeof useCanvasSto
  * 只有服务端已经接收的 hosted 任务才可以因恢复列表缺失被判定失败。
  * browser:* 由当前浏览器生命周期管理，submitting 仍处于客户端准备阶段。
  */
-function isMissingAcceptedHostedJob(node: KachangNode, recoveredIds: ReadonlySet<string>) {
+function isMissingAcceptedHostedJob(node: WeftcanvasNode, recoveredIds: ReadonlySet<string>) {
   const { jobId, jobStatus } = node.data.generation;
-  return node.data.status === "running"
-    && typeof jobId === "string"
-    && jobId.length > 0
-    && !jobId.startsWith("browser:")
-    && jobStatus !== "submitting"
-    && !recoveredIds.has(jobId);
+  return (
+    node.data.status === "running" &&
+    typeof jobId === "string" &&
+    jobId.length > 0 &&
+    !jobId.startsWith("browser:") &&
+    jobStatus !== "submitting" &&
+    !recoveredIds.has(jobId)
+  );
 }
 
 /**
@@ -471,8 +801,13 @@ function terminalizeMissingHostedJob(nodeId: string, jobId: string) {
   const updatedAt = Date.now();
   useCanvasStore.setState((state) => {
     let changed = false;
-    const terminalizeNode = (node: KachangNode): KachangNode => {
-      if (node.id !== nodeId || node.data.generation.jobId !== jobId || !isAcceptedHostedJob(node, jobId)) return node;
+    const terminalizeNode = (node: WeftcanvasNode): WeftcanvasNode => {
+      if (
+        node.id !== nodeId ||
+        node.data.generation.jobId !== jobId ||
+        !isAcceptedHostedJob(node, jobId)
+      )
+        return node;
       changed = true;
       return {
         ...node,
@@ -489,25 +824,33 @@ function terminalizeMissingHostedJob(nodeId: string, jobId: string) {
         },
       };
     };
-    const terminalizeSnapshot = <TSnapshot extends { nodes: KachangNode[] }>(snapshot: TSnapshot) => {
+    const terminalizeSnapshot = <TSnapshot extends { nodes: WeftcanvasNode[] }>(
+      snapshot: TSnapshot,
+    ) => {
       const nodes = snapshot.nodes.map(terminalizeNode);
-      return nodes.some((node, index) => node !== snapshot.nodes[index]) ? { ...snapshot, nodes } : snapshot;
+      return nodes.some((node, index) => node !== snapshot.nodes[index])
+        ? { ...snapshot, nodes }
+        : snapshot;
     };
     const nodes = state.nodes.map(terminalizeNode);
     const past = state.past.map(terminalizeSnapshot);
     const future = state.future.map(terminalizeSnapshot);
-    const transactionBase = state.transactionBase ? terminalizeSnapshot(state.transactionBase) : null;
+    const transactionBase = state.transactionBase
+      ? terminalizeSnapshot(state.transactionBase)
+      : null;
     if (!changed) return state;
     return { ...state, nodes, past, future, transactionBase, saveState: "saving" as const };
   });
 }
 
 /** 在历史快照投影时再次校验 hosted 任务边界，避免误写浏览器本地任务。 */
-function isAcceptedHostedJob(node: KachangNode, jobId: string) {
-  return node.data.status === "running"
-    && node.data.generation.jobId === jobId
-    && !jobId.startsWith("browser:")
-    && node.data.generation.jobStatus !== "submitting";
+function isAcceptedHostedJob(node: WeftcanvasNode, jobId: string) {
+  return (
+    node.data.status === "running" &&
+    node.data.generation.jobId === jobId &&
+    !jobId.startsWith("browser:") &&
+    node.data.generation.jobStatus !== "submitting"
+  );
 }
 
 /**
@@ -525,7 +868,10 @@ function isAcceptedHostedJob(node: KachangNode, jobId: string) {
  *    获取；仍找不到（404）的才判定为缺失并终态化。
  * 3. 没有持久身份的旧快照/导入节点回到原有可操作行为，避免刷新后永久卡死。
  */
-function releaseUnconfirmedSubmissions(recoveredJobs: ReadonlyArray<PublicGenerationJob>, projectId: string) {
+function releaseUnconfirmedSubmissions(
+  recoveredJobs: ReadonlyArray<PublicGenerationJob>,
+  projectId: string,
+) {
   const hasLiveJobForNode = new Map<string, boolean>();
   for (const job of recoveredJobs) {
     if (isFinal(job)) continue;
@@ -547,16 +893,19 @@ function releaseUnconfirmedNodes(nodeIds: ReadonlySet<string>) {
   const updatedAt = Date.now();
   useCanvasStore.setState((state) => {
     let changed = false;
-    const releaseNode = (node: KachangNode): KachangNode => {
-      if (!nodeIds.has(node.id)
-        || node.data.status !== "running"
-        || node.data.generation.jobStatus !== "submitting") return node;
+    const releaseNode = (node: WeftcanvasNode): WeftcanvasNode => {
+      if (
+        !nodeIds.has(node.id) ||
+        node.data.status !== "running" ||
+        node.data.generation.jobStatus !== "submitting"
+      )
+        return node;
       changed = true;
       return {
         ...node,
         data: {
           ...node.data,
-          status: node.data.media ? "success" as const : "error" as const,
+          status: node.data.media ? ("success" as const) : ("error" as const),
           progress: null,
           generation: {
             ...node.data.generation,
@@ -571,9 +920,13 @@ function releaseUnconfirmedNodes(nodeIds: ReadonlySet<string>) {
         },
       };
     };
-    const releaseSnapshot = <TSnapshot extends { nodes: KachangNode[] }>(snapshot: TSnapshot) => {
+    const releaseSnapshot = <TSnapshot extends { nodes: WeftcanvasNode[] }>(
+      snapshot: TSnapshot,
+    ) => {
       const nodes = snapshot.nodes.map(releaseNode);
-      return nodes.some((node, index) => node !== snapshot.nodes[index]) ? { ...snapshot, nodes } : snapshot;
+      return nodes.some((node, index) => node !== snapshot.nodes[index])
+        ? { ...snapshot, nodes }
+        : snapshot;
     };
     const nodes = state.nodes.map(releaseNode);
     const past = state.past.map(releaseSnapshot);
@@ -589,7 +942,7 @@ function releaseUnconfirmedNodes(nodeIds: ReadonlySet<string>) {
  * 找到的任务用现有 recordJob 路径应用并（若非终态）继续观察；404 才是权威
  * 缺失并终态化；其余网络错误不擦除仍属近期的合法请求。
  */
-async function recoverAcceptedMissingJobs(recoveredIds: Set<string>, projectId: string) {
+async function recoverAcceptedMissingJobs(recoveredIds: Set<string>, _projectId: string) {
   const missingByJob = new Map<string, string[]>();
   for (const node of listRecoveryGenerationNodes(useCanvasStore.getState())) {
     const jobId = node.data.generation.jobId;
@@ -661,16 +1014,19 @@ function failExpiredIdentityNode(nodeId: string) {
   const updatedAt = Date.now();
   useCanvasStore.setState((state) => {
     let changed = false;
-    const failNode = (node: KachangNode): KachangNode => {
-      if (node.id !== nodeId
-        || node.data.status !== "running"
-        || node.data.generation.jobStatus !== "submitting") return node;
+    const failNode = (node: WeftcanvasNode): WeftcanvasNode => {
+      if (
+        node.id !== nodeId ||
+        node.data.status !== "running" ||
+        node.data.generation.jobStatus !== "submitting"
+      )
+        return node;
       changed = true;
       return {
         ...node,
         data: {
           ...node.data,
-          status: node.data.media ? "success" as const : "error" as const,
+          status: node.data.media ? ("success" as const) : ("error" as const),
           progress: null,
           generation: {
             ...node.data.generation,
@@ -685,9 +1041,11 @@ function failExpiredIdentityNode(nodeId: string) {
         },
       };
     };
-    const failSnapshot = <TSnapshot extends { nodes: KachangNode[] }>(snapshot: TSnapshot) => {
+    const failSnapshot = <TSnapshot extends { nodes: WeftcanvasNode[] }>(snapshot: TSnapshot) => {
       const nodes = snapshot.nodes.map(failNode);
-      return nodes.some((node, index) => node !== snapshot.nodes[index]) ? { ...snapshot, nodes } : snapshot;
+      return nodes.some((node, index) => node !== snapshot.nodes[index])
+        ? { ...snapshot, nodes }
+        : snapshot;
     };
     const nodes = state.nodes.map(failNode);
     const past = state.past.map(failSnapshot);

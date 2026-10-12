@@ -4,18 +4,20 @@ import { buildVideoProtocolRequest, videoProtocolRequestSchema } from "./video-p
 
 describe("video protocol", () => {
   it("infers operation from semantic media and preserves ordered roles", () => {
-    expect(buildVideoProtocolRequest({
-      model: "public-video",
-      prompt: "animate",
-      durationSeconds: 8,
-      resolution: "720p",
-      aspectRatio: "16:9",
-      mediaInputs: [
-        { kind: "image", role: "first_frame", url: "https://asset.test/first.png" },
-        { kind: "video", role: "source_video", url: "https://asset.test/source.mp4" },
-      ],
-      options: { generate_audio: true },
-    })).toEqual({
+    expect(
+      buildVideoProtocolRequest({
+        model: "public-video",
+        prompt: "animate",
+        durationSeconds: 8,
+        resolution: "720p",
+        aspectRatio: "16:9",
+        mediaInputs: [
+          { kind: "image", role: "first_frame", url: "https://asset.test/first.png" },
+          { kind: "video", role: "source_video", url: "https://asset.test/source.mp4" },
+        ],
+        options: { generate_audio: true },
+      }),
+    ).toEqual({
       version: "video.v1",
       model: "public-video",
       operation: "video_to_video",
@@ -32,12 +34,14 @@ describe("video protocol", () => {
   });
 
   it("rejects roles that do not match the media kind", () => {
-    expect(() => videoProtocolRequestSchema.parse({
-      version: "video.v1",
-      model: "public-video",
-      operation: "image_to_video",
-      prompt: "animate",
-      media_inputs: [{ kind: "audio", role: "first_frame", url: "https://asset.test/audio.mp3" }],
-    })).toThrow();
+    expect(() =>
+      videoProtocolRequestSchema.parse({
+        version: "video.v1",
+        model: "public-video",
+        operation: "image_to_video",
+        prompt: "animate",
+        media_inputs: [{ kind: "audio", role: "first_frame", url: "https://asset.test/audio.mp3" }],
+      }),
+    ).toThrow();
   });
 });

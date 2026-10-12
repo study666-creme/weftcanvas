@@ -1,4 +1,4 @@
-import type { AgentCreativeGuidance } from "@kachang/contracts";
+import type { AgentCreativeGuidance } from "@weftcanvas/contracts";
 
 export type ProfessionalBaselineStatus = {
   required: boolean;
@@ -6,7 +6,9 @@ export type ProfessionalBaselineStatus = {
   missing: string[];
 };
 
-export function normalizeAgentCreativeGuidance(guidance: AgentCreativeGuidance): AgentCreativeGuidance {
+export function normalizeAgentCreativeGuidance(
+  guidance: AgentCreativeGuidance,
+): AgentCreativeGuidance {
   return guidance.mode === "baseline" ? { ...guidance, mode: "professional" } : guidance;
 }
 

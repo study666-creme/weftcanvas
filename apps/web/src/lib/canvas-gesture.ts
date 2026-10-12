@@ -5,7 +5,7 @@
  * 触发一次补画——否则背景会停在手势开始前的状态，直到下一次视图变化才恢复
  * （表现为缩放后点阵间距、水面偏移对不上）。
  */
-const WORKSPACE_SELECTOR = ".kc-workspace";
+const WORKSPACE_SELECTOR = ".wc-workspace";
 const MOVING_CLASSES = ["is-viewport-moving", "is-space-pan"] as const;
 
 /** 手势判断的最小契约：只看类名，便于在没有 DOM 的测试里替换。 */
@@ -22,9 +22,8 @@ export function classListIsMoving(classList: ClassListLike | null | undefined): 
 }
 
 export function workspaceIsMoving(): boolean {
-  const workspace = typeof document === "undefined"
-    ? null
-    : document.querySelector(WORKSPACE_SELECTOR);
+  const workspace =
+    typeof document === "undefined" ? null : document.querySelector(WORKSPACE_SELECTOR);
   return classListIsMoving(workspace?.classList);
 }
 

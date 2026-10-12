@@ -1,4 +1,8 @@
-import type { CustomApiCatalogSource, GenerationJobInput, PublicModel } from "@kachang/contracts";
+import type {
+  CustomApiCatalogSource,
+  GenerationJobInput,
+  PublicModel,
+} from "@weftcanvas/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -38,39 +42,55 @@ describe("custom API media binding", () => {
     { kind: "audio", input: "audios", name: "reference_audio_urls", type: "array", count: 2 },
     { kind: "audio", input: "audios", name: "refAudioUrl", type: "string", count: 1 },
     { kind: "audio", input: "audios", name: "audio_url", type: "string", count: 1 },
-  ] as const)("binds $kind values to custom route alias $name", async ({ input, name, type, count }) => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      choices: [{ message: { content: "done" } }],
-    }), { status: 200, headers: { "Content-Type": "application/json" } }));
-    vi.stubGlobal("fetch", fetchMock);
-    const values = Array.from({ length: count }, (_, index) => `https://media.example/${input}-${index + 1}`);
-    const inputs: GenerationJobInput = {
-      images: [],
-      styleImages: [],
-      elementImages: [],
-      videos: [],
-      audios: [],
-      [input]: values,
-    };
+  ] as const)(
+    "binds $kind values to custom route alias $name",
+    async ({ input, name, type, count }) => {
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            choices: [{ message: { content: "done" } }],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+      const values = Array.from(
+        { length: count },
+        (_, index) => `https://media.example/${input}-${index + 1}`,
+      );
+      const inputs: GenerationJobInput = {
+        images: [],
+        styleImages: [],
+        elementImages: [],
+        videos: [],
+        audios: [],
+        [input]: values,
+      };
 
-    await executeCustomGeneration({
-      connection: { baseUrl: "http://127.0.0.1", apiKey: "secret" },
-      model: textModel(),
-      route: routeWithMediaParameter(name, type),
-      parameters: { messages: [{ role: "user", content: "test" }] },
-      inputs,
-    });
+      await executeCustomGeneration({
+        connection: { baseUrl: "http://127.0.0.1", apiKey: "secret" },
+        model: textModel(),
+        route: routeWithMediaParameter(name, type),
+        parameters: { messages: [{ role: "user", content: "test" }] },
+        inputs,
+      });
 
-    const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
-    expect(JSON.parse(String(request.body))).toMatchObject({
-      upstream: { references: type === "array" ? values : values[0] },
-    });
-  });
+      const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
+      expect(JSON.parse(String(request.body))).toMatchObject({
+        upstream: { references: type === "array" ? values : values[0] },
+      });
+    },
+  );
 
   it("binds first/last frames plus bare video and audio parameters", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      choices: [{ message: { content: "done" } }],
-    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: "done" } }],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
     vi.stubGlobal("fetch", fetchMock);
     const route = baseRoute();
     route.parameters.push(
@@ -108,9 +128,14 @@ describe("custom API media binding", () => {
   });
 
   it("binds semantic image roles from the catalog path even when the parameter name is generic", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      choices: [{ message: { content: "done" } }],
-    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: "done" } }],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
     vi.stubGlobal("fetch", fetchMock);
     const route = baseRoute();
     route.parameters.push({
@@ -161,7 +186,13 @@ describe("custom API media binding", () => {
       model.id,
       imageProtocolRoute(),
       { prompt: "product photo", resolution: "1k", aspect_ratio: "16:9", quality: "standard" },
-      { images: ["https://media.example/reference.png"], styleImages: [], elementImages: [], videos: [], audios: [] },
+      {
+        images: ["https://media.example/reference.png"],
+        styleImages: [],
+        elementImages: [],
+        videos: [],
+        audios: [],
+      },
     );
     expect(payload).toEqual({
       model: "source-image-model",
@@ -180,8 +211,12 @@ describe("custom API connection", () => {
   it("reads the catalog once while verifying the API key in parallel", async () => {
     let resolveCatalog!: (response: Response) => void;
     let resolveKey!: (response: Response) => void;
-    const catalogResponse = new Promise<Response>((resolve) => { resolveCatalog = resolve; });
-    const keyResponse = new Promise<Response>((resolve) => { resolveKey = resolve; });
+    const catalogResponse = new Promise<Response>((resolve) => {
+      resolveCatalog = resolve;
+    });
+    const keyResponse = new Promise<Response>((resolve) => {
+      resolveKey = resolve;
+    });
     const fetchMock = vi.fn((input: string | URL | Request, _init?: RequestInit) => {
       const pathname = new URL(String(input)).pathname;
       return pathname === "/api/model-catalog" ? catalogResponse : keyResponse;
@@ -192,7 +227,9 @@ describe("custom API connection", () => {
     await Promise.resolve();
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(new Headers(fetchMock.mock.calls[1]?.[1]?.headers).get("Authorization")).toBe("Bearer secret");
+    expect(new Headers(fetchMock.mock.calls[1]?.[1]?.headers).get("Authorization")).toBe(
+      "Bearer secret",
+    );
 
     resolveCatalog(jsonResponse(sourceCatalog()));
     resolveKey(jsonResponse({ data: [{ id: "source-image-model" }] }));
@@ -202,38 +239,52 @@ describe("custom API connection", () => {
   });
 
   it("reads native Gemini models with the explicit protocol header", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
-      models: [
-        { name: "models/gemini-2.5-flash", supportedGenerationMethods: ["generateContent"] },
-        { name: "models/embedding-001", supportedGenerationMethods: ["embedContent"] },
-      ],
-    }));
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        models: [
+          { name: "models/gemini-2.5-flash", supportedGenerationMethods: ["generateContent"] },
+          { name: "models/embedding-001", supportedGenerationMethods: ["embedContent"] },
+        ],
+      }),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(fetchCustomApiModelIdsForFormat(
-      "https://generativelanguage.googleapis.com",
+    await expect(
+      fetchCustomApiModelIdsForFormat(
+        "https://generativelanguage.googleapis.com",
+        "gemini-secret",
+        "gemini",
+      ),
+    ).resolves.toEqual(["gemini-2.5-flash"]);
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-goog-api-key")).toBe(
       "gemini-secret",
-      "gemini",
-    )).resolves.toEqual(["gemini-2.5-flash"]);
-    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-goog-api-key")).toBe("gemini-secret");
+    );
     expect(new URL(String(fetchMock.mock.calls[0]?.[0])).pathname).toBe("/v1beta/models");
   });
 
   it("keeps native Gemini execution separate from the OpenAI-compatible route", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
-      candidates: [{ content: { parts: [{ text: "Gemini response" }] } }],
-    }));
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        candidates: [{ content: { parts: [{ text: "Gemini response" }] } }],
+      }),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     const model = createSyntheticCustomModel("gemini-2.5-flash", "text");
     const route = createSyntheticCustomRoute("gemini-2.5-flash", "text")!;
-    await expect(executeCustomGeneration({
-      connection: { baseUrl: "https://generativelanguage.googleapis.com", apiKey: "secret", apiFormat: "gemini" },
-      model,
-      route,
-      parameters: { messages: [{ role: "user", content: "hello" }] },
-      inputs: { images: [], styleImages: [], elementImages: [], videos: [], audios: [] },
-    })).resolves.toMatchObject({ text: "Gemini response" });
+    await expect(
+      executeCustomGeneration({
+        connection: {
+          baseUrl: "https://generativelanguage.googleapis.com",
+          apiKey: "secret",
+          apiFormat: "gemini",
+        },
+        model,
+        route,
+        parameters: { messages: [{ role: "user", content: "hello" }] },
+        inputs: { images: [], styleImages: [], elementImages: [], videos: [], audios: [] },
+      }),
+    ).resolves.toMatchObject({ text: "Gemini response" });
 
     const [input, init] = fetchMock.mock.calls[0]!;
     expect(new URL(String(input)).pathname).toBe("/v1beta/models/gemini-2.5-flash:generateContent");
@@ -253,31 +304,49 @@ describe("custom API connection", () => {
     const fetchMock = vi.fn((input: string | URL | Request, init?: RequestInit) => {
       const url = new URL(String(input));
       if (url.pathname === "/api/model-catalog") {
-        return Promise.resolve(jsonResponse({
-          success: true,
-          version: "mj-catalog-1",
-          capability_version: "mj-capability-1",
-          pricing_version: "mj-pricing-1",
-          fetched_at: "2026-08-27T08:00:00.000Z",
-          models: [{
-            id: "Midjourney v8.2 高速",
-            modality: "image",
-            operation: "generate",
-            endpoint: { method: "POST", path: "/v1/midjourney/generations", content_type: "application/json" },
-            input: { text: { required: true }, images: { min: 0, max: 5, multiple: true } },
-            output: { type: "image", count: { fixed: 4 } },
-            parameters: [
-              { name: "model", type: "string", fixed: "Midjourney v8.2 高速" },
-              { name: "prompt", type: "string", required: true },
-              { name: "size", type: "string", default: "9:16", options: ["1:1", "16:9", "9:16"] },
-              { name: "raw", type: "boolean", default: false },
-              { name: "n", type: "integer", fixed: 1 },
-              { name: "images", type: "array", items: { type: "string", format: "public-http-url" }, max_items: 5 },
+        return Promise.resolve(
+          jsonResponse({
+            success: true,
+            version: "mj-catalog-1",
+            capability_version: "mj-capability-1",
+            pricing_version: "mj-pricing-1",
+            fetched_at: "2026-08-27T08:00:00.000Z",
+            models: [
+              {
+                id: "Midjourney v8.2 高速",
+                modality: "image",
+                operation: "generate",
+                endpoint: {
+                  method: "POST",
+                  path: "/v1/midjourney/generations",
+                  content_type: "application/json",
+                },
+                input: { text: { required: true }, images: { min: 0, max: 5, multiple: true } },
+                output: { type: "image", count: { fixed: 4 } },
+                parameters: [
+                  { name: "model", type: "string", fixed: "Midjourney v8.2 高速" },
+                  { name: "prompt", type: "string", required: true },
+                  {
+                    name: "size",
+                    type: "string",
+                    default: "9:16",
+                    options: ["1:1", "16:9", "9:16"],
+                  },
+                  { name: "raw", type: "boolean", default: false },
+                  { name: "n", type: "integer", fixed: 1 },
+                  {
+                    name: "images",
+                    type: "array",
+                    items: { type: "string", format: "public-http-url" },
+                    max_items: 5,
+                  },
+                ],
+                public: { id: "Midjourney v8.2 高速", label: "Midjourney v8.2 高速" },
+                selectable: true,
+              },
             ],
-            public: { id: "Midjourney v8.2 高速", label: "Midjourney v8.2 高速" },
-            selectable: true,
-          }],
-        }));
+          }),
+        );
       }
       if (url.pathname === "/v1/models") {
         return Promise.resolve(jsonResponse({ data: [{ id: "Midjourney v8.2 高速" }] }));
@@ -290,19 +359,28 @@ describe("custom API connection", () => {
           raw: false,
           n: 1,
         });
-        return Promise.resolve(jsonResponse({ data: { task_id: "mj-task-1", status: "completed", image_urls: imageUrls } }));
+        return Promise.resolve(
+          jsonResponse({
+            data: { task_id: "mj-task-1", status: "completed", image_urls: imageUrls },
+          }),
+        );
       }
       if (imageUrls.includes(url.toString())) {
-        return Promise.resolve(new Response(new Blob(["png"], { type: "image/png" }), {
-          status: 200,
-          headers: { "Content-Type": "image/png" },
-        }));
+        return Promise.resolve(
+          new Response(new Blob(["png"], { type: "image/png" }), {
+            status: 200,
+            headers: { "Content-Type": "image/png" },
+          }),
+        );
       }
       throw new Error(`unexpected request: ${url}`);
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const catalog = await testCustomApiConnection({ baseUrl: "http://127.0.0.1", apiKey: "secret" });
+    const catalog = await testCustomApiConnection({
+      baseUrl: "http://127.0.0.1",
+      apiKey: "secret",
+    });
     const model = catalog.models[0]!;
     expect(model.id).toBe("Midjourney v8.2 高速");
     expect(catalog.routes[model.id]).toMatchObject({ endpointPath: "/v1/midjourney/generations" });
@@ -328,7 +406,10 @@ describe("custom API connection", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const catalog = await testCustomApiConnection({ baseUrl: "https://api.example", apiKey: "secret" });
+    const catalog = await testCustomApiConnection({
+      baseUrl: "https://api.example",
+      apiKey: "secret",
+    });
 
     expect(catalog).toMatchObject({
       version: "catalog-1",
@@ -376,13 +457,18 @@ describe("custom API connection", () => {
     );
     const fetchMock = vi.fn((input: string | URL | Request) => {
       const pathname = new URL(String(input)).pathname;
-      return Promise.resolve(pathname === "/api/model-catalog"
-        ? jsonResponse(source)
-        : jsonResponse({ data: [{ id: "source-image-model" }] }));
+      return Promise.resolve(
+        pathname === "/api/model-catalog"
+          ? jsonResponse(source)
+          : jsonResponse({ data: [{ id: "source-image-model" }] }),
+      );
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const catalog = await testCustomApiConnection({ baseUrl: "https://api.example", apiKey: "secret" });
+    const catalog = await testCustomApiConnection({
+      baseUrl: "https://api.example",
+      apiKey: "secret",
+    });
 
     expect(catalog.models[0]?.input.referenceMedia).toEqual({
       images: { min: 0, max: 1, multiple: false, role: "frame" },
@@ -390,10 +476,12 @@ describe("custom API connection", () => {
       elementImages: { min: 0, max: 3, multiple: true },
       maxTotalItems: 4,
     });
-    expect(catalog.routes["image-model"]?.parameters).toContainEqual(expect.objectContaining({
-      name: "referenceImages",
-      path: "style_references",
-    }));
+    expect(catalog.routes["image-model"]?.parameters).toContainEqual(
+      expect.objectContaining({
+        name: "referenceImages",
+        path: "style_references",
+      }),
+    );
   });
 
   it("derives Gemini Omni reference roles from paths without explicit reference_media", async () => {
@@ -435,13 +523,18 @@ describe("custom API connection", () => {
     );
     const fetchMock = vi.fn((input: string | URL | Request) => {
       const pathname = new URL(String(input)).pathname;
-      return Promise.resolve(pathname === "/api/model-catalog"
-        ? jsonResponse(source)
-        : jsonResponse({ data: [{ id: "gemini-omni-flash" }] }));
+      return Promise.resolve(
+        pathname === "/api/model-catalog"
+          ? jsonResponse(source)
+          : jsonResponse({ data: [{ id: "gemini-omni-flash" }] }),
+      );
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const catalog = await testCustomApiConnection({ baseUrl: "https://api.example", apiKey: "secret" });
+    const catalog = await testCustomApiConnection({
+      baseUrl: "https://api.example",
+      apiKey: "secret",
+    });
 
     expect(catalog.models[0]?.input.referenceMedia).toEqual({
       images: { min: 0, max: 1, multiple: false },
@@ -472,13 +565,18 @@ describe("custom API connection", () => {
     });
     const fetchMock = vi.fn((input: string | URL | Request) => {
       const pathname = new URL(String(input)).pathname;
-      return Promise.resolve(pathname === "/api/model-catalog"
-        ? jsonResponse(source)
-        : jsonResponse({ data: [{ id: "source-image-model" }] }));
+      return Promise.resolve(
+        pathname === "/api/model-catalog"
+          ? jsonResponse(source)
+          : jsonResponse({ data: [{ id: "source-image-model" }] }),
+      );
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const catalog = await testCustomApiConnection({ baseUrl: "https://api.example", apiKey: "secret" });
+    const catalog = await testCustomApiConnection({
+      baseUrl: "https://api.example",
+      apiKey: "secret",
+    });
 
     expect(catalog.models[0]?.input.referenceMedia).toEqual({
       images: { min: 0, max: 0, multiple: false, role: "frame" },
@@ -495,16 +593,25 @@ describe("custom API connection", () => {
     });
     const fetchMock = vi.fn((input: string | URL | Request) => {
       const pathname = new URL(String(input)).pathname;
-      return Promise.resolve(pathname === "/api/model-catalog"
-        ? jsonResponse(source)
-        : jsonResponse({ data: [{ id: "source-image-model" }] }));
+      return Promise.resolve(
+        pathname === "/api/model-catalog"
+          ? jsonResponse(source)
+          : jsonResponse({ data: [{ id: "source-image-model" }] }),
+      );
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const catalog = await testCustomApiConnection({ baseUrl: "https://api.example", apiKey: "secret" });
+    const catalog = await testCustomApiConnection({
+      baseUrl: "https://api.example",
+      apiKey: "secret",
+    });
 
     expect(catalog.models[0]?.input.images).toEqual({ min: 0, max: 1, multiple: false });
-    expect(catalog.models[0]?.input.referenceMedia?.images).toEqual({ min: 0, max: 1, multiple: false });
+    expect(catalog.models[0]?.input.referenceMedia?.images).toEqual({
+      min: 0,
+      max: 1,
+      multiple: false,
+    });
   });
 
   it("preserves explicitly required image minima for image models", async () => {
@@ -524,16 +631,25 @@ describe("custom API connection", () => {
     });
     const fetchMock = vi.fn((input: string | URL | Request) => {
       const pathname = new URL(String(input)).pathname;
-      return Promise.resolve(pathname === "/api/model-catalog"
-        ? jsonResponse(source)
-        : jsonResponse({ data: [{ id: "source-image-model" }] }));
+      return Promise.resolve(
+        pathname === "/api/model-catalog"
+          ? jsonResponse(source)
+          : jsonResponse({ data: [{ id: "source-image-model" }] }),
+      );
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const catalog = await testCustomApiConnection({ baseUrl: "https://api.example", apiKey: "secret" });
+    const catalog = await testCustomApiConnection({
+      baseUrl: "https://api.example",
+      apiKey: "secret",
+    });
 
     expect(catalog.models[0]?.input.images).toEqual({ min: 1, max: 1, multiple: false });
-    expect(catalog.models[0]?.input.referenceMedia?.images).toEqual({ min: 1, max: 1, multiple: false });
+    expect(catalog.models[0]?.input.referenceMedia?.images).toEqual({
+      min: 1,
+      max: 1,
+      multiple: false,
+    });
   });
 
   it("keeps an ordinary generic image input optional for image models", async () => {
@@ -545,26 +661,37 @@ describe("custom API connection", () => {
     });
     const fetchMock = vi.fn((input: string | URL | Request) => {
       const pathname = new URL(String(input)).pathname;
-      return Promise.resolve(pathname === "/api/model-catalog"
-        ? jsonResponse(source)
-        : jsonResponse({ data: [{ id: "source-image-model" }] }));
+      return Promise.resolve(
+        pathname === "/api/model-catalog"
+          ? jsonResponse(source)
+          : jsonResponse({ data: [{ id: "source-image-model" }] }),
+      );
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const catalog = await testCustomApiConnection({ baseUrl: "https://api.example", apiKey: "secret" });
+    const catalog = await testCustomApiConnection({
+      baseUrl: "https://api.example",
+      apiKey: "secret",
+    });
 
     expect(catalog.models[0]?.input.images).toEqual({ min: 0, max: 1, multiple: false });
-    expect(catalog.models[0]?.input.referenceMedia?.images).toEqual({ min: 0, max: 1, multiple: false });
+    expect(catalog.models[0]?.input.referenceMedia?.images).toEqual({
+      min: 0,
+      max: 1,
+      multiple: false,
+    });
 
     const generationMock = vi.fn().mockResolvedValue(jsonResponse({ data: [] }));
     vi.stubGlobal("fetch", generationMock);
-    await expect(executeCustomGeneration({
-      connection: { baseUrl: "http://127.0.0.1", apiKey: "secret" },
-      model: catalog.models[0]!,
-      route: catalog.routes["image-model"]!,
-      parameters: { prompt: "text to image" },
-      inputs: { images: [], styleImages: [], elementImages: [], videos: [], audios: [] },
-    })).rejects.toMatchObject({ code: "IMAGE_RESULT_INVALID" });
+    await expect(
+      executeCustomGeneration({
+        connection: { baseUrl: "http://127.0.0.1", apiKey: "secret" },
+        model: catalog.models[0]!,
+        route: catalog.routes["image-model"]!,
+        parameters: { prompt: "text to image" },
+        inputs: { images: [], styleImages: [], elementImages: [], videos: [], audios: [] },
+      }),
+    ).rejects.toMatchObject({ code: "IMAGE_RESULT_INVALID" });
     expect(generationMock).toHaveBeenCalled();
   });
 
@@ -578,24 +705,35 @@ describe("custom API connection", () => {
     });
     const fetchMock = vi.fn((input: string | URL | Request) => {
       const pathname = new URL(String(input)).pathname;
-      return Promise.resolve(pathname === "/api/model-catalog"
-        ? jsonResponse(source)
-        : jsonResponse({ data: [{ id: "source-image-model" }] }));
+      return Promise.resolve(
+        pathname === "/api/model-catalog"
+          ? jsonResponse(source)
+          : jsonResponse({ data: [{ id: "source-image-model" }] }),
+      );
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const catalog = await testCustomApiConnection({ baseUrl: "https://api.example", apiKey: "secret" });
+    const catalog = await testCustomApiConnection({
+      baseUrl: "https://api.example",
+      apiKey: "secret",
+    });
 
     expect(catalog.models[0]?.input.images).toEqual({ min: 0, max: 1, multiple: false });
-    expect(catalog.models[0]?.input.referenceMedia?.images).toEqual({ min: 1, max: 1, multiple: false });
+    expect(catalog.models[0]?.input.referenceMedia?.images).toEqual({
+      min: 1,
+      max: 1,
+      multiple: false,
+    });
 
-    await expect(executeCustomGeneration({
-      connection: { baseUrl: "http://127.0.0.1", apiKey: "secret" },
-      model: catalog.models[0]!,
-      route: catalog.routes["image-model"]!,
-      parameters: { prompt: "text to image" },
-      inputs: { images: [], styleImages: [], elementImages: [], videos: [], audios: [] },
-    })).rejects.toMatchObject({ code: "REFERENCE_REQUIRED" });
+    await expect(
+      executeCustomGeneration({
+        connection: { baseUrl: "http://127.0.0.1", apiKey: "secret" },
+        model: catalog.models[0]!,
+        route: catalog.routes["image-model"]!,
+        parameters: { prompt: "text to image" },
+        inputs: { images: [], styleImages: [], elementImages: [], videos: [], audios: [] },
+      }),
+    ).rejects.toMatchObject({ code: "REFERENCE_REQUIRED" });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
@@ -615,15 +753,24 @@ describe("custom API connection", () => {
     });
     const fetchMock = vi.fn((input: string | URL | Request) => {
       const pathname = new URL(String(input)).pathname;
-      return Promise.resolve(pathname === "/api/model-catalog"
-        ? jsonResponse(source)
-        : jsonResponse({ data: [{ id: "source-video-model" }] }));
+      return Promise.resolve(
+        pathname === "/api/model-catalog"
+          ? jsonResponse(source)
+          : jsonResponse({ data: [{ id: "source-video-model" }] }),
+      );
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const catalog = await testCustomApiConnection({ baseUrl: "https://api.example", apiKey: "secret" });
+    const catalog = await testCustomApiConnection({
+      baseUrl: "https://api.example",
+      apiKey: "secret",
+    });
 
-    expect(catalog.models[0]?.input.referenceMedia?.images).toEqual({ min: 1, max: 1, multiple: false });
+    expect(catalog.models[0]?.input.referenceMedia?.images).toEqual({
+      min: 1,
+      max: 1,
+      multiple: false,
+    });
   });
 
   it("preserves required frame and specialized image roles for video models", async () => {
@@ -635,13 +782,18 @@ describe("custom API connection", () => {
     );
     const fetchMock = vi.fn((input: string | URL | Request) => {
       const pathname = new URL(String(input)).pathname;
-      return Promise.resolve(pathname === "/api/model-catalog"
-        ? jsonResponse(source)
-        : jsonResponse({ data: [{ id: "source-video-model" }] }));
+      return Promise.resolve(
+        pathname === "/api/model-catalog"
+          ? jsonResponse(source)
+          : jsonResponse({ data: [{ id: "source-video-model" }] }),
+      );
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const catalog = await testCustomApiConnection({ baseUrl: "https://api.example", apiKey: "secret" });
+    const catalog = await testCustomApiConnection({
+      baseUrl: "https://api.example",
+      apiKey: "secret",
+    });
 
     expect(catalog.models[0]?.input.referenceMedia).toEqual({
       images: { min: 1, max: 1, multiple: false, role: "frame" },
@@ -651,39 +803,49 @@ describe("custom API connection", () => {
   });
 
   it("allows an empty reference list through generation validation for an image-generation model", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
-      choices: [{ message: { content: "done" } }],
-    }));
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        choices: [{ message: { content: "done" } }],
+      }),
+    );
     vi.stubGlobal("fetch", fetchMock);
     const model = textModel();
     model.input.referenceMedia = {
       images: { min: 0, max: 1, multiple: false },
     };
 
-    await expect(executeCustomGeneration({
-      connection: { baseUrl: "http://127.0.0.1", apiKey: "secret" },
-      model,
-      route: baseRoute(),
-      parameters: { messages: [{ role: "user", content: "test" }] },
-      inputs: { images: [], styleImages: [], elementImages: [], videos: [], audios: [] },
-    })).resolves.toEqual({ text: "done" });
+    await expect(
+      executeCustomGeneration({
+        connection: { baseUrl: "http://127.0.0.1", apiKey: "secret" },
+        model,
+        route: baseRoute(),
+        parameters: { messages: [{ role: "user", content: "test" }] },
+        inputs: { images: [], styleImages: [], elementImages: [], videos: [], audios: [] },
+      }),
+    ).resolves.toEqual({ text: "done" });
   });
 
   it("adds exact Grok video capabilities when a New API relay only exposes /v1/models", async () => {
     const fetchMock = vi.fn((input: string | URL | Request) => {
       const pathname = new URL(String(input)).pathname;
-      if (pathname === "/api/model-catalog") return Promise.resolve(jsonResponse({ error: "not found" }, 404));
-      return Promise.resolve(jsonResponse({
-        data: [
-          { id: "grok-imagine-video" },
-          { id: "grok-imagine-video-1.5" },
-          { id: "unclassified-model" },
-        ],
-      }));
+      if (pathname === "/api/model-catalog")
+        return Promise.resolve(jsonResponse({ error: "not found" }, 404));
+      return Promise.resolve(
+        jsonResponse({
+          data: [
+            { id: "grok-imagine-video" },
+            { id: "grok-imagine-video-1.5" },
+            { id: "unclassified-model" },
+          ],
+        }),
+      );
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const catalog = await testCustomApiConnection({ baseUrl: "https://api.pro666.top", apiKey: "secret" });
+    const catalog = await testCustomApiConnection({
+      baseUrl: "https://api.pro666.top",
+      apiKey: "secret",
+    });
 
     expect(catalog.capabilitySource).toBe("models-only");
     expect(catalog.models.map((model) => model.id)).toEqual([
@@ -701,7 +863,11 @@ describe("custom API connection", () => {
     expect(catalog.routes["grok-imagine-video-1.5"]).toMatchObject({
       endpointPath: "/v1/videos",
       parameters: expect.arrayContaining([
-        expect.objectContaining({ name: "first_frame_image", path: "first_frame_image", format: "public-http-url" }),
+        expect.objectContaining({
+          name: "first_frame_image",
+          path: "first_frame_image",
+          format: "public-http-url",
+        }),
       ]),
     });
   });
@@ -711,24 +877,31 @@ describe("Grok custom video requests", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("surfaces an upstream plan requirement from a failed video task", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({
-      id: "task-1",
-      status: "failed",
-      error: {
-        code: "job_minimum_pro_plan_required",
-        message: "当前模型要求 Higgsfield Pro 套餐，请更换已开通 Pro 的账号后重试。",
-      },
-    })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          id: "task-1",
+          status: "failed",
+          error: {
+            code: "job_minimum_pro_plan_required",
+            message: "当前模型要求 Higgsfield Pro 套餐，请更换已开通 Pro 的账号后重试。",
+          },
+        }),
+      ),
+    );
     const model = createSyntheticCustomModel("higgsfield-sd2", "video");
     const route = createSyntheticCustomRoute("higgsfield-sd2", "video")!;
 
-    await expect(executeCustomGeneration({
-      connection: { baseUrl: "http://127.0.0.1", apiKey: "secret" },
-      model,
-      route,
-      parameters: { prompt: "cinematic orbit shot" },
-      inputs: { images: [], styleImages: [], elementImages: [], videos: [], audios: [] },
-    })).rejects.toMatchObject({
+    await expect(
+      executeCustomGeneration({
+        connection: { baseUrl: "http://127.0.0.1", apiKey: "secret" },
+        model,
+        route,
+        parameters: { prompt: "cinematic orbit shot" },
+        inputs: { images: [], styleImages: [], elementImages: [], videos: [], audios: [] },
+      }),
+    ).rejects.toMatchObject({
       code: "JOB_MINIMUM_PRO_PLAN_REQUIRED",
       message: "当前 Higgsfield 账号需要 Pro 套餐（job_minimum_pro_plan_required）",
     });
@@ -740,13 +913,21 @@ describe("Grok custom video requests", () => {
     const model = createSyntheticCustomModel("grok-imagine-video-1.5", "video");
     const route = createSyntheticCustomRoute("grok-imagine-video-1.5", "video")!;
 
-    await expect(executeCustomGeneration({
-      connection: { baseUrl: "https://api.pro666.top", apiKey: "secret" },
-      model,
-      route,
-      parameters: { prompt: "animate", seconds: 6, aspect_ratio: "9:16", resolution: "1080p" },
-      inputs: { images: ["https://media.example/first.png"], styleImages: [], elementImages: [], videos: [], audios: [] },
-    })).rejects.toMatchObject({ code: "VIDEO_TASK_MISSING" });
+    await expect(
+      executeCustomGeneration({
+        connection: { baseUrl: "https://api.pro666.top", apiKey: "secret" },
+        model,
+        route,
+        parameters: { prompt: "animate", seconds: 6, aspect_ratio: "9:16", resolution: "1080p" },
+        inputs: {
+          images: ["https://media.example/first.png"],
+          styleImages: [],
+          elementImages: [],
+          videos: [],
+          audios: [],
+        },
+      }),
+    ).rejects.toMatchObject({ code: "VIDEO_TASK_MISSING" });
 
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
       version: "video.v1",
@@ -756,7 +937,9 @@ describe("Grok custom video requests", () => {
       duration_seconds: 6,
       aspect_ratio: "9:16",
       resolution: "1080p",
-      media_inputs: [{ kind: "image", role: "first_frame", url: "https://media.example/first.png" }],
+      media_inputs: [
+        { kind: "image", role: "first_frame", url: "https://media.example/first.png" },
+      ],
       options: { async: true, n: 1 },
     });
   });
@@ -774,13 +957,15 @@ describe("Grok custom video requests", () => {
       audios: [],
     };
 
-    await expect(executeCustomGeneration({
-      connection: { baseUrl: "https://api.pro666.top", apiKey: "secret" },
-      model,
-      route,
-      parameters: { prompt: "keep the character consistent", seconds: "10" },
-      inputs,
-    })).rejects.toMatchObject({ code: "VIDEO_TASK_MISSING" });
+    await expect(
+      executeCustomGeneration({
+        connection: { baseUrl: "https://api.pro666.top", apiKey: "secret" },
+        model,
+        route,
+        parameters: { prompt: "keep the character consistent", seconds: "10" },
+        inputs,
+      }),
+    ).rejects.toMatchObject({ code: "VIDEO_TASK_MISSING" });
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
       version: "video.v1",
       model: "grok-imagine-video",
@@ -793,13 +978,15 @@ describe("Grok custom video requests", () => {
       options: { async: true, n: 1 },
     });
 
-    await expect(executeCustomGeneration({
-      connection: { baseUrl: "https://api.pro666.top", apiKey: "secret" },
-      model,
-      route,
-      parameters: { prompt: "too long", seconds: "11" },
-      inputs,
-    })).rejects.toMatchObject({ code: "DURATION_OUT_OF_RANGE" });
+    await expect(
+      executeCustomGeneration({
+        connection: { baseUrl: "https://api.pro666.top", apiKey: "secret" },
+        model,
+        route,
+        parameters: { prompt: "too long", seconds: "11" },
+        inputs,
+      }),
+    ).rejects.toMatchObject({ code: "DURATION_OUT_OF_RANGE" });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -809,13 +996,15 @@ describe("Grok custom video requests", () => {
     const model = createSyntheticCustomModel("grok-imagine-video-1.5", "video");
     const route = createSyntheticCustomRoute("grok-imagine-video-1.5", "video")!;
 
-    await expect(executeCustomGeneration({
-      connection: { baseUrl: "https://api.pro666.top", apiKey: "secret" },
-      model,
-      route,
-      parameters: { prompt: "unsupported text-only request", seconds: "6" },
-      inputs: { images: [], styleImages: [], elementImages: [], videos: [], audios: [] },
-    })).rejects.toMatchObject({ code: "REFERENCE_REQUIRED" });
+    await expect(
+      executeCustomGeneration({
+        connection: { baseUrl: "https://api.pro666.top", apiKey: "secret" },
+        model,
+        route,
+        parameters: { prompt: "unsupported text-only request", seconds: "6" },
+        inputs: { images: [], styleImages: [], elementImages: [], videos: [], audios: [] },
+      }),
+    ).rejects.toMatchObject({ code: "REFERENCE_REQUIRED" });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -839,13 +1028,15 @@ describe("Grok custom video requests", () => {
       ],
     };
 
-    await expect(executeCustomGeneration({
-      connection: { baseUrl: "http://127.0.0.1", apiKey: "secret" },
-      model,
-      route,
-      parameters: { prompt: "animate", async: false, n: 9 },
-      inputs: { images: [], styleImages: [], elementImages: [], videos: [], audios: [] },
-    })).rejects.toMatchObject({ code: "VIDEO_TASK_MISSING" });
+    await expect(
+      executeCustomGeneration({
+        connection: { baseUrl: "http://127.0.0.1", apiKey: "secret" },
+        model,
+        route,
+        parameters: { prompt: "animate", async: false, n: 9 },
+        inputs: { images: [], styleImages: [], elementImages: [], videos: [], audios: [] },
+      }),
+    ).rejects.toMatchObject({ code: "VIDEO_TASK_MISSING" });
 
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
       version: "video.v1",
@@ -862,12 +1053,17 @@ describe("Grok custom video requests", () => {
   it("downloads completed videos through the standard content endpoint when status has no URL", async () => {
     const fetchMock = vi.fn((input: string | URL | Request) => {
       const url = new URL(String(input));
-      if (url.pathname === "/v1/videos") return Promise.resolve(jsonResponse({ id: "task-content", status: "completed", progress: 100 }));
+      if (url.pathname === "/v1/videos")
+        return Promise.resolve(
+          jsonResponse({ id: "task-content", status: "completed", progress: 100 }),
+        );
       if (url.pathname === "/v1/videos/task-content/content") {
-        return Promise.resolve(new Response(new Blob(["video-bytes"], { type: "video/mp4" }), {
-          status: 200,
-          headers: { "Content-Type": "video/mp4" },
-        }));
+        return Promise.resolve(
+          new Response(new Blob(["video-bytes"], { type: "video/mp4" }), {
+            status: 200,
+            headers: { "Content-Type": "video/mp4" },
+          }),
+        );
       }
       throw new Error(`unexpected request: ${url}`);
     });
@@ -884,13 +1080,15 @@ describe("Grok custom video requests", () => {
       ],
     };
 
-    await expect(executeCustomGeneration({
-      connection: { baseUrl: "http://127.0.0.1", apiKey: "secret" },
-      model,
-      route,
-      parameters: { prompt: "animate" },
-      inputs: { images: [], styleImages: [], elementImages: [], videos: [], audios: [] },
-    })).resolves.toMatchObject({ media: [{ mimeType: "video/mp4" }] });
+    await expect(
+      executeCustomGeneration({
+        connection: { baseUrl: "http://127.0.0.1", apiKey: "secret" },
+        model,
+        route,
+        parameters: { prompt: "animate" },
+        inputs: { images: [], styleImages: [], elementImages: [], videos: [], audios: [] },
+      }),
+    ).resolves.toMatchObject({ media: [{ mimeType: "video/mp4" }] });
 
     expect(fetchMock.mock.calls.map(([input]) => new URL(String(input)).pathname)).toEqual([
       "/v1/videos",
@@ -904,7 +1102,14 @@ describe("Grok custom video requests", () => {
     Object.defineProperty(response, "blob", { value: vi.fn().mockRejectedValue(bodyReadError) });
     const fetchMock = vi.fn((input: string | URL | Request) => {
       const pathname = new URL(String(input)).pathname;
-      if (pathname === "/v1/videos") return Promise.resolve(jsonResponse({ id: "task-aborted", status: "completed", url: "http://127.0.0.1/result.mp4" }));
+      if (pathname === "/v1/videos")
+        return Promise.resolve(
+          jsonResponse({
+            id: "task-aborted",
+            status: "completed",
+            url: "http://127.0.0.1/result.mp4",
+          }),
+        );
       if (pathname === "/result.mp4") return Promise.resolve(response);
       throw new Error(`unexpected request: ${pathname}`);
     });
@@ -913,13 +1118,15 @@ describe("Grok custom video requests", () => {
     const model = createSyntheticCustomModel("public-video", "video");
     const route = createSyntheticCustomRoute("public-video", "video")!;
 
-    await expect(executeCustomGeneration({
-      connection: { baseUrl: "http://127.0.0.1", apiKey: "secret" },
-      model,
-      route,
-      parameters: { prompt: "animate" },
-      inputs: { images: [], styleImages: [], elementImages: [], videos: [], audios: [] },
-    })).rejects.toMatchObject({
+    await expect(
+      executeCustomGeneration({
+        connection: { baseUrl: "http://127.0.0.1", apiKey: "secret" },
+        model,
+        route,
+        parameters: { prompt: "animate" },
+        inputs: { images: [], styleImages: [], elementImages: [], videos: [], audios: [] },
+      }),
+    ).rejects.toMatchObject({
       code: "RESULT_READ_INTERRUPTED",
       message: "视频结果读取中断，请稍后从任务记录重试",
     });
@@ -944,24 +1151,26 @@ describe("Grok custom video requests", () => {
       ],
     };
 
-    await expect(executeCustomGeneration({
-      connection: { baseUrl: "http://127.0.0.1", apiKey: "secret" },
-      model,
-      route,
-      parameters: {
-        prompt: "人物自然转身",
-        duration_seconds: 15,
-        aspect_ratio: "9:16",
-        resolution: "720p",
-      },
-      inputs: {
-        images: ["https://media.example/reference.png"],
-        styleImages: [],
-        elementImages: [],
-        videos: [],
-        audios: [],
-      },
-    })).rejects.toMatchObject({ code: "VIDEO_TASK_MISSING" });
+    await expect(
+      executeCustomGeneration({
+        connection: { baseUrl: "http://127.0.0.1", apiKey: "secret" },
+        model,
+        route,
+        parameters: {
+          prompt: "人物自然转身",
+          duration_seconds: 15,
+          aspect_ratio: "9:16",
+          resolution: "720p",
+        },
+        inputs: {
+          images: ["https://media.example/reference.png"],
+          styleImages: [],
+          elementImages: [],
+          videos: [],
+          audios: [],
+        },
+      }),
+    ).rejects.toMatchObject({ code: "VIDEO_TASK_MISSING" });
 
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
       version: "video.v1",
@@ -971,7 +1180,9 @@ describe("Grok custom video requests", () => {
       duration_seconds: 15,
       aspect_ratio: "9:16",
       resolution: "720p",
-      media_inputs: [{ kind: "image", role: "reference", url: "https://media.example/reference.png" }],
+      media_inputs: [
+        { kind: "image", role: "reference", url: "https://media.example/reference.png" },
+      ],
       options: { async: true, n: 1 },
     });
   });
@@ -1010,13 +1221,15 @@ function textModel(): PublicModel {
       audios: { min: 0, max: 2, multiple: true },
     },
     output: { type: "text", minCount: 1, maxCount: 1 },
-    parameters: [{
-      name: "messages",
-      label: "Messages",
-      type: "array",
-      required: true,
-      mutuallyExclusiveWith: [],
-    }],
+    parameters: [
+      {
+        name: "messages",
+        label: "Messages",
+        type: "array",
+        required: true,
+        mutuallyExclusiveWith: [],
+      },
+    ],
     pricing: {
       mode: "fixed",
       unit: "request",
@@ -1045,12 +1258,44 @@ function imageProtocolModel(): PublicModel {
     input: { textRequired: true, images: { min: 0, max: 4, multiple: true } },
     output: { type: "image", minCount: 1, maxCount: 1 },
     parameters: [
-      { name: "prompt", label: "Prompt", type: "string", required: true, mutuallyExclusiveWith: [] },
-      { name: "resolution", label: "Resolution", type: "string", required: false, mutuallyExclusiveWith: [] },
-      { name: "aspect_ratio", label: "Aspect ratio", type: "string", required: false, mutuallyExclusiveWith: [] },
-      { name: "quality", label: "Quality", type: "string", required: false, mutuallyExclusiveWith: [] },
+      {
+        name: "prompt",
+        label: "Prompt",
+        type: "string",
+        required: true,
+        mutuallyExclusiveWith: [],
+      },
+      {
+        name: "resolution",
+        label: "Resolution",
+        type: "string",
+        required: false,
+        mutuallyExclusiveWith: [],
+      },
+      {
+        name: "aspect_ratio",
+        label: "Aspect ratio",
+        type: "string",
+        required: false,
+        mutuallyExclusiveWith: [],
+      },
+      {
+        name: "quality",
+        label: "Quality",
+        type: "string",
+        required: false,
+        mutuallyExclusiveWith: [],
+      },
     ],
-    pricing: { mode: "fixed", unit: "request", currency: "CNY", creditsPerYuan: 1, baseCreditMicros: 0, baseYuanMicros: 0, tiers: [] },
+    pricing: {
+      mode: "fixed",
+      unit: "request",
+      currency: "CNY",
+      creditsPerYuan: 1,
+      baseCreditMicros: 0,
+      baseYuanMicros: 0,
+      tiers: [],
+    },
   };
 }
 
@@ -1077,20 +1322,26 @@ function sourceCatalog(): CustomApiCatalogSource {
     capability_version: "capability-1",
     pricing_version: "pricing-1",
     fetched_at: "2026-07-23T08:00:00.000Z",
-    models: [{
-      id: "source-image-model",
-      modality: "image",
-      operation: "generate",
-      endpoint: { method: "POST", path: "/v1/images/generations", content_type: "application/json" },
-      input: { text: { required: true } },
-      output: { type: "image", count: { fixed: 1 } },
-      parameters: [
-        { name: "model", type: "string", fixed: "source-image-model" },
-        { name: "prompt", type: "string", required: true },
-      ],
-      public: { id: "image-model", label: "Image model" },
-      selectable: true,
-    }],
+    models: [
+      {
+        id: "source-image-model",
+        modality: "image",
+        operation: "generate",
+        endpoint: {
+          method: "POST",
+          path: "/v1/images/generations",
+          content_type: "application/json",
+        },
+        input: { text: { required: true } },
+        output: { type: "image", count: { fixed: 1 } },
+        parameters: [
+          { name: "model", type: "string", fixed: "source-image-model" },
+          { name: "prompt", type: "string", required: true },
+        ],
+        public: { id: "image-model", label: "Image model" },
+        selectable: true,
+      },
+    ],
   };
 }
 
@@ -1101,23 +1352,28 @@ function videoSourceCatalog(): CustomApiCatalogSource {
     capability_version: "capability-1",
     pricing_version: "pricing-1",
     fetched_at: "2026-07-23T08:00:00.000Z",
-    models: [{
-      id: "source-video-model",
-      modality: "video",
-      operation: "generate",
-      endpoint: { method: "POST", path: "/v1/videos", content_type: "application/json" },
-      input: { text: { required: true } },
-      output: { type: "video", count: { fixed: 1 } },
-      parameters: [
-        { name: "model", type: "string", fixed: "source-video-model" },
-        { name: "prompt", type: "string", required: true },
-      ],
-      public: { id: "video-model", label: "Video model" },
-      selectable: true,
-    }],
+    models: [
+      {
+        id: "source-video-model",
+        modality: "video",
+        operation: "generate",
+        endpoint: { method: "POST", path: "/v1/videos", content_type: "application/json" },
+        input: { text: { required: true } },
+        output: { type: "video", count: { fixed: 1 } },
+        parameters: [
+          { name: "model", type: "string", fixed: "source-video-model" },
+          { name: "prompt", type: "string", required: true },
+        ],
+        public: { id: "video-model", label: "Video model" },
+        selectable: true,
+      },
+    ],
   };
 }
 
 function jsonResponse(value: unknown, status = 200) {
-  return new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
+  return new Response(JSON.stringify(value), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 }

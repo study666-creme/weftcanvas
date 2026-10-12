@@ -1,11 +1,18 @@
-import type { CanvasGroup } from "@kachang/contracts";
+import type { CanvasGroup } from "@weftcanvas/contracts";
 
-import type { KachangNode } from "../types";
+import type { WeftcanvasNode } from "../types";
 
 export const GROUP_FRAME_PADDING = 20;
 export const GROUP_FRAME_HEADER = 34;
 export const DEFAULT_GROUP_COLOR = "#9ca3a0";
-export const GROUP_COLOR_PALETTE = ["#9ca3a0", "#a89f8d", "#76958d", "#748da4", "#aa8279", "#a68d61"] as const;
+export const GROUP_COLOR_PALETTE = [
+  "#9ca3a0",
+  "#a89f8d",
+  "#76958d",
+  "#748da4",
+  "#aa8279",
+  "#a68d61",
+] as const;
 
 export type NodeGroupBounds = {
   x: number;
@@ -14,23 +21,23 @@ export type NodeGroupBounds = {
   height: number;
 };
 
-export type CanvasNodeIndex = ReadonlyMap<string, KachangNode>;
+export type CanvasNodeIndex = ReadonlyMap<string, WeftcanvasNode>;
 
-function nodeWidth(node: KachangNode) {
+function nodeWidth(node: WeftcanvasNode) {
   return node.width ?? node.measured?.width ?? 280;
 }
 
-function nodeHeight(node: KachangNode) {
+function nodeHeight(node: WeftcanvasNode) {
   return node.height ?? node.measured?.height ?? 160;
 }
 
-export function indexCanvasNodes(nodes: KachangNode[]): CanvasNodeIndex {
+export function indexCanvasNodes(nodes: WeftcanvasNode[]): CanvasNodeIndex {
   return new Map(nodes.map((node) => [node.id, node]));
 }
 
 export function getGroupBounds(
   group: CanvasGroup,
-  nodes: KachangNode[],
+  nodes: WeftcanvasNode[],
   index: CanvasNodeIndex = indexCanvasNodes(nodes),
 ): NodeGroupBounds | null {
   let memberCount = 0;
@@ -72,35 +79,49 @@ export function pickGroupColor(groups: CanvasGroup[]) {
   const usage = new Map<string, number>();
   GROUP_COLOR_PALETTE.forEach((color) => usage.set(color, 0));
   groups.forEach((group) => usage.set(group.color, (usage.get(group.color) ?? 0) + 1));
-  return [...GROUP_COLOR_PALETTE].sort((left, right) => (usage.get(left) ?? 0) - (usage.get(right) ?? 0))[0] ?? DEFAULT_GROUP_COLOR;
+  return (
+    [...GROUP_COLOR_PALETTE].sort(
+      (left, right) => (usage.get(left) ?? 0) - (usage.get(right) ?? 0),
+    )[0] ?? DEFAULT_GROUP_COLOR
+  );
 }
 
-export function normalizeGroups(groups: CanvasGroup[], nodes: KachangNode[]) {
+export function normalizeGroups(groups: CanvasGroup[], nodes: WeftcanvasNode[]) {
   const existing = new Set(nodes.map((node) => node.id));
   return groups.flatMap((group) => {
     const nodeIds = [...new Set(group.nodeIds)].filter((id) => existing.has(id));
     if (nodeIds.length < 2) return [];
-    return nodeIds.length === group.nodeIds.length ? [group] : [{ ...group, nodeIds, updatedAt: Date.now() }];
+    return nodeIds.length === group.nodeIds.length
+      ? [group]
+      : [{ ...group, nodeIds, updatedAt: Date.now() }];
   });
 }
 
-export function arrangeGroupNodes(nodes: KachangNode[], group: CanvasGroup) {
-  const members = group.nodeIds.map((id) => nodes.find((node) => node.id === id)).filter((node): node is KachangNode => Boolean(node));
+export function arrangeGroupNodes(nodes: WeftcanvasNode[], group: CanvasGroup) {
+  const members = group.nodeIds
+    .map((id) => nodes.find((node) => node.id === id))
+    .filter((node): node is WeftcanvasNode => Boolean(node));
   if (members.length < 2) return nodes;
 
-  const sorted = [...members].sort((left, right) => left.position.y - right.position.y || left.position.x - right.position.x);
+  const sorted = [...members].sort(
+    (left, right) => left.position.y - right.position.y || left.position.x - right.position.x,
+  );
   const anchorX = Math.min(...sorted.map((node) => node.position.x));
   const anchorY = Math.min(...sorted.map((node) => node.position.y));
   const columnWidth = Math.max(...sorted.map(nodeWidth)) + 28;
   const rowHeight = Math.max(...sorted.map(nodeHeight)) + 28;
   const columns = Math.ceil(Math.sqrt(sorted.length));
-  const positions = new Map(sorted.map((node, index) => [
-    node.id,
-    {
-      x: anchorX + (index % columns) * columnWidth,
-      y: anchorY + Math.floor(index / columns) * rowHeight,
-    },
-  ]));
+  const positions = new Map(
+    sorted.map((node, index) => [
+      node.id,
+      {
+        x: anchorX + (index % columns) * columnWidth,
+        y: anchorY + Math.floor(index / columns) * rowHeight,
+      },
+    ]),
+  );
 
-  return nodes.map((node) => positions.has(node.id) ? { ...node, position: positions.get(node.id)! } : node);
+  return nodes.map((node) =>
+    positions.has(node.id) ? { ...node, position: positions.get(node.id)! } : node,
+  );
 }

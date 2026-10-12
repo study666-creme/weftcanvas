@@ -2,14 +2,32 @@ import {
   type CanvasConfigModality,
   type CanvasNodeData,
   type GenerationQuote,
-  type ModelModality,
   type ModelParameter,
   type PublicGenerationJob,
   type PublicModel,
   type ReferenceImagePurpose,
-} from "@kachang/contracts";
-import { AlertCircle, Check, ChevronDown, History, LoaderCircle, Minus, Plus, RotateCcw, Scan, SlidersHorizontal, Sparkles, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
+} from "@weftcanvas/contracts";
+import {
+  AlertCircle,
+  Check,
+  ChevronDown,
+  History,
+  LoaderCircle,
+  RotateCcw,
+  SlidersHorizontal,
+  Sparkles,
+  X,
+} from "lucide-react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type MouseEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { nodeLabel } from "../lib/node-registry";
 import { createPortal } from "react-dom";
 
@@ -19,7 +37,13 @@ import {
   createRequestKey,
   submitGenerationJob,
 } from "../lib/api-client";
-import { beginBrowserSubmission, browserSubmissionIdentity, endBrowserSubmission, isBrowserSubmissionInFlight, releaseBrowserSubmissionIdentity } from "../lib/browser-generation-runtime";
+import {
+  beginBrowserSubmission,
+  browserSubmissionIdentity,
+  endBrowserSubmission,
+  isBrowserSubmissionInFlight,
+  releaseBrowserSubmissionIdentity,
+} from "../lib/browser-generation-runtime";
 import { formatCreditMicros, generationBillingText } from "../lib/generation-billing";
 import { isCustomModelKey } from "../lib/custom-api";
 import {
@@ -68,9 +92,15 @@ import {
 } from "../lib/generation-parameter-hints";
 import { FollowUpActionSection } from "./mj-follow-up-action-section";
 import { resolveGenerationPanelLock } from "../lib/generation-panel-lock";
-import { findConfigurationSourceWithIndex, getSharedConfigurationIndex } from "../lib/node-configuration";
+import {
+  findConfigurationSourceWithIndex,
+  getSharedConfigurationIndex,
+} from "../lib/node-configuration";
 import { isMediaAspectRatioParameterName } from "../lib/node-size";
-import { generationReferenceMentionNodeIds, stripReferenceMentionTokens } from "../lib/prompt-references";
+import {
+  generationReferenceMentionNodeIds,
+  stripReferenceMentionTokens,
+} from "../lib/prompt-references";
 import { useDismissOnOutsideClick } from "../hooks/use-dismiss-on-outside-click";
 import { findCanvasGenerationNode, useCanvasStore } from "../state/canvas-store";
 import {
@@ -126,7 +156,10 @@ export function NodeGenerationPanel({
   const embedded = presentation === "embedded";
   const nodes = useCanvasStore((state) => state.nodes);
   const edges = useCanvasStore((state) => state.edges);
-  const configurationIndex = useMemo(() => getSharedConfigurationIndex(nodes, edges), [edges, nodes]);
+  const configurationIndex = useMemo(
+    () => getSharedConfigurationIndex(nodes, edges),
+    [edges, nodes],
+  );
   const configurationSource = useMemo(
     () => findConfigurationSourceWithIndex(configurationIndex, nodeId),
     [configurationIndex, nodeId],
@@ -136,7 +169,7 @@ export function NodeGenerationPanel({
   const isConfiguration = data.kind === "config";
   const linkedConfiguration = !isConfiguration && configurationSource !== null;
   const [configurationModality, setConfigurationModality] = useState<CanvasConfigModality>(
-    data.kind === "config" ? data.config?.modality ?? "image" : "image",
+    data.kind === "config" ? (data.config?.modality ?? "image") : "image",
   );
   const modality = isConfiguration ? configurationModality : modalityForNodeKind(data.kind);
   const platformCatalog = useGenerationStore((state) => state.catalogs[modality]);
@@ -160,8 +193,12 @@ export function NodeGenerationPanel({
   const pullAllCustomProfiles = useCustomApiStore((state) => state.pullAllProfiles);
   const runCustomGeneration = useCustomApiStore((state) => state.runGeneration);
   const [modelId, setModelId] = useState(settingsData.generation.modelId ?? "");
-  const [parameters, setParameters] = useState<Record<string, unknown>>(settingsData.generation.parameters);
-  const [maxOutputTokens, setMaxOutputTokens] = useState<number | null>(settingsData.generation.maxOutputTokens);
+  const [parameters, setParameters] = useState<Record<string, unknown>>(
+    settingsData.generation.parameters,
+  );
+  const [maxOutputTokens, setMaxOutputTokens] = useState<number | null>(
+    settingsData.generation.maxOutputTokens,
+  );
   const [invalidParameters, setInvalidParameters] = useState<Set<string>>(() => new Set());
   const [quote, setQuote] = useState<GenerationQuote | null>(null);
   const [quoteState, setQuoteState] = useState<QuoteState>("idle");
@@ -173,9 +210,13 @@ export function NodeGenerationPanel({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [refreshingHistory, setRefreshingHistory] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  const [morePlacement, setMorePlacement] = useState<{ drop: boolean; maxHeight: number } | null>(null);
+  const [morePlacement, setMorePlacement] = useState<{ drop: boolean; maxHeight: number } | null>(
+    null,
+  );
   const [catalogLoadSettled, setCatalogLoadSettled] = useState(false);
-  const moreSurfaceRef = useDismissOnOutsideClick<HTMLDivElement>(moreOpen, () => setMoreOpen(false));
+  const moreSurfaceRef = useDismissOnOutsideClick<HTMLDivElement>(moreOpen, () =>
+    setMoreOpen(false),
+  );
   const quoteSequence = useRef(0);
   const reconciledCapability = useRef("");
   const configurationTargetCount = useMemo(() => {
@@ -183,8 +224,10 @@ export function NodeGenerationPanel({
     let count = 0;
     for (const edge of edges) {
       if (edge.source !== nodeId) continue;
-      if (configurationIndex.nodeById.get(edge.target)?.data.kind !== configurationModality) continue;
-      if (findConfigurationSourceWithIndex(configurationIndex, edge.target)?.id === nodeId) count += 1;
+      if (configurationIndex.nodeById.get(edge.target)?.data.kind !== configurationModality)
+        continue;
+      if (findConfigurationSourceWithIndex(configurationIndex, edge.target)?.id === nodeId)
+        count += 1;
     }
     return count;
   }, [configurationIndex, configurationModality, edges, isConfiguration, nodeId]);
@@ -208,7 +251,7 @@ export function NodeGenerationPanel({
     if (embedded) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      if (document.querySelector(".kc-account-backdrop")) return;
+      if (document.querySelector(".wc-account-backdrop")) return;
       event.preventDefault();
       onClose();
     };
@@ -216,11 +259,14 @@ export function NodeGenerationPanel({
     return () => window.removeEventListener("keydown", closeOnEscape, true);
   }, [embedded, onClose]);
 
-  const customState = useMemo(() => ({
-    profiles: customProfiles,
-    hiddenModelKeys,
-    activeProfileId: customActiveProfileId,
-  }), [customActiveProfileId, customProfiles, hiddenModelKeys]);
+  const customState = useMemo(
+    () => ({
+      profiles: customProfiles,
+      hiddenModelKeys,
+      activeProfileId: customActiveProfileId,
+    }),
+    [customActiveProfileId, customProfiles, hiddenModelKeys],
+  );
   const platformModels = platformCatalog.data?.models ?? [];
   const baseModels = useMemo(
     () => getMergedModels(platformModels, modality, customProfiles, hiddenModelKeys),
@@ -228,85 +274,118 @@ export function NodeGenerationPanel({
   );
   const platformAliasModel = useMemo(() => {
     const canonicalId = canonicalPlatformModelId(modelId);
-    return canonicalId === modelId ? null : baseModels.find((item) => item.id === canonicalId) ?? null;
+    return canonicalId === modelId
+      ? null
+      : (baseModels.find((item) => item.id === canonicalId) ?? null);
   }, [baseModels, modelId]);
   const legacyCustomChoice = useMemo(() => {
-    if (!modelId || platformAliasModel || isCustomModelKey(modelId) || platformModels.some((item) => item.id === modelId)) return null;
+    if (
+      !modelId ||
+      platformAliasModel ||
+      isCustomModelKey(modelId) ||
+      platformModels.some((item) => item.id === modelId)
+    )
+      return null;
     return resolveCustomModelChoice(customState, modelId, modality);
   }, [customState, modality, modelId, platformAliasModel, platformModels]);
-  const models = useMemo(() => legacyCustomChoice && !baseModels.some((item) => item.id === modelId)
-    ? [...baseModels, { ...legacyCustomChoice.model, id: modelId }]
-    : baseModels, [baseModels, legacyCustomChoice, modelId]);
+  const models = useMemo(
+    () =>
+      legacyCustomChoice && !baseModels.some((item) => item.id === modelId)
+        ? [...baseModels, { ...legacyCustomChoice.model, id: modelId }]
+        : baseModels,
+    [baseModels, legacyCustomChoice, modelId],
+  );
   const model = models.find((item) => item.id === modelId) ?? platformAliasModel;
   const selectedCustomChoice = useMemo(
-    () => model && (isCustomModelKey(model.id) || legacyCustomChoice)
-      ? resolveCustomModelChoice(customState, model.id, modality)
-      : null,
+    () =>
+      model && (isCustomModelKey(model.id) || legacyCustomChoice)
+        ? resolveCustomModelChoice(customState, model.id, modality)
+        : null,
     [customState, legacyCustomChoice, modality, model],
   );
   const customSelected = Boolean(selectedCustomChoice);
   const customCatalogLoading = customProfiles.some(
     (profile) => profile.connecting || profile.refreshing || profile.status === "loading",
   );
-  const catalogLoading = models.length === 0 && (
-    platformCatalog.status === "loading"
-    || customProfiles.some((profile) => profile.connecting || profile.refreshing || profile.status === "loading")
-  );
-  const catalogError = models.length ? null : platformCatalog.error
-    ?? customProfiles.find((profile) => profile.error)?.error
-    ?? null;
-  const unavailableModelError = modelId && !model
-    ? "所选模型已停用或来源已移除，请重新选择"
-    : selectedCustomChoice && !selectedCustomChoice.executable
-      ? selectedCustomChoice.unsupportedReason
-      : null;
+  const catalogLoading =
+    models.length === 0 &&
+    (platformCatalog.status === "loading" ||
+      customProfiles.some(
+        (profile) => profile.connecting || profile.refreshing || profile.status === "loading",
+      ));
+  const catalogError = models.length
+    ? null
+    : (platformCatalog.error ?? customProfiles.find((profile) => profile.error)?.error ?? null);
+  const unavailableModelError =
+    modelId && !model
+      ? "所选模型已停用或来源已移除，请重新选择"
+      : selectedCustomChoice && !selectedCustomChoice.executable
+        ? selectedCustomChoice.unsupportedReason
+        : null;
   const outputCountParameter = useMemo(() => findOutputCountParameter(model), [model]);
-  const outputCountRange = useMemo(() => resolveOutputCountRange(model, outputCountParameter), [model, outputCountParameter]);
+  const outputCountRange = useMemo(
+    () => resolveOutputCountRange(model, outputCountParameter),
+    [model, outputCountParameter],
+  );
   const outputQuantity = normalizeOutputQuantity(
     outputCountParameter ? parameters[outputCountParameter.name] : standaloneQuantity,
     outputCountRange,
   );
-  const requestQuantity = generationRequestQuantity(model, Boolean(outputCountParameter), outputQuantity);
-  const showOutputCountControl = modality === "image"
-    && Boolean(outputCountParameter)
-    && (outputCountParameter?.fixed !== undefined || outputCountRange.max > outputCountRange.min);
+  const requestQuantity = generationRequestQuantity(
+    model,
+    Boolean(outputCountParameter),
+    outputQuantity,
+  );
+  const showOutputCountControl =
+    modality === "image" &&
+    Boolean(outputCountParameter) &&
+    (outputCountParameter?.fixed !== undefined || outputCountRange.max > outputCountRange.min);
   const requestFixedOutputCount = requestPricedFixedOutputCount(model);
   // 浏览器侧批量：模型自己一次只回一条（n 固定或压根没有 n）时，用连点多次的
   // 方式凑出用户要的张数/条数（图片与视频都适用）。Midjourney 这类「一次固定回
   // 多张」的模型不参与，它的张数由目录的输出契约决定。
-  const batchEligible = !isConfiguration
-    && !customSelected
-    && supportsClientBatchGeneration(model, outputCountParameter);
+  const batchEligible =
+    !isConfiguration &&
+    !customSelected &&
+    supportsClientBatchGeneration(model, outputCountParameter);
   // 视频论「条」，图片论「张」——和价格单位的口径保持一致。
   const batchCountLabel = modality === "video" ? "生成条数" : "生成张数";
   const batchCountUnit = modality === "video" ? "条" : "张";
-  const parameterGroups = useMemo(
-    () => {
-      if (!model) return { quickParameters: [], moreParameters: [] };
-      const groups = partitionGenerationParameters(model);
-      const isCount = (parameter: ModelParameter) => parameter.name === outputCountParameter?.name;
-      return {
-        quickParameters: groups.quickParameters.filter((parameter) => !isCount(parameter)),
-        moreParameters: groups.moreParameters.filter((parameter) => !isCount(parameter)),
-      };
-    },
-    [model, outputCountParameter],
-  );
+  const parameterGroups = useMemo(() => {
+    if (!model) return { quickParameters: [], moreParameters: [] };
+    const groups = partitionGenerationParameters(model);
+    const isCount = (parameter: ModelParameter) => parameter.name === outputCountParameter?.name;
+    return {
+      quickParameters: groups.quickParameters.filter((parameter) => !isCount(parameter)),
+      moreParameters: groups.moreParameters.filter((parameter) => !isCount(parameter)),
+    };
+  }, [model, outputCountParameter]);
   const editableParameters = useMemo(
-    () => model?.parameters.filter((parameter) => !isModelBoundTextParameter(model, parameter)
-      && !isModelInternalParameter(parameter)
-      && !isModelMediaReferenceParameter(model, parameter)
-      && !isModelCompatibilityParameterHidden(model, parameter)
-      && parameter.name !== outputCountParameter?.name) ?? [],
+    () =>
+      model?.parameters.filter(
+        (parameter) =>
+          !isModelBoundTextParameter(model, parameter) &&
+          !isModelInternalParameter(parameter) &&
+          !isModelMediaReferenceParameter(model, parameter) &&
+          !isModelCompatibilityParameterHidden(model, parameter) &&
+          parameter.name !== outputCountParameter?.name,
+      ) ?? [],
     [model, outputCountParameter],
   );
   // Midjourney 的「后续动作」及其配套参数（父任务 ID/序号/按钮 ID/方向/倍数/画幅）
   // 是单独计费的二次操作，不与普通生成参数平铺；由 FollowUpActionSection 分组呈现。
-  const mjActionParameter = useMemo(() => model ? findMjActionParameter(model) : null, [model]);
-  const mjActionNames = useMemo(() => new Set<string>(
-    mjActionParameter ? [MJ_ACTION_PARAMETER_NAME, ...MJ_ACTION_DEPENDENT_NAMES] : [],
-  ), [mjActionParameter]);
-  const mjDependentParameters = useMemo(() => model ? mjActionDependentParameters(model) : [], [model]);
+  const mjActionParameter = useMemo(() => (model ? findMjActionParameter(model) : null), [model]);
+  const mjActionNames = useMemo(
+    () =>
+      new Set<string>(
+        mjActionParameter ? [MJ_ACTION_PARAMETER_NAME, ...MJ_ACTION_DEPENDENT_NAMES] : [],
+      ),
+    [mjActionParameter],
+  );
+  const mjDependentParameters = useMemo(
+    () => (model ? mjActionDependentParameters(model) : []),
+    [model],
+  );
   const popoverMoreParameters = useMemo(
     () => parameterGroups.moreParameters.filter((parameter) => !mjActionNames.has(parameter.name)),
     [mjActionNames, parameterGroups.moreParameters],
@@ -318,12 +397,16 @@ export function NodeGenerationPanel({
   // 文本模型的 token 上限需要单独给输入框；视频 token 模型（Seedance）按帧数/
   // 分辨率计费，token 数由上游决定，给「最大输出」只会误导用户。
   const hasStandaloneTokenMaximum = Boolean(
-    model?.pricing.mode === "token" && model.modality !== "video" && !hasModelMaximumTokenParameter(model)
+    model?.pricing.mode === "token" &&
+    model.modality !== "video" &&
+    !hasModelMaximumTokenParameter(model),
   );
-  const tokenMaximumIsQuick = hasStandaloneTokenMaximum && parameterGroups.quickParameters.length < 2;
-  const moreSettingCount = popoverMoreParameters.length
-    + (mjActionParameter ? 1 : 0)
-    + (hasStandaloneTokenMaximum && !tokenMaximumIsQuick ? 1 : 0);
+  const tokenMaximumIsQuick =
+    hasStandaloneTokenMaximum && parameterGroups.quickParameters.length < 2;
+  const moreSettingCount =
+    popoverMoreParameters.length +
+    (mjActionParameter ? 1 : 0) +
+    (hasStandaloneTokenMaximum && !tokenMaximumIsQuick ? 1 : 0);
 
   useEffect(() => {
     if (!platformAliasModel || modelId === platformAliasModel.id) return;
@@ -376,7 +459,12 @@ export function NodeGenerationPanel({
     if (!model || !outputCountParameter || outputCountParameter.fixed !== undefined) return;
     const next = normalizeOutputQuantity(parameters[outputCountParameter.name], outputCountRange);
     if (parameters[outputCountParameter.name] === next) return;
-    const nextParameters = setExclusiveParameter(model, parameters, outputCountParameter.name, next);
+    const nextParameters = setExclusiveParameter(
+      model,
+      parameters,
+      outputCountParameter.name,
+      next,
+    );
     setParameters(nextParameters);
     persistConfig(settingsNodeId, model.id, nextParameters, maxOutputTokens);
   }, [maxOutputTokens, model, outputCountParameter, outputCountRange, parameters, settingsNodeId]);
@@ -398,17 +486,20 @@ export function NodeGenerationPanel({
     // 新建节点优先恢复创建者上一次使用的模型；默认画幅在播种时覆盖模型
     // 出厂默认比例，保证默认画幅设置对新建节点真正生效。
     const remembered = useUiPreferencesStore.getState().lastMediaGeneration[modality] ?? null;
-    const preferred = models.find((item) => item.id === remembered?.modelId) ?? pickDefaultModel(models)!;
-    const nextParameters = preferred.id === settingsData.generation.modelId
-      ? { ...defaultModelParameters(preferred), ...settingsData.generation.parameters }
-      : autoPickGenerationSettings({
-        model: preferred,
-        remembered,
-        defaultAspectRatio: useUiPreferencesStore.getState().defaultNodeAspectRatio,
-      });
-    const nextMaximum = preferred.pricing.mode === "token" && !hasModelMaximumTokenParameter(preferred)
-      ? settingsData.generation.maxOutputTokens ?? 1_024
-      : null;
+    const preferred =
+      models.find((item) => item.id === remembered?.modelId) ?? pickDefaultModel(models)!;
+    const nextParameters =
+      preferred.id === settingsData.generation.modelId
+        ? { ...defaultModelParameters(preferred), ...settingsData.generation.parameters }
+        : autoPickGenerationSettings({
+            model: preferred,
+            remembered,
+            defaultAspectRatio: useUiPreferencesStore.getState().defaultNodeAspectRatio,
+          });
+    const nextMaximum =
+      preferred.pricing.mode === "token" && !hasModelMaximumTokenParameter(preferred)
+        ? (settingsData.generation.maxOutputTokens ?? 1_024)
+        : null;
     setModelId(preferred.id);
     setParameters(nextParameters);
     setMaxOutputTokens(nextMaximum);
@@ -420,13 +511,28 @@ export function NodeGenerationPanel({
       resize: recoverUnavailable,
       recordResize: false,
     });
-  }, [catalogLoadSettled, customCatalogLoading, model, modelId, models, platformCatalog.error, platformCatalog.refreshing, platformCatalog.status, platformModels.length, settingsData.generation.maxOutputTokens, settingsData.generation.modelId, settingsData.generation.parameters, settingsNodeId]);
+  }, [
+    catalogLoadSettled,
+    customCatalogLoading,
+    model,
+    modelId,
+    models,
+    platformCatalog.error,
+    platformCatalog.refreshing,
+    platformCatalog.status,
+    platformModels.length,
+    settingsData.generation.maxOutputTokens,
+    settingsData.generation.modelId,
+    settingsData.generation.parameters,
+    settingsNodeId,
+  ]);
 
   useEffect(() => {
     if (!model) return;
     const capabilityVersion = selectedCustomChoice
-      ? customProfiles.find((profile) => profile.id === selectedCustomChoice.profileId)?.catalog?.capabilityVersion ?? "custom"
-      : platformCatalog.data?.capabilityVersion ?? "platform";
+      ? (customProfiles.find((profile) => profile.id === selectedCustomChoice.profileId)?.catalog
+          ?.capabilityVersion ?? "custom")
+      : (platformCatalog.data?.capabilityVersion ?? "platform");
     const key = `${capabilityVersion}:${model.id}`;
     if (reconciledCapability.current === key) return;
     reconciledCapability.current = key;
@@ -437,20 +543,29 @@ export function NodeGenerationPanel({
       resize: true,
       recordResize: false,
     });
-  }, [customProfiles, maxOutputTokens, model, parameters, platformCatalog.data?.capabilityVersion, selectedCustomChoice, settingsNodeId]);
+  }, [
+    customProfiles,
+    maxOutputTokens,
+    model,
+    parameters,
+    platformCatalog.data?.capabilityVersion,
+    selectedCustomChoice,
+    settingsNodeId,
+  ]);
 
   const references = useMemo(
-    () => !isConfiguration && model
-      ? collectGenerationReferences(
-          nodeId,
-          model,
-          nodes,
-          edges,
-          data.generation.referenceNodeIds,
-          data.generation.referenceMode,
-          data.generation.referenceImagePurposes,
-        )
-      : null,
+    () =>
+      !isConfiguration && model
+        ? collectGenerationReferences(
+            nodeId,
+            model,
+            nodes,
+            edges,
+            data.generation.referenceNodeIds,
+            data.generation.referenceMode,
+            data.generation.referenceImagePurposes,
+          )
+        : null,
     [
       data.generation.referenceImagePurposes,
       data.generation.referenceMode,
@@ -462,18 +577,23 @@ export function NodeGenerationPanel({
       nodes,
     ],
   );
-  const counts = useMemo(() => references
-    ? referenceCounts(references)
-    : { images: 0, styleImages: 0, elementImages: 0, videos: 0, audios: 0 }, [references]);
+  const counts = useMemo(
+    () =>
+      references
+        ? referenceCounts(references)
+        : { images: 0, styleImages: 0, elementImages: 0, videos: 0, audios: 0 },
+    [references],
+  );
   const videoDurations = useMemo(
-    () => references ? referenceVideoDurations(references) : null,
+    () => (references ? referenceVideoDurations(references) : null),
     [references],
   );
   // 报价依赖参考视频的总秒数：换一条等长的参考视频不会改变计数，但会改变按秒
   // 计费的参考素材量，必须让报价重算。
-  const videoDurationSeconds = videoDurations?.reduce((total, seconds) => total + seconds, 0) ?? null;
+  const videoDurationSeconds =
+    videoDurations?.reduce((total, seconds) => total + seconds, 0) ?? null;
   const referenceError = useMemo(
-    () => model && references ? generationReferenceError(references, model) : null,
+    () => (model && references ? generationReferenceError(references, model) : null),
     [model, references],
   );
   // 画布上新生成的视频工件不带时长（服务端只在播放后回写，且不会回流到本地
@@ -504,7 +624,7 @@ export function NodeGenerationPanel({
     [data.generation.referenceNodeIds, nodeId, nodes],
   );
   const upstreamTextContent = useMemo(
-    () => !isConfiguration ? collectUpstreamTextContent(nodeId, nodes, edges) : [],
+    () => (!isConfiguration ? collectUpstreamTextContent(nodeId, nodes, edges) : []),
     [edges, isConfiguration, nodeId, nodes],
   );
   const localPromptBody = useMemo(
@@ -512,18 +632,23 @@ export function NodeGenerationPanel({
     [data.body, mentionNodeIds, nodes],
   );
   const promptBody = useMemo(
-    () => composeReferenceAwarePrompt(
-      [localPromptBody, ...upstreamTextContent.filter((body) => body !== localPromptBody)]
-        .filter(Boolean)
-        .join("\n\n"),
-      references,
-    ),
+    () =>
+      composeReferenceAwarePrompt(
+        [localPromptBody, ...upstreamTextContent.filter((body) => body !== localPromptBody)]
+          .filter(Boolean)
+          .join("\n\n"),
+        references,
+      ),
     [localPromptBody, references, upstreamTextContent],
   );
   const promptMissing = Boolean(model?.input.textRequired && !promptBody.trim());
-  const jobHistory = useMemo(() => Object.values(jobsById)
-    .filter((job) => job.nodeId === nodeId && job.projectId === projectId)
-    .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt)), [jobsById, nodeId, projectId]);
+  const jobHistory = useMemo(
+    () =>
+      Object.values(jobsById)
+        .filter((job) => job.nodeId === nodeId && job.projectId === projectId)
+        .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt)),
+    [jobsById, nodeId, projectId],
+  );
   const embeddedMoreAvailable = moreSettingCount > 0 || jobHistory.length > 0;
   useEffect(() => {
     const sequence = ++quoteSequence.current;
@@ -563,7 +688,14 @@ export function NodeGenerationPanel({
     setQuoteState("loading");
     const timer = window.setTimeout(() => {
       const tokenFields = quoteTokenFields(model, promptBody, parameters, maxOutputTokens);
-      const requestParameters = composeGenerationParameters(model, promptBody, parameters, outputCountParameter, outputQuantity, videoDurations);
+      const requestParameters = composeGenerationParameters(
+        model,
+        promptBody,
+        parameters,
+        outputCountParameter,
+        outputQuantity,
+        videoDurations,
+      );
       void createGenerationQuote({
         modelId: model.id,
         modality,
@@ -571,29 +703,55 @@ export function NodeGenerationPanel({
         inputs: counts,
         quantity: requestQuantity,
         ...tokenFields,
-      }).then((next) => {
-        if (quoteSequence.current !== sequence) return;
-        setQuote(next);
-        setQuoteState("ready");
-      }).catch((cause) => {
-        if (quoteSequence.current !== sequence) return;
-        setQuoteState("error");
-        setQuoteError(cause instanceof CanvasApiError ? cause.message : "暂时无法确认本次价格");
-      });
+      })
+        .then((next) => {
+          if (quoteSequence.current !== sequence) return;
+          setQuote(next);
+          setQuoteState("ready");
+        })
+        .catch((cause) => {
+          if (quoteSequence.current !== sequence) return;
+          setQuoteState("error");
+          setQuoteError(cause instanceof CanvasApiError ? cause.message : "暂时无法确认本次价格");
+        });
     }, 280);
     return () => window.clearTimeout(timer);
-  }, [counts.audios, counts.elementImages, counts.images, counts.styleImages, counts.videos, customSelected, invalidParameters, isConfiguration, maxOutputTokens, modality, model, outputCountParameter, outputQuantity, parameters, promptBody, promptMissing, quoteRevision, referenceError, requestQuantity, selectedCustomChoice, videoDurations, videoDurationSeconds]);
+  }, [
+    counts.audios,
+    counts.elementImages,
+    counts.images,
+    counts.styleImages,
+    counts.videos,
+    customSelected,
+    invalidParameters,
+    isConfiguration,
+    maxOutputTokens,
+    modality,
+    model,
+    outputCountParameter,
+    outputQuantity,
+    parameters,
+    promptBody,
+    promptMissing,
+    quoteRevision,
+    referenceError,
+    requestQuantity,
+    selectedCustomChoice,
+    videoDurations,
+    videoDurationSeconds,
+  ]);
 
-  const nodeJobs = useMemo(() => Object.values(jobsById)
-    .filter((job) => job.nodeId === nodeId && job.projectId === projectId)
-    .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt)), [jobsById, nodeId, projectId]);
+  const nodeJobs = useMemo(
+    () =>
+      Object.values(jobsById)
+        .filter((job) => job.nodeId === nodeId && job.projectId === projectId)
+        .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt)),
+    [jobsById, nodeId, projectId],
+  );
   const newestNodeJob = nodeJobs[0] ?? currentJob ?? null;
-  const pendingAmbiguousIdentity = !isConfiguration && browserSubmissionIdentity(projectId, nodeId) !== null;
-  const {
-    activeJob,
-    awaitingConfirmation,
-    generationLocked,
-  } = resolveGenerationPanelLock({
+  const pendingAmbiguousIdentity =
+    !isConfiguration && browserSubmissionIdentity(projectId, nodeId) !== null;
+  const { activeJob, awaitingConfirmation, generationLocked } = resolveGenerationPanelLock({
     isConfiguration,
     nodeJobs,
     newestNodeJob,
@@ -606,12 +764,9 @@ export function NodeGenerationPanel({
   // independent and can be submitted concurrently.
   // Keep the busy signal in the submit affordance. The composer should not
   // compete with the prompt by replacing it with transient status copy.
-  const generationBusy = !isConfiguration && (
-    submitting
-    || generationLocked
-    || quoteState === "loading"
-    || catalogLoading
-  );
+  const generationBusy =
+    !isConfiguration &&
+    (submitting || generationLocked || quoteState === "loading" || catalogLoading);
   const embeddedStatus = (() => {
     if (awaitingConfirmation) {
       return {
@@ -625,7 +780,11 @@ export function NodeGenerationPanel({
     if (unavailableModelError) return { tone: "error", text: unavailableModelError } as const;
     if (catalogError) return { tone: "error", text: catalogError } as const;
     if (quoteError) return { tone: "error", text: quoteError } as const;
-    if (upstreamTextContent.length) return { tone: "linked", text: `已连接 ${upstreamTextContent.length} 条文本，生成时自动使用` } as const;
+    if (upstreamTextContent.length)
+      return {
+        tone: "linked",
+        text: `已连接 ${upstreamTextContent.length} 条文本，生成时自动使用`,
+      } as const;
     return null;
   })();
 
@@ -638,7 +797,10 @@ export function NodeGenerationPanel({
       remembered: null,
       defaultAspectRatio: useUiPreferencesStore.getState().defaultNodeAspectRatio,
     });
-    const nextMaximum = nextModel.pricing.mode === "token" && !hasModelMaximumTokenParameter(nextModel) ? 1_024 : null;
+    const nextMaximum =
+      nextModel.pricing.mode === "token" && !hasModelMaximumTokenParameter(nextModel)
+        ? 1_024
+        : null;
     setModelId(nextId);
     setParameters(nextParameters);
     setMaxOutputTokens(nextMaximum);
@@ -652,9 +814,10 @@ export function NodeGenerationPanel({
 
   const updateParameter = (name: string, value: unknown) => {
     if (!model) return;
-    const next = value === undefined
-      ? removeModelParameter(model, parameters, name)
-      : setExclusiveParameter(model, parameters, name, value);
+    const next =
+      value === undefined
+        ? removeModelParameter(model, parameters, name)
+        : setExclusiveParameter(model, parameters, name, value);
     setParameters(next);
     persistConfig(settingsNodeId, model.id, next, maxOutputTokens, {
       resize: isMediaAspectRatioParameterName(name),
@@ -717,18 +880,22 @@ export function NodeGenerationPanel({
   const retryGeneration = () => {
     const node = useCanvasStore.getState().nodes.find((item) => item.id === nodeId);
     releaseBrowserSubmissionIdentity(projectId, nodeId);
-    updateNodeData(nodeId, {
-      status: node?.data.media ? "success" : "idle",
-      progress: null,
-      generation: {
-        ...(node?.data.generation ?? data.generation),
-        jobId: null,
-        jobVersion: null,
-        jobCreatedAt: null,
-        jobStatus: null,
-        error: null,
+    updateNodeData(
+      nodeId,
+      {
+        status: node?.data.media ? "success" : "idle",
+        progress: null,
+        generation: {
+          ...(node?.data.generation ?? data.generation),
+          jobId: null,
+          jobVersion: null,
+          jobCreatedAt: null,
+          jobStatus: null,
+          error: null,
+        },
       },
-    }, false);
+      false,
+    );
     setQuoteRevision((value) => value + 1);
   };
 
@@ -738,18 +905,22 @@ export function NodeGenerationPanel({
   const abandonAmbiguousSubmission = () => {
     const node = findCanvasGenerationNode(useCanvasStore.getState(), nodeId);
     releaseBrowserSubmissionIdentity(projectId, nodeId);
-    updateNodeData(nodeId, {
-      status: node?.data.media ? "success" : "idle",
-      progress: null,
-      generation: {
-        ...(node?.data.generation ?? data.generation),
-        jobId: null,
-        jobVersion: null,
-        jobCreatedAt: null,
-        jobStatus: null,
-        error: "已放弃未确认的提交，请重新提交",
+    updateNodeData(
+      nodeId,
+      {
+        status: node?.data.media ? "success" : "idle",
+        progress: null,
+        generation: {
+          ...(node?.data.generation ?? data.generation),
+          jobId: null,
+          jobVersion: null,
+          jobCreatedAt: null,
+          jobStatus: null,
+          error: "已放弃未确认的提交，请重新提交",
+        },
       },
-    }, false);
+      false,
+    );
     setQuoteRevision((value) => value + 1);
   };
 
@@ -764,7 +935,16 @@ export function NodeGenerationPanel({
   };
 
   const submit = async () => {
-    if (!model || !references || referenceError || submitting || generationLocked || unavailableModelError || (!customSelected && !quote)) return;
+    if (
+      !model ||
+      !references ||
+      referenceError ||
+      submitting ||
+      generationLocked ||
+      unavailableModelError ||
+      (!customSelected && !quote)
+    )
+      return;
     if (customSelected) {
       setSubmitting(true);
       try {
@@ -878,7 +1058,8 @@ export function NodeGenerationPanel({
         watchJob(job);
         return "ok";
       } catch (cause) {
-        if (cause instanceof CanvasApiError && cause.status === 401) useIdentityStore.getState().expire();
+        if (cause instanceof CanvasApiError && cause.status === 401)
+          useIdentityStore.getState().expire();
         if (cause instanceof CanvasApiError && cause.code === "INSUFFICIENT_CREDITS") {
           // Keep the recovery path inside the account surface so the creator can
           // recharge and return to this node without losing its configured prompt.
@@ -928,7 +1109,14 @@ export function NodeGenerationPanel({
     try {
       const inputs = await prepareGenerationInputs(references);
       const tokenFields = quoteTokenFields(model, promptBody, parameters, maxOutputTokens);
-      const requestParameters = composeGenerationParameters(model, promptBody, parameters, outputCountParameter, outputQuantity, videoDurations);
+      const requestParameters = composeGenerationParameters(
+        model,
+        promptBody,
+        parameters,
+        outputCountParameter,
+        outputQuantity,
+        videoDurations,
+      );
       for (const targetId of batchTargets) {
         const outcome = await submitTarget(targetId, { inputs, tokenFields, requestParameters });
         if (outcome === "ok") succeeded += 1;
@@ -947,7 +1135,11 @@ export function NodeGenerationPanel({
     }
     // 至少提交成功一条就收起面板；失败的节点会把错误留在画布上。
     if (succeeded > 0) {
-      if (failedTargets > 0) showToast(`已提交 ${succeeded} ${batchCountUnit}，${failedTargets} ${batchCountUnit}未提交成功`, "info");
+      if (failedTargets > 0)
+        showToast(
+          `已提交 ${succeeded} ${batchCountUnit}，${failedTargets} ${batchCountUnit}未提交成功`,
+          "info",
+        );
       onClose();
     }
   };
@@ -956,66 +1148,76 @@ export function NodeGenerationPanel({
   // （只读），一次只回一条的模型显示可选的连点数量，目录自带 n 范围的模型沿用
   // 原来的数量下拉。三种情况都不再出现「调用次数」这种让人误以为贵的措辞。
   const effectiveBatchCount = batchEligible ? batchCount : 1;
-  const outputCountControl = !model ? null : requestFixedOutputCount !== null
-    ? {
-      value: requestFixedOutputCount,
-      min: requestFixedOutputCount,
-      max: requestFixedOutputCount,
-      step: 1,
-      label: "出图张数",
-      unit: "张",
-      disabled: true,
-      onChange: updateOutputQuantity,
-    }
-    : batchEligible
+  const outputCountControl = !model
+    ? null
+    : requestFixedOutputCount !== null
       ? {
-        value: batchCount,
-        min: 1,
-        max: MAX_BATCH_COUNT,
-        step: 1,
-        label: batchCountLabel,
-        unit: batchCountUnit,
-        disabled: generationLocked,
-        onChange: setBatchCount,
-      }
-      : showOutputCountControl && outputCountParameter
-        ? {
-          value: outputQuantity,
-          min: outputCountRange.min,
-          max: outputCountRange.max,
-          step: outputCountRange.step,
-          label: "生成张数",
+          value: requestFixedOutputCount,
+          min: requestFixedOutputCount,
+          max: requestFixedOutputCount,
+          step: 1,
+          label: "出图张数",
           unit: "张",
-          disabled: generationLocked || outputCountParameter.fixed !== undefined || outputCountRange.max === outputCountRange.min,
+          disabled: true,
           onChange: updateOutputQuantity,
         }
-        : null;
+      : batchEligible
+        ? {
+            value: batchCount,
+            min: 1,
+            max: MAX_BATCH_COUNT,
+            step: 1,
+            label: batchCountLabel,
+            unit: batchCountUnit,
+            disabled: generationLocked,
+            onChange: setBatchCount,
+          }
+        : showOutputCountControl && outputCountParameter
+          ? {
+              value: outputQuantity,
+              min: outputCountRange.min,
+              max: outputCountRange.max,
+              step: outputCountRange.step,
+              label: "生成张数",
+              unit: "张",
+              disabled:
+                generationLocked ||
+                outputCountParameter.fixed !== undefined ||
+                outputCountRange.max === outputCountRange.min,
+              onChange: updateOutputQuantity,
+            }
+          : null;
   // 批量提交按次计费，报价要按数量折算，否则用户看到的是单条价、扣的是 N 条。
   const quoteCredits = quote ? formatCreditMicros(quote.creditMicros * effectiveBatchCount) : null;
-  const quoteBatchNote = quote && effectiveBatchCount > 1
-    ? `${formatCreditMicros(quote.creditMicros)} 积分 × ${effectiveBatchCount} ${batchCountUnit}`
-    : null;
+  const quoteBatchNote =
+    quote && effectiveBatchCount > 1
+      ? `${formatCreditMicros(quote.creditMicros)} 积分 × ${effectiveBatchCount} ${batchCountUnit}`
+      : null;
 
   if (embedded && isConfiguration) {
     return (
       <section
-        className="kc-config-composer"
+        className="wc-config-composer"
         aria-label="配置节点参数"
         onPointerDown={(event) => event.stopPropagation()}
       >
-        <header className="kc-config-composer-header">
-          <span className="kc-generation-symbol is-config"><SlidersHorizontal aria-hidden="true" /></span>
+        <header className="wc-config-composer-header">
+          <span className="wc-generation-symbol is-config">
+            <SlidersHorizontal aria-hidden="true" />
+          </span>
           <div>
             <strong>生成配置</strong>
             <small>修改后自动同步到连接的同类型节点</small>
           </div>
           <output aria-live="polite">
-            {configurationTargetCount ? `已同步 ${configurationTargetCount} 个节点` : "等待连接节点"}
+            {configurationTargetCount
+              ? `已同步 ${configurationTargetCount} 个节点`
+              : "等待连接节点"}
           </output>
         </header>
 
-        <div className="kc-config-composer-body">
-          <div className="kc-config-modality" role="group" aria-label="配置类型">
+        <div className="wc-config-composer-body">
+          <div className="wc-config-modality" role="group" aria-label="配置类型">
             {modalityOptions.map((option) => (
               <button
                 key={option.value}
@@ -1029,19 +1231,21 @@ export function NodeGenerationPanel({
             ))}
           </div>
 
-          <label className="kc-config-composer-model">
+          <label className="wc-config-composer-model">
             <span>模型</span>
-            <CategorizedModelSelect value={modelId} models={models} disabled={catalogLoading || !models.length} onChange={chooseModel} ariaLabel="模型" />
+            <CategorizedModelSelect
+              value={modelId}
+              models={models}
+              disabled={catalogLoading || !models.length}
+              onChange={chooseModel}
+              ariaLabel="模型"
+            />
           </label>
 
-          {outputCountControl ? (
-            <OutputCountField
-              {...outputCountControl}
-            />
-          ) : null}
+          {outputCountControl ? <OutputCountField {...outputCountControl} /> : null}
 
           {model ? (
-            <div className="kc-config-composer-parameters">
+            <div className="wc-config-composer-parameters">
               {editableParameters.map((parameter) => (
                 <GenerationParameterField
                   key={`${model.id}:${parameter.name}`}
@@ -1054,7 +1258,7 @@ export function NodeGenerationPanel({
                 />
               ))}
               {hasStandaloneTokenMaximum ? (
-                <label className="kc-generation-field">
+                <label className="wc-generation-field">
                   <span>最大输出</span>
                   <input
                     type="number"
@@ -1069,52 +1273,75 @@ export function NodeGenerationPanel({
             </div>
           ) : null}
 
-          {unavailableModelError ? <div className="kc-generation-error" role="alert"><AlertCircle aria-hidden="true" />{unavailableModelError}</div> : null}
-          {!unavailableModelError && catalogError ? <div className="kc-generation-error" role="alert"><AlertCircle aria-hidden="true" />{catalogError}</div> : null}
+          {unavailableModelError ? (
+            <div className="wc-generation-error" role="alert">
+              <AlertCircle aria-hidden="true" />
+              {unavailableModelError}
+            </div>
+          ) : null}
+          {!unavailableModelError && catalogError ? (
+            <div className="wc-generation-error" role="alert">
+              <AlertCircle aria-hidden="true" />
+              {catalogError}
+            </div>
+          ) : null}
         </div>
       </section>
     );
   }
 
   if (embedded) {
-    const submitDisabled = !model
-      || invalidParameters.size > 0
-      || Boolean(referenceError)
-      || quoteState !== "ready"
-      || submitting
-      || generationLocked
-      || Boolean(unavailableModelError)
-      || (!customSelected && !quote);
+    const submitDisabled =
+      !model ||
+      invalidParameters.size > 0 ||
+      Boolean(referenceError) ||
+      quoteState !== "ready" ||
+      submitting ||
+      generationLocked ||
+      Boolean(unavailableModelError) ||
+      (!customSelected && !quote);
     const submitText = "生成";
-    const retryAvailable = !activeJob && !awaitingConfirmation && Boolean(
-      data.generation.error || (quoteState === "error" && model && !referenceError),
-    );
+    const retryAvailable =
+      !activeJob &&
+      !awaitingConfirmation &&
+      Boolean(data.generation.error || (quoteState === "error" && model && !referenceError));
 
     return (
       <section
-        className="kc-generation-panel kc-generation-panel--embedded"
+        className="wc-generation-panel wc-generation-panel--embedded"
         data-generation-modality={modality}
-        data-has-reference-roles={references && references.imagePurposes.length > 1 && references.connectedImages.length > 0 ? "true" : undefined}
+        data-has-reference-roles={
+          references && references.imagePurposes.length > 1 && references.connectedImages.length > 0
+            ? "true"
+            : undefined
+        }
         aria-label={`${nodeLabel(data.kind)}创作设置`}
         onPointerDown={(event) => event.stopPropagation()}
       >
-        <div className="kc-generation-compact-bar">
-          {leadingControl ? <div className="kc-generation-leading-control">{leadingControl}</div> : null}
+        <div className="wc-generation-compact-bar">
+          {leadingControl ? (
+            <div className="wc-generation-leading-control">{leadingControl}</div>
+          ) : null}
 
-          <div className="kc-generation-compact-control kc-generation-model-control" onClick={clickNestedCanvasSelect}>
+          <div
+            className="wc-generation-compact-control wc-generation-model-control"
+            onClick={clickNestedCanvasSelect}
+          >
             <Sparkles aria-hidden="true" />
             <span>
               <small>{linkedConfiguration ? "模型 · 由配置节点同步" : "模型"}</small>
-              <CategorizedModelSelect value={modelId} models={models} disabled={catalogLoading || !models.length || generationLocked} onChange={chooseModel} ariaLabel="模型" />
+              <CategorizedModelSelect
+                value={modelId}
+                models={models}
+                disabled={catalogLoading || !models.length || generationLocked}
+                onChange={chooseModel}
+                ariaLabel="模型"
+              />
             </span>
           </div>
 
-          <div className="kc-generation-quick-controls" aria-label="常用参数">
-            {outputCountControl ? (
-              <CompactOutputCount
-                {...outputCountControl}
-              />
-            ) : null}
+          <div className="wc-generation-quick-controls" aria-label="常用参数">
+            {outputCountControl ? <CompactOutputCount {...outputCountControl} /> : null}
             {parameterGroups.quickParameters.map((parameter) => (
               <CompactGenerationParameter
                 key={`${model?.id ?? "model"}:${parameter.name}`}
@@ -1135,10 +1362,10 @@ export function NodeGenerationPanel({
           </div>
 
           {embeddedMoreAvailable ? (
-            <div ref={moreSurfaceRef} className="kc-generation-more-wrap">
+            <div ref={moreSurfaceRef} className="wc-generation-more-wrap">
               <button
                 type="button"
-                className={`kc-generation-more-trigger ${moreOpen ? "is-active" : ""}`}
+                className={`wc-generation-more-trigger ${moreOpen ? "is-active" : ""}`}
                 aria-label={moreSettingCount ? `更多参数，${moreSettingCount} 项` : "最近任务"}
                 title={moreSettingCount ? "更多参数" : "最近任务"}
                 aria-haspopup="dialog"
@@ -1151,7 +1378,7 @@ export function NodeGenerationPanel({
               </button>
               {moreOpen ? (
                 <div
-                  className={`kc-generation-more-popover ${morePlacement?.drop ? "is-dropping" : ""}`}
+                  className={`wc-generation-more-popover ${morePlacement?.drop ? "is-dropping" : ""}`}
                   style={morePlacement ? { maxHeight: morePlacement.maxHeight } : undefined}
                   role="dialog"
                   aria-label="更多生成参数"
@@ -1167,10 +1394,17 @@ export function NodeGenerationPanel({
                       <strong>{moreSettingCount ? "更多参数" : "最近任务"}</strong>
                       {model?.description ? <small>{model.description}</small> : null}
                     </div>
-                    <button type="button" aria-label="关闭更多参数" title="关闭" onClick={() => setMoreOpen(false)}><X aria-hidden="true" /></button>
+                    <button
+                      type="button"
+                      aria-label="关闭更多参数"
+                      title="关闭"
+                      onClick={() => setMoreOpen(false)}
+                    >
+                      <X aria-hidden="true" />
+                    </button>
                   </header>
                   {moreSettingCount ? (
-                    <div className="kc-generation-more-fields">
+                    <div className="wc-generation-more-fields">
                       {mjActionParameter && model ? (
                         <FollowUpActionSection
                           model={model}
@@ -1192,11 +1426,13 @@ export function NodeGenerationPanel({
                           boundedDuration={modality === "video" || modality === "audio"}
                           showHint
                           onChange={(value) => updateParameter(parameter.name, value)}
-                          onValidityChange={(valid) => updateParameterValidity(parameter.name, valid)}
+                          onValidityChange={(valid) =>
+                            updateParameterValidity(parameter.name, valid)
+                          }
                         />
                       ))}
                       {hasStandaloneTokenMaximum && !tokenMaximumIsQuick ? (
-                        <label className="kc-generation-field">
+                        <label className="wc-generation-field">
                           <span>最大输出</span>
                           <input
                             type="number"
@@ -1212,7 +1448,7 @@ export function NodeGenerationPanel({
                     </div>
                   ) : null}
                   {jobHistory.length ? (
-                    <section className="kc-generation-compact-history" aria-label="最近任务">
+                    <section className="wc-generation-compact-history" aria-label="最近任务">
                       <header>
                         <strong>最近任务</strong>
                         <button
@@ -1222,7 +1458,10 @@ export function NodeGenerationPanel({
                           disabled={refreshingHistory || identityStatus !== "authenticated"}
                           onClick={() => void refreshHistory()}
                         >
-                          <RotateCcw className={refreshingHistory ? "is-spinning" : ""} aria-hidden="true" />
+                          <RotateCcw
+                            className={refreshingHistory ? "is-spinning" : ""}
+                            aria-hidden="true"
+                          />
                         </button>
                       </header>
                       <div>
@@ -1230,11 +1469,18 @@ export function NodeGenerationPanel({
                           const status = generationHistoryStatus(job);
                           const billing = generationBillingText(job);
                           return (
-                            <div key={job.id} className={`kc-generation-history-row is-${status.tone}`}>
+                            <div
+                              key={job.id}
+                              className={`wc-generation-history-row is-${status.tone}`}
+                            >
                               <i aria-hidden="true" />
                               <span>
                                 <strong>{job.modelLabel}</strong>
-                                <small>{formatGenerationTime(job.createdAt)} · {job.quote.credits} 积分 · {pricingUnitText(job.quote.pricingUnit)}{billing ? ` · ${billing}` : ""}</small>
+                                <small>
+                                  {formatGenerationTime(job.createdAt)} · {job.quote.credits} 积分 ·{" "}
+                                  {pricingUnitText(job.quote.pricingUnit)}
+                                  {billing ? ` · ${billing}` : ""}
+                                </small>
                                 {job.error?.message ? <em>{job.error.message}</em> : null}
                               </span>
                               <b>{status.label}</b>
@@ -1249,34 +1495,45 @@ export function NodeGenerationPanel({
             </div>
           ) : null}
 
-          <div className="kc-generation-submit-area">
-            <div className="kc-generation-submit-line">
+          <div className="wc-generation-submit-area">
+            <div className="wc-generation-submit-line">
               {quote && !customSelected && quoteCredits !== null ? (
                 <span
-                  className="kc-generation-compact-credit"
+                  className="wc-generation-compact-credit"
                   title={`${quote.estimated ? "预计需要" : "需要"} ${quoteCredits} 积分，${pricingUnitText(quote.pricingUnit)}${quoteBatchNote ? `（${quoteBatchNote}）` : ""}${model?.pricing.estimateNote ? `（${model.pricing.estimateNote}）` : ""}`}
                   aria-label={`${quote.estimated ? "预计需要" : "需要"} ${quoteCredits} 积分，${pricingUnitText(quote.pricingUnit)}`}
                 >
-                  {quote.estimated ? "约 " : ""}需 {quoteCredits} 积分 · {pricingUnitText(quote.pricingUnit)}
+                  {quote.estimated ? "约 " : ""}需 {quoteCredits} 积分 ·{" "}
+                  {pricingUnitText(quote.pricingUnit)}
                 </span>
               ) : null}
 
               <button
                 ref={submitButtonRef}
                 type="button"
-                className="kc-generation-submit kc-generation-submit--compact"
+                className="wc-generation-submit wc-generation-submit--compact"
                 aria-label={submitText}
                 aria-busy={generationBusy}
                 disabled={submitDisabled}
                 onClick={() => void submit()}
               >
-                {generationBusy ? <LoaderCircle className="is-spinning" aria-hidden="true" /> : <Sparkles aria-hidden="true" />}
+                {generationBusy ? (
+                  <LoaderCircle className="is-spinning" aria-hidden="true" />
+                ) : (
+                  <Sparkles aria-hidden="true" />
+                )}
                 <span>{submitText}</span>
               </button>
             </div>
 
-            {embeddedStatus && (embeddedStatus.tone === "error" || embeddedStatus.tone === "linked") ? (
-              <div className={`kc-generation-compact-status is-${embeddedStatus.tone}`} role={embeddedStatus.tone === "error" ? "alert" : "status"} aria-live="polite" title={embeddedStatus.text}>
+            {embeddedStatus &&
+            (embeddedStatus.tone === "error" || embeddedStatus.tone === "linked") ? (
+              <div
+                className={`wc-generation-compact-status is-${embeddedStatus.tone}`}
+                role={embeddedStatus.tone === "error" ? "alert" : "status"}
+                aria-live="polite"
+                title={embeddedStatus.text}
+              >
                 {embeddedStatus.tone === "error" ? <AlertCircle aria-hidden="true" /> : null}
                 <span>{embeddedStatus.text}</span>
                 {retryAvailable ? (
@@ -1284,7 +1541,11 @@ export function NodeGenerationPanel({
                     type="button"
                     aria-label="重试"
                     title="重试"
-                    onClick={() => data.generation.error ? retryGeneration() : setQuoteRevision((value) => value + 1)}
+                    onClick={() =>
+                      data.generation.error
+                        ? retryGeneration()
+                        : setQuoteRevision((value) => value + 1)
+                    }
                   >
                     <RotateCcw aria-hidden="true" />
                   </button>
@@ -1292,7 +1553,12 @@ export function NodeGenerationPanel({
               </div>
             ) : null}
             {embeddedStatus && embeddedStatus.tone === "pending" && pendingAmbiguousIdentity ? (
-              <div className="kc-generation-compact-status is-pending" role="status" aria-live="polite" title={embeddedStatus.text}>
+              <div
+                className="wc-generation-compact-status is-pending"
+                role="status"
+                aria-live="polite"
+                title={embeddedStatus.text}
+              >
                 <AlertCircle aria-hidden="true" />
                 <span>{embeddedStatus.text}</span>
                 <button
@@ -1314,7 +1580,9 @@ export function NodeGenerationPanel({
             assignments={data.generation.referenceImagePurposes}
             disabled={generationLocked}
             embedded
-            onChange={(reference, purpose) => updateReferenceImagePurpose(nodeId, reference, purpose)}
+            onChange={(reference, purpose) =>
+              updateReferenceImagePurpose(nodeId, reference, purpose)
+            }
           />
         ) : null}
       </section>
@@ -1322,37 +1590,48 @@ export function NodeGenerationPanel({
   }
 
   const panel = (
-      <section
-        className="kc-generation-panel"
-        onPointerDown={(event) => event.stopPropagation()}
-      >
-        <header className="kc-generation-header">
-          <div>
-            <span className={`kc-generation-symbol ${isConfiguration ? "is-config" : ""}`}>
-              {isConfiguration ? <SlidersHorizontal aria-hidden="true" /> : <Sparkles aria-hidden="true" />}
-            </span>
-            <strong>{isConfiguration ? "配置生成参数" : `生成${nodeLabel(data.kind).replace("节点", "")}`}</strong>
-          </div>
-          <button type="button" className="kc-dialog-close" aria-label="关闭" title="关闭" onClick={onClose}><X aria-hidden="true" /></button>
-        </header>
+    <section className="wc-generation-panel" onPointerDown={(event) => event.stopPropagation()}>
+      <header className="wc-generation-header">
+        <div>
+          <span className={`wc-generation-symbol ${isConfiguration ? "is-config" : ""}`}>
+            {isConfiguration ? (
+              <SlidersHorizontal aria-hidden="true" />
+            ) : (
+              <Sparkles aria-hidden="true" />
+            )}
+          </span>
+          <strong>
+            {isConfiguration ? "配置生成参数" : `生成${nodeLabel(data.kind).replace("节点", "")}`}
+          </strong>
+        </div>
+        <button
+          type="button"
+          className="wc-dialog-close"
+          aria-label="关闭"
+          title="关闭"
+          onClick={onClose}
+        >
+          <X aria-hidden="true" />
+        </button>
+      </header>
 
-        <div className="kc-generation-scroll">
-          {isConfiguration ? (
-            <div className="kc-config-modality" role="group" aria-label="配置类型">
-              {modalityOptions.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  className={configurationModality === option.value ? "is-active" : undefined}
-                  aria-pressed={configurationModality === option.value}
-                  onClick={() => chooseConfigurationModality(option.value)}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          ) : !embedded ? (
-            <label className="kc-generation-field kc-generation-prompt">
+      <div className="wc-generation-scroll">
+        {isConfiguration ? (
+          <div className="wc-config-modality" role="group" aria-label="配置类型">
+            {modalityOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={configurationModality === option.value ? "is-active" : undefined}
+                aria-pressed={configurationModality === option.value}
+                onClick={() => chooseConfigurationModality(option.value)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        ) : !embedded ? (
+          <label className="wc-generation-field wc-generation-prompt">
             <span>提示内容</span>
             <textarea
               value={data.body}
@@ -1363,190 +1642,283 @@ export function NodeGenerationPanel({
               onPaste={blockFilePaste}
               onChange={(event) => updateNodeData(nodeId, { body: event.target.value }, false)}
             />
-            </label>
-          ) : null}
+          </label>
+        ) : null}
 
-          {linkedConfiguration ? (
-            <div className="kc-config-linked" role="status">
-              <SlidersHorizontal aria-hidden="true" />
-              <span>参数由已连接的配置节点统一管理</span>
-            </div>
-          ) : null}
-
-          <div className="kc-generation-primary">
-            <label className="kc-generation-field">
-              <span>模型</span>
-              <CategorizedModelSelect value={modelId} models={models} disabled={catalogLoading || !models.length || generationLocked} onChange={chooseModel} ariaLabel="模型" />
-            </label>
-            {model?.description ? <p className="kc-generation-description">{model.description}</p> : null}
+        {linkedConfiguration ? (
+          <div className="wc-config-linked" role="status">
+            <SlidersHorizontal aria-hidden="true" />
+            <span>参数由已连接的配置节点统一管理</span>
           </div>
+        ) : null}
 
-          {model ? (
-            <div className="kc-generation-parameters">
-              {outputCountControl ? (
-                <OutputCountField
-                  {...outputCountControl}
-                />
-              ) : null}
-              {editableNonActionParameters.map((parameter) => (
-                <GenerationParameterField
-                  key={`${model.id}:${parameter.name}`}
-                  parameter={parameter}
-                  value={parameters[parameter.name]}
-                  disabled={generationLocked}
-                  boundedDuration={modality === "video" || modality === "audio"}
-                  showHint
-                  onChange={(value) => updateParameter(parameter.name, value)}
-                  onValidityChange={(valid) => updateParameterValidity(parameter.name, valid)}
-                />
-              ))}
-              {mjActionParameter ? (
-                <FollowUpActionSection
-                  model={model}
-                  actionParameter={mjActionParameter}
-                  dependentParameters={mjDependentParameters}
-                  values={parameters}
-                  disabled={generationLocked}
-                  referenceImageCount={counts.images}
-                  onChange={updateParameter}
-                  onValidityChange={updateParameterValidity}
-                />
-              ) : null}
-              {model.pricing.mode === "token" && !hasModelMaximumTokenParameter(model) ? (
-                <label className="kc-generation-field">
-                  <span>最大输出</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={1_000_000}
-                    step={128}
-                    value={maxOutputTokens ?? 1_024}
-                    disabled={generationLocked}
-                    onChange={(event) => updateMaximumTokens(Number(event.target.value))}
-                  />
-                </label>
-              ) : null}
-            </div>
-          ) : null}
-
-          {model && references && counts.images + counts.styleImages + counts.elementImages + counts.videos + counts.audios > 0 ? (
-            <div className="kc-generation-references" aria-label="参考素材">
-              {counts.images ? <span>{referenceImagePurposeLabel(model, "images")} {counts.images}</span> : null}
-              {counts.styleImages ? <span>{referenceImagePurposeLabel(model, "styleImages")} {counts.styleImages}</span> : null}
-              {counts.elementImages ? <span>{referenceImagePurposeLabel(model, "elementImages")} {counts.elementImages}</span> : null}
-              {counts.videos ? <span>视频 {counts.videos}</span> : null}
-              {counts.audios ? <span>音频 {counts.audios}</span> : null}
-            </div>
-          ) : null}
-
-          {model && references ? (
-            <ReferenceImagePurposeControls
-              model={model}
-              references={references}
-              assignments={data.generation.referenceImagePurposes}
-              disabled={generationLocked}
-              onChange={(reference, purpose) => updateReferenceImagePurpose(nodeId, reference, purpose)}
+        <div className="wc-generation-primary">
+          <label className="wc-generation-field">
+            <span>模型</span>
+            <CategorizedModelSelect
+              value={modelId}
+              models={models}
+              disabled={catalogLoading || !models.length || generationLocked}
+              onChange={chooseModel}
+              ariaLabel="模型"
             />
-          ) : null}
-
-          {!isConfiguration && !activeJob && !awaitingConfirmation && data.generation.error ? (
-            <div className="kc-generation-error" role="alert">
-              <AlertCircle aria-hidden="true" />
-              <span>{data.generation.error}</span>
-              <button type="button" onClick={retryGeneration}>重试</button>
-            </div>
-          ) : null}
-          {!isConfiguration && awaitingConfirmation && pendingAmbiguousIdentity ? (
-            <div className="kc-generation-error" role="status">
-              <AlertCircle aria-hidden="true" />
-              <span>刷新前的提交可能已被受理，当前无法核对；确认任务记录后可以手动放弃再重新提交。</span>
-              <button type="button" onClick={abandonAmbiguousSubmission}>放弃并重新提交</button>
-            </div>
-          ) : null}
-          {unavailableModelError ? <div className="kc-generation-error" role="alert"><AlertCircle aria-hidden="true" />{unavailableModelError}</div> : null}
-          {!unavailableModelError && catalogError ? <div className="kc-generation-error" role="alert"><AlertCircle aria-hidden="true" />{catalogError}</div> : null}
-          {!isConfiguration && quoteError ? <div className="kc-generation-error" role="alert"><AlertCircle aria-hidden="true" />{quoteError}</div> : null}
-
-          {!isConfiguration && jobHistory.length ? (
-            <section className={`kc-generation-history ${historyOpen ? "is-open" : ""}`} aria-label="最近任务">
-              <div className="kc-generation-history-header">
-                <button type="button" aria-expanded={historyOpen} onClick={() => setHistoryOpen((value) => !value)}>
-                  <History aria-hidden="true" />
-                  <span>最近任务</span>
-                  <small>{jobHistory.length}</small>
-                  <ChevronDown className="kc-generation-history-chevron" aria-hidden="true" />
-                </button>
-                {historyOpen ? (
-                  <button
-                    type="button"
-                    className="kc-generation-history-refresh"
-                    aria-label="刷新任务记录"
-                    title="刷新任务记录"
-                    disabled={refreshingHistory || identityStatus !== "authenticated"}
-                    onClick={() => void refreshHistory()}
-                  >
-                    <RotateCcw className={refreshingHistory ? "is-spinning" : ""} aria-hidden="true" />
-                  </button>
-                ) : null}
-              </div>
-              {historyOpen ? (
-                <div className="kc-generation-history-list">
-                  {jobHistory.slice(0, 12).map((job) => {
-                    const status = generationHistoryStatus(job);
-                    const billing = generationBillingText(job);
-                    return (
-                      <div key={job.id} className={`kc-generation-history-row is-${status.tone}`}>
-                        <i aria-hidden="true" />
-                        <span>
-                          <strong>{job.modelLabel}</strong>
-                          <small>{formatGenerationTime(job.createdAt)} · {job.quote.credits} 积分 · {pricingUnitText(job.quote.pricingUnit)}{billing ? ` · ${billing}` : ""}</small>
-                          {job.error?.message ? <em>{job.error.message}</em> : null}
-                        </span>
-                        <b>{status.label}</b>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </section>
+          </label>
+          {model?.description ? (
+            <p className="wc-generation-description">{model.description}</p>
           ) : null}
         </div>
 
-        <footer className={`kc-generation-footer ${isConfiguration ? "is-config" : ""}`}>
-          {isConfiguration ? (
-            <div className="kc-config-target-count">
-              <span>{configurationTargetCount ? `已同步 ${configurationTargetCount} 个${modalityOptions.find((item) => item.value === configurationModality)?.label ?? ""}节点` : "连接同类型节点后自动同步"}</span>
+        {model ? (
+          <div className="wc-generation-parameters">
+            {outputCountControl ? <OutputCountField {...outputCountControl} /> : null}
+            {editableNonActionParameters.map((parameter) => (
+              <GenerationParameterField
+                key={`${model.id}:${parameter.name}`}
+                parameter={parameter}
+                value={parameters[parameter.name]}
+                disabled={generationLocked}
+                boundedDuration={modality === "video" || modality === "audio"}
+                showHint
+                onChange={(value) => updateParameter(parameter.name, value)}
+                onValidityChange={(valid) => updateParameterValidity(parameter.name, valid)}
+              />
+            ))}
+            {mjActionParameter ? (
+              <FollowUpActionSection
+                model={model}
+                actionParameter={mjActionParameter}
+                dependentParameters={mjDependentParameters}
+                values={parameters}
+                disabled={generationLocked}
+                referenceImageCount={counts.images}
+                onChange={updateParameter}
+                onValidityChange={updateParameterValidity}
+              />
+            ) : null}
+            {model.pricing.mode === "token" && !hasModelMaximumTokenParameter(model) ? (
+              <label className="wc-generation-field">
+                <span>最大输出</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={1_000_000}
+                  step={128}
+                  value={maxOutputTokens ?? 1_024}
+                  disabled={generationLocked}
+                  onChange={(event) => updateMaximumTokens(Number(event.target.value))}
+                />
+              </label>
+            ) : null}
+          </div>
+        ) : null}
+
+        {model &&
+        references &&
+        counts.images + counts.styleImages + counts.elementImages + counts.videos + counts.audios >
+          0 ? (
+          <div className="wc-generation-references" aria-label="参考素材">
+            {counts.images ? (
+              <span>
+                {referenceImagePurposeLabel(model, "images")} {counts.images}
+              </span>
+            ) : null}
+            {counts.styleImages ? (
+              <span>
+                {referenceImagePurposeLabel(model, "styleImages")} {counts.styleImages}
+              </span>
+            ) : null}
+            {counts.elementImages ? (
+              <span>
+                {referenceImagePurposeLabel(model, "elementImages")} {counts.elementImages}
+              </span>
+            ) : null}
+            {counts.videos ? <span>视频 {counts.videos}</span> : null}
+            {counts.audios ? <span>音频 {counts.audios}</span> : null}
+          </div>
+        ) : null}
+
+        {model && references ? (
+          <ReferenceImagePurposeControls
+            model={model}
+            references={references}
+            assignments={data.generation.referenceImagePurposes}
+            disabled={generationLocked}
+            onChange={(reference, purpose) =>
+              updateReferenceImagePurpose(nodeId, reference, purpose)
+            }
+          />
+        ) : null}
+
+        {!isConfiguration && !activeJob && !awaitingConfirmation && data.generation.error ? (
+          <div className="wc-generation-error" role="alert">
+            <AlertCircle aria-hidden="true" />
+            <span>{data.generation.error}</span>
+            <button type="button" onClick={retryGeneration}>
+              重试
+            </button>
+          </div>
+        ) : null}
+        {!isConfiguration && awaitingConfirmation && pendingAmbiguousIdentity ? (
+          <div className="wc-generation-error" role="status">
+            <AlertCircle aria-hidden="true" />
+            <span>
+              刷新前的提交可能已被受理，当前无法核对；确认任务记录后可以手动放弃再重新提交。
+            </span>
+            <button type="button" onClick={abandonAmbiguousSubmission}>
+              放弃并重新提交
+            </button>
+          </div>
+        ) : null}
+        {unavailableModelError ? (
+          <div className="wc-generation-error" role="alert">
+            <AlertCircle aria-hidden="true" />
+            {unavailableModelError}
+          </div>
+        ) : null}
+        {!unavailableModelError && catalogError ? (
+          <div className="wc-generation-error" role="alert">
+            <AlertCircle aria-hidden="true" />
+            {catalogError}
+          </div>
+        ) : null}
+        {!isConfiguration && quoteError ? (
+          <div className="wc-generation-error" role="alert">
+            <AlertCircle aria-hidden="true" />
+            {quoteError}
+          </div>
+        ) : null}
+
+        {!isConfiguration && jobHistory.length ? (
+          <section
+            className={`wc-generation-history ${historyOpen ? "is-open" : ""}`}
+            aria-label="最近任务"
+          >
+            <div className="wc-generation-history-header">
+              <button
+                type="button"
+                aria-expanded={historyOpen}
+                onClick={() => setHistoryOpen((value) => !value)}
+              >
+                <History aria-hidden="true" />
+                <span>最近任务</span>
+                <small>{jobHistory.length}</small>
+                <ChevronDown className="wc-generation-history-chevron" aria-hidden="true" />
+              </button>
+              {historyOpen ? (
+                <button
+                  type="button"
+                  className="wc-generation-history-refresh"
+                  aria-label="刷新任务记录"
+                  title="刷新任务记录"
+                  disabled={refreshingHistory || identityStatus !== "authenticated"}
+                  onClick={() => void refreshHistory()}
+                >
+                  <RotateCcw
+                    className={refreshingHistory ? "is-spinning" : ""}
+                    aria-hidden="true"
+                  />
+                </button>
+              ) : null}
             </div>
-          ) : (
-            <div className="kc-generation-quote">
-            {customSelected ? <><Check aria-hidden="true" /><span>可以生成</span></> : null}
-            {!customSelected && quote && quoteCredits !== null ? <><Check aria-hidden="true" /><span>{quote.estimated ? "预计 " : ""}{quoteCredits} 积分 · {pricingUnitText(quote.pricingUnit)}</span></> : null}
+            {historyOpen ? (
+              <div className="wc-generation-history-list">
+                {jobHistory.slice(0, 12).map((job) => {
+                  const status = generationHistoryStatus(job);
+                  const billing = generationBillingText(job);
+                  return (
+                    <div key={job.id} className={`wc-generation-history-row is-${status.tone}`}>
+                      <i aria-hidden="true" />
+                      <span>
+                        <strong>{job.modelLabel}</strong>
+                        <small>
+                          {formatGenerationTime(job.createdAt)} · {job.quote.credits} 积分 ·{" "}
+                          {pricingUnitText(job.quote.pricingUnit)}
+                          {billing ? ` · ${billing}` : ""}
+                        </small>
+                        {job.error?.message ? <em>{job.error.message}</em> : null}
+                      </span>
+                      <b>{status.label}</b>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+      </div>
+
+      <footer className={`wc-generation-footer ${isConfiguration ? "is-config" : ""}`}>
+        {isConfiguration ? (
+          <div className="wc-config-target-count">
+            <span>
+              {configurationTargetCount
+                ? `已同步 ${configurationTargetCount} 个${modalityOptions.find((item) => item.value === configurationModality)?.label ?? ""}节点`
+                : "连接同类型节点后自动同步"}
+            </span>
+          </div>
+        ) : (
+          <div className="wc-generation-quote">
+            {customSelected ? (
+              <>
+                <Check aria-hidden="true" />
+                <span>可以生成</span>
+              </>
+            ) : null}
+            {!customSelected && quote && quoteCredits !== null ? (
+              <>
+                <Check aria-hidden="true" />
+                <span>
+                  {quote.estimated ? "预计 " : ""}
+                  {quoteCredits} 积分 · {pricingUnitText(quote.pricingUnit)}
+                </span>
+              </>
+            ) : null}
             {!customSelected && quoteState === "error" && model && !referenceError ? (
-              <button type="button" className="kc-generation-quote-retry" onClick={() => setQuoteRevision((value) => value + 1)}>
-                <RotateCcw aria-hidden="true" />重新确认
+              <button
+                type="button"
+                className="wc-generation-quote-retry"
+                onClick={() => setQuoteRevision((value) => value + 1)}
+              >
+                <RotateCcw aria-hidden="true" />
+                重新确认
               </button>
             ) : null}
-            </div>
-          )}
-          <button
-            ref={submitButtonRef}
-            type="button"
-            className="kc-generation-submit"
-            disabled={isConfiguration
+          </div>
+        )}
+        <button
+          ref={submitButtonRef}
+          type="button"
+          className="wc-generation-submit"
+          disabled={
+            isConfiguration
               ? !model || invalidParameters.size > 0
-              : !model || invalidParameters.size > 0 || Boolean(referenceError) || quoteState !== "ready" || submitting || generationLocked || Boolean(unavailableModelError) || (!customSelected && !quote)}
-            onClick={() => isConfiguration ? onClose() : void submit()}
-          >
-            {isConfiguration ? <Check aria-hidden="true" /> : generationBusy ? <LoaderCircle className="is-spinning" aria-hidden="true" /> : <Sparkles aria-hidden="true" />}
-            {isConfiguration ? "完成配置" : "生成"}
-          </button>
-        </footer>
-      </section>
+              : !model ||
+                invalidParameters.size > 0 ||
+                Boolean(referenceError) ||
+                quoteState !== "ready" ||
+                submitting ||
+                generationLocked ||
+                Boolean(unavailableModelError) ||
+                (!customSelected && !quote)
+          }
+          onClick={() => (isConfiguration ? onClose() : void submit())}
+        >
+          {isConfiguration ? (
+            <Check aria-hidden="true" />
+          ) : generationBusy ? (
+            <LoaderCircle className="is-spinning" aria-hidden="true" />
+          ) : (
+            <Sparkles aria-hidden="true" />
+          )}
+          {isConfiguration ? "完成配置" : "生成"}
+        </button>
+      </footer>
+    </section>
   );
 
   return createPortal(
     <div
-      className="kc-generation-backdrop"
+      className="wc-generation-backdrop"
       role="dialog"
       aria-modal="true"
       aria-label={isConfiguration ? "配置节点设置" : `${nodeLabel(data.kind)}生成设置`}
@@ -1557,95 +1929,6 @@ export function NodeGenerationPanel({
       {panel}
     </div>,
     document.body,
-  );
-}
-
-function MidjourneyParameterControls({
-  model,
-  values,
-  disabled,
-  onChange,
-}: {
-  model: PublicModel;
-  values: Record<string, unknown>;
-  disabled: boolean;
-  onChange: (name: string, value: unknown) => void;
-}) {
-  const size = model.parameters.find((parameter) => parameter.name === "size");
-  const quality = model.parameters.find((parameter) => parameter.name === "quality");
-  const ratios = size?.options?.filter((option): option is string => typeof option === "string") ?? [];
-  const selectedRatio = parameterStringValue(size, values.size) ?? "auto";
-  const clarityOptions = quality?.options?.filter((option): option is string => typeof option === "string") ?? ["1", "2"];
-  const selectedClarity = parameterStringValue(quality, values.quality) ?? clarityOptions[0] ?? "1";
-
-  return (
-    <section className="kc-mj-controls" aria-label="Midjourney 参数">
-      {size ? (
-        <div className="kc-mj-control-group">
-          <span>画面比例</span>
-          {ratios.includes("auto") ? (
-            <button
-              type="button"
-              className={`kc-mj-ratio-auto ${selectedRatio === "auto" ? "is-selected" : ""}`}
-              aria-pressed={selectedRatio === "auto"}
-              disabled={disabled}
-              onClick={() => onChange("size", "auto")}
-            >
-              <Scan aria-hidden="true" />
-              自动
-            </button>
-          ) : null}
-          <div className="kc-mj-ratio-grid">
-            {ratios.filter((ratio) => ratio !== "auto").map((ratio) => (
-              <button
-                key={ratio}
-                type="button"
-                className={selectedRatio === ratio ? "is-selected" : ""}
-                aria-pressed={selectedRatio === ratio}
-                disabled={disabled}
-                onClick={() => onChange("size", ratio)}
-              >
-                <RatioShape ratio={ratio} />
-                <span>{ratio}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {quality ? (
-        <div className="kc-mj-control-group">
-          <span>清晰度</span>
-          <div className="kc-mj-clarity" role="group" aria-label="清晰度">
-            {clarityOptions.map((option) => (
-              <button
-                key={option}
-                type="button"
-                className={selectedClarity === option ? "is-selected" : ""}
-                aria-pressed={selectedClarity === option}
-                disabled={disabled}
-                onClick={() => onChange("quality", option)}
-              >
-                {`${option}k`}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {(["stylize", "chaos", "weird"] as const).map((name) => {
-        const parameter = model.parameters.find((item) => item.name === name);
-        return parameter ? (
-          <MidjourneySlider
-            key={name}
-            parameter={parameter}
-            value={values[name]}
-            disabled={disabled}
-            onChange={(value) => onChange(name, value)}
-          />
-        ) : null;
-      })}
-    </section>
   );
 }
 
@@ -1674,15 +1957,19 @@ function ReferenceImagePurposeControls({
     })),
   ];
   return (
-    <section className={`kc-generation-reference-roles ${embedded ? "is-embedded" : ""}`} aria-label="图片参考用途">
+    <section
+      className={`wc-generation-reference-roles ${embedded ? "is-embedded" : ""}`}
+      aria-label="图片参考用途"
+    >
       <span>图片用途</span>
       <div>
         {references.connectedImages.map((reference, index) => {
           const selected = referenceImagePurposeFor(assignments, reference);
-          const value = selected && references.imagePurposes.includes(selected) ? selected : "__unassigned__";
+          const value =
+            selected && references.imagePurposes.includes(selected) ? selected : "__unassigned__";
           const label = reference.media.name || `参考图片 ${index + 1}`;
           return (
-            <div className="kc-generation-reference-role" key={referenceMediaKey(reference)}>
+            <div className="wc-generation-reference-role" key={referenceMediaKey(reference)}>
               <span title={label}>{label}</span>
               <CanvasSelect
                 value={value}
@@ -1691,12 +1978,14 @@ function ReferenceImagePurposeControls({
                 disabled={disabled}
                 variant="compact"
                 menuMinWidth={150}
-                onChange={(next) => onChange(
-                  reference,
-                  references.imagePurposes.includes(next as ReferenceImagePurpose)
-                    ? next as ReferenceImagePurpose
-                    : "",
-                )}
+                onChange={(next) =>
+                  onChange(
+                    reference,
+                    references.imagePurposes.includes(next as ReferenceImagePurpose)
+                      ? (next as ReferenceImagePurpose)
+                      : "",
+                  )
+                }
               />
             </div>
           );
@@ -1704,60 +1993,6 @@ function ReferenceImagePurposeControls({
       </div>
     </section>
   );
-}
-
-function RatioShape({ ratio }: { ratio: string }) {
-  const [width, height] = ratio.split(":").map(Number);
-  const valid = Number.isFinite(width) && Number.isFinite(height) && width! > 0 && height! > 0;
-  const scale = valid ? 24 / Math.max(width!, height!) : 1;
-  return <i className="kc-mj-ratio-shape" aria-hidden="true" style={{ width: valid ? Math.max(8, width! * scale) : 18, height: valid ? Math.max(8, height! * scale) : 18 }} />;
-}
-
-function MidjourneySlider({
-  parameter,
-  value,
-  disabled,
-  onChange,
-}: {
-  parameter: ModelParameter;
-  value: unknown;
-  disabled: boolean;
-  onChange: (value: number) => void;
-}) {
-  const min = parameter.min ?? 0;
-  const max = parameter.max ?? 100;
-  const step = parameter.step ?? 1;
-  const fallback = typeof parameter.default === "number" ? parameter.default : min;
-  const numeric = typeof value === "number" && Number.isFinite(value) ? value : fallback;
-  const current = Math.max(min, Math.min(max, numeric));
-  const ticks = sliderTicks(parameter.name, min, max);
-  const adjust = (direction: -1 | 1) => onChange(Math.max(min, Math.min(max, current + direction * step)));
-  return (
-    <div className="kc-mj-slider">
-      <div className="kc-mj-slider-header">
-        <span>{parameter.label}</span>
-        <div>
-          <button type="button" aria-label={`减少${parameter.label}`} title={`减少${parameter.label}`} disabled={disabled || current <= min} onClick={() => adjust(-1)}><Minus aria-hidden="true" /></button>
-          <output>{current}</output>
-          <button type="button" aria-label={`增加${parameter.label}`} title={`增加${parameter.label}`} disabled={disabled || current >= max} onClick={() => adjust(1)}><Plus aria-hidden="true" /></button>
-        </div>
-      </div>
-      <input type="range" aria-label={parameter.label} min={min} max={max} step={step} value={current} disabled={disabled} onChange={(event) => onChange(Number(event.target.value))} />
-      <div className="kc-mj-slider-ticks" aria-hidden="true">{ticks.map((tick) => <span key={tick}>{tick}</span>)}</div>
-    </div>
-  );
-}
-
-function parameterStringValue(parameter: ModelParameter | undefined, value: unknown) {
-  if (typeof value === "string") return value;
-  return typeof parameter?.default === "string" ? parameter.default : null;
-}
-
-function sliderTicks(name: string, min: number, max: number) {
-  if (name === "stylize" && min === 0 && max === 1000) return [0, 100, 250, 500, 750, 1000];
-  if (name === "chaos" && min === 0 && max === 100) return [0, 10, 30, 50, 75, 100];
-  if (name === "weird" && min === 0 && max === 3000) return [0, 250, 500, 1000, 2000, 3000];
-  return [min, Math.round((min + max) / 2), max];
 }
 
 function CompactGenerationParameter({
@@ -1781,7 +2016,11 @@ function CompactGenerationParameter({
     : displayValue;
   if (durationOptions) {
     return (
-      <div className="kc-generation-compact-control kc-generation-parameter-control" title={parameter.label} onClick={clickNestedCanvasSelect}>
+      <div
+        className="wc-generation-compact-control wc-generation-parameter-control"
+        title={parameter.label}
+        onClick={clickNestedCanvasSelect}
+      >
         <span>
           <small>{parameter.label}</small>
           <CanvasSelect
@@ -1789,7 +2028,10 @@ function CompactGenerationParameter({
             value={selected === undefined ? "__unset__" : JSON.stringify(selected)}
             options={[
               ...(selected === undefined ? [{ value: "__unset__", label: "请选择" }] : []),
-              ...durationOptions.map((option) => ({ value: JSON.stringify(option), label: `${option} 秒` })),
+              ...durationOptions.map((option) => ({
+                value: JSON.stringify(option),
+                label: `${option} 秒`,
+              })),
             ]}
             disabled={fieldDisabled || durationOptions.length === 0}
             variant="compact"
@@ -1802,7 +2044,11 @@ function CompactGenerationParameter({
   const scalarOptions = generationParameterScalarOptions(parameter, selected);
   if (scalarOptions) {
     return (
-      <div className="kc-generation-compact-control kc-generation-parameter-control" title={parameter.label} onClick={clickNestedCanvasSelect}>
+      <div
+        className="wc-generation-compact-control wc-generation-parameter-control"
+        title={parameter.label}
+        onClick={clickNestedCanvasSelect}
+      >
         <span>
           <small>{parameter.label}</small>
           <CanvasSelect
@@ -1825,7 +2071,7 @@ function CompactGenerationParameter({
   }
   if (parameter.type === "boolean") {
     return (
-      <label className="kc-generation-compact-toggle" title={parameter.label}>
+      <label className="wc-generation-compact-toggle" title={parameter.label}>
         <span>{parameter.label}</span>
         <input
           type="checkbox"
@@ -1840,7 +2086,10 @@ function CompactGenerationParameter({
   }
   if (parameter.type === "integer" || parameter.type === "number") {
     return (
-      <label className="kc-generation-compact-control kc-generation-parameter-control" title={parameter.label}>
+      <label
+        className="wc-generation-compact-control wc-generation-parameter-control"
+        title={parameter.label}
+      >
         <span>
           <small>{parameter.label}</small>
           <input
@@ -1852,14 +2101,19 @@ function CompactGenerationParameter({
             step={parameter.step ?? (parameter.type === "integer" ? 1 : "any")}
             required={parameter.required}
             disabled={fieldDisabled}
-            onChange={(event) => onChange(event.target.value === "" ? undefined : Number(event.target.value))}
+            onChange={(event) =>
+              onChange(event.target.value === "" ? undefined : Number(event.target.value))
+            }
           />
         </span>
       </label>
     );
   }
   return (
-    <label className="kc-generation-compact-control kc-generation-parameter-control" title={parameter.label}>
+    <label
+      className="wc-generation-compact-control wc-generation-parameter-control"
+      title={parameter.label}
+    >
       <span>
         <small>{parameter.label}</small>
         <input
@@ -1887,7 +2141,10 @@ function CompactMaximumTokens({
   onChange: (value: number) => void;
 }) {
   return (
-    <label className="kc-generation-compact-control kc-generation-parameter-control" title="最大输出">
+    <label
+      className="wc-generation-compact-control wc-generation-parameter-control"
+      title="最大输出"
+    >
       <span>
         <small>最大输出</small>
         <input
@@ -1926,7 +2183,7 @@ function OutputCountField({
 }) {
   const options = outputCountOptions(min, max, step, unit);
   return (
-    <div className="kc-generation-field kc-generation-output-count" data-output-count-control>
+    <div className="wc-generation-field wc-generation-output-count" data-output-count-control>
       <span>{label}</span>
       <CanvasSelect
         value={String(value)}
@@ -1961,7 +2218,11 @@ function CompactOutputCount({
 }) {
   const options = outputCountOptions(min, max, step, unit);
   return (
-    <div className="kc-generation-compact-control kc-generation-parameter-control kc-generation-output-count" title={label} data-output-count-control>
+    <div
+      className="wc-generation-compact-control wc-generation-parameter-control wc-generation-output-count"
+      title={label}
+      data-output-count-control
+    >
       <span>
         <small>{label}</small>
         <CanvasSelect
@@ -1986,8 +2247,13 @@ function outputCountOptions(min: number, max: number, step: number, unit: string
 
 function findOutputCountParameter(model: PublicModel | null) {
   if (!model || model.modality !== "image") return null;
-  return model.parameters.find((parameter) => (parameter.type === "integer" || parameter.type === "number")
-    && /^(?:n|count)$/i.test(parameter.name)) ?? null;
+  return (
+    model.parameters.find(
+      (parameter) =>
+        (parameter.type === "integer" || parameter.type === "number") &&
+        /^(?:n|count)$/i.test(parameter.name),
+    ) ?? null
+  );
 }
 
 function resolveOutputCountRange(model: PublicModel | null, parameter: ModelParameter | null) {
@@ -2004,8 +2270,12 @@ function resolveOutputCountRange(model: PublicModel | null, parameter: ModelPara
   return { min: Math.min(min, max), max, step };
 }
 
-function normalizeOutputQuantity(value: unknown, range: { min: number; max: number; step: number }) {
-  const numeric = typeof value === "number" && Number.isFinite(value) ? Math.round(value) : range.min;
+function normalizeOutputQuantity(
+  value: unknown,
+  range: { min: number; max: number; step: number },
+) {
+  const numeric =
+    typeof value === "number" && Number.isFinite(value) ? Math.round(value) : range.min;
   const stepped = range.min + Math.round((numeric - range.min) / range.step) * range.step;
   return Math.max(range.min, Math.min(range.max, stepped));
 }
@@ -2035,10 +2305,12 @@ function composeGenerationParameters(
  */
 function isAmbiguousSubmissionFailure(error: unknown) {
   if (error instanceof CanvasApiError) {
-    return error.code === "NETWORK_UNAVAILABLE"
-      || error.status === 408
-      || error.status === 425
-      || error.status >= 500;
+    return (
+      error.code === "NETWORK_UNAVAILABLE" ||
+      error.status === 408 ||
+      error.status === 425 ||
+      error.status >= 500
+    );
   }
   return true;
 }
@@ -2066,18 +2338,22 @@ function persistConfig(
       force: options.userInitiated,
     });
   }
-  state.updateNodeData(nodeId, {
-    generation: {
-      ...node.data.generation,
-      modelId,
-      parameters,
-      maxOutputTokens,
-      // 只有创建者显式改动（选模型/改画幅参数）才把画幅标记为已配置；
-      // 自动写入的模型默认值不得宣称这一点，否则刷新恢复会用它改写几何。
-      ...(options.userInitiated && options.resize ? { aspectExplicit: true } : {}),
-      error: null,
+  state.updateNodeData(
+    nodeId,
+    {
+      generation: {
+        ...node.data.generation,
+        modelId,
+        parameters,
+        maxOutputTokens,
+        // 只有创建者显式改动（选模型/改画幅参数）才把画幅标记为已配置；
+        // 自动写入的模型默认值不得宣称这一点，否则刷新恢复会用它改写几何。
+        ...(options.userInitiated && options.resize ? { aspectExplicit: true } : {}),
+        error: null,
+      },
     },
-  }, false);
+    false,
+  );
   if (options.userInitiated && options.rememberModel) {
     useUiPreferencesStore.getState().setLastMediaGeneration(options.rememberModel.modality, {
       modelId,
@@ -2099,23 +2375,28 @@ function updateReferenceImagePurpose(
   delete next[reference.media.id];
   if (reference.media.serverId) delete next[reference.media.serverId];
   if (purpose) next[referenceMediaKey(reference)] = purpose;
-  state.updateNodeData(nodeId, {
-    generation: {
-      ...node.data.generation,
-      referenceImagePurposes: next,
-      error: null,
+  state.updateNodeData(
+    nodeId,
+    {
+      generation: {
+        ...node.data.generation,
+        referenceImagePurposes: next,
+        error: null,
+      },
     },
-  }, false);
+    false,
+  );
 }
 
 function referenceImageMaximum(model: PublicModel, purpose: ReferenceImagePurpose) {
   const capability = referenceImageCapability(model, purpose);
   if (!capability) return 0;
-  return capability.multiple ? capability.max ?? 32 : Math.min(1, capability.max ?? 1);
+  return capability.multiple ? (capability.max ?? 32) : Math.min(1, capability.max ?? 1);
 }
 
 function blockFilePaste(event: ClipboardEvent<HTMLTextAreaElement>) {
-  if (Array.from(event.clipboardData.items).some((item) => item.kind === "file")) event.preventDefault();
+  if (Array.from(event.clipboardData.items).some((item) => item.kind === "file"))
+    event.preventDefault();
 }
 
 function jobStatusLabel(status: string) {
@@ -2128,8 +2409,10 @@ function jobStatusLabel(status: string) {
 
 function clickNestedCanvasSelect(event: MouseEvent<HTMLElement>) {
   const target = event.target instanceof Element ? event.target : null;
-  if (target?.closest(".kc-canvas-select-trigger")) return;
-  event.currentTarget.querySelector<HTMLButtonElement>(".kc-canvas-select-trigger:not(:disabled)")?.click();
+  if (target?.closest(".wc-canvas-select-trigger")) return;
+  event.currentTarget
+    .querySelector<HTMLButtonElement>(".wc-canvas-select-trigger:not(:disabled)")
+    ?.click();
 }
 
 function generationHistoryStatus(job: PublicGenerationJob) {
@@ -2144,14 +2427,20 @@ function formatGenerationTime(value: string) {
   if (!Number.isFinite(timestamp)) return "时间未知";
   const date = new Date(timestamp);
   const now = new Date();
-  const sameDay = date.getFullYear() === now.getFullYear()
-    && date.getMonth() === now.getMonth()
-    && date.getDate() === now.getDate();
-  return new Intl.DateTimeFormat("zh-CN", sameDay
-    ? { hour: "2-digit", minute: "2-digit" }
-    : { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
+  const sameDay =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+  return new Intl.DateTimeFormat(
+    "zh-CN",
+    sameDay
+      ? { hour: "2-digit", minute: "2-digit" }
+      : { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" },
+  ).format(date);
 }
 
 function hasModelMaximumTokenParameter(model: PublicModel) {
-  return model.parameters.some((parameter) => parameter.name === "max_tokens" || parameter.name === "max_output_tokens");
+  return model.parameters.some(
+    (parameter) => parameter.name === "max_tokens" || parameter.name === "max_output_tokens",
+  );
 }

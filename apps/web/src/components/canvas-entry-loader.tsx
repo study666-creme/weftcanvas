@@ -38,7 +38,12 @@ export function CanvasEntryLoader({
   const [elapsedMs, setElapsedMs] = useState(0);
   const [displayProgress, setDisplayProgress] = useState(8);
   const [leaving, setLeaving] = useState(false);
-  const snapshot = getCanvasBootSnapshot({ workspaceReady: resolvedWorkspaceReady, identityStatus: resolvedIdentityStatus, catalogStatuses: resolvedCatalogStatuses, elapsedMs });
+  const snapshot = getCanvasBootSnapshot({
+    workspaceReady: resolvedWorkspaceReady,
+    identityStatus: resolvedIdentityStatus,
+    catalogStatuses: resolvedCatalogStatuses,
+    elapsedMs,
+  });
   highestTargetRef.current = Math.max(highestTargetRef.current, snapshot.targetProgress);
   const exitReady = snapshot.canFinish && elapsedMs >= CANVAS_BOOT_MIN_VISIBLE_MS;
   const progressGoal = exitReady ? 100 : highestTargetRef.current;
@@ -58,7 +63,10 @@ export function CanvasEntryLoader({
           window.clearInterval(timerId);
           return current;
         }
-        return Math.min(progressGoal, current + Math.max(1, Math.ceil((progressGoal - current) / 5)));
+        return Math.min(
+          progressGoal,
+          current + Math.max(1, Math.ceil((progressGoal - current) / 5)),
+        );
       });
     }, 32);
     return () => window.clearInterval(timerId);
@@ -85,51 +93,65 @@ export function CanvasEntryLoader({
 
   return (
     <section
-      className={`kc-canvas-entry-loader ${leaving ? "is-leaving" : ""}`}
+      className={`wc-canvas-entry-loader ${leaving ? "is-leaving" : ""}`}
       aria-label="正在进入画布"
       aria-busy={!exitReady}
       data-stage={snapshot.stage}
     >
-      <div className="kc-canvas-entry-loader-grid" aria-hidden="true">
-        <span className="kc-canvas-entry-loader-gridline is-horizontal" />
-        <span className="kc-canvas-entry-loader-gridline is-vertical" />
-        <span className="kc-canvas-entry-loader-node is-origin" />
-        <span className="kc-canvas-entry-loader-node is-upper" />
-        <span className="kc-canvas-entry-loader-node is-lower" />
-        <span className="kc-canvas-entry-loader-link is-upper" />
-        <span className="kc-canvas-entry-loader-link is-lower" />
+      <div className="wc-canvas-entry-loader-grid" aria-hidden="true">
+        <span className="wc-canvas-entry-loader-gridline is-horizontal" />
+        <span className="wc-canvas-entry-loader-gridline is-vertical" />
+        <span className="wc-canvas-entry-loader-node is-origin" />
+        <span className="wc-canvas-entry-loader-node is-upper" />
+        <span className="wc-canvas-entry-loader-node is-lower" />
+        <span className="wc-canvas-entry-loader-link is-upper" />
+        <span className="wc-canvas-entry-loader-link is-lower" />
       </div>
 
-      <header className="kc-canvas-entry-loader-brand">
-        <span className="kc-canvas-entry-loader-mark"><img src="/kachang-logo-ui.webp" alt="" aria-hidden="true" /></span>
-        <span><strong>卡藏画布</strong><small>Kachang Canvas</small></span>
+      <header className="wc-canvas-entry-loader-brand">
+        <span className="wc-canvas-entry-loader-mark">
+          <img src="/weftcanvas-logo-ui.webp" alt="" aria-hidden="true" />
+        </span>
+        <span>
+          <strong>纬线画布</strong>
+          <small>Weftcanvas</small>
+        </span>
       </header>
 
-      <div className="kc-canvas-entry-loader-content">
-        <span className="kc-canvas-entry-loader-eyebrow">工作区 / {projectLabel}</span>
-        <div className="kc-canvas-entry-loader-title-row">
+      <div className="wc-canvas-entry-loader-content">
+        <span className="wc-canvas-entry-loader-eyebrow">工作区 / {projectLabel}</span>
+        <div className="wc-canvas-entry-loader-title-row">
           <h1>正在打开画布</h1>
           <strong>{displayProgress}%</strong>
         </div>
         <div
-          className="kc-canvas-entry-loader-progress"
+          className="wc-canvas-entry-loader-progress"
           role="progressbar"
           aria-label="画布进入进度"
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={displayProgress}
         >
-          <i><span style={{ width: `${displayProgress}%` }} /></i>
+          <i>
+            <span style={{ width: `${displayProgress}%` }} />
+          </i>
         </div>
-        <div className="kc-canvas-entry-loader-status" aria-live="polite">
-          <span className="kc-canvas-entry-loader-status-icon">
-            {exitReady ? <Network aria-hidden="true" /> : <LoaderCircle aria-hidden="true" className="is-spinning" />}
+        <div className="wc-canvas-entry-loader-status" aria-live="polite">
+          <span className="wc-canvas-entry-loader-status-icon">
+            {exitReady ? (
+              <Network aria-hidden="true" />
+            ) : (
+              <LoaderCircle aria-hidden="true" className="is-spinning" />
+            )}
           </span>
-          <span><strong>{statusLabel}</strong><small>{detailLabel}</small></span>
+          <span>
+            <strong>{statusLabel}</strong>
+            <small>{detailLabel}</small>
+          </span>
         </div>
       </div>
 
-      <footer className="kc-canvas-entry-loader-meta">
+      <footer className="wc-canvas-entry-loader-meta">
         <span>本地项目已恢复</span>
         <span aria-hidden="true" />
         <span>准备进入工作区</span>

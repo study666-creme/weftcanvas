@@ -1,4 +1,4 @@
-import type { MediaKind, ModelInputCount, PublicModel } from "@kachang/contracts";
+import type { MediaKind, ModelInputCount, PublicModel } from "@weftcanvas/contracts";
 
 import type { DirectReference } from "../state/direct-reference-store";
 import { getReferenceImagePurposes, referenceImageCapability } from "./generation-inputs";
@@ -23,15 +23,27 @@ function directReferenceMaximum(input: ModelInputCount | undefined, kind: MediaK
  */
 export function directMaterialControls(model: PublicModel | null, references: DirectReference[]) {
   if (!model) return [];
-  return ([
-    { kind: "image" as const, label: "图片素材", accept: "image/png,image/jpeg,image/webp,image/gif,image/avif,image/heif,image/tiff" },
+  return [
+    {
+      kind: "image" as const,
+      label: "图片素材",
+      accept: "image/png,image/jpeg,image/webp,image/gif,image/avif,image/heif,image/tiff",
+    },
     { kind: "video" as const, label: "视频素材", accept: "video/*" },
     { kind: "audio" as const, label: "音频素材", accept: "audio/*" },
-  ]).flatMap((control) => {
+  ].flatMap((control) => {
     const input = modelInput(model, control.kind);
     const max = directMaterialMaximum(model, control.kind);
     const hasExisting = references.some((reference) => reference.kind === control.kind);
-    return max > 0 || hasExisting ? [{ ...control, max, multiple: control.kind === "image" ? max > 1 : Boolean(input?.multiple) }] : [];
+    return max > 0 || hasExisting
+      ? [
+          {
+            ...control,
+            max,
+            multiple: control.kind === "image" ? max > 1 : Boolean(input?.multiple),
+          },
+        ]
+      : [];
   });
 }
 
@@ -39,7 +51,8 @@ export function directMaterialMaximum(model: PublicModel, kind: MediaKind) {
   if (kind !== "image") return directReferenceMaximum(modelInput(model, kind), kind);
   const imagePurposes = getReferenceImagePurposes(model);
   const slotMaximum = imagePurposes.reduce(
-    (total, purpose) => total + directReferenceMaximum(referenceImageCapability(model, purpose), "image"),
+    (total, purpose) =>
+      total + directReferenceMaximum(referenceImageCapability(model, purpose), "image"),
     0,
   );
   const aggregateMaximum = model.input.referenceMedia?.maxTotalItems ?? 32;

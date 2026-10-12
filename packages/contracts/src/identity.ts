@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-export const identityEmailSchema = z.string()
+export const identityEmailSchema = z
+  .string()
   .trim()
   .max(254)
   .email()
@@ -10,17 +11,21 @@ export const identityPasswordSchema = z.string().min(10).max(128);
 
 export const identityDisplayNameSchema = z.string().trim().min(1).max(48);
 
-export const identityRegisterRequestSchema = z.object({
-  email: identityEmailSchema,
-  password: identityPasswordSchema,
-  displayName: identityDisplayNameSchema.optional(),
-}).strict();
+export const identityRegisterRequestSchema = z
+  .object({
+    email: identityEmailSchema,
+    password: identityPasswordSchema,
+    displayName: identityDisplayNameSchema.optional(),
+  })
+  .strict();
 export type IdentityRegisterRequest = z.infer<typeof identityRegisterRequestSchema>;
 
-export const identityLoginRequestSchema = z.object({
-  email: identityEmailSchema,
-  password: z.string().min(1).max(128),
-}).strict();
+export const identityLoginRequestSchema = z
+  .object({
+    email: identityEmailSchema,
+    password: z.string().min(1).max(128),
+  })
+  .strict();
 export type IdentityLoginRequest = z.infer<typeof identityLoginRequestSchema>;
 
 export const publicIdentityUserSchema = z.object({

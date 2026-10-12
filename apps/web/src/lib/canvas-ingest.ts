@@ -1,4 +1,4 @@
-import type { CanvasMedia, CanvasNodeData, CanvasNodeKind } from "@kachang/contracts";
+import type { CanvasMedia, CanvasNodeData, CanvasNodeKind } from "@weftcanvas/contracts";
 import type { XYPosition } from "@xyflow/react";
 
 import { mediaNodeDimensions, nodeDefaultDimensions } from "./node-factory";
@@ -25,7 +25,11 @@ const TEXT_EXTENSIONS = [".md", ".markdown", ".txt"];
  */
 export async function inferCanvasFileKind(file: File): Promise<CanvasFileNodeKind | null> {
   const name = file.name.toLocaleLowerCase("en-US");
-  if (file.type.startsWith("text/") || TEXT_EXTENSIONS.some((extension) => name.endsWith(extension))) return "text";
+  if (
+    file.type.startsWith("text/") ||
+    TEXT_EXTENSIONS.some((extension) => name.endsWith(extension))
+  )
+    return "text";
   return inferMaterialKind(file);
 }
 
@@ -38,12 +42,14 @@ export function layoutCanvasIngestDrafts(
   const columns = Math.min(3, drafts.length);
   const rows = Math.ceil(drafts.length / columns);
   const dimensions = drafts.map((draft) => dimensionsForDraft(draft, defaultAspectRatio));
-  const columnWidths = Array.from({ length: columns }, (_, column) => Math.max(...dimensions
-    .filter((_, index) => index % columns === column)
-    .map((size) => size.width)));
-  const rowHeights = Array.from({ length: rows }, (_, row) => Math.max(...dimensions
-    .slice(row * columns, (row + 1) * columns)
-    .map((size) => size.height)));
+  const columnWidths = Array.from({ length: columns }, (_, column) =>
+    Math.max(
+      ...dimensions.filter((_, index) => index % columns === column).map((size) => size.width),
+    ),
+  );
+  const rowHeights = Array.from({ length: rows }, (_, row) =>
+    Math.max(...dimensions.slice(row * columns, (row + 1) * columns).map((size) => size.height)),
+  );
   const gapX = 34;
   const gapY = 42;
   const totalWidth = columnWidths.reduce((sum, width) => sum + width, 0) + gapX * (columns - 1);
@@ -67,10 +73,7 @@ export function layoutCanvasIngestDrafts(
   });
 }
 
-function dimensionsForDraft(
-  draft: CanvasIngestDraft,
-  defaultAspectRatio: DefaultNodeAspectRatio,
-) {
+function dimensionsForDraft(draft: CanvasIngestDraft, defaultAspectRatio: DefaultNodeAspectRatio) {
   const media = draft.data?.media as CanvasMedia | null | undefined;
   return media
     ? mediaNodeDimensions(draft.kind, media)

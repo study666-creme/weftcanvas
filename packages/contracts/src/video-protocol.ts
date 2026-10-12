@@ -2,11 +2,7 @@ import { z } from "zod";
 
 export const VIDEO_PROTOCOL_VERSION = "video.v1" as const;
 
-export const videoOperationSchema = z.enum([
-  "text_to_video",
-  "image_to_video",
-  "video_to_video",
-]);
+export const videoOperationSchema = z.enum(["text_to_video", "image_to_video", "video_to_video"]);
 export type VideoOperation = z.infer<typeof videoOperationSchema>;
 
 export const videoMediaKindSchema = z.enum(["image", "video", "audio"]);
@@ -23,18 +19,35 @@ export const videoMediaRoleSchema = z.enum([
 ]);
 export type VideoMediaRole = z.infer<typeof videoMediaRoleSchema>;
 
-export const videoMediaInputSchema = z.object({
-  kind: videoMediaKindSchema,
-  role: videoMediaRoleSchema,
-  url: z.string().trim().min(1).max(16 * 1024 * 1024),
-}).superRefine((input, context) => {
-  const valid = input.kind === "image"
-    ? ["reference", "first_frame", "last_frame", "style_reference", "element_reference"].includes(input.role)
-    : input.kind === "video"
-      ? ["reference", "source_video"].includes(input.role)
-      : ["reference", "audio_reference"].includes(input.role);
-  if (!valid) context.addIssue({ code: "custom", message: `Role ${input.role} is not valid for ${input.kind}` });
-});
+export const videoMediaInputSchema = z
+  .object({
+    kind: videoMediaKindSchema,
+    role: videoMediaRoleSchema,
+    url: z
+      .string()
+      .trim()
+      .min(1)
+      .max(16 * 1024 * 1024),
+  })
+  .superRefine((input, context) => {
+    const valid =
+      input.kind === "image"
+        ? [
+            "reference",
+            "first_frame",
+            "last_frame",
+            "style_reference",
+            "element_reference",
+          ].includes(input.role)
+        : input.kind === "video"
+          ? ["reference", "source_video"].includes(input.role)
+          : ["reference", "audio_reference"].includes(input.role);
+    if (!valid)
+      context.addIssue({
+        code: "custom",
+        message: `Role ${input.role} is not valid for ${input.kind}`,
+      });
+  });
 export type VideoMediaInput = z.infer<typeof videoMediaInputSchema>;
 
 export const videoProtocolRequestSchema = z.object({

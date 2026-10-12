@@ -1,4 +1,4 @@
-import type { PublicModelCatalog } from "@kachang/contracts";
+import type { PublicModelCatalog } from "@weftcanvas/contracts";
 
 const SUPERSEDED_MODEL_SETS = [
   {
@@ -13,10 +13,7 @@ const SUPERSEDED_MODEL_SETS = [
   },
   {
     legacyId: "seedance-2.0-431",
-    replacementIds: [
-      "sd2-431-720p-pro",
-      "sd2-431-720p-fast",
-    ],
+    replacementIds: ["sd2-431-720p-pro", "sd2-431-720p-fast"],
   },
 ] as const;
 
@@ -28,11 +25,10 @@ const SUPERSEDED_MODEL_SETS = [
 export function toPublicCatalogView(catalog: PublicModelCatalog): PublicModelCatalog {
   const modelIds = new Set(catalog.models.map((model) => model.id));
   const hiddenIds = new Set<string>(
-    SUPERSEDED_MODEL_SETS
-      .filter(({ legacyId, replacementIds }) => (
-        modelIds.has(legacyId) && replacementIds.every((id) => modelIds.has(id))
-      ))
-      .map(({ legacyId }) => legacyId),
+    SUPERSEDED_MODEL_SETS.filter(
+      ({ legacyId, replacementIds }) =>
+        modelIds.has(legacyId) && replacementIds.every((id) => modelIds.has(id)),
+    ).map(({ legacyId }) => legacyId),
   );
   if (!hiddenIds.size) return catalog;
   return {

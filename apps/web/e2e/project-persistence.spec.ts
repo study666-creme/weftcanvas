@@ -6,40 +6,73 @@ const PIXEL = Buffer.from(
 );
 
 test.beforeEach(async ({ page }) => {
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({ json: { ok: true, data: null } }));
-  await page.route("**/api/v1/model-catalog*", (route) => route.fulfill({ json: { ok: true, data: { version: "catalog-persist", capabilityVersion: "capability-persist", pricingVersion: "pricing-persist", fetchedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 3_600_000).toISOString(), quoteAvailable: false, models: [] } } }));
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({ json: { ok: true, data: null } }),
+  );
+  await page.route("**/api/v1/model-catalog*", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        data: {
+          version: "catalog-persist",
+          capabilityVersion: "capability-persist",
+          pricingVersion: "pricing-persist",
+          fetchedAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+          quoteAvailable: false,
+          models: [],
+        },
+      },
+    }),
+  );
 });
 
-test("graph identity, parameters, task status, groups, and media references survive reload and switching", async ({ page }) => {
+test("graph identity, parameters, task status, groups, and media references survive reload and switching", async ({
+  page,
+}) => {
   let submissionPosts = 0;
   await page.route("**/api/v1/generation-jobs", (route) => {
     if (route.request().method() === "POST") submissionPosts += 1;
     return route.fulfill({ json: { ok: true, data: [] } });
   });
-  await page.route("**/api/v1/generation-quotes", (route) => route.fulfill({ json: { ok: true, data: [] } }));
-  await page.route("**/api/v1/media/server-media-1/content", (route) => route.fulfill({ body: PIXEL, contentType: "image/png" }));
+  await page.route("**/api/v1/generation-quotes", (route) =>
+    route.fulfill({ json: { ok: true, data: [] } }),
+  );
+  await page.route("**/api/v1/media/server-media-1/content", (route) =>
+    route.fulfill({ body: PIXEL, contentType: "image/png" }),
+  );
   await seedPersistedProject(page);
 
   await page.goto("/canvas");
   await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
   await expect(page.getByText("持久化分镜", { exact: true })).toBeVisible();
-  await expect(page.locator('.react-flow__node-kachang')).toHaveCount(5);
+  await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(5);
   await expectLoadedImage(page.locator('img[alt="server-result.png"]'));
-  await expect(page.locator('.react-flow__node-kachang:has(.kc-media-empty--error)')).toHaveCount(1);
-  await expect(page.locator(".kc-group-frame")).toHaveCount(1);
-  await expect(page.locator(".kc-group-frame")).toContainText("故事组");
+  await expect(
+    page.locator(".react-flow__node-weftcanvas:has(.wc-media-empty--error)"),
+  ).toHaveCount(1);
+  await expect(page.locator(".wc-group-frame")).toHaveCount(1);
+  await expect(page.locator(".wc-group-frame")).toContainText("故事组");
   await expect(page.locator(".react-flow__edge")).toHaveCount(2);
 
   await page.reload();
   await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
   await expect(page.getByText("持久化分镜", { exact: true })).toBeVisible();
-  await expect(page.locator('.react-flow__node-kachang')).toHaveCount(5);
+  await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(5);
   await expectLoadedImage(page.locator('img[alt="server-result.png"]'));
-  await expect(page.locator('.react-flow__node-kachang:has(.kc-media-empty--error)')).toHaveCount(1);
-  await expect(page.locator(".kc-group-frame")).toHaveCount(1);
+  await expect(
+    page.locator(".react-flow__node-weftcanvas:has(.wc-media-empty--error)"),
+  ).toHaveCount(1);
+  await expect(page.locator(".wc-group-frame")).toHaveCount(1);
 
   const persisted = await readPersistedProject(page, "persist-project");
-  expect(persisted.nodes.map((node) => node.id).sort()).toEqual(["config-c", "image-b", "image-gen", "node-unknown", "text-a"]);
+  expect(persisted.nodes.map((node) => node.id).sort()).toEqual([
+    "config-c",
+    "image-b",
+    "image-gen",
+    "node-unknown",
+    "text-a",
+  ]);
   expect(persisted.edges).toHaveLength(2);
   expect(persisted.groups).toHaveLength(1);
   const imageGen = persisted.nodes.find((node) => node.id === "image-gen")!;
@@ -58,25 +91,29 @@ test("graph identity, parameters, task status, groups, and media references surv
 
   let sidebar = await openProjectLibrary(page);
   await sidebar.getByLabel("新建项目").click();
-  await expect(page.getByLabel("项目名称")).toHaveValue("卡藏画布 1");
-  await expect(page.locator('.react-flow__node-kachang')).toHaveCount(0);
+  await expect(page.getByLabel("项目名称")).toHaveValue("纬线画布 1");
+  await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(0);
   await expect(page.getByText("持久化分镜", { exact: true })).toHaveCount(0);
 
   sidebar = await openProjectLibrary(page);
-  await projectRow(page, "持久化画布").locator(".kc-project-open").click();
+  await projectRow(page, "持久化画布").locator(".wc-project-open").click();
   await expect(page.getByLabel("项目名称")).toHaveValue("持久化画布");
   await expect(page.getByText("持久化分镜", { exact: true })).toBeVisible();
-  await expect(page.locator('.react-flow__node-kachang')).toHaveCount(5);
+  await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(5);
   await expectLoadedImage(page.locator('img[alt="server-result.png"]'));
-  await expect(page.locator(".kc-group-frame")).toHaveCount(1);
+  await expect(page.locator(".wc-group-frame")).toHaveCount(1);
 
   expect(submissionPosts).toBe(0);
 });
 
-test("importing a project file creates a fresh copy, and rejected files leave the current project intact", async ({ page }) => {
+test("importing a project file creates a fresh copy, and rejected files leave the current project intact", async ({
+  page,
+}) => {
   await cleanLibrary(page);
   await seedPersistedProject(page);
-  await page.route("**/api/v1/media/server-media-1/content", (route) => route.fulfill({ body: PIXEL, contentType: "image/png" }));
+  await page.route("**/api/v1/media/server-media-1/content", (route) =>
+    route.fulfill({ body: PIXEL, contentType: "image/png" }),
+  );
 
   await page.goto("/canvas");
   await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
@@ -86,7 +123,7 @@ test("importing a project file creates a fresh copy, and rejected files leave th
   const downloadPromise = page.waitForEvent("download");
   await sidebar.getByRole("button", { name: "导出当前" }).click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toBe("持久化画布.kachang.json");
+  expect(download.suggestedFilename()).toBe("持久化画布.weftcanvas.json");
   const exportedPath = await download.path();
   expect(exportedPath).not.toBeNull();
 
@@ -95,11 +132,11 @@ test("importing a project file creates a fresh copy, and rejected files leave th
   await expect(page.getByText("持久化分镜", { exact: true })).toBeVisible();
 
   sidebar = await openProjectLibrary(page);
-  await expect(sidebar.locator(".kc-project-row")).toHaveCount(2);
+  await expect(sidebar.locator(".wc-project-row")).toHaveCount(2);
   await sidebar.locator('input[type="file"]').setInputFiles(exportedPath!);
   await expect(page.getByLabel("项目名称")).toHaveValue("持久化画布 3");
   sidebar = await openProjectLibrary(page);
-  await expect(sidebar.locator(".kc-project-row")).toHaveCount(3);
+  await expect(sidebar.locator(".wc-project-row")).toHaveCount(3);
 
   await sidebar.locator('input[type="file"]').setInputFiles({
     name: "broken.json",
@@ -125,11 +162,13 @@ test("importing a project file creates a fresh copy, and rejected files leave th
   await expect(page.getByText("项目文件过大，无法导入")).toBeVisible();
   await expect(page.getByLabel("项目名称")).toHaveValue("持久化画布 3");
 
-  await expect(page.locator('.react-flow__node-kachang')).toHaveCount(5);
+  await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(5);
   await expect(page.getByText("持久化分镜", { exact: true })).toBeVisible();
 });
 
-test("a failed project write is visible and retries once storage is available again", async ({ page }) => {
+test("a failed project write is visible and retries once storage is available again", async ({
+  page,
+}) => {
   await cleanLibrary(page);
   await page.goto("/canvas");
   await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
@@ -140,7 +179,7 @@ test("a failed project write is visible and retries once storage is available ag
       Storage.prototype.setItem = original;
     };
     Storage.prototype.setItem = function (key: string, value: string) {
-      if (key.startsWith("kachang-canvas:project-data")) {
+      if (key.startsWith("weftcanvas:project-data")) {
         throw new DOMException("Quota exceeded", "QuotaExceededError");
       }
       return original.call(this, key, value);
@@ -152,7 +191,9 @@ test("a failed project write is visible and retries once storage is available ag
   await name.blur();
   await expect(page.locator('[data-save-state="error"]')).toBeVisible();
 
-  await page.evaluate(() => (window as unknown as { __restoreProjectStorage: () => void }).__restoreProjectStorage());
+  await page.evaluate(() =>
+    (window as unknown as { __restoreProjectStorage: () => void }).__restoreProjectStorage(),
+  );
   await name.fill("写失败画布 已恢复");
   await name.blur();
   await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
@@ -164,7 +205,9 @@ for (const viewport of [
   { width: 1440, height: 900 },
   { width: 1024, height: 768 },
 ]) {
-  test(`project create/open/import/export controls stay reachable without overflow at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+  test(`project create/open/import/export controls stay reachable without overflow at ${viewport.width}x${viewport.height}`, async ({
+    page,
+  }) => {
     await page.setViewportSize(viewport);
     await cleanLibrary(page);
     await page.goto("/canvas");
@@ -174,9 +217,9 @@ for (const viewport of [
     await expect(sidebar.getByRole("button", { name: "导出当前" })).toBeVisible();
 
     await sidebar.getByLabel("新建项目").click();
-    await expect(page.getByLabel("项目名称")).toHaveValue("卡藏画布 2");
+    await expect(page.getByLabel("项目名称")).toHaveValue("纬线画布 2");
     const sidebarAfter = await openProjectLibrary(page);
-    await expect(sidebarAfter.locator(".kc-project-row")).toHaveCount(2);
+    await expect(sidebarAfter.locator(".wc-project-row")).toHaveCount(2);
 
     const dimensions = await page.evaluate(() => ({
       width: document.documentElement.clientWidth,
@@ -193,8 +236,8 @@ async function seedPersistedProject(page: Page) {
   await page.addInitScript(() => {
     localStorage.clear();
     sessionStorage.clear();
-    indexedDB.deleteDatabase("kachang-canvas-media");
-    indexedDB.deleteDatabase("kachang-canvas-assets");
+    indexedDB.deleteDatabase("weftcanvas-media");
+    indexedDB.deleteDatabase("weftcanvas-assets");
     const now = Date.now();
     const projectId = "persist-project";
     const project = {
@@ -204,7 +247,7 @@ async function seedPersistedProject(page: Page) {
       nodes: [
         {
           id: "text-a",
-          type: "kachang",
+          type: "weftcanvas",
           position: { x: 120, y: 80 },
           data: {
             kind: "text",
@@ -234,7 +277,7 @@ async function seedPersistedProject(page: Page) {
         },
         {
           id: "image-b",
-          type: "kachang",
+          type: "weftcanvas",
           position: { x: 440, y: 140 },
           data: {
             kind: "image",
@@ -274,7 +317,7 @@ async function seedPersistedProject(page: Page) {
         },
         {
           id: "image-gen",
-          type: "kachang",
+          type: "weftcanvas",
           position: { x: 860, y: 140 },
           data: {
             kind: "image",
@@ -315,7 +358,7 @@ async function seedPersistedProject(page: Page) {
         },
         {
           id: "config-c",
-          type: "kachang",
+          type: "weftcanvas",
           position: { x: 860, y: 620 },
           data: {
             kind: "config",
@@ -345,7 +388,7 @@ async function seedPersistedProject(page: Page) {
         },
         {
           id: "node-unknown",
-          type: "kachang",
+          type: "weftcanvas",
           position: { x: 120, y: 460 },
           data: {
             kind: "text",
@@ -378,55 +421,73 @@ async function seedPersistedProject(page: Page) {
         { id: "edge-ab", source: "text-a", target: "image-b" },
         { id: "edge-cg", source: "config-c", target: "image-gen" },
       ],
-      groups: [{
-        id: "group-1",
-        name: "故事组",
-        color: "#7dd3a8",
-        nodeIds: ["text-a", "image-b"],
-        frame: { x: 100, y: 60, width: 720, height: 440 },
-        createdAt: now,
-        updatedAt: now,
-      }],
+      groups: [
+        {
+          id: "group-1",
+          name: "故事组",
+          color: "#7dd3a8",
+          nodeIds: ["text-a", "image-b"],
+          frame: { x: 100, y: 60, width: 720, height: 440 },
+          createdAt: now,
+          updatedAt: now,
+        },
+      ],
       viewport: { x: 96, y: 138, zoom: 0.9 },
       createdAt: now,
       updatedAt: now,
     };
-    localStorage.setItem(`kachang-canvas:project-data:v1:${encodeURIComponent(projectId)}`, JSON.stringify(project));
-    localStorage.setItem("kachang-canvas:projects:v1", JSON.stringify({
-      version: 1,
-      projects: [{ id: projectId, name: project.name, createdAt: now, updatedAt: now, nodeCount: project.nodes.length }],
-    }));
-    localStorage.setItem("kachang-canvas:active-project:v1", projectId);
+    localStorage.setItem(
+      `weftcanvas:project-data:v1:${encodeURIComponent(projectId)}`,
+      JSON.stringify(project),
+    );
+    localStorage.setItem(
+      "weftcanvas:projects:v1",
+      JSON.stringify({
+        version: 1,
+        projects: [
+          {
+            id: projectId,
+            name: project.name,
+            createdAt: now,
+            updatedAt: now,
+            nodeCount: project.nodes.length,
+          },
+        ],
+      }),
+    );
+    localStorage.setItem("weftcanvas:active-project:v1", projectId);
   });
 }
 
 async function cleanLibrary(page: Page) {
   await page.addInitScript(() => {
-    if (sessionStorage.getItem("kachang-project-persistence-e2e-cleaned")) return;
+    if (sessionStorage.getItem("weftcanvas-project-persistence-e2e-cleaned")) return;
     localStorage.clear();
-    indexedDB.deleteDatabase("kachang-canvas-media");
-    sessionStorage.setItem("kachang-project-persistence-e2e-cleaned", "1");
+    indexedDB.deleteDatabase("weftcanvas-media");
+    sessionStorage.setItem("weftcanvas-project-persistence-e2e-cleaned", "1");
   });
 }
 
 async function openProjectLibrary(page: Page) {
   await page.getByLabel("项目菜单").click();
-  const sidebar = page.locator(".kc-project-sidebar");
+  const sidebar = page.locator(".wc-project-sidebar");
   await expect(sidebar).toBeVisible();
   return sidebar;
 }
 
 function projectRow(page: Page, name: string) {
-  return page.locator(".kc-project-row", {
-    has: page.locator(".kc-project-copy strong", { hasText: new RegExp(`^${escapeRegExp(name)}$`) }),
+  return page.locator(".wc-project-row", {
+    has: page.locator(".wc-project-copy strong", {
+      hasText: new RegExp(`^${escapeRegExp(name)}$`),
+    }),
   });
 }
 
 async function readPersistedProject(page: Page, projectId?: string) {
   return page.evaluate((id) => {
-    const projectId = id ?? localStorage.getItem("kachang-canvas:active-project:v1");
+    const projectId = id ?? localStorage.getItem("weftcanvas:active-project:v1");
     if (!projectId) throw new Error("no active project");
-    const raw = localStorage.getItem(`kachang-canvas:project-data:v1:${encodeURIComponent(projectId)}`);
+    const raw = localStorage.getItem(`weftcanvas:project-data:v1:${encodeURIComponent(projectId)}`);
     if (!raw) throw new Error("project data missing");
     return JSON.parse(raw) as {
       name: string;
@@ -434,7 +495,11 @@ async function readPersistedProject(page: Page, projectId?: string) {
         id: string;
         data: {
           status: string;
-          generation: { jobStatus: string | null; parameters: Record<string, unknown>; artifactId?: string };
+          generation: {
+            jobStatus: string | null;
+            parameters: Record<string, unknown>;
+            artifactId?: string;
+          };
           media: { id: string; name: string; source: string } | null;
         };
       }>;
@@ -446,7 +511,9 @@ async function readPersistedProject(page: Page, projectId?: string) {
 
 async function expectLoadedImage(image: Locator) {
   await expect(image).toBeVisible();
-  await expect.poll(() => image.evaluate((element) => (element as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  await expect
+    .poll(() => image.evaluate((element) => (element as HTMLImageElement).naturalWidth))
+    .toBeGreaterThan(0);
 }
 
 function escapeRegExp(value: string) {

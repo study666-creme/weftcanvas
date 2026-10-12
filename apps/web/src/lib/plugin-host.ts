@@ -1,18 +1,24 @@
-import {
-  agentActionSchema,
-  type AgentAction,
-} from "@kachang/contracts";
+import { agentActionSchema, type AgentAction } from "@weftcanvas/contracts";
 import type {
   Plugin,
   PluginContext,
   PluginNodeBodyProps,
   PluginNodeDefinition,
   PluginOp,
-} from "@kachang/plugin-sdk";
+} from "@weftcanvas/plugin-sdk";
 
 import { executeAgentActions } from "./agent-action-executor";
-import { createSyntheticCustomModel, createSyntheticCustomRoute, executeCustomGeneration } from "./custom-api";
-import { getNodeDefinition, registerNode, type NodeCreateContext, type NodeDefinition } from "./node-registry";
+import {
+  createSyntheticCustomModel,
+  createSyntheticCustomRoute,
+  executeCustomGeneration,
+} from "./custom-api";
+import {
+  getNodeDefinition,
+  registerNode,
+  type NodeCreateContext,
+  type NodeDefinition,
+} from "./node-registry";
 import { useCanvasStore } from "../state/canvas-store";
 import { useCustomApiStore } from "../state/custom-api-store";
 
@@ -20,9 +26,16 @@ import { useCustomApiStore } from "../state/custom-api-store";
  * 画布操作通道：与 Agent 命令同一套 schema 校验 + 执行路径（含命令 id 去重）。
  * 插件面板与插件节点体共用；runTag 只用于去重键命名空间。
  */
-export function applyCanvasOps(runTag: string, ops: PluginOp[]): { applied: number; skipped: number } {
+export function applyCanvasOps(
+  runTag: string,
+  ops: PluginOp[],
+): { applied: number; skipped: number } {
   const actions: AgentAction[] = ops.map((op) => agentActionSchema.parse(op));
-  const result = executeAgentActions(useCanvasStore.getState().projectId, `${runTag}-${Date.now()}`, actions);
+  const result = executeAgentActions(
+    useCanvasStore.getState().projectId,
+    `${runTag}-${Date.now()}`,
+    actions,
+  );
   return { applied: result.applied, skipped: result.skipped };
 }
 
@@ -43,13 +56,18 @@ type LoadedPlugin = {
 
 const loadedPlugins = new Map<string, LoadedPlugin>();
 const listeners = new Set<() => void>();
+// 稳定快照：useSyncExternalStore 要求同一状态返回同一引用，若每次调用都新建
+// 数组会在渲染期被判定为「快照变化」→ 无限重渲染（设置中心插件板块曾因此崩溃）。
+// 只在装载/卸载时重建，读取方永远拿到同一个引用。
+let installedSnapshot: readonly string[] = [];
 
 function emitChange() {
+  installedSnapshot = [...loadedPlugins.keys()];
   for (const listener of listeners) listener();
 }
 
-export function listInstalledPluginIds(): string[] {
-  return [...loadedPlugins.keys()];
+export function listInstalledPluginIds(): readonly string[] {
+  return installedSnapshot;
 }
 
 export function subscribeToPlugins(listener: () => void): () => void {
@@ -97,7 +115,9 @@ function createPluginContext(
           accent: definition.accent ?? "jade",
           creatable: definition.creatable !== false,
           createDraft: (ctx: NodeCreateContext) => {
-            const draft = definition.createDraft({ defaultAspectRatio: ctx.defaultAspectRatio as string });
+            const draft = definition.createDraft({
+              defaultAspectRatio: ctx.defaultAspectRatio as string,
+            });
             return { kind: kind as NodeDefinition["kind"], ...draft };
           },
           renderBody: definition.renderBody as NodeDefinition["renderBody"],
@@ -121,7 +141,7 @@ function createPluginContext(
       if (!/^[a-z0-9_-]{1,64}$/i.test(namespace)) {
         throw new Error(`[plugin-host] 存储命名空间 "${namespace}" 含非法字符`);
       }
-      const prefix = `kachang-canvas:plugin:${plugin.id}:${namespace}:`;
+      const prefix = `weftcanvas:plugin:${plugin.id}:${namespace}:`;
       const read = (key: string) => {
         try {
           return localStorage.getItem(prefix + key);
@@ -163,15 +183,17 @@ function createPluginContext(
       async generateText(input) {
         // 宿主代发：插件只给意图，密钥不出 localStorage（BYOK 通道）。
         const state = useCustomApiStore.getState();
-        const profile = state.profiles.find((item) => item.id === state.activeProfileId)
-          ?? state.profiles.find((item) => item.enabled)
-          ?? null;
+        const profile =
+          state.profiles.find((item) => item.id === state.activeProfileId) ??
+          state.profiles.find((item) => item.enabled) ??
+          null;
         const connection = profile?.connection ?? state.connection;
         if (!connection?.apiKey?.trim()) {
           throw new Error("PLUGINS_AI_UNAVAILABLE: 未配置可用的自定义 API（设置 → API 配置）");
         }
-        const modelId = input.modelId?.trim()
-          || profile?.catalog?.models.find((model) => model.modality === "text")?.id;
+        const modelId =
+          input.modelId?.trim() ||
+          profile?.catalog?.models.find((model) => model.modality === "text")?.id;
         if (!modelId) {
           throw new Error("PLUGINS_AI_UNAVAILABLE: 当前 API 配置里没有可选的文本模型");
         }
@@ -241,7 +263,7 @@ export function getLoadedPlugin(pluginId: string): Plugin | null {
 
 /** 供测试与调试：DEV 下挂到 window，用于装/卸演练。 */
 export function exposePluginHostTestHook(): void {
-  (globalThis as Record<string, unknown>).__kachangPluginHost = {
+  (globalThis as Record<string, unknown>).__weftcanvasPluginHost = {
     install: installPlugin,
     uninstall: uninstallPlugin,
     list: listInstalledPluginIds,

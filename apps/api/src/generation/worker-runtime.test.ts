@@ -30,7 +30,13 @@ describe("generation worker runtime", () => {
   it("backs off temporary failures without changing job state", async () => {
     const queue = new MemoryQueue({ ...lease(), consecutiveErrorCount: 2 });
     const errors: unknown[] = [];
-    await createRuntime(queue, async () => { throw new Error("storage\nunavailable"); }, errors).runOnce();
+    await createRuntime(
+      queue,
+      async () => {
+        throw new Error("storage\nunavailable");
+      },
+      errors,
+    ).runOnce();
 
     expect(queue.releases[0]).toEqual({
       nextAttemptAt: new Date(NOW + 4_000).toISOString(),
@@ -41,19 +47,29 @@ describe("generation worker runtime", () => {
 
   it("renews a lease during long processing and does not release a lost lease", async () => {
     const renewed = new MemoryQueue(lease());
-    await createRuntime(renewed, async () => {
-      await new Promise((resolve) => setTimeout(resolve, 25));
-      return job("queued");
-    }, [], { heartbeatMs: 5, leaseDurationMs: 30 }).runOnce();
+    await createRuntime(
+      renewed,
+      async () => {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        return job("queued");
+      },
+      [],
+      { heartbeatMs: 5, leaseDurationMs: 30 },
+    ).runOnce();
     expect(renewed.renewals).toBeGreaterThan(0);
     expect(renewed.releases).toHaveLength(1);
 
     const lost = new MemoryQueue(lease());
     lost.renewResult = false;
-    await createRuntime(lost, async () => {
-      await new Promise((resolve) => setTimeout(resolve, 15));
-      return job("queued");
-    }, [], { heartbeatMs: 5, leaseDurationMs: 30 }).runOnce();
+    await createRuntime(
+      lost,
+      async () => {
+        await new Promise((resolve) => setTimeout(resolve, 15));
+        return job("queued");
+      },
+      [],
+      { heartbeatMs: 5, leaseDurationMs: 30 },
+    ).runOnce();
     expect(lost.renewals).toBe(1);
     expect(lost.releases).toHaveLength(0);
   });
@@ -77,7 +93,11 @@ class MemoryQueue implements GenerationWorkQueue {
     return this.renewResult;
   }
 
-  async release(_jobId: string, _token: string, options: { nextAttemptAt: string | null; error: string | null }) {
+  async release(
+    _jobId: string,
+    _token: string,
+    options: { nextAttemptAt: string | null; error: string | null },
+  ) {
     this.releases.push(options);
     return true;
   }
@@ -89,14 +109,20 @@ function createRuntime(
   errors: unknown[] = [],
   timing: { heartbeatMs?: number; leaseDurationMs?: number } = {},
 ) {
-  return new GenerationWorkerRuntime(queue, { process }, {
-    owner: "worker:test",
-    now: () => NOW,
-    heartbeatMs: timing.heartbeatMs ?? 20,
-    leaseDurationMs: timing.leaseDurationMs ?? 60,
-    idleDelayMs: 10,
-    onError: (error) => { errors.push(error); },
-  });
+  return new GenerationWorkerRuntime(
+    queue,
+    { process },
+    {
+      owner: "worker:test",
+      now: () => NOW,
+      heartbeatMs: timing.heartbeatMs ?? 20,
+      leaseDurationMs: timing.leaseDurationMs ?? 60,
+      idleDelayMs: 10,
+      onError: (error) => {
+        errors.push(error);
+      },
+    },
+  );
 }
 
 function lease(): GenerationWorkLease {

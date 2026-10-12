@@ -1,5 +1,13 @@
 import { Circle, Eraser, Minus, Pencil, Redo2, Square, Undo2, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type WheelEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+  type WheelEvent,
+} from "react";
 import { createPortal } from "react-dom";
 
 import "./image-annotate-panel.css";
@@ -66,7 +74,9 @@ function clamp(value: number, min: number, max: number) {
 
 function normalizeSettings(value: ImageAnnotateSettings): ImageAnnotateSettings {
   return {
-    tool: TOOLS.some((tool) => tool.id === value.tool) ? value.tool : defaultImageAnnotateSettings.tool,
+    tool: TOOLS.some((tool) => tool.id === value.tool)
+      ? value.tool
+      : defaultImageAnnotateSettings.tool,
     color: HEX_COLOR.test(value.color) ? value.color : defaultImageAnnotateSettings.color,
     lineWidth: clamp(Math.round(value.lineWidth), LINE_WIDTH_MIN, LINE_WIDTH_MAX),
   };
@@ -114,7 +124,12 @@ function shapePath(context: CanvasRenderingContext2D, draft: ShapeDraft, scale: 
       2 * Math.PI,
     );
   } else {
-    context.rect(Math.min(draft.start.x, draft.end.x), Math.min(draft.start.y, draft.end.y), Math.abs(width), Math.abs(height));
+    context.rect(
+      Math.min(draft.start.x, draft.end.x),
+      Math.min(draft.start.y, draft.end.y),
+      Math.abs(width),
+      Math.abs(height),
+    );
   }
   context.stroke();
   context.restore();
@@ -135,7 +150,17 @@ function renderComposite(
     if (stroke.tool === "pen") {
       strokePath(context, stroke, scale);
     } else {
-      shapePath(context, { tool: stroke.tool, color: stroke.color, lineWidth: stroke.lineWidth, start: stroke.points[0]!, end: stroke.points.at(-1)! }, scale);
+      shapePath(
+        context,
+        {
+          tool: stroke.tool,
+          color: stroke.color,
+          lineWidth: stroke.lineWidth,
+          start: stroke.points[0]!,
+          end: stroke.points.at(-1)!,
+        },
+        scale,
+      );
     }
   }
   return canvas;
@@ -183,9 +208,11 @@ export function ImageAnnotatePanel({
 
   // 始终以源图像坐标为基准：编辑视图用变换矩阵缩放到显示尺寸，线宽按同一
   // 比例缩放，导出时回到自然尺寸，标注粗细在任意显示比例下视觉一致。
-  const displayScale = image ? stageRef.current?.clientWidth
-    ? stageRef.current.clientWidth / image.naturalWidth
-    : 1 : 1;
+  const displayScale = image
+    ? stageRef.current?.clientWidth
+      ? stageRef.current.clientWidth / image.naturalWidth
+      : 1
+    : 1;
 
   const redrawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -206,7 +233,17 @@ export function ImageAnnotatePanel({
       if (stroke.tool === "pen") {
         strokePath(context, stroke, scale);
       } else {
-        shapePath(context, { tool: stroke.tool, color: stroke.color, lineWidth: stroke.lineWidth, start: stroke.points[0]!, end: stroke.points.at(-1)! }, scale);
+        shapePath(
+          context,
+          {
+            tool: stroke.tool,
+            color: stroke.color,
+            lineWidth: stroke.lineWidth,
+            start: stroke.points[0]!,
+            end: stroke.points.at(-1)!,
+          },
+          scale,
+        );
       }
     }
     if (draft) shapePath(context, draft, scale);
@@ -243,7 +280,12 @@ export function ImageAnnotatePanel({
     if (!point) return;
     setRedoStack([]);
     if (normalized.tool === "pen") {
-      const stroke: Stroke = { tool: "pen", color: normalized.color, lineWidth: normalized.lineWidth, points: [point] };
+      const stroke: Stroke = {
+        tool: "pen",
+        color: normalized.color,
+        lineWidth: normalized.lineWidth,
+        points: [point],
+      };
       activeStroke.current = { pointerId: event.pointerId, stroke };
       setStrokes((current) => [...current, stroke]);
     } else {
@@ -280,7 +322,7 @@ export function ImageAnnotatePanel({
       event.stopPropagation();
       const point = pointFromPointer(event);
       if (!point) return;
-      setDraft((current) => current ? { ...current, end: point } : current);
+      setDraft((current) => (current ? { ...current, end: point } : current));
     }
   };
 
@@ -303,14 +345,20 @@ export function ImageAnnotatePanel({
       }
       const finished = draft;
       setDraft(null);
-      const distance = Math.hypot(finished.end.x - finished.start.x, finished.end.y - finished.start.y);
+      const distance = Math.hypot(
+        finished.end.x - finished.start.x,
+        finished.end.y - finished.start.y,
+      );
       if (distance >= finished.lineWidth * 1.5) {
-        setStrokes((current) => [...current, {
-          tool: finished.tool,
-          color: finished.color,
-          lineWidth: finished.lineWidth,
-          points: [finished.start, finished.end],
-        }]);
+        setStrokes((current) => [
+          ...current,
+          {
+            tool: finished.tool,
+            color: finished.color,
+            lineWidth: finished.lineWidth,
+            points: [finished.start, finished.end],
+          },
+        ]);
       }
     }
   };
@@ -340,7 +388,9 @@ export function ImageAnnotatePanel({
   const apply = async () => {
     if (!image || applying || disabled) return;
     const composite = renderComposite(image, strokes, 1 / Math.max(0.0001, displayScale));
-    const blob = await new Promise<Blob | null>((resolve) => composite.toBlob(resolve, "image/png"));
+    const blob = await new Promise<Blob | null>((resolve) =>
+      composite.toBlob(resolve, "image/png"),
+    );
     if (!blob) return;
     await onApply(blob);
     setStrokes([]);
@@ -369,38 +419,50 @@ export function ImageAnnotatePanel({
 
   return createPortal(
     <div
-      className="kc-image-annotate-backdrop"
-      data-kc-block-canvas-shortcuts
+      className="wc-image-annotate-backdrop"
+      data-wc-block-canvas-shortcuts
       onWheel={isolateWheel}
       onKeyDown={handleKeyDown}
       onPointerDown={(event) => {
         if (event.target === event.currentTarget && !busy) close();
       }}
     >
-      <div className="kc-image-annotate-panel" role="dialog" aria-label="图片标注">
-        <header className="kc-image-annotate-header">
+      <div className="wc-image-annotate-panel" role="dialog" aria-label="图片标注">
+        <header className="wc-image-annotate-header">
           <strong>标注图片</strong>
-          <span className="kc-image-annotate-sub">{sourceName}</span>
-          <button type="button" className="kc-image-annotate-close" aria-label="关闭图片标注" title="关闭" onClick={close} disabled={busy}>
+          <span className="wc-image-annotate-sub">{sourceName}</span>
+          <button
+            type="button"
+            className="wc-image-annotate-close"
+            aria-label="关闭图片标注"
+            title="关闭"
+            onClick={close}
+            disabled={busy}
+          >
             <X aria-hidden="true" />
           </button>
         </header>
 
-        <div className="kc-image-annotate-stage-row">
+        <div className="wc-image-annotate-stage-row">
           <div
             ref={stageRef}
-            className="kc-image-annotate-stage"
-            style={{ aspectRatio: `${stageAspect}`, "--stage-aspect": stageAspect } as React.CSSProperties}
+            className="wc-image-annotate-stage"
+            style={
+              {
+                aspectRatio: `${stageAspect}`,
+                "--stage-aspect": stageAspect,
+              } as React.CSSProperties
+            }
             onPointerDown={beginDraw}
             onPointerMove={moveDraw}
             onPointerUp={endDraw}
             onPointerCancel={endDraw}
           >
-            <canvas ref={canvasRef} className="kc-image-annotate-canvas" aria-label="标注画布" />
+            <canvas ref={canvasRef} className="wc-image-annotate-canvas" aria-label="标注画布" />
           </div>
         </div>
 
-        <div className="kc-image-annotate-tools" role="toolbar" aria-label="标注工具">
+        <div className="wc-image-annotate-tools" role="toolbar" aria-label="标注工具">
           {TOOLS.map((tool) => {
             const Icon = tool.icon;
             return (
@@ -418,12 +480,12 @@ export function ImageAnnotatePanel({
               </button>
             );
           })}
-          <span className="kc-image-annotate-divider" aria-hidden="true" />
+          <span className="wc-image-annotate-divider" aria-hidden="true" />
           {COLOR_PRESETS.map((color) => (
             <button
               key={color}
               type="button"
-              className={`kc-image-annotate-color ${normalized.color === color ? "is-active" : ""}`}
+              className={`wc-image-annotate-color ${normalized.color === color ? "is-active" : ""}`}
               style={{ background: color }}
               aria-label={`画笔颜色 ${color}`}
               aria-pressed={normalized.color === color}
@@ -432,8 +494,8 @@ export function ImageAnnotatePanel({
               onClick={() => setSettings({ ...normalized, color })}
             />
           ))}
-          <span className="kc-image-annotate-divider" aria-hidden="true" />
-          <label className="kc-image-annotate-width" title="线条粗细">
+          <span className="wc-image-annotate-divider" aria-hidden="true" />
+          <label className="wc-image-annotate-width" title="线条粗细">
             <span aria-hidden="true">粗细</span>
             <input
               type="range"
@@ -442,27 +504,49 @@ export function ImageAnnotatePanel({
               step={LINE_WIDTH_STEP}
               value={normalized.lineWidth}
               disabled={busy}
-              onChange={(event) => setSettings({ ...normalized, lineWidth: Number(event.target.value) })}
+              onChange={(event) =>
+                setSettings({ ...normalized, lineWidth: Number(event.target.value) })
+              }
             />
             <output>{normalized.lineWidth}</output>
           </label>
-          <span className="kc-image-annotate-divider" aria-hidden="true" />
-          <button type="button" aria-label="撤销上一笔" title="撤销" disabled={busy || !strokes.length} onClick={undo}>
+          <span className="wc-image-annotate-divider" aria-hidden="true" />
+          <button
+            type="button"
+            aria-label="撤销上一笔"
+            title="撤销"
+            disabled={busy || !strokes.length}
+            onClick={undo}
+          >
             <Undo2 aria-hidden="true" />
           </button>
-          <button type="button" aria-label="重做" title="重做" disabled={busy || !redoStack.length} onClick={redo}>
+          <button
+            type="button"
+            aria-label="重做"
+            title="重做"
+            disabled={busy || !redoStack.length}
+            onClick={redo}
+          >
             <Redo2 aria-hidden="true" />
           </button>
-          <button type="button" aria-label="清空全部标注" title="清空" disabled={busy || !strokes.length} onClick={clearAll}>
+          <button
+            type="button"
+            aria-label="清空全部标注"
+            title="清空"
+            disabled={busy || !strokes.length}
+            onClick={clearAll}
+          >
             <Eraser aria-hidden="true" />
           </button>
         </div>
 
-        <footer className="kc-image-annotate-footer">
-          <span className="kc-image-annotate-hint">编辑完成后将生成一张新图片节点，并连接到当前节点</span>
+        <footer className="wc-image-annotate-footer">
+          <span className="wc-image-annotate-hint">
+            编辑完成后将生成一张新图片节点，并连接到当前节点
+          </span>
           <button
             type="button"
-            className="kc-image-annotate-apply"
+            className="wc-image-annotate-apply"
             disabled={!canApply}
             onClick={() => void apply()}
           >

@@ -1,7 +1,12 @@
 const VIDEO_EVENT_TIMEOUT_MS = 20_000;
 
-function waitForVideoEvent(video: HTMLVideoElement, eventName: "loadedmetadata" | "loadeddata" | "seeked", timeoutMs = VIDEO_EVENT_TIMEOUT_MS) {
-  if (eventName === "loadedmetadata" && video.readyState >= 1 && Number.isFinite(video.duration)) return Promise.resolve();
+function waitForVideoEvent(
+  video: HTMLVideoElement,
+  eventName: "loadedmetadata" | "loadeddata" | "seeked",
+  timeoutMs = VIDEO_EVENT_TIMEOUT_MS,
+) {
+  if (eventName === "loadedmetadata" && video.readyState >= 1 && Number.isFinite(video.duration))
+    return Promise.resolve();
   if (eventName === "loadeddata" && video.readyState >= 2) return Promise.resolve();
 
   return new Promise<void>((resolve, reject) => {
@@ -35,7 +40,8 @@ export function getDefaultLastFrameTime(duration: number) {
 export function seekVideoToTime(video: HTMLVideoElement, time: number) {
   const duration = Number.isFinite(video.duration) ? video.duration : time;
   const target = Math.max(0, Math.min(time, Math.max(0, duration - 0.001)));
-  if (Math.abs(video.currentTime - target) < 0.02 && video.readyState >= 2) return Promise.resolve();
+  if (Math.abs(video.currentTime - target) < 0.02 && video.readyState >= 2)
+    return Promise.resolve();
 
   return new Promise<void>((resolve, reject) => {
     const timeout = window.setTimeout(() => {
@@ -81,7 +87,10 @@ export function captureFrameFromVideoElement(video: HTMLVideoElement) {
 
   return new Promise<Blob>((resolve, reject) => {
     try {
-      canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("无法导出视频画面")), "image/png");
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error("无法导出视频画面"))),
+        "image/png",
+      );
     } catch {
       reject(new Error("无法导出画面，请确认视频来源允许截帧"));
     }

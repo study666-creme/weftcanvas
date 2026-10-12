@@ -44,7 +44,11 @@ async function inspectImage(path: string): Promise<InspectedMedia> {
     const pages = metadata.pages ?? 1;
     const mimeType = metadata.format ? IMAGE_MIME_TYPES[metadata.format] : undefined;
     if (!width || !height || !mimeType) throw invalid("图片格式或尺寸无法识别");
-    if (width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION || width * height * pages > MAX_IMAGE_PIXELS) {
+    if (
+      width > MAX_IMAGE_DIMENSION ||
+      height > MAX_IMAGE_DIMENSION ||
+      width * height * pages > MAX_IMAGE_PIXELS
+    ) {
       throw new MediaInspectionError("IMAGE_DIMENSIONS_TOO_LARGE", "图片尺寸超过当前限制");
     }
     return {
@@ -61,7 +65,10 @@ async function inspectImage(path: string): Promise<InspectedMedia> {
   }
 }
 
-async function inspectAudioVideo(path: string, expectedKind: "video" | "audio"): Promise<InspectedMedia> {
+async function inspectAudioVideo(
+  path: string,
+  expectedKind: "video" | "audio",
+): Promise<InspectedMedia> {
   const mediaInfo = await mediaInfoFactory({ format: "object", chunkSize: 256 * 1024 });
   try {
     const file = await open(path, "r");
@@ -79,9 +86,10 @@ async function inspectAudioVideo(path: string, expectedKind: "video" | "audio"):
       if (expectedKind === "video" && !video) throw mismatch("文件中没有可识别的视频轨道");
       if (expectedKind === "audio" && (!audio || video)) throw mismatch("文件内容不是独立音频");
 
-      const duration = expectedKind === "video"
-        ? positiveNumber(video?.Duration) ?? positiveNumber(general?.Duration)
-        : positiveNumber(audio?.Duration) ?? positiveNumber(general?.Duration);
+      const duration =
+        expectedKind === "video"
+          ? (positiveNumber(video?.Duration) ?? positiveNumber(general?.Duration))
+          : (positiveNumber(audio?.Duration) ?? positiveNumber(general?.Duration));
       if (!duration) throw invalid(`${expectedKind === "video" ? "视频" : "音频"}时长无法识别`);
       const mimeType = mediaMimeType(general, expectedKind);
       if (!mimeType) throw invalid(`${expectedKind === "video" ? "视频" : "音频"}容器格式无法识别`);

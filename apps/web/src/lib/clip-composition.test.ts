@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { CanvasEditClip } from "@kachang/contracts";
+import type { CanvasEditClip } from "@weftcanvas/contracts";
 
 import {
   activeClipAt,
@@ -21,7 +21,7 @@ import {
   trackDurationMs,
   type EditAsset,
 } from "./clip-composition";
-import type { KachangEdge, KachangNode } from "../types";
+import type { WeftcanvasEdge, WeftcanvasNode } from "../types";
 
 function makeClip(overrides: Partial<CanvasEditClip> & { id: string }): CanvasEditClip {
   return {
@@ -68,7 +68,17 @@ describe("clip-composition timeline math", () => {
   });
 
   it("clamps trim handles to the source range and the minimum duration", () => {
-    const clip = { id: "a", track: "video", nodeId: "n", mediaId: "m", name: "v.mp4", kind: "video", sourceDurationMs: 10_000, inMs: 1_000, outMs: 6_000 } as const;
+    const clip = {
+      id: "a",
+      track: "video",
+      nodeId: "n",
+      mediaId: "m",
+      name: "v.mp4",
+      kind: "video",
+      sourceDurationMs: 10_000,
+      inMs: 1_000,
+      outMs: 6_000,
+    } as const;
     expect(setClipRange(clip, { inMs: 3_000 })).toMatchObject({ inMs: 3_000, outMs: 6_000 });
     expect(setClipRange(clip, { outMs: 2_000 })).toMatchObject({ inMs: 1_000, outMs: 2_000 });
     expect(setClipRange(clip, { outMs: 1_400 })).toMatchObject({ inMs: 1_000, outMs: 1_400 });
@@ -78,11 +88,7 @@ describe("clip-composition timeline math", () => {
   });
 
   it("moves and removes clips by id", () => {
-    const clips = [
-      makeClip({ id: "a" }),
-      makeClip({ id: "b" }),
-      makeClip({ id: "c" }),
-    ];
+    const clips = [makeClip({ id: "a" }), makeClip({ id: "b" }), makeClip({ id: "c" })];
     expect(moveClip(clips, "c", 0).map((clip) => clip.id)).toEqual(["c", "a", "b"]);
     expect(moveClip(clips, "a", 99).map((clip) => clip.id)).toEqual(["b", "c", "a"]);
     expect(moveClip(clips, "missing", 0).map((clip) => clip.id)).toEqual(["a", "b", "c"]);
@@ -93,7 +99,17 @@ describe("clip-composition timeline math", () => {
     const asset: EditAsset = {
       nodeId: "node-1",
       kind: "image",
-      media: { id: "media-1", name: "photo.png", mimeType: "image/png", size: 1, source: "local", serverId: null, width: 100, height: 100, durationMs: null },
+      media: {
+        id: "media-1",
+        name: "photo.png",
+        mimeType: "image/png",
+        size: 1,
+        source: "local",
+        serverId: null,
+        width: 100,
+        height: 100,
+        durationMs: null,
+      },
     };
     const imageClip = buildClipFromAsset(asset, null);
     expect(imageClip.track).toBe("video");
@@ -102,7 +118,10 @@ describe("clip-composition timeline math", () => {
     const videoClip = buildClipFromAsset({ ...asset, kind: "video" }, null);
     expect(videoClip.outMs - videoClip.inMs).toBe(EDIT_FALLBACK_CLIP_DURATION_MS);
 
-    const audioClip = buildClipFromAsset({ ...asset, kind: "audio", media: { ...asset.media, durationMs: 9_800 } }, 9_800);
+    const audioClip = buildClipFromAsset(
+      { ...asset, kind: "audio", media: { ...asset.media, durationMs: 9_800 } },
+      9_800,
+    );
     expect(audioClip.track).toBe("audio");
     expect(audioClip.outMs).toBe(9_800);
   });
@@ -115,14 +134,14 @@ describe("clip-composition timeline math", () => {
       { id: "img", data: { kind: "image", media: { id: "m2" } } },
       { id: "note", data: { kind: "text", media: null } },
       { id: "other", data: { kind: "video", media: { id: "m3" } } },
-    ] as unknown as KachangNode[];
+    ] as unknown as WeftcanvasNode[];
     const edges = [
       { source: "v1", target: "edit" },
       { source: "v2", target: "edit" },
       { source: "img", target: "edit" },
       { source: "note", target: "edit" },
       { source: "other", target: "other-2" },
-    ] as KachangEdge[];
+    ] as WeftcanvasEdge[];
 
     const assets = collectEditAssets(nodes, edges, "edit");
     expect(assets.map((asset) => asset.media.id)).toEqual(["m1", "m2"]);
@@ -132,15 +151,60 @@ describe("clip-composition timeline math", () => {
   it("collects streamed audio nodes (music link) as sourceUrl assets", () => {
     const nodes = [
       { id: "edit", data: { kind: "edit" } },
-      { id: "stream", data: { kind: "audio", media: null, music: { pageUrl: "https://music.163.com/song?id=1", streamPath: "/api/v1/music/stream?u=x", coverPath: null, title: "Song", artist: "", source: "netease", resolvedAt: 1 } } },
-      { id: "card", data: { kind: "audio", media: null, music: { pageUrl: "https://y.qq.com/x", streamPath: null, coverPath: null, title: "Card", artist: "", source: "qq", resolvedAt: 1 } } },
-      { id: "foreign", data: { kind: "audio", media: null, music: { pageUrl: "https://evil.example/x.mp3", streamPath: "https://evil.example/x.mp3", coverPath: null, title: "Evil", artist: "", source: "direct", resolvedAt: 1 } } },
-    ] as unknown as KachangNode[];
+      {
+        id: "stream",
+        data: {
+          kind: "audio",
+          media: null,
+          music: {
+            pageUrl: "https://music.163.com/song?id=1",
+            streamPath: "/api/v1/music/stream?u=x",
+            coverPath: null,
+            title: "Song",
+            artist: "",
+            source: "netease",
+            resolvedAt: 1,
+          },
+        },
+      },
+      {
+        id: "card",
+        data: {
+          kind: "audio",
+          media: null,
+          music: {
+            pageUrl: "https://y.qq.com/x",
+            streamPath: null,
+            coverPath: null,
+            title: "Card",
+            artist: "",
+            source: "qq",
+            resolvedAt: 1,
+          },
+        },
+      },
+      {
+        id: "foreign",
+        data: {
+          kind: "audio",
+          media: null,
+          music: {
+            pageUrl: "https://evil.example/x.mp3",
+            streamPath: "https://evil.example/x.mp3",
+            coverPath: null,
+            title: "Evil",
+            artist: "",
+            source: "direct",
+            resolvedAt: 1,
+          },
+        },
+      },
+    ] as unknown as WeftcanvasNode[];
     const edges = [
       { source: "stream", target: "edit" },
       { source: "card", target: "edit" },
       { source: "foreign", target: "edit" },
-    ] as KachangEdge[];
+    ] as WeftcanvasEdge[];
 
     const assets = collectEditAssets(nodes, edges, "edit");
     expect(assets).toHaveLength(1);
@@ -158,7 +222,17 @@ describe("clip-composition timeline math", () => {
   });
 
   it("keeps the minimum clip duration constraint in setClipRange", () => {
-    const clip = { id: "a", track: "video", nodeId: "n", mediaId: "m", name: "v.mp4", kind: "video", sourceDurationMs: 1_000, inMs: 0, outMs: 1_000 } as const;
+    const clip = {
+      id: "a",
+      track: "video",
+      nodeId: "n",
+      mediaId: "m",
+      name: "v.mp4",
+      kind: "video",
+      sourceDurationMs: 1_000,
+      inMs: 0,
+      outMs: 1_000,
+    } as const;
     const trimmed = setClipRange(clip, { inMs: 900 });
     expect(trimmed.outMs - trimmed.inMs).toBeGreaterThanOrEqual(EDIT_MIN_CLIP_DURATION_MS);
   });

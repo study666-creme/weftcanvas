@@ -1,4 +1,4 @@
-import type { AgentModel } from "@kachang/contracts";
+import type { AgentModel } from "@weftcanvas/contracts";
 import { Check, ChevronDown, Sparkles } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
@@ -84,7 +84,9 @@ export function AgentModelSelect({
 
   useEffect(() => {
     if (!open) return;
-    setActiveGroup(groups.some((group) => group.id === selectedGroup) ? selectedGroup : groups[0]?.id ?? "");
+    setActiveGroup(
+      groups.some((group) => group.id === selectedGroup) ? selectedGroup : (groups[0]?.id ?? ""),
+    );
   }, [open, selectedGroup, groups]);
 
   // 面板锚在触发按钮上并向两侧铺开；上方放不下才翻到下方。
@@ -98,14 +100,23 @@ export function AgentModelSelect({
       const gap = 8;
       const width = Math.min(MENU_WIDTH, window.innerWidth - inset * 2);
       const spaceAbove = rect.top - gap - inset;
-      const openAbove = spaceAbove >= MENU_HEIGHT || spaceAbove >= window.innerHeight - rect.bottom - gap - inset;
-      const maxHeight = Math.max(220, Math.min(MENU_HEIGHT, openAbove ? spaceAbove : window.innerHeight - rect.bottom - gap - inset));
+      const openAbove =
+        spaceAbove >= MENU_HEIGHT || spaceAbove >= window.innerHeight - rect.bottom - gap - inset;
+      const maxHeight = Math.max(
+        220,
+        Math.min(
+          MENU_HEIGHT,
+          openAbove ? spaceAbove : window.innerHeight - rect.bottom - gap - inset,
+        ),
+      );
       const left = Math.max(inset, Math.min(rect.left, window.innerWidth - width - inset));
       setMenuStyle({
         left,
         width,
         maxHeight,
-        ...(openAbove ? { bottom: window.innerHeight - rect.top + gap } : { top: rect.bottom + gap }),
+        ...(openAbove
+          ? { bottom: window.innerHeight - rect.top + gap }
+          : { top: rect.bottom + gap }),
       });
     };
     place();
@@ -161,65 +172,69 @@ export function AgentModelSelect({
           setOpen(false);
         }}
       >
-        <span className="kc-cat-select-option-copy">
+        <span className="wc-cat-select-option-copy">
           <strong>{model.label}</strong>
-          <span className="kc-cat-select-option-price">{modelMetaLabel(model)}</span>
+          <span className="wc-cat-select-option-price">{modelMetaLabel(model)}</span>
         </span>
-        {isActive ? <Check aria-hidden="true" className="kc-cat-select-check" /> : null}
+        {isActive ? <Check aria-hidden="true" className="wc-cat-select-check" /> : null}
       </button>
     );
   };
 
   return (
-    <div className="kc-cat-select kc-agent-model-select" ref={rootRef} data-value={value}>
+    <div className="wc-cat-select wc-agent-model-select" ref={rootRef} data-value={value}>
       <button
         ref={triggerRef}
         type="button"
-        className="kc-cat-select-trigger"
+        className="wc-cat-select-trigger"
         aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
         disabled={disabled || !models.length}
         onClick={() => setOpen((current) => !current)}
       >
-        <Sparkles aria-hidden="true" className="kc-cat-select-icon" />
-        <span className="kc-cat-select-value">{selected?.label ?? placeholder}</span>
-        {selected ? <span className="kc-cat-select-meta">{modelMetaLabel(selected)}</span> : null}
-        <ChevronDown aria-hidden="true" className="kc-cat-select-caret" />
+        <Sparkles aria-hidden="true" className="wc-cat-select-icon" />
+        <span className="wc-cat-select-value">{selected?.label ?? placeholder}</span>
+        {selected ? <span className="wc-cat-select-meta">{modelMetaLabel(selected)}</span> : null}
+        <ChevronDown aria-hidden="true" className="wc-cat-select-caret" />
       </button>
-      {open ? createPortal(
-        <div
-          ref={menuRef}
-          className="kc-cat-select-menu kc-agent-model-menu"
-          role="listbox"
-          aria-label={ariaLabel}
-          style={menuStyle}
-          data-kc-preserve-drawers
-        >
-          {groups.length > 1 ? (
-            <div className="kc-cat-select-tabs kc-agent-model-tabs" role="tablist" aria-label="模型厂商">
-              {groups.map((group) => (
-                <button
-                  key={group.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={group.id === active?.id}
-                  className={group.id === active?.id ? "is-active" : undefined}
-                  title={`${group.label}（${group.models.length}）`}
-                  onClick={() => setActiveGroup(group.id)}
+      {open
+        ? createPortal(
+            <div
+              ref={menuRef}
+              className="wc-cat-select-menu wc-agent-model-menu"
+              role="listbox"
+              aria-label={ariaLabel}
+              style={menuStyle}
+              data-wc-preserve-drawers
+            >
+              {groups.length > 1 ? (
+                <div
+                  className="wc-cat-select-tabs wc-agent-model-tabs"
+                  role="tablist"
+                  aria-label="模型厂商"
                 >
-                  <span>{group.label}</span>
-                  <i aria-hidden="true">{group.models.length}</i>
-                </button>
-              ))}
-            </div>
-          ) : null}
-          <div className="kc-cat-select-options">
-            {visible.map(renderOption)}
-          </div>
-        </div>,
-        document.body,
-      ) : null}
+                  {groups.map((group) => (
+                    <button
+                      key={group.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={group.id === active?.id}
+                      className={group.id === active?.id ? "is-active" : undefined}
+                      title={`${group.label}（${group.models.length}）`}
+                      onClick={() => setActiveGroup(group.id)}
+                    >
+                      <span>{group.label}</span>
+                      <i aria-hidden="true">{group.models.length}</i>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              <div className="wc-cat-select-options">{visible.map(renderOption)}</div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

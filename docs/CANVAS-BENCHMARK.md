@@ -55,7 +55,7 @@ behavior. They do not define AI generation-node structure.
     use CSS transforms or imperative style updates, and graph rendering is
     limited to visible elements.
 
-## Kachang Decisions
+## Weftcanvas Decisions
 
 - Dark graphite is the default workspace; light mode remains optional.
 - Creation, editing, and viewport controls are deliberately split: a left

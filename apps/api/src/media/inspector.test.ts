@@ -13,13 +13,15 @@ let imagePath: string;
 let invalidPath: string;
 
 beforeAll(async () => {
-  directory = await mkdtemp(join(tmpdir(), "kachang-media-inspector-"));
+  directory = await mkdtemp(join(tmpdir(), "weftcanvas-media-inspector-"));
   imagePath = join(directory, "valid.png");
   invalidPath = join(directory, "invalid.png");
   await sharp({
     create: { width: 32, height: 18, channels: 4, background: { r: 20, g: 140, b: 100, alpha: 1 } },
-  }).png().toFile(imagePath);
-  await writeFile(invalidPath, "{\"error\":\"not an image\"}");
+  })
+    .png()
+    .toFile(imagePath);
+  await writeFile(invalidPath, '{"error":"not an image"}');
 });
 
 afterAll(async () => {
@@ -37,11 +39,15 @@ describe("server media inspector", () => {
       height: 18,
       durationMs: null,
     });
-    await expect(inspector.inspect(invalidPath, "image")).rejects.toMatchObject({ code: "MEDIA_INVALID" });
+    await expect(inspector.inspect(invalidPath, "image")).rejects.toMatchObject({
+      code: "MEDIA_INVALID",
+    });
   });
 
   it("parses real video container, track, duration, and dimensions", async () => {
-    await expect(inspector.inspect(join(fixtures, "video-frame.mp4"), "video")).resolves.toMatchObject({
+    await expect(
+      inspector.inspect(join(fixtures, "video-frame.mp4"), "video"),
+    ).resolves.toMatchObject({
       kind: "video",
       mimeType: "video/mp4",
       width: 96,
@@ -51,14 +57,17 @@ describe("server media inspector", () => {
   });
 
   it("parses real audio and rejects it when video is expected", async () => {
-    await expect(inspector.inspect(join(fixtures, "audio-tone.mp3"), "audio")).resolves.toMatchObject({
+    await expect(
+      inspector.inspect(join(fixtures, "audio-tone.mp3"), "audio"),
+    ).resolves.toMatchObject({
       kind: "audio",
       mimeType: "audio/mpeg",
       width: null,
       height: null,
       durationMs: 653,
     });
-    await expect(inspector.inspect(join(fixtures, "audio-tone.mp3"), "video"))
-      .rejects.toMatchObject({ code: "MEDIA_TYPE_MISMATCH" });
+    await expect(
+      inspector.inspect(join(fixtures, "audio-tone.mp3"), "video"),
+    ).rejects.toMatchObject({ code: "MEDIA_TYPE_MISMATCH" });
   });
 });

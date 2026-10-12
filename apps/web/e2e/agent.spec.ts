@@ -26,7 +26,8 @@ const openingMessages = [
     id: "55555555-5555-4555-8555-555555555555",
     conversationId: conversation.id,
     role: "assistant",
-    content: "当前叙事已经有清楚的起点，但图片节点还没有承接文本里的关键动作。可以先补一张环境镜头，再把人物动作拆成相邻节点，这样节奏会更顺。",
+    content:
+      "当前叙事已经有清楚的起点，但图片节点还没有承接文本里的关键动作。可以先补一张环境镜头，再把人物动作拆成相邻节点，这样节奏会更顺。",
     createdAt: "2026-07-16T12:00:01.000Z",
   },
 ] as const;
@@ -40,91 +41,105 @@ const agentModels = {
 } as const;
 
 async function mockAuthenticatedBackgroundRequests(page: Page) {
-  await page.route("**/api/v1/generation-jobs?*", (route) => route.fulfill({
-    json: { ok: true, data: [] },
-  }));
-  await page.route("**/api/v1/wallet", (route) => route.fulfill({
-    json: {
-      ok: true,
-      data: {
-        credits: 0,
-        creditsPermanent: 0,
-        dailyCredits: 0,
-        creditGrantMode: "bundle",
-        dailyCreditsNote: "",
-        membership: { tier: "free", until: null, active: false, genDiscount: null },
-        lifetimeCreditsSpent: 0,
-      },
-    },
-  }));
-  await page.route("**/api/v1/membership/tasks", (route) => route.fulfill({
-    json: {
-      ok: true,
-      data: {
-        items: [],
-        lifetimeCreditsSpent: 0,
-        nextSpendMilestone: null,
-        hub: {
-          phoneVerified: false,
-          signStreak: 0,
-          checkedInToday: false,
-          daysToStreakBonus: 0,
-          dailyBonus: { key: "daily_bonus_test", claimed: false, ready: false },
-          memberDaily: null,
+  await page.route("**/api/v1/generation-jobs?*", (route) =>
+    route.fulfill({
+      json: { ok: true, data: [] },
+    }),
+  );
+  await page.route("**/api/v1/wallet", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        data: {
+          credits: 0,
+          creditsPermanent: 0,
+          dailyCredits: 0,
+          creditGrantMode: "bundle",
+          dailyCreditsNote: "",
+          membership: { tier: "free", until: null, active: false, genDiscount: null },
+          lifetimeCreditsSpent: 0,
         },
-        phoneVerified: false,
       },
-    },
-  }));
-  await page.route("**/api/v1/membership/tasks/canvas-create-node", (route) => route.fulfill({
-    json: {
-      ok: true,
-      data: { message: "node task recorded", granted: false },
-    },
-  }));
-  await page.route("**/api/v1/cloud-projects", (route) => route.fulfill({
-    json: {
-      ok: true,
-      data: {
-        projects: [],
-        sharedProjects: [],
-        usage: {
-          projectCount: 0,
-          projectStorageBytes: 0,
-          mediaStorageBytes: 0,
-          entitlements: {
-            tier: "free",
-            cloudProjectLimit: 0,
+    }),
+  );
+  await page.route("**/api/v1/membership/tasks", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        data: {
+          items: [],
+          lifetimeCreditsSpent: 0,
+          nextSpendMilestone: null,
+          hub: {
+            phoneVerified: false,
+            signStreak: 0,
+            checkedInToday: false,
+            daysToStreakBonus: 0,
+            dailyBonus: { key: "daily_bonus_test", claimed: false, ready: false },
+            memberDaily: null,
+          },
+          phoneVerified: false,
+        },
+      },
+    }),
+  );
+  await page.route("**/api/v1/membership/tasks/canvas-create-node", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        data: { message: "node task recorded", granted: false },
+      },
+    }),
+  );
+  await page.route("**/api/v1/cloud-projects", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        data: {
+          projects: [],
+          sharedProjects: [],
+          usage: {
+            projectCount: 0,
             projectStorageBytes: 0,
             mediaStorageBytes: 0,
-            revisionRetentionCount: 0,
-            multiDeviceSync: false,
+            entitlements: {
+              tier: "free",
+              cloudProjectLimit: 0,
+              projectStorageBytes: 0,
+              mediaStorageBytes: 0,
+              revisionRetentionCount: 0,
+              multiDeviceSync: false,
+            },
           },
         },
       },
-    },
-  }));
+    }),
+  );
 }
 
-test("top Agent companion reacts and opens a bounded non-modal side workspace", async ({ page }, testInfo) => {
+test("top Agent companion reacts and opens a bounded non-modal side workspace", async ({
+  page,
+}, testInfo) => {
   test.slow();
   let projectId = "";
   let submitted: Record<string, unknown> | null = null;
   await page.addInitScript(() => localStorage.clear());
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({
-    json: {
-      ok: true,
-      data: {
-        user: {
-          id: "99999999-9999-4999-8999-999999999999",
-          email: "creator@example.com",
-          displayName: "创作者",
-          createdAt: "2026-07-16T12:00:00.000Z",
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        data: {
+          user: {
+            id: "99999999-9999-4999-8999-999999999999",
+            email: "creator@example.com",
+            displayName: "创作者",
+            createdAt: "2026-07-16T12:00:00.000Z",
+          },
+          expiresAt: "2026-08-16T12:00:00.000Z",
         },
-        expiresAt: "2026-08-16T12:00:00.000Z",
       },
-    },
-  }));
+    }),
+  );
   await mockAuthenticatedBackgroundRequests(page);
   await page.route("**/api/v1/agent/**", async (route) => {
     const url = new URL(route.request().url());
@@ -137,7 +152,16 @@ test("top Agent companion reacts and opens a bounded non-modal side workspace", 
       return route.fulfill({ json: { ok: true, data: [{ ...conversation, projectId }] } });
     }
     if (method === "GET" && url.pathname === `/api/v1/agent/conversations/${conversation.id}`) {
-      return route.fulfill({ json: { ok: true, data: { conversation: { ...conversation, projectId }, messages: openingMessages, latestRun: null } } });
+      return route.fulfill({
+        json: {
+          ok: true,
+          data: {
+            conversation: { ...conversation, projectId },
+            messages: openingMessages,
+            latestRun: null,
+          },
+        },
+      });
     }
     if (method === "POST" && url.pathname.endsWith("/messages")) {
       submitted = route.request().postDataJSON() as Record<string, unknown>;
@@ -146,15 +170,22 @@ test("top Agent companion reacts and opens a bounded non-modal side workspace", 
         json: {
           ok: true,
           data: {
-            conversation: { ...conversation, projectId, title: "检查这一场", updatedAt: "2026-07-16T12:00:01.000Z" },
-            messages: [{
-              schemaVersion: 1,
-              id: "22222222-2222-4222-8222-222222222222",
-              conversationId: conversation.id,
-              role: "user",
-              content: "检查这一场",
-              createdAt: "2026-07-16T12:00:01.000Z",
-            }],
+            conversation: {
+              ...conversation,
+              projectId,
+              title: "检查这一场",
+              updatedAt: "2026-07-16T12:00:01.000Z",
+            },
+            messages: [
+              {
+                schemaVersion: 1,
+                id: "22222222-2222-4222-8222-222222222222",
+                conversationId: conversation.id,
+                role: "user",
+                content: "检查这一场",
+                createdAt: "2026-07-16T12:00:01.000Z",
+              },
+            ],
             latestRun: {
               schemaVersion: 1,
               id: "33333333-3333-4333-8333-333333333333",
@@ -171,7 +202,10 @@ test("top Agent companion reacts and opens a bounded non-modal side workspace", 
         },
       });
     }
-    return route.fulfill({ status: 404, json: { ok: false, error: { code: "NOT_FOUND", message: "not found" } } });
+    return route.fulfill({
+      status: 404,
+      json: { ok: false, error: { code: "NOT_FOUND", message: "not found" } },
+    });
   });
 
   // The app stopped auto-creating the classic three-node starter canvas, so the
@@ -183,7 +217,7 @@ test("top Agent companion reacts and opens a bounded non-modal side workspace", 
   await expect(companion).toBeVisible();
   const companionBox = await companion.boundingBox();
   expect(companionBox).not.toBeNull();
-  expect(Math.abs((companionBox!.x + companionBox!.width / 2) - 720)).toBeLessThan(1.5);
+  expect(Math.abs(companionBox!.x + companionBox!.width / 2 - 720)).toBeLessThan(1.5);
 
   await addCanvasNode(page, "添加文本节点");
   await expect(companion).toHaveAttribute("data-reaction", "celebrate");
@@ -192,37 +226,43 @@ test("top Agent companion reacts and opens a bounded non-modal side workspace", 
   await dock.getByLabel("打开资源库").click();
   await expect(page.getByRole("dialog", { name: "资源库" })).toBeVisible();
 
-  const readFlowCenter = () => page.evaluate(() => {
-    const shell = document.querySelector<HTMLElement>(".kc-flow-shell")!;
-    const viewport = document.querySelector<HTMLElement>(".react-flow__viewport")!;
-    const bounds = shell.getBoundingClientRect();
-    const matrix = new DOMMatrixReadOnly(getComputedStyle(viewport).transform);
-    return {
-      x: (bounds.width / 2 - matrix.m41) / matrix.a,
-      y: (bounds.height / 2 - matrix.m42) / matrix.d,
-    };
-  });
+  const readFlowCenter = () =>
+    page.evaluate(() => {
+      const shell = document.querySelector<HTMLElement>(".wc-flow-shell")!;
+      const viewport = document.querySelector<HTMLElement>(".react-flow__viewport")!;
+      const bounds = shell.getBoundingClientRect();
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(viewport).transform);
+      return {
+        x: (bounds.width / 2 - matrix.m41) / matrix.a,
+        y: (bounds.height / 2 - matrix.m42) / matrix.d,
+      };
+    });
   const centerBeforeAgent = await readFlowCenter();
-  const flowBeforeAgent = await page.locator(".kc-flow-shell").boundingBox();
+  const flowBeforeAgent = await page.locator(".wc-flow-shell").boundingBox();
   expect(flowBeforeAgent).not.toBeNull();
   await companion.click();
   await expect(page.getByRole("dialog", { name: "资源库" })).toBeHidden();
   const drawer = page.getByRole("dialog", { name: "画布 Agent" });
   await expect(drawer).toBeVisible();
-  await expect(page.locator(".kc-topbar")).toHaveCount(0);
+  await expect(page.locator(".wc-topbar")).toHaveCount(0);
   const creativeModeSelect = drawer.getByLabel("创作协作模式", { exact: true });
-  await expect(creativeModeSelect.locator(".kc-canvas-select-label")).toHaveText("自由协作");
+  await expect(creativeModeSelect.locator(".wc-canvas-select-label")).toHaveText("自由协作");
   await creativeModeSelect.click();
   const creativeModeList = page.getByRole("listbox", { name: "创作协作模式" });
   await expect(creativeModeList.getByRole("option")).toHaveCount(2);
   await expect(creativeModeList.getByRole("option", { name: "先定基线" })).toHaveCount(0);
   await creativeModeList.getByRole("option", { name: "专业辅助" }).click();
-  await expect(creativeModeSelect.locator(".kc-canvas-select-label")).toHaveText("专业辅助");
-  const baselineQuestion = drawer.locator(".kc-agent-baseline-question");
+  await expect(creativeModeSelect.locator(".wc-canvas-select-label")).toHaveText("专业辅助");
+  const baselineQuestion = drawer.locator(".wc-agent-baseline-question");
   await expect(baselineQuestion).toBeVisible();
   await expect(baselineQuestion).toContainText("画面比例 · 1/3");
-  await expect(baselineQuestion.getByRole("group", { name: "画面比例预设" }).getByRole("button")).toHaveCount(4);
-  await expect(drawer.getByRole("textbox", { name: "发送给 Agent" })).toHaveAttribute("placeholder", "输入自定义比例");
+  await expect(
+    baselineQuestion.getByRole("group", { name: "画面比例预设" }).getByRole("button"),
+  ).toHaveCount(4);
+  await expect(drawer.getByRole("textbox", { name: "发送给 Agent" })).toHaveAttribute(
+    "placeholder",
+    "输入自定义比例",
+  );
   await baselineQuestion.getByRole("button", { name: "16:9", exact: true }).click();
   await expect(baselineQuestion).toContainText("画风 · 2/3");
   await baselineQuestion.getByRole("button", { name: "电影写实", exact: true }).click();
@@ -230,18 +270,24 @@ test("top Agent companion reacts and opens a bounded non-modal side workspace", 
   await page.screenshot({ path: testInfo.outputPath("agent-creative-guidance-dark.png") });
   await baselineQuestion.getByRole("button", { name: "60 秒", exact: true }).click();
   await expect(baselineQuestion).toHaveCount(0);
-  await expect(drawer.getByLabel("Agent 对话", { exact: true }).locator("..")).toHaveAttribute("data-value", conversation.id);
+  await expect(drawer.getByLabel("Agent 对话", { exact: true }).locator("..")).toHaveAttribute(
+    "data-value",
+    conversation.id,
+  );
   const modelSelect = drawer.getByLabel("Agent 模型", { exact: true });
   const modelControl = modelSelect.locator("..");
   await expect(modelSelect).toBeVisible();
   await expect(modelControl).toHaveAttribute("data-value", "gpt-5-mini");
-  await expect(modelSelect.locator(".kc-cat-select-value")).toHaveText("GPT-5 Mini");
+  await expect(modelSelect.locator(".wc-cat-select-value")).toHaveText("GPT-5 Mini");
   await modelSelect.click();
-  await page.getByRole("listbox", { name: "Agent 模型" })
+  await page
+    .getByRole("listbox", { name: "Agent 模型" })
     .getByRole("option", { name: "GPT-5 Creative Preview 2026-07" })
     .click();
   await expect(modelControl).toHaveAttribute("data-value", "gpt-5-creative-preview-2026-07");
-  await expect(modelSelect.locator(".kc-cat-select-value")).toHaveText("GPT-5 Creative Preview 2026-07");
+  await expect(modelSelect.locator(".wc-cat-select-value")).toHaveText(
+    "GPT-5 Creative Preview 2026-07",
+  );
   await modelSelect.click();
   const modelListbox = page.getByRole("listbox", { name: "Agent 模型" });
   await expect(modelListbox).toBeVisible();
@@ -250,9 +296,9 @@ test("top Agent companion reacts and opens a bounded non-modal side workspace", 
   await expect(drawer).toBeVisible();
   const drawerBox = await drawer.boundingBox();
   const dockBox = await dock.boundingBox();
-  const zoomBox = await page.locator(".kc-zoom-control").boundingBox();
-  const agentMark = drawer.locator(".kc-agent-mark");
-  const composer = drawer.locator(".kc-agent-composer");
+  const zoomBox = await page.locator(".wc-zoom-control").boundingBox();
+  const agentMark = drawer.locator(".wc-agent-mark");
+  const composer = drawer.locator(".wc-agent-composer");
   const composerBox = await composer.boundingBox();
   expect(drawerBox).not.toBeNull();
   expect(zoomBox).not.toBeNull();
@@ -270,14 +316,14 @@ test("top Agent companion reacts and opens a bounded non-modal side workspace", 
   expect(composerBox!.height).toBeGreaterThanOrEqual(140);
   expect(composerBox!.height).toBeLessThanOrEqual(240);
   await expect(agentMark).toBeVisible();
-  await expect(drawer.locator(".kc-agent-composer-context")).toHaveCount(0);
+  await expect(drawer.locator(".wc-agent-composer-context")).toHaveCount(0);
   const sendButtonBox = await drawer.getByRole("button", { name: "发送给 Agent" }).boundingBox();
   expect(sendButtonBox).not.toBeNull();
   expect(sendButtonBox!.width).toBeGreaterThanOrEqual(36);
   expect(sendButtonBox!.height).toBeGreaterThanOrEqual(36);
   const modelSelectStyles = await modelSelect.evaluate((element) => {
     const trigger = element as HTMLElement;
-    const value = trigger.querySelector<HTMLElement>(".kc-cat-select-value")!;
+    const value = trigger.querySelector<HTMLElement>(".wc-cat-select-value")!;
     const triggerStyle = getComputedStyle(trigger);
     const triggerBox = trigger.getBoundingClientRect();
     const valueBox = value.getBoundingClientRect();
@@ -295,11 +341,16 @@ test("top Agent companion reacts and opens a bounded non-modal side workspace", 
   });
   expect(modelSelectStyles.triggerWidth).toBeGreaterThan(160);
   await expect(drawer.getByLabel("Agent 回复")).toBeVisible();
-  await expect.poll(async () => {
-    const center = await readFlowCenter();
-    return Math.max(Math.abs(center.x - centerBeforeAgent.x), Math.abs(center.y - centerBeforeAgent.y));
-  }).toBeLessThan(1);
-  const flowBox = await page.locator(".kc-flow-shell").boundingBox();
+  await expect
+    .poll(async () => {
+      const center = await readFlowCenter();
+      return Math.max(
+        Math.abs(center.x - centerBeforeAgent.x),
+        Math.abs(center.y - centerBeforeAgent.y),
+      );
+    })
+    .toBeLessThan(1);
+  const flowBox = await page.locator(".wc-flow-shell").boundingBox();
   expect(flowBox).not.toBeNull();
   expect(Math.abs(flowBox!.width - flowBeforeAgent!.width)).toBeLessThan(1);
   expect(Math.abs(flowBox!.height - flowBeforeAgent!.height)).toBeLessThan(1);
@@ -316,17 +367,31 @@ test("top Agent companion reacts and opens a bounded non-modal side workspace", 
   expect(messagesBox).not.toBeNull();
   await page.evaluate(() => {
     (window as Window & { __kcAgentWheelPrevented?: boolean }).__kcAgentWheelPrevented = false;
-    window.addEventListener("wheel", (event) => {
-      window.setTimeout(() => {
-        (window as Window & { __kcAgentWheelPrevented?: boolean }).__kcAgentWheelPrevented = event.defaultPrevented;
-      });
-    }, { capture: true, once: true });
+    window.addEventListener(
+      "wheel",
+      (event) => {
+        window.setTimeout(() => {
+          (window as Window & { __kcAgentWheelPrevented?: boolean }).__kcAgentWheelPrevented =
+            event.defaultPrevented;
+        });
+      },
+      { capture: true, once: true },
+    );
   });
-  await page.mouse.move(messagesBox!.x + messagesBox!.width / 2, messagesBox!.y + messagesBox!.height / 2);
+  await page.mouse.move(
+    messagesBox!.x + messagesBox!.width / 2,
+    messagesBox!.y + messagesBox!.height / 2,
+  );
   await page.keyboard.down("Control");
   await page.mouse.wheel(0, -120);
   await page.keyboard.up("Control");
-  await expect.poll(() => page.evaluate(() => (window as Window & { __kcAgentWheelPrevented?: boolean }).__kcAgentWheelPrevented)).toBe(true);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (window as Window & { __kcAgentWheelPrevented?: boolean }).__kcAgentWheelPrevented,
+      ),
+    )
+    .toBe(true);
   await page.mouse.move(80, 760);
   await page.screenshot({ path: testInfo.outputPath("agent-side-workspace-dark.png") });
 
@@ -352,27 +417,35 @@ test("top Agent companion reacts and opens a bounded non-modal side workspace", 
   expect(context.nodes).toHaveLength(4);
   expect(context.creativeGuidance).toMatchObject({
     mode: "professional",
-    baseline: { aspectRatio: "16:9", visualStyle: "电影写实", targetDuration: "60 秒", locked: true },
+    baseline: {
+      aspectRatio: "16:9",
+      visualStyle: "电影写实",
+      targetDuration: "60 秒",
+      locked: true,
+    },
   });
   expect(JSON.stringify(context)).not.toContain("serverId");
   expect(JSON.stringify(context)).not.toContain("data:");
 
   // Ambient edge energy is deliberately off (motion budget): the moving segment
   // only lights up on the edges attached to the selected node.
-  const energy = page.locator(".react-flow__edge .kc-edge-energy");
+  const energy = page.locator(".react-flow__edge .wc-edge-energy");
   await expect(page.locator(".react-flow__edge")).toHaveCount(2);
   await expect(energy).toHaveCount(0);
-  await page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="image"])').locator(".kc-node-drag-strip").click();
+  await page
+    .locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="image"])')
+    .locator(".wc-node-drag-strip")
+    .click();
   await expect(energy).toHaveCount(2);
 
-  await drawer.locator(".kc-agent-header-button").last().click();
+  await drawer.locator(".wc-agent-header-button").last().click();
   await expect(drawer).toBeHidden();
-  await expect(page.locator(".kc-topbar")).toBeVisible();
+  await expect(page.locator(".wc-topbar")).toBeVisible();
   await page.getByLabel("切换主题").click();
-  await expect(page.locator(".kc-app")).toHaveAttribute("data-theme", "light");
+  await expect(page.locator(".wc-app")).toHaveAttribute("data-theme", "light");
   await companion.click();
   await expect(drawer).toBeVisible();
-  await expect(page.locator(".kc-topbar")).toHaveCount(0);
+  await expect(page.locator(".wc-topbar")).toHaveCount(0);
   const colors = await drawer.evaluate((element) => {
     const style = getComputedStyle(element);
     return { color: style.color, background: style.backgroundColor };
@@ -382,38 +455,48 @@ test("top Agent companion reacts and opens a bounded non-modal side workspace", 
   await page.setViewportSize({ width: 1_024, height: 700 });
   // The drawer slides in, so its box is only meaningful once the entrance
   // animation has settled; poll the geometry instead of sampling it once.
-  await expect.poll(async () => {
-    const box = await drawer.boundingBox();
-    return box ? Math.round(box.x + box.width) : -1;
-  }).toBe(1_024);
+  await expect
+    .poll(async () => {
+      const box = await drawer.boundingBox();
+      return box ? Math.round(box.x + box.width) : -1;
+    })
+    .toBe(1_024);
   const compactDrawerBox = await drawer.boundingBox();
   const compactComposerBox = await composer.boundingBox();
   const compactMarkBox = await agentMark.boundingBox();
   const compactDockBox = await dock.boundingBox();
-  const compactZoomBox = await page.locator(".kc-zoom-control").boundingBox();
+  const compactZoomBox = await page.locator(".wc-zoom-control").boundingBox();
   expect(compactDrawerBox!.x).toBeGreaterThanOrEqual(580);
   expect(compactDrawerBox!.x + compactDrawerBox!.width).toBeCloseTo(1_024, 0);
   expect(compactDrawerBox!.width).toBeGreaterThanOrEqual(400);
   expect(compactDrawerBox!.width).toBeLessThanOrEqual(440);
-  expect(compactComposerBox!.y + compactComposerBox!.height).toBeLessThan(compactDrawerBox!.y + compactDrawerBox!.height);
+  expect(compactComposerBox!.y + compactComposerBox!.height).toBeLessThan(
+    compactDrawerBox!.y + compactDrawerBox!.height,
+  );
   expect(compactMarkBox!.x).toBeGreaterThanOrEqual(compactDrawerBox!.x);
-  expect(compactMarkBox!.x + compactMarkBox!.width).toBeLessThanOrEqual(compactDrawerBox!.x + compactDrawerBox!.width);
+  expect(compactMarkBox!.x + compactMarkBox!.width).toBeLessThanOrEqual(
+    compactDrawerBox!.x + compactDrawerBox!.width,
+  );
   expect(rectanglesOverlap(compactDockBox!, compactZoomBox!)).toBe(false);
   await expect(drawer.getByRole("dialog", { name: "创作基线设置" })).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("agent-side-workspace-compact-light.png") });
 
-  const textNode = page.locator('.react-flow__node-kachang:has(.kc-node-wrap[data-node-kind="text"])').first();
-  await textNode.locator(".kc-node-drag-strip").click();
+  const textNode = page
+    .locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="text"])')
+    .first();
+  await textNode.locator(".wc-node-drag-strip").click();
   // Opening a node's prompt composer no longer dismisses the Agent panel; the
   // overlay now sits below it, so both stay on screen at compact width.
   const creationPanel = page.locator("[data-node-prompt-composer]");
   await expect(creationPanel).toBeVisible();
   await expect(drawer).toBeVisible();
   const creationPanelBox = await creationPanel.boundingBox();
-  const compactCreateRailBox = await page.locator(".kc-create-rail").boundingBox();
+  const compactCreateRailBox = await page.locator(".wc-create-rail").boundingBox();
   expect(creationPanelBox).not.toBeNull();
   expect(compactCreateRailBox).not.toBeNull();
-  expect(creationPanelBox!.x).toBeGreaterThanOrEqual(compactCreateRailBox!.x + compactCreateRailBox!.width + 12);
+  expect(creationPanelBox!.x).toBeGreaterThanOrEqual(
+    compactCreateRailBox!.x + compactCreateRailBox!.width + 12,
+  );
   // 编辑浮层的层级现在低于 Agent 面板（面板不再被输入框盖住），因此这里只校验浮层留在视口内。
   expect(creationPanelBox!.x + creationPanelBox!.width).toBeLessThanOrEqual(1_024);
   expect(creationPanelBox!.y + creationPanelBox!.height).toBeLessThanOrEqual(compactDockBox!.y - 8);
@@ -428,28 +511,39 @@ test("top Agent companion reacts and opens a bounded non-modal side workspace", 
   await page.locator(".react-flow__pane").click({ position: { x: 150, y: 620 } });
   await expect(creationPanel).toHaveCount(0);
 
-  const readNodeIds = () => page.evaluate(() => {
-    const projectId = localStorage.getItem("kachang-canvas:active-project:v1");
-    const raw = projectId
-      ? localStorage.getItem(`kachang-canvas:project-data:v1:${encodeURIComponent(projectId)}`)
-      : null;
-    const nodes = raw ? (JSON.parse(raw) as { nodes?: Array<{ id: string; data?: { kind?: string } }> }).nodes ?? [] : [];
-    return { ids: nodes.map((node) => node.id), imageIds: nodes.filter((node) => node.data?.kind === "image").map((node) => node.id) };
-  });
+  const readNodeIds = () =>
+    page.evaluate(() => {
+      const projectId = localStorage.getItem("weftcanvas:active-project:v1");
+      const raw = projectId
+        ? localStorage.getItem(`weftcanvas:project-data:v1:${encodeURIComponent(projectId)}`)
+        : null;
+      const nodes = raw
+        ? ((JSON.parse(raw) as { nodes?: Array<{ id: string; data?: { kind?: string } }> }).nodes ??
+          [])
+        : [];
+      return {
+        ids: nodes.map((node) => node.id),
+        imageIds: nodes.filter((node) => node.data?.kind === "image").map((node) => node.id),
+      };
+    });
   const before = await readNodeIds();
   await addCanvasNode(page, "添加图片节点");
   // Creating a node recentres the viewport, so `onlyRenderVisibleElements` may
   // unmount an older node; assert creation from the persisted project instead of
   // from the rendered count, then locate the new node by its id.
-  await expect.poll(async () => (await readNodeIds()).imageIds.length).toBe(before.imageIds.length + 1);
+  await expect
+    .poll(async () => (await readNodeIds()).imageIds.length)
+    .toBe(before.imageIds.length + 1);
   const createdId = (await readNodeIds()).ids.find((id) => !before.ids.includes(id));
   expect(createdId).toBeTruthy();
-  const insertedImage = page.locator(`.react-flow__node-kachang[data-id="${createdId}"]`);
+  const insertedImage = page.locator(`.react-flow__node-weftcanvas[data-id="${createdId}"]`);
   await expect(insertedImage).toBeVisible();
   const insertedBox = await insertedImage.boundingBox();
-  const compactFlowBox = await page.locator(".kc-flow-shell").boundingBox();
+  const compactFlowBox = await page.locator(".wc-flow-shell").boundingBox();
   expect(insertedBox!.x).toBeGreaterThanOrEqual(compactFlowBox!.x);
-  expect(insertedBox!.x + insertedBox!.width).toBeLessThanOrEqual(compactFlowBox!.x + compactFlowBox!.width);
+  expect(insertedBox!.x + insertedBox!.width).toBeLessThanOrEqual(
+    compactFlowBox!.x + compactFlowBox!.width,
+  );
 
   await expect(drawer).toBeVisible();
   await drawer.getByRole("textbox", { name: "发送给 Agent" }).focus();
@@ -469,13 +563,17 @@ function rectanglesOverlap(
   first: { x: number; y: number; width: number; height: number },
   second: { x: number; y: number; width: number; height: number },
 ) {
-  return first.x < second.x + second.width
-    && first.x + first.width > second.x
-    && first.y < second.y + second.height
-    && first.y + first.height > second.y;
+  return (
+    first.x < second.x + second.width &&
+    first.x + first.width > second.x &&
+    first.y < second.y + second.height &&
+    first.y + first.height > second.y
+  );
 }
 
-test("Agent proposal stays readable beside the canvas and on mobile", async ({ page }, testInfo) => {
+test("Agent proposal stays readable beside the canvas and on mobile", async ({
+  page,
+}, testInfo) => {
   const session = {
     user: {
       id: "99999999-9999-4999-8999-999999999999",
@@ -488,7 +586,9 @@ test("Agent proposal stays readable beside the canvas and on mobile", async ({ p
   let projectId = "";
 
   await page.addInitScript(() => localStorage.clear());
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({ json: { ok: true, data: session } }));
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({ json: { ok: true, data: session } }),
+  );
   await mockAuthenticatedBackgroundRequests(page);
   await page.route("**/api/v1/agent/**", (route) => {
     const url = new URL(route.request().url());
@@ -497,7 +597,9 @@ test("Agent proposal stays readable beside the canvas and on mobile", async ({ p
     }
     if (url.pathname === "/api/v1/agent/conversations") {
       projectId = url.searchParams.get("projectId") ?? "";
-      return route.fulfill({ json: { ok: true, data: [{ ...conversation, projectId, title: "镜头结构优化" }] } });
+      return route.fulfill({
+        json: { ok: true, data: [{ ...conversation, projectId, title: "镜头结构优化" }] },
+      });
     }
     if (url.pathname === `/api/v1/agent/conversations/${conversation.id}`) {
       return route.fulfill({
@@ -520,7 +622,8 @@ test("Agent proposal stays readable beside the canvas and on mobile", async ({ p
                 schemaVersion: 1,
                 id: "66666666-6666-4666-8666-666666666666",
                 title: "补齐环境镜头并收紧叙事节奏",
-                reason: "当前图片节点还没有承接文本中的关键动作，先补环境镜头可以让后续人物动作更连贯。",
+                reason:
+                  "当前图片节点还没有承接文本中的关键动作，先补环境镜头可以让后续人物动作更连贯。",
                 successCriteria: ["环境镜头与开场文本相连", "人物动作拆分为相邻节点"],
               },
               proposalStatus: "pending",
@@ -535,7 +638,10 @@ test("Agent proposal stays readable beside the canvas and on mobile", async ({ p
         },
       });
     }
-    return route.fulfill({ status: 404, json: { ok: false, error: { code: "NOT_FOUND", message: "not found" } } });
+    return route.fulfill({
+      status: 404,
+      json: { ok: false, error: { code: "NOT_FOUND", message: "not found" } },
+    });
   });
 
   await page.goto("/canvas");
@@ -558,14 +664,16 @@ test("Agent proposal stays readable beside the canvas and on mobile", async ({ p
   await proposal.scrollIntoViewIfNeeded();
   const mobileDrawerBox = await drawer.boundingBox();
   const mobileProposalBox = await proposal.boundingBox();
-  await expect(page.locator(".kc-topbar")).toHaveCount(0);
+  await expect(page.locator(".wc-topbar")).toHaveCount(0);
   expect(mobileDrawerBox).not.toBeNull();
   expect(mobileDrawerBox!.y).toBeGreaterThanOrEqual(7);
   expect(mobileDrawerBox!.y).toBeLessThanOrEqual(9);
   expect(844 - mobileDrawerBox!.y - mobileDrawerBox!.height).toBeGreaterThanOrEqual(7);
   expect(844 - mobileDrawerBox!.y - mobileDrawerBox!.height).toBeLessThanOrEqual(9);
   expect(mobileProposalBox!.x).toBeGreaterThan(mobileDrawerBox!.x);
-  expect(mobileProposalBox!.x + mobileProposalBox!.width).toBeLessThan(mobileDrawerBox!.x + mobileDrawerBox!.width);
+  expect(mobileProposalBox!.x + mobileProposalBox!.width).toBeLessThan(
+    mobileDrawerBox!.x + mobileDrawerBox!.width,
+  );
   await page.screenshot({ path: testInfo.outputPath("agent-proposal-mobile-dark.png") });
 });
 
@@ -574,7 +682,9 @@ test("Agent companion stops ambient motion when reduced motion is requested", as
   await page.addInitScript(() => localStorage.clear());
   await mockAuthenticatedSession(page);
   await page.goto("/canvas");
-  const animation = await page.locator(".kc-agent-companion-eyes").evaluate((element) => getComputedStyle(element).animationName);
+  const animation = await page
+    .locator(".wc-agent-companion-eyes")
+    .evaluate((element) => getComputedStyle(element).animationName);
   expect(animation).toBe("none");
 });
 
@@ -598,9 +708,11 @@ test("未登录时不请求 Agent，登录成功后自动加载当前画布对�
   let agentRequests = 0;
 
   await page.addInitScript(() => localStorage.clear());
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({
-    json: { ok: true, data: activeSession, capabilities },
-  }));
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      json: { ok: true, data: activeSession, capabilities },
+    }),
+  );
   await page.route("**/api/v1/auth/login", (route) => {
     activeSession = session;
     return route.fulfill({ json: { ok: true, data: session, capabilities } });
@@ -631,25 +743,34 @@ test("未登录时不请求 Agent，登录成功后自动加载当前画布对�
   expect(844 - mobileDrawerBox!.y - mobileDrawerBox!.height).toBeLessThanOrEqual(9);
 
   await drawer.getByRole("button", { name: "登录账号" }).click();
-  const account = page.getByRole("dialog", { name: "卡藏账号" });
+  const account = page.getByRole("dialog", { name: "纬线账号" });
   await account.getByLabel("邮箱").fill("creator@example.com");
   await account.getByLabel("密码").fill("password");
   await account.getByRole("button", { name: "进入画布", exact: true }).click();
 
   await expect(account).toBeHidden();
-  const mobileComposer = drawer.locator(".kc-agent-composer");
+  const mobileComposer = drawer.locator(".wc-agent-composer");
   await expect(mobileComposer).toBeVisible();
-  await expect(drawer.getByRole("textbox", { name: "发送给 Agent" })).toHaveAttribute("placeholder", "描述你想推进的内容");
+  await expect(drawer.getByRole("textbox", { name: "发送给 Agent" })).toHaveAttribute(
+    "placeholder",
+    "描述你想推进的内容",
+  );
   // 没有历史对话时应该展示填满面板的空状态，而不是一片空白。
-  await expect(drawer.locator(".kc-agent-starters")).toHaveCount(1);
-  await expect(drawer.locator(".kc-agent-empty")).toContainText("说说这一步想做什么");
+  await expect(drawer.locator(".wc-agent-starters")).toHaveCount(1);
+  await expect(drawer.locator(".wc-agent-empty")).toContainText("说说这一步想做什么");
   const authenticatedDrawerBox = await drawer.boundingBox();
   const mobileComposerBox = await mobileComposer.boundingBox();
   expect(mobileComposerBox).not.toBeNull();
   expect(mobileComposerBox!.x).toBeGreaterThan(authenticatedDrawerBox!.x);
-  expect(mobileComposerBox!.x + mobileComposerBox!.width).toBeLessThan(authenticatedDrawerBox!.x + authenticatedDrawerBox!.width);
-  expect(mobileComposerBox!.y + mobileComposerBox!.height).toBeLessThan(authenticatedDrawerBox!.y + authenticatedDrawerBox!.height);
-  await page.screenshot({ path: testInfo.outputPath("agent-side-workspace-mobile-authenticated.png") });
+  expect(mobileComposerBox!.x + mobileComposerBox!.width).toBeLessThan(
+    authenticatedDrawerBox!.x + authenticatedDrawerBox!.width,
+  );
+  expect(mobileComposerBox!.y + mobileComposerBox!.height).toBeLessThan(
+    authenticatedDrawerBox!.y + authenticatedDrawerBox!.height,
+  );
+  await page.screenshot({
+    path: testInfo.outputPath("agent-side-workspace-mobile-authenticated.png"),
+  });
   await expect.poll(() => agentRequests).toBe(2);
   await expect(drawer.getByLabel("Agent 回复")).not.toContainText("Agent 服务暂未配置");
 });
@@ -679,7 +800,9 @@ test("Agent 加载、运行与取消反馈保持连续", async ({ page }) => {
   };
 
   await page.addInitScript(() => localStorage.clear());
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({ json: { ok: true, data: session } }));
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({ json: { ok: true, data: session } }),
+  );
   await mockAuthenticatedBackgroundRequests(page);
   await page.route("**/api/v1/agent/**", async (route) => {
     const url = new URL(route.request().url());
@@ -698,7 +821,9 @@ test("Agent 加载、运行与取消反馈保持连续", async ({ page }) => {
           data: {
             conversation,
             messages: openingMessages,
-            latestRun: cancelled ? { ...runningRun, status: "cancelled", completedAt: "2026-07-16T12:00:03.000Z" } : runningRun,
+            latestRun: cancelled
+              ? { ...runningRun, status: "cancelled", completedAt: "2026-07-16T12:00:03.000Z" }
+              : runningRun,
           },
         },
       });
@@ -712,12 +837,19 @@ test("Agent 加载、运行与取消反馈保持连续", async ({ page }) => {
           data: {
             conversation,
             messages: openingMessages,
-            latestRun: { ...runningRun, status: "cancelled", completedAt: "2026-07-16T12:00:03.000Z" },
+            latestRun: {
+              ...runningRun,
+              status: "cancelled",
+              completedAt: "2026-07-16T12:00:03.000Z",
+            },
           },
         },
       });
     }
-    return route.fulfill({ status: 404, json: { ok: false, error: { code: "NOT_FOUND", message: "not found" } } });
+    return route.fulfill({
+      status: 404,
+      json: { ok: false, error: { code: "NOT_FOUND", message: "not found" } },
+    });
   });
 
   await page.goto("/canvas");
@@ -749,7 +881,9 @@ test("Agent 提案必须确认后才修改画布并记录回执", async ({ page 
   let receiptPayload: Record<string, unknown> | null = null;
 
   await page.addInitScript(() => localStorage.clear());
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({ json: { ok: true, data: session } }));
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({ json: { ok: true, data: session } }),
+  );
   await mockAuthenticatedBackgroundRequests(page);
   await page.route("**/api/v1/agent/**", async (route) => {
     const url = new URL(route.request().url());
@@ -765,13 +899,24 @@ test("Agent 提案必须确认后才修改画布并记录回执", async ({ page 
       return route.fulfill({
         json: {
           ok: true,
-          data: detailState ?? { conversation: { ...conversation, projectId }, messages: [], latestRun: null },
+          data: detailState ?? {
+            conversation: { ...conversation, projectId },
+            messages: [],
+            latestRun: null,
+          },
         },
       });
     }
     if (method === "POST" && url.pathname.endsWith("/messages")) {
-      const request = route.request().postDataJSON() as { canvasContext: { contextRevision: string } };
-      detailState = proposalDetail(projectId, request.canvasContext.contextRevision, "pending", null);
+      const request = route.request().postDataJSON() as {
+        canvasContext: { contextRevision: string };
+      };
+      detailState = proposalDetail(
+        projectId,
+        request.canvasContext.contextRevision,
+        "pending",
+        null,
+      );
       return route.fulfill({ status: 202, json: { ok: true, data: detailState } });
     }
     if (method === "POST" && url.pathname.endsWith("/proposal/confirm")) {
@@ -791,11 +936,14 @@ test("Agent 提案必须确认后才修改画布并记录回执", async ({ page 
       });
       return route.fulfill({ json: { ok: true, data: detailState } });
     }
-    return route.fulfill({ status: 404, json: { ok: false, error: { code: "NOT_FOUND", message: "not found" } } });
+    return route.fulfill({
+      status: 404,
+      json: { ok: false, error: { code: "NOT_FOUND", message: "not found" } },
+    });
   });
 
   await page.goto("/canvas");
-  const nodes = page.locator(".react-flow__node-kachang");
+  const nodes = page.locator(".react-flow__node-weftcanvas");
   await expect(nodes.first()).toBeVisible();
   const initialNodeCount = await nodes.count();
   await page.getByLabel("打开画布 Agent").click();
@@ -803,7 +951,7 @@ test("Agent 提案必须确认后才修改画布并记录回执", async ({ page 
   await drawer.getByRole("textbox", { name: "发送给 Agent" }).fill("新增一个节奏节点");
   await drawer.getByRole("button", { name: "发送给 Agent" }).click();
 
-  const proposal = drawer.locator(".kc-agent-proposal");
+  const proposal = drawer.locator(".wc-agent-proposal");
   await expect(proposal.getByText("新增节奏节点")).toBeVisible();
   await expect(nodes).toHaveCount(initialNodeCount);
   await page.screenshot({ path: testInfo.outputPath("agent-proposal-pending.png") });
@@ -811,7 +959,11 @@ test("Agent 提案必须确认后才修改画布并记录回执", async ({ page 
 
   await expect(nodes).toHaveCount(initialNodeCount + 1);
   await expect(drawer.getByText("已应用 1 项操作")).toBeVisible();
-  expect(receiptPayload).toMatchObject({ appliedActions: 1, status: "applied", skippedActions: [] });
+  expect(receiptPayload).toMatchObject({
+    appliedActions: 1,
+    status: "applied",
+    skippedActions: [],
+  });
 });
 
 test("专业辅助基线未完成时阻止旧服务返回的提案", async ({ page }) => {
@@ -830,7 +982,9 @@ test("专业辅助基线未完成时阻止旧服务返回的提案", async ({ pa
   let receiptRequests = 0;
 
   await page.addInitScript(() => localStorage.clear());
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({ json: { ok: true, data: session } }));
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({ json: { ok: true, data: session } }),
+  );
   await mockAuthenticatedBackgroundRequests(page);
   await page.route("**/api/v1/agent/**", async (route) => {
     const url = new URL(route.request().url());
@@ -846,37 +1000,52 @@ test("专业辅助基线未完成时阻止旧服务返回的提案", async ({ pa
       return route.fulfill({
         json: {
           ok: true,
-          data: detailState ?? { conversation: { ...conversation, projectId }, messages: [], latestRun: null },
+          data: detailState ?? {
+            conversation: { ...conversation, projectId },
+            messages: [],
+            latestRun: null,
+          },
         },
       });
     }
     if (method === "POST" && url.pathname.endsWith("/messages")) {
-      const request = route.request().postDataJSON() as { canvasContext: { contextRevision: string } };
-      detailState = proposalDetail(projectId, request.canvasContext.contextRevision, "pending", null);
+      const request = route.request().postDataJSON() as {
+        canvasContext: { contextRevision: string };
+      };
+      detailState = proposalDetail(
+        projectId,
+        request.canvasContext.contextRevision,
+        "pending",
+        null,
+      );
       return route.fulfill({ status: 202, json: { ok: true, data: detailState } });
     }
     if (method === "POST" && url.pathname.endsWith("/proposal/confirm")) confirmRequests += 1;
     if (method === "POST" && url.pathname.endsWith("/receipt")) receiptRequests += 1;
-    return route.fulfill({ status: 500, json: { ok: false, error: { code: "UNEXPECTED_REQUEST", message: "unexpected" } } });
+    return route.fulfill({
+      status: 500,
+      json: { ok: false, error: { code: "UNEXPECTED_REQUEST", message: "unexpected" } },
+    });
   });
 
   await page.goto("/canvas");
-  const nodes = page.locator(".react-flow__node-kachang");
+  const nodes = page.locator(".react-flow__node-weftcanvas");
   await expect(nodes.first()).toBeVisible();
   const initialNodeCount = await nodes.count();
   await page.getByLabel("打开画布 Agent").click();
   const drawer = page.getByRole("dialog", { name: "画布 Agent" });
   const creativeModeSelect = drawer.getByLabel("创作协作模式", { exact: true });
   await creativeModeSelect.click();
-  await page.getByRole("listbox", { name: "创作协作模式" })
+  await page
+    .getByRole("listbox", { name: "创作协作模式" })
     .getByRole("option", { name: "专业辅助" })
     .click();
-  const baselineQuestion = drawer.locator(".kc-agent-baseline-question");
+  const baselineQuestion = drawer.locator(".wc-agent-baseline-question");
   await expect(baselineQuestion).toHaveCount(0);
   await drawer.getByRole("textbox", { name: "发送给 Agent" }).fill("新增一个节奏节点");
   await drawer.getByRole("button", { name: "发送给 Agent" }).click();
 
-  const proposal = drawer.locator(".kc-agent-proposal");
+  const proposal = drawer.locator(".wc-agent-proposal");
   await expect(proposal.getByText("新增节奏节点")).toBeVisible();
   await expect(baselineQuestion).toBeVisible();
   await expect(baselineQuestion).toContainText("画面比例 · 1/3");
@@ -905,11 +1074,13 @@ test("Agent 模型选择会持久化，并在模型下架后回退默认项", as
   };
 
   await page.addInitScript(() => {
-    if (sessionStorage.getItem("kc-agent-model-test-initialized")) return;
+    if (sessionStorage.getItem("wc-agent-model-test-initialized")) return;
     localStorage.clear();
-    sessionStorage.setItem("kc-agent-model-test-initialized", "true");
+    sessionStorage.setItem("wc-agent-model-test-initialized", "true");
   });
-  await page.route("**/api/v1/auth/session", (route) => route.fulfill({ json: { ok: true, data: session } }));
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({ json: { ok: true, data: session } }),
+  );
   await mockAuthenticatedBackgroundRequests(page);
   await page.route("**/api/v1/agent/**", (route) => {
     const url = new URL(route.request().url());
@@ -919,25 +1090,42 @@ test("Agent 模型选择会持久化，并在模型下架后回退默认项", as
     if (url.pathname === "/api/v1/agent/conversations") {
       return route.fulfill({ json: { ok: true, data: [] } });
     }
-    return route.fulfill({ status: 404, json: { ok: false, error: { code: "NOT_FOUND", message: "not found" } } });
+    return route.fulfill({
+      status: 404,
+      json: { ok: false, error: { code: "NOT_FOUND", message: "not found" } },
+    });
   });
 
   await page.goto("/canvas");
   await page.getByLabel("打开画布 Agent").click();
-  let modelSelect = page.getByRole("dialog", { name: "画布 Agent" }).getByLabel("Agent 模型", { exact: true });
+  let modelSelect = page
+    .getByRole("dialog", { name: "画布 Agent" })
+    .getByLabel("Agent 模型", { exact: true });
   await modelSelect.click();
-  await page.getByRole("listbox", { name: "Agent 模型" })
+  await page
+    .getByRole("listbox", { name: "Agent 模型" })
     .getByRole("option", { name: "GPT-5 Creative Preview 2026-07" })
     .click();
-  await expect(modelSelect.locator("..")).toHaveAttribute("data-value", "gpt-5-creative-preview-2026-07");
-  await expect(modelSelect.locator(".kc-cat-select-value")).toHaveText("GPT-5 Creative Preview 2026-07");
-  await expect.poll(() => page.evaluate(() => localStorage.getItem("kachang-canvas:agent-model:v1")))
+  await expect(modelSelect.locator("..")).toHaveAttribute(
+    "data-value",
+    "gpt-5-creative-preview-2026-07",
+  );
+  await expect(modelSelect.locator(".wc-cat-select-value")).toHaveText(
+    "GPT-5 Creative Preview 2026-07",
+  );
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("weftcanvas:agent-model:v1")))
     .toContain("gpt-5-creative-preview-2026-07");
 
   await page.reload();
   await page.getByLabel("打开画布 Agent").click();
-  modelSelect = page.getByRole("dialog", { name: "画布 Agent" }).getByLabel("Agent 模型", { exact: true });
-  await expect(modelSelect.locator("..")).toHaveAttribute("data-value", "gpt-5-creative-preview-2026-07");
+  modelSelect = page
+    .getByRole("dialog", { name: "画布 Agent" })
+    .getByLabel("Agent 模型", { exact: true });
+  await expect(modelSelect.locator("..")).toHaveAttribute(
+    "data-value",
+    "gpt-5-creative-preview-2026-07",
+  );
 
   catalog = {
     defaultModelId: "gpt-5-mini",
@@ -945,10 +1133,13 @@ test("Agent 模型选择会持久化，并在模型下架后回退默认项", as
   };
   await page.reload();
   await page.getByLabel("打开画布 Agent").click();
-  modelSelect = page.getByRole("dialog", { name: "画布 Agent" }).getByLabel("Agent 模型", { exact: true });
+  modelSelect = page
+    .getByRole("dialog", { name: "画布 Agent" })
+    .getByLabel("Agent 模型", { exact: true });
   await expect(modelSelect.locator("..")).toHaveAttribute("data-value", "gpt-5-mini");
-  await expect(modelSelect.locator(".kc-cat-select-value")).toHaveText("GPT-5 Mini");
-  await expect.poll(() => page.evaluate(() => localStorage.getItem("kachang-canvas:agent-model:v1")))
+  await expect(modelSelect.locator(".wc-cat-select-value")).toHaveText("GPT-5 Mini");
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("weftcanvas:agent-model:v1")))
     .toContain("gpt-5-mini");
 
   await page.setViewportSize({ width: 1_024, height: 700 });
@@ -966,7 +1157,12 @@ function proposalDetail(
   receipt: Record<string, unknown> | null,
 ) {
   return {
-    conversation: { ...conversation, projectId, title: "新增节奏节点", updatedAt: "2026-07-16T12:00:03.000Z" },
+    conversation: {
+      ...conversation,
+      projectId,
+      title: "新增节奏节点",
+      updatedAt: "2026-07-16T12:00:03.000Z",
+    },
     messages: [
       {
         schemaVersion: 1,

@@ -12,135 +12,135 @@
  * 令牌，不依赖配色方案的色板）。
  *
  * 选择器挂在 :root[data-edge-path-style="emerald"] 上，与 data-edge-flow-style
- * 组合控制流光形态。沿用现有 .kc-edge-renderer / .kc-edge-aura / .kc-edge-energy
+ * 组合控制流光形态。沿用现有 .wc-edge-renderer / .wc-edge-aura / .wc-edge-energy
  * 节点结构，不动 React 组件。
  */
 
 :root[data-edge-path-style="emerald"] {
   /* 绿系令牌——不依赖任何配色方案，单独锁定 */
-  --kc-emerald-base: #3aa17a;
-  --kc-emerald-halo: rgb(46 184 120 / 22%);
-  --kc-emerald-glow: rgb(126 230 179 / 92%);
-  --kc-emerald-gem: #a8ffd4;
-  --kc-emerald-deep: rgb(8 88 58 / 80%);
-  --kc-emerald-track: rgb(46 184 120 / 38%);
+  --wc-emerald-base: #3aa17a;
+  --wc-emerald-halo: rgb(46 184 120 / 22%);
+  --wc-emerald-glow: rgb(126 230 179 / 92%);
+  --wc-emerald-gem: #a8ffd4;
+  --wc-emerald-deep: rgb(8 88 58 / 80%);
+  --wc-emerald-track: rgb(46 184 120 / 38%);
 }
 
 :root[data-theme="light"][data-edge-path-style="emerald"] {
   /* 浅色主题下整体加深一档，避免被白底吃光 */
-  --kc-emerald-base: #147a5e;
-  --kc-emerald-halo: rgb(20 122 94 / 26%);
-  --kc-emerald-glow: rgb(46 184 120 / 92%);
-  --kc-emerald-gem: #2bb888;
-  --kc-emerald-deep: rgb(8 60 44 / 80%);
-  --kc-emerald-track: rgb(20 122 94 / 42%);
+  --wc-emerald-base: #147a5e;
+  --wc-emerald-halo: rgb(20 122 94 / 26%);
+  --wc-emerald-glow: rgb(46 184 120 / 92%);
+  --wc-emerald-gem: #2bb888;
+  --wc-emerald-deep: rgb(8 60 44 / 80%);
+  --wc-emerald-track: rgb(20 122 94 / 42%);
 }
 
 /* —— 基底连线（BaseEdge）—— */
 :root[data-edge-path-style="emerald"] .react-flow__edge-path {
-  stroke: var(--kc-emerald-base);
+  stroke: var(--wc-emerald-base);
   stroke-width: 1.4;
   stroke-linecap: round;
-  filter: drop-shadow(0 0 1.4px var(--kc-emerald-halo));
+  filter: drop-shadow(0 0 1.4px var(--wc-emerald-halo));
 }
 
 /* 选中时换高亮绿 + 加粗 */
 :root[data-edge-path-style="emerald"] .react-flow__edge.selected .react-flow__edge-path {
-  stroke: var(--kc-emerald-gem);
+  stroke: var(--wc-emerald-gem);
   stroke-width: 2;
 }
 
 /* hover：略亮 + 加粗 */
 :root[data-edge-path-style="emerald"] .react-flow__edge:hover .react-flow__edge-path {
-  stroke: var(--kc-emerald-glow);
+  stroke: var(--wc-emerald-glow);
   stroke-width: 1.8;
 }
 
-/* —— 外圈光晕（.kc-edge-aura）—— */
-:root[data-edge-path-style="emerald"] .kc-edge-aura {
-  stroke: var(--kc-emerald-halo);
+/* —— 外圈光晕（.wc-edge-aura）—— */
+:root[data-edge-path-style="emerald"] .wc-edge-aura {
+  stroke: var(--wc-emerald-halo);
   stroke-width: 6;
-  opacity: .85;
+  opacity: 0.85;
   filter: blur(0.4px);
 }
 
-:root[data-edge-path-style="emerald"] .react-flow__edge.selected .kc-edge-aura,
-:root[data-edge-path-style="emerald"] .kc-edge-aura[data-selected="true"] {
-  stroke: var(--kc-emerald-halo);
+:root[data-edge-path-style="emerald"] .react-flow__edge.selected .wc-edge-aura,
+:root[data-edge-path-style="emerald"] .wc-edge-aura[data-selected="true"] {
+  stroke: var(--wc-emerald-halo);
   opacity: 1;
   stroke-width: 7.5;
 }
 
-/* —— 流光（.kc-edge-energy）—— dash 节奏调成 6/86，更"通电" */
-:root[data-edge-path-style="emerald"] .kc-edge-energy {
-  stroke: var(--kc-emerald-glow);
+/* —— 流光（.wc-edge-energy）—— dash 节奏调成 6/86，更"通电" */
+:root[data-edge-path-style="emerald"] .wc-edge-energy {
+  stroke: var(--wc-emerald-glow);
   stroke-width: 1.6;
   stroke-dasharray: 6 86;
   stroke-linecap: round;
-  filter: drop-shadow(0 0 1.6px var(--kc-emerald-glow));
+  filter: drop-shadow(0 0 1.6px var(--wc-emerald-glow));
 }
 
-:root[data-edge-path-style="emerald"] .react-flow__edge.selected .kc-edge-energy,
-:root[data-edge-path-style="emerald"] .kc-edge-energy[data-selected="true"] {
-  stroke: var(--kc-emerald-gem);
+:root[data-edge-path-style="emerald"] .react-flow__edge.selected .wc-edge-energy,
+:root[data-edge-path-style="emerald"] .wc-edge-energy[data-selected="true"] {
+  stroke: var(--wc-emerald-gem);
   stroke-width: 2.2;
-  filter: drop-shadow(0 0 2.2px var(--kc-emerald-gem));
+  filter: drop-shadow(0 0 2.2px var(--wc-emerald-gem));
 }
 
 /* —— 端点（连接预览）—— */
-:root[data-edge-path-style="emerald"] .kc-connection-preview-base {
-  stroke: var(--kc-emerald-base);
+:root[data-edge-path-style="emerald"] .wc-connection-preview-base {
+  stroke: var(--wc-emerald-base);
   stroke-width: 1.4;
-  filter: drop-shadow(0 0 1.4px var(--kc-emerald-halo));
+  filter: drop-shadow(0 0 1.4px var(--wc-emerald-halo));
 }
 
 /* —— 星点模式（data-edge-flow-style="stardust）——：宝石点 + 聚焦环全换绿 */
-:root[data-edge-path-style="emerald"][data-edge-flow-style="stardust"] .kc-edge-star-field {
-  stroke: var(--kc-emerald-track);
+:root[data-edge-path-style="emerald"][data-edge-flow-style="stardust"] .wc-edge-star-field {
+  stroke: var(--wc-emerald-track);
   stroke-dasharray: 0.6 5.4;
   stroke-width: 1.6;
 }
 
-:root[data-edge-path-style="emerald"][data-edge-flow-style="stardust"] .kc-edge-star-inbound {
-  stroke: var(--kc-emerald-glow);
+:root[data-edge-path-style="emerald"][data-edge-flow-style="stardust"] .wc-edge-star-inbound {
+  stroke: var(--wc-emerald-glow);
   stroke-width: 1.4;
   stroke-dasharray: 4 96;
-  filter: drop-shadow(0 0 1.4px var(--kc-emerald-glow));
+  filter: drop-shadow(0 0 1.4px var(--wc-emerald-glow));
 }
 
-:root[data-edge-path-style="emerald"][data-edge-flow-style="stardust"] .kc-edge-star-focus-ring {
-  stroke: var(--kc-emerald-gem);
+:root[data-edge-path-style="emerald"][data-edge-flow-style="stardust"] .wc-edge-star-focus-ring {
+  stroke: var(--wc-emerald-gem);
   stroke-width: 1.4;
   fill: none;
-  filter: drop-shadow(0 0 1.4px var(--kc-emerald-halo));
+  filter: drop-shadow(0 0 1.4px var(--wc-emerald-halo));
 }
 
-:root[data-edge-path-style="emerald"][data-edge-flow-style="stardust"] .kc-edge-star-focus-core {
-  fill: var(--kc-emerald-gem);
-  filter: drop-shadow(0 0 2px var(--kc-emerald-glow));
+:root[data-edge-path-style="emerald"][data-edge-flow-style="stardust"] .wc-edge-star-focus-core {
+  fill: var(--wc-emerald-gem);
+  filter: drop-shadow(0 0 2px var(--wc-emerald-glow));
 }
 
 /* —— 预览端点的能量场 —— */
-:root[data-edge-path-style="emerald"] .kc-edge-aura--preview {
-  stroke: var(--kc-emerald-halo);
-  opacity: .55;
+:root[data-edge-path-style="emerald"] .wc-edge-aura--preview {
+  stroke: var(--wc-emerald-halo);
+  opacity: 0.55;
   filter: blur(0.4px);
 }
 
-:root[data-edge-path-style="emerald"] .kc-edge-energy--preview {
-  stroke: var(--kc-emerald-glow);
-  filter: drop-shadow(0 0 1.6px var(--kc-emerald-glow));
+:root[data-edge-path-style="emerald"] .wc-edge-energy--preview {
+  stroke: var(--wc-emerald-glow);
+  filter: drop-shadow(0 0 1.6px var(--wc-emerald-glow));
 }
 
 /* —— ambient（未选中但被识别为"通电"）下保持呼吸节奏 —— */
-:root[data-edge-path-style="emerald"] .kc-edge-effect.is-ambient .kc-edge-energy {
-  stroke: var(--kc-emerald-glow);
-  filter: drop-shadow(0 0 1.2px var(--kc-emerald-halo));
+:root[data-edge-path-style="emerald"] .wc-edge-effect.is-ambient .wc-edge-energy {
+  stroke: var(--wc-emerald-glow);
+  filter: drop-shadow(0 0 1.2px var(--wc-emerald-halo));
 }
 
 /* 端点箭头收尾：翡翠色细描边 */
 :root[data-edge-path-style="emerald"] .react-flow__arrowhead polyline {
-  stroke: var(--kc-emerald-glow);
-  fill: var(--kc-emerald-glow);
-  filter: drop-shadow(0 0 1px var(--kc-emerald-halo));
+  stroke: var(--wc-emerald-glow);
+  fill: var(--wc-emerald-glow);
+  filter: drop-shadow(0 0 1px var(--wc-emerald-halo));
 }

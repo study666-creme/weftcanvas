@@ -17,7 +17,7 @@ describe("workspace gesture detection", () => {
   });
 
   it("ignores unrelated workspace classes", () => {
-    expect(classListIsMoving(classList(["kc-workspace", "is-dense", "is-agent-open"]))).toBe(false);
+    expect(classListIsMoving(classList(["wc-workspace", "is-dense", "is-agent-open"]))).toBe(false);
   });
 
   it("treats a missing workspace as not moving", () => {

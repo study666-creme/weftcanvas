@@ -29,7 +29,10 @@ export class RemoteBlenderRunner {
     const controller = new AbortController();
     const abort = () => controller.abort(signal?.reason);
     signal?.addEventListener("abort", abort, { once: true });
-    const timer = setTimeout(() => controller.abort(new Error("Remote Blender dispatch timed out")), this.timeoutMs);
+    const timer = setTimeout(
+      () => controller.abort(new Error("Remote Blender dispatch timed out")),
+      this.timeoutMs,
+    );
     try {
       const response = await this.fetchImpl(this.endpoint, {
         method: "POST",
@@ -44,12 +47,13 @@ export class RemoteBlenderRunner {
       if (!response.ok) {
         return { ok: false, content: "用户机器上的 Blender 暂时不可达" };
       }
-      const payload = await response.json() as {
+      const payload = (await response.json()) as {
         ok?: unknown;
         data?: { status?: unknown; stdout?: unknown; error?: unknown };
       };
       const data = payload?.data;
-      if (payload?.ok !== true || !data) return { ok: false, content: "连接服务返回了无法识别的结果" };
+      if (payload?.ok !== true || !data)
+        return { ok: false, content: "连接服务返回了无法识别的结果" };
       if (data.status === "completed") {
         const stdout = typeof data.stdout === "string" ? data.stdout.trim() : "";
         return {
@@ -57,13 +61,14 @@ export class RemoteBlenderRunner {
           content: stdout ? `Blender 执行完成：\n${stdout.slice(0, 2_000)}` : "Blender 执行完成。",
         };
       }
-      const reason = typeof data.error === "string" && data.error
-        ? data.error
-        : data.status === "timeout"
-          ? "等待用户机器回执超时"
-          : data.status === "disconnected"
-            ? "用户机器上的 Blender 当前不在线"
-            : "Blender 执行失败";
+      const reason =
+        typeof data.error === "string" && data.error
+          ? data.error
+          : data.status === "timeout"
+            ? "等待用户机器回执超时"
+            : data.status === "disconnected"
+              ? "用户机器上的 Blender 当前不在线"
+              : "Blender 执行失败";
       return { ok: false, content: reason };
     } catch {
       return { ok: false, content: "用户机器上的 Blender 暂时不可达" };
@@ -78,9 +83,14 @@ export class RemoteBlenderRunner {
 export function createRemoteBlenderTool(runner: RemoteBlenderRunner, ownerId: string): AgentTool {
   return {
     name: "blender_run_python",
-    description: "在用户自己机器的 Blender 中执行一段 Python（bpy）代码，并返回 stdout。用于建模、材质、场景整理和渲染准备。",
+    description:
+      "在用户自己机器的 Blender 中执行一段 Python（bpy）代码，并返回 stdout。用于建模、材质、场景整理和渲染准备。",
     parameters: [
-      { name: "code", description: "完整可执行的 Python 代码，可用 bpy 与 bpy.context", required: true },
+      {
+        name: "code",
+        description: "完整可执行的 Python 代码，可用 bpy 与 bpy.context",
+        required: true,
+      },
       { name: "purpose", description: "这次操作的中文目的，会显示给用户", required: false },
     ],
     async run(args, context) {

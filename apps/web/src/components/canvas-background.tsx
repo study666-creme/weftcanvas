@@ -28,10 +28,14 @@ export const CanvasZoomDotGrid = memo(function CanvasZoomDotGrid() {
     const renderViewport = () => {
       frameId = null;
       const presentation = getZoomDotGridPresentation(getZoomDotGridMetrics(latestViewport));
-      if (presentation.size !== applied?.size) grid.style.setProperty("--kc-zoom-dot-grid-size", presentation.size);
-      if (presentation.halfSize !== applied?.halfSize) grid.style.setProperty("--kc-zoom-dot-grid-half-size", presentation.halfSize);
-      if (presentation.x !== applied?.x) grid.style.setProperty("--kc-zoom-dot-grid-x", presentation.x);
-      if (presentation.y !== applied?.y) grid.style.setProperty("--kc-zoom-dot-grid-y", presentation.y);
+      if (presentation.size !== applied?.size)
+        grid.style.setProperty("--wc-zoom-dot-grid-size", presentation.size);
+      if (presentation.halfSize !== applied?.halfSize)
+        grid.style.setProperty("--wc-zoom-dot-grid-half-size", presentation.halfSize);
+      if (presentation.x !== applied?.x)
+        grid.style.setProperty("--wc-zoom-dot-grid-x", presentation.x);
+      if (presentation.y !== applied?.y)
+        grid.style.setProperty("--wc-zoom-dot-grid-y", presentation.y);
       applied = presentation;
     };
 
@@ -40,10 +44,11 @@ export const CanvasZoomDotGrid = memo(function CanvasZoomDotGrid() {
       const nextTransform = state.transform;
       const previousTransform = previousState.transform;
       if (
-        nextTransform[0] === previousTransform[0]
-        && nextTransform[1] === previousTransform[1]
-        && nextTransform[2] === previousTransform[2]
-      ) return;
+        nextTransform[0] === previousTransform[0] &&
+        nextTransform[1] === previousTransform[1] &&
+        nextTransform[2] === previousTransform[2]
+      )
+        return;
 
       latestViewport = viewportFromTransform(nextTransform);
       if (workspaceIsMoving()) return;
@@ -63,7 +68,14 @@ export const CanvasZoomDotGrid = memo(function CanvasZoomDotGrid() {
     };
   }, [store]);
 
-  return <div ref={gridRef} className="kc-canvas-zoom-dot-grid" data-testid="canvas-zoom-dot-grid" aria-hidden="true" />;
+  return (
+    <div
+      ref={gridRef}
+      className="wc-canvas-zoom-dot-grid"
+      data-testid="canvas-zoom-dot-grid"
+      aria-hidden="true"
+    />
+  );
 });
 
 function getZoomDotGridPresentation(metrics: ReturnType<typeof getZoomDotGridMetrics>) {
@@ -83,7 +95,9 @@ export function getZoomDotGridMetrics(viewport: ViewportLike) {
   const zoom = Number.isFinite(viewport.zoom) && viewport.zoom > 0 ? viewport.zoom : 1;
   const x = Number.isFinite(viewport.x) ? viewport.x : 0;
   const y = Number.isFinite(viewport.y) ? viewport.y : 0;
-  const size = roundToThree(Math.min(MAX_GRID_SIZE, Math.max(MIN_GRID_SIZE, BASE_GRID_SIZE * zoom)));
+  const size = roundToThree(
+    Math.min(MAX_GRID_SIZE, Math.max(MIN_GRID_SIZE, BASE_GRID_SIZE * zoom)),
+  );
 
   return {
     size,

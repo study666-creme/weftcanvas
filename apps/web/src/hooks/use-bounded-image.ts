@@ -16,7 +16,11 @@ export type BoundedImageState = {
 
 export function useBoundedImage(
   src: string | null | undefined,
-  options: { priority?: ImageLoadPriority; credentials?: RequestCredentials; preferNative?: boolean } = {},
+  options: {
+    priority?: ImageLoadPriority;
+    credentials?: RequestCredentials;
+    preferNative?: boolean;
+  } = {},
 ): BoundedImageState {
   const priority = options.priority ?? "normal";
   const credentials = options.credentials;

@@ -1,4 +1,4 @@
-import type { ModelParameter, PublicModel } from "@kachang/contracts";
+import type { ModelParameter, PublicModel } from "@weftcanvas/contracts";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -20,12 +20,19 @@ import {
 } from "./generation-config";
 
 describe("generation config", () => {
-  it.each(["gpt-image-2-4k-Adobe", "gpt-image-2-4k-fast"])("migrates legacy Adobe model id %s to the stable catalog id", (modelId) => {
-    expect(canonicalPlatformModelId(modelId)).toBe("image2-4k-fast");
-  });
+  it.each(["gpt-image-2-4k-Adobe", "gpt-image-2-4k-fast"])(
+    "migrates legacy Adobe model id %s to the stable catalog id",
+    (modelId) => {
+      expect(canonicalPlatformModelId(modelId)).toBe("image2-4k-fast");
+    },
+  );
 
   it("keeps resolution hidden on simplified surfaces but selectable in the studio", () => {
-    const parameter = (name: string, label: string, extra: Partial<ModelParameter> = {}): ModelParameter => ({
+    const parameter = (
+      name: string,
+      label: string,
+      extra: Partial<ModelParameter> = {},
+    ): ModelParameter => ({
       name,
       label,
       type: "string",
@@ -65,10 +72,16 @@ describe("generation config", () => {
     expect(canRecoverUnavailableModelSelection(ready)).toBe(true);
     expect(canRecoverUnavailableModelSelection({ ...ready, modelAvailable: true })).toBe(false);
     expect(canRecoverUnavailableModelSelection({ ...ready, customModelKey: true })).toBe(false);
-    expect(canRecoverUnavailableModelSelection({ ...ready, catalogLoadSettled: false })).toBe(false);
+    expect(canRecoverUnavailableModelSelection({ ...ready, catalogLoadSettled: false })).toBe(
+      false,
+    );
     expect(canRecoverUnavailableModelSelection({ ...ready, catalogRefreshing: true })).toBe(false);
-    expect(canRecoverUnavailableModelSelection({ ...ready, catalogError: "模型列表暂时无法读取" })).toBe(false);
-    expect(canRecoverUnavailableModelSelection({ ...ready, customCatalogLoading: true })).toBe(false);
+    expect(
+      canRecoverUnavailableModelSelection({ ...ready, catalogError: "模型列表暂时无法读取" }),
+    ).toBe(false);
+    expect(canRecoverUnavailableModelSelection({ ...ready, customCatalogLoading: true })).toBe(
+      false,
+    );
   });
 
   it("binds node content while keeping capability defaults", () => {
@@ -87,31 +100,67 @@ describe("generation config", () => {
       id: "text-1",
       modality: "text",
       output: { type: "text", minCount: 1, maxCount: 1 },
-      parameters: [{ name: "messages", label: "消息", type: "array", required: true, mutuallyExclusiveWith: [] }],
+      parameters: [
+        {
+          name: "messages",
+          label: "消息",
+          type: "array",
+          required: true,
+          mutuallyExclusiveWith: [],
+        },
+      ],
       pricing: { mode: "token", unit: "token", currency: "CNY", creditsPerYuan: 100, tiers: [] },
     };
     const body = "把这个场景改得更紧张";
-    expect(composeModelParameters(model, body, {})).toEqual({ messages: [{ role: "user", content: body }] });
-    expect(quoteTokenFields(model, body, {}, 2048)).toEqual({ inputTokens: estimateInputTokens(body), maxOutputTokens: 2048 });
+    expect(composeModelParameters(model, body, {})).toEqual({
+      messages: [{ role: "user", content: body }],
+    });
+    expect(quoteTokenFields(model, body, {}, 2048)).toEqual({
+      inputTokens: estimateInputTokens(body),
+      maxOutputTokens: 2048,
+    });
   });
 
   it("binds the only required text capability even when its public name differs", () => {
     const model = imageModel();
-    model.parameters = [{ name: "instruction", label: "描述", type: "string", required: true, mutuallyExclusiveWith: [] }];
+    model.parameters = [
+      {
+        name: "instruction",
+        label: "描述",
+        type: "string",
+        required: true,
+        mutuallyExclusiveWith: [],
+      },
+    ];
     expect(defaultModelParameters(model)).toEqual({});
-    expect(composeModelParameters(model, "晨雾中的车站", {})).toEqual({ instruction: "晨雾中的车站" });
+    expect(composeModelParameters(model, "晨雾中的车站", {})).toEqual({
+      instruction: "晨雾中的车站",
+    });
   });
 
   it("clears mutually exclusive values when a parameter becomes active", () => {
     const model = imageModel();
-    model.parameters.push({ name: "mask", label: "遮罩", type: "string", required: false, mutuallyExclusiveWith: ["enhance"] });
-    expect(setExclusiveParameter(model, { enhance: true }, "mask", "face")).toEqual({ mask: "face" });
+    model.parameters.push({
+      name: "mask",
+      label: "遮罩",
+      type: "string",
+      required: false,
+      mutuallyExclusiveWith: ["enhance"],
+    });
+    expect(setExclusiveParameter(model, { enhance: true }, "mask", "face")).toEqual({
+      mask: "face",
+    });
   });
 
   it("reconciles saved values when a live capability changes", () => {
     const model = imageModel();
-    expect(reconcileModelParameters(model, { quality: "8k", enhance: true, retired: "value" })).toEqual({ quality: "2k", enhance: true });
-    expect(reconcileModelParameters(model, { quality: "4k", enhance: true })).toEqual({ quality: "4k", enhance: true });
+    expect(
+      reconcileModelParameters(model, { quality: "8k", enhance: true, retired: "value" }),
+    ).toEqual({ quality: "2k", enhance: true });
+    expect(reconcileModelParameters(model, { quality: "4k", enhance: true })).toEqual({
+      quality: "4k",
+      enhance: true,
+    });
   });
 
   it("migrates image2-A compatibility aliases into one canonical request", () => {
@@ -121,18 +170,33 @@ describe("generation config", () => {
       parameter("resolution", "string", { default: "1k", options: ["1k", "2k", "4k"] }),
       parameter("size", "string", { label: "像素尺寸或兼容比例", options: ["1k", "2k", "4k"] }),
       parameter("aspect_ratio", "string", { default: "auto", options: ["auto", "16:9"] }),
-      parameter("aspectRatio", "string", { label: "画面比例（兼容别名）", options: ["auto", "16:9"] }),
+      parameter("aspectRatio", "string", {
+        label: "画面比例（兼容别名）",
+        options: ["auto", "16:9"],
+      }),
       parameter("ratio", "string", { label: "画面比例（兼容别名）", options: ["auto", "16:9"] }),
       parameter("quality", "string", { default: "standard", options: ["low", "standard", "high"] }),
     ];
 
-    expect(defaultModelParameters(model)).toEqual({ resolution: "1k", aspect_ratio: "auto", quality: "standard" });
-    expect(reconcileModelParameters(model, { size: "2k", ratio: "16:9", quality: "high" })).toEqual({
-      resolution: "2k",
-      aspect_ratio: "16:9",
-      quality: "high",
+    expect(defaultModelParameters(model)).toEqual({
+      resolution: "1k",
+      aspect_ratio: "auto",
+      quality: "standard",
     });
-    expect(composeModelParameters(model, "电影感产品图", { size: "2k", aspectRatio: "16:9", quality: "high" })).toEqual({
+    expect(reconcileModelParameters(model, { size: "2k", ratio: "16:9", quality: "high" })).toEqual(
+      {
+        resolution: "2k",
+        aspect_ratio: "16:9",
+        quality: "high",
+      },
+    );
+    expect(
+      composeModelParameters(model, "电影感产品图", {
+        size: "2k",
+        aspectRatio: "16:9",
+        quality: "high",
+      }),
+    ).toEqual({
       prompt: "电影感产品图",
       resolution: "2k",
       aspect_ratio: "16:9",
@@ -194,17 +258,20 @@ describe("generation config", () => {
     ["audio", "audios"],
     ["audios", "audios"],
     ["audioUrls", "audios"],
-  ] as const)("recognizes bare media parameter %s only with its matching uploaded input", (name, inputName) => {
-    const model = imageModel();
-    const candidate = parameter(name);
-    expect(isModelMediaReferenceParameter(model, candidate)).toBe(false);
+  ] as const)(
+    "recognizes bare media parameter %s only with its matching uploaded input",
+    (name, inputName) => {
+      const model = imageModel();
+      const candidate = parameter(name);
+      expect(isModelMediaReferenceParameter(model, candidate)).toBe(false);
 
-    model.input[inputName] = { min: 0, max: 2, multiple: true };
-    expect(isModelMediaReferenceParameter(model, candidate)).toBe(true);
+      model.input[inputName] = { min: 0, max: 2, multiple: true };
+      expect(isModelMediaReferenceParameter(model, candidate)).toBe(true);
 
-    model.input[inputName] = { min: 0, max: 0, multiple: false };
-    expect(isModelMediaReferenceParameter(model, candidate)).toBe(false);
-  });
+      model.input[inputName] = { min: 0, max: 0, multiple: false };
+      expect(isModelMediaReferenceParameter(model, candidate)).toBe(false);
+    },
+  );
 
   it("removes media references from defaults, saved values, and composed requests", () => {
     const model = imageModel();
@@ -213,7 +280,9 @@ describe("generation config", () => {
       parameter("referenceImages", "array", { default: ["https://old.example/image.png"] }),
       parameter("reference_video", "string", { default: "https://old.example/video.mp4" }),
       parameter("ref_image_urls", "array", { fixed: ["https://old.example/fixed.png"] }),
-      parameter("messages", "array", { default: [{ role: "user", content: "legacy media payload" }] }),
+      parameter("messages", "array", {
+        default: [{ role: "user", content: "legacy media payload" }],
+      }),
     );
     const saved = {
       quality: "4k",
@@ -252,36 +321,52 @@ describe("generation config", () => {
     expect(isModelMediaReferenceParameter(model, model.parameters.at(-1)!)).toBe(false);
   });
 
-  it.each(["video", "audio"] as const)("normalizes %s duration defaults and saved values to the catalog range", (modality) => {
-    const numericModel = timedMediaModel(modality, parameter("duration", "integer", { default: 1, min: 1, max: 20 }));
-    // 全局时长下限为 4 秒：低于下限的默认值与保存值都被夹到 4。
-    expect(defaultModelParameters(numericModel)).toEqual({ duration: 4 });
-    expect(reconcileModelParameters(numericModel, { duration: 1 })).toEqual({ duration: 4 });
-    expect(reconcileModelParameters(numericModel, { duration: 15 })).toEqual({ duration: 15 });
-    expect(reconcileModelParameters(numericModel, { duration: 20 })).toEqual({ duration: 20 });
+  it.each(["video", "audio"] as const)(
+    "normalizes %s duration defaults and saved values to the catalog range",
+    (modality) => {
+      const numericModel = timedMediaModel(
+        modality,
+        parameter("duration", "integer", { default: 1, min: 1, max: 20 }),
+      );
+      // 全局时长下限为 4 秒：低于下限的默认值与保存值都被夹到 4。
+      expect(defaultModelParameters(numericModel)).toEqual({ duration: 4 });
+      expect(reconcileModelParameters(numericModel, { duration: 1 })).toEqual({ duration: 4 });
+      expect(reconcileModelParameters(numericModel, { duration: 15 })).toEqual({ duration: 15 });
+      expect(reconcileModelParameters(numericModel, { duration: 20 })).toEqual({ duration: 20 });
 
-    const stringModel = timedMediaModel(modality, parameter("seconds", "string", { default: "1", min: 1, max: 20 }));
-    expect(defaultModelParameters(stringModel)).toEqual({ seconds: "4" });
-    expect(reconcileModelParameters(stringModel, { seconds: "1" })).toEqual({ seconds: "4" });
-  });
+      const stringModel = timedMediaModel(
+        modality,
+        parameter("seconds", "string", { default: "1", min: 1, max: 20 }),
+      );
+      expect(defaultModelParameters(stringModel)).toEqual({ seconds: "4" });
+      expect(reconcileModelParameters(stringModel, { seconds: "1" })).toEqual({ seconds: "4" });
+    },
+  );
 
   it("migrates legacy nine-image duration and pixel orientation into the canonical controls", () => {
-    const model = timedMediaModel("video", parameter("duration_seconds", "integer", {
-      default: 4,
-      min: 4,
-      max: 15,
-      options: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-    }));
-    model.parameters.push(parameter("aspect_ratio", "string", {
-      default: "16:9",
-      options: ["16:9", "9:16"],
-    }));
+    const model = timedMediaModel(
+      "video",
+      parameter("duration_seconds", "integer", {
+        default: 4,
+        min: 4,
+        max: 15,
+        options: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      }),
+    );
+    model.parameters.push(
+      parameter("aspect_ratio", "string", {
+        default: "16:9",
+        options: ["16:9", "9:16"],
+      }),
+    );
 
     expect(reconcileModelParameters(model, { seconds: 15, resolution: "720x1280" })).toEqual({
       duration_seconds: 15,
       aspect_ratio: "9:16",
     });
-    expect(composeModelParameters(model, "竖屏人物镜头", { duration: 8, size: "720x1280" })).toEqual({
+    expect(
+      composeModelParameters(model, "竖屏人物镜头", { duration: 8, size: "720x1280" }),
+    ).toEqual({
       duration_seconds: 8,
       aspect_ratio: "9:16",
     });
@@ -296,7 +381,10 @@ describe("generation config", () => {
     expect(isRequestPricedFixedMultiOutputImageModel(perImage)).toBe(false);
     expect(requestPricedFixedOutputCount(perImage)).toBeNull();
 
-    const requestSingle = { ...imageModel(), pricing: { ...imageModel().pricing, unit: "request" as const } };
+    const requestSingle = {
+      ...imageModel(),
+      pricing: { ...imageModel().pricing, unit: "request" as const },
+    };
     expect(isRequestPricedFixedMultiOutputImageModel(requestSingle)).toBe(false);
 
     const requestVariable = {
@@ -315,23 +403,44 @@ describe("generation config", () => {
     // 单图模型：没有 n 参数 → 可以连点凑数量。
     expect(supportsClientBatchGeneration(single, null)).toBe(true);
     // n 被固定成 1（GPT-Image / nano-banana 的目录形态）→ 同样可以连点。
-    expect(supportsClientBatchGeneration(single, parameter("n", "integer", { fixed: 1 }))).toBe(true);
+    expect(supportsClientBatchGeneration(single, parameter("n", "integer", { fixed: 1 }))).toBe(
+      true,
+    );
     // 目录发布了可选的 n 范围 → 直接传 n，交给上游一次出多条。
-    expect(supportsClientBatchGeneration(single, parameter("n", "integer", { min: 1, max: 4 }))).toBe(false);
+    expect(
+      supportsClientBatchGeneration(single, parameter("n", "integer", { min: 1, max: 4 })),
+    ).toBe(false);
     // Midjourney：一次固定回多张，不再叠加连点。
-    expect(supportsClientBatchGeneration(requestPricedMultiOutputImageModel(), parameter("n", "integer", { fixed: 1 }))).toBe(false);
+    expect(
+      supportsClientBatchGeneration(
+        requestPricedMultiOutputImageModel(),
+        parameter("n", "integer", { fixed: 1 }),
+      ),
+    ).toBe(false);
     // 输出契约本身允许多张（MJ 特惠这类 1-4 张）→ 不叠加连点，避免超发。
     const variable = { ...single, output: { type: "image" as const, minCount: 1, maxCount: 4 } };
-    expect(supportsClientBatchGeneration(variable, parameter("n", "integer", { fixed: 1 }))).toBe(false);
+    expect(supportsClientBatchGeneration(variable, parameter("n", "integer", { fixed: 1 }))).toBe(
+      false,
+    );
     // 视频一次只出一条，同样支持浏览器侧连点凑多条。
-    expect(supportsClientBatchGeneration(timedMediaModel("video", parameter("duration", "integer")), null)).toBe(true);
+    expect(
+      supportsClientBatchGeneration(
+        timedMediaModel("video", parameter("duration", "integer")),
+        null,
+      ),
+    ).toBe(true);
     const variableVideo = {
       ...timedMediaModel("video", parameter("duration", "integer")),
       output: { type: "video" as const, minCount: 1, maxCount: 4 },
     };
     expect(supportsClientBatchGeneration(variableVideo, null)).toBe(false);
     expect(supportsClientBatchGeneration(null, null)).toBe(false);
-    expect(supportsClientBatchGeneration(timedMediaModel("audio", parameter("duration", "integer")), null)).toBe(false);
+    expect(
+      supportsClientBatchGeneration(
+        timedMediaModel("audio", parameter("duration", "integer")),
+        null,
+      ),
+    ).toBe(false);
   });
 
   it("always sends quantity 1 for request-priced fixed multi-output image models", () => {
@@ -347,22 +456,28 @@ describe("generation config", () => {
 
   it("auto-picked settings overlay remembered parameters and let the default aspect win", () => {
     const model = imageModel();
-    model.parameters.push(parameter("size", "string", { default: "9:16", options: ["16:9", "9:16", "1:1"] }));
+    model.parameters.push(
+      parameter("size", "string", { default: "9:16", options: ["16:9", "9:16", "1:1"] }),
+    );
 
     // 未记住任何设置：模型默认 + 默认画幅播种。
-    expect(autoPickGenerationSettings({ model, remembered: null, defaultAspectRatio: "16:9" }))
-      .toMatchObject({ quality: "2k", size: "16:9" });
+    expect(
+      autoPickGenerationSettings({ model, remembered: null, defaultAspectRatio: "16:9" }),
+    ).toMatchObject({ quality: "2k", size: "16:9" });
 
     // 记住了上一次参数：覆盖到新模型上，但画幅仍由默认画幅决定。
-    expect(autoPickGenerationSettings({
-      model,
-      remembered: { parameters: { quality: "4k", size: "1:1", enhance: true } },
-      defaultAspectRatio: "9:16",
-    })).toMatchObject({ quality: "4k", size: "9:16", enhance: true });
+    expect(
+      autoPickGenerationSettings({
+        model,
+        remembered: { parameters: { quality: "4k", size: "1:1", enhance: true } },
+        defaultAspectRatio: "9:16",
+      }),
+    ).toMatchObject({ quality: "4k", size: "9:16", enhance: true });
 
     // 模型不支持默认画幅取值时保留模型默认。
-    expect(autoPickGenerationSettings({ model, remembered: null, defaultAspectRatio: "3:4" }))
-      .toMatchObject({ size: "9:16" });
+    expect(
+      autoPickGenerationSettings({ model, remembered: null, defaultAspectRatio: "3:4" }),
+    ).toMatchObject({ size: "9:16" });
   });
 });
 
@@ -377,11 +492,39 @@ function imageModel(): PublicModel {
     input: { textRequired: true },
     output: { type: "image", minCount: 1, maxCount: 1 },
     parameters: [
-      { name: "prompt", label: "提示词", type: "string", required: true, mutuallyExclusiveWith: [] },
-      { name: "quality", label: "分辨率", type: "string", default: "2k", options: ["1k", "2k", "4k"], required: false, mutuallyExclusiveWith: [] },
-      { name: "enhance", label: "增强", type: "boolean", default: false, required: false, mutuallyExclusiveWith: [] },
+      {
+        name: "prompt",
+        label: "提示词",
+        type: "string",
+        required: true,
+        mutuallyExclusiveWith: [],
+      },
+      {
+        name: "quality",
+        label: "分辨率",
+        type: "string",
+        default: "2k",
+        options: ["1k", "2k", "4k"],
+        required: false,
+        mutuallyExclusiveWith: [],
+      },
+      {
+        name: "enhance",
+        label: "增强",
+        type: "boolean",
+        default: false,
+        required: false,
+        mutuallyExclusiveWith: [],
+      },
     ],
-    pricing: { mode: "fixed", unit: "image", currency: "CNY", creditsPerYuan: 100, baseCreditMicros: 1_000_000, tiers: [] },
+    pricing: {
+      mode: "fixed",
+      unit: "image",
+      currency: "CNY",
+      creditsPerYuan: 100,
+      baseCreditMicros: 1_000_000,
+      tiers: [],
+    },
   };
 }
 
@@ -400,14 +543,24 @@ function parameter(
   };
 }
 
-function timedMediaModel(modality: "video" | "audio", duration: PublicModel["parameters"][number]): PublicModel {
+function timedMediaModel(
+  modality: "video" | "audio",
+  duration: PublicModel["parameters"][number],
+): PublicModel {
   return {
     ...imageModel(),
     id: `${modality}-1`,
     modality,
     output: { type: modality, minCount: 1, maxCount: 1 },
     parameters: [duration],
-    pricing: { mode: "fixed", unit: "second", currency: "CNY", creditsPerYuan: 100, baseCreditMicros: 1_000_000, tiers: [] },
+    pricing: {
+      mode: "fixed",
+      unit: "second",
+      currency: "CNY",
+      creditsPerYuan: 100,
+      baseCreditMicros: 1_000_000,
+      tiers: [],
+    },
   };
 }
 
@@ -416,6 +569,14 @@ function requestPricedMultiOutputImageModel(): PublicModel {
     ...imageModel(),
     id: "mj-v81",
     output: { type: "image", minCount: 5, maxCount: 5 },
-    pricing: { mode: "fixed", unit: "request", currency: "CNY", creditsPerYuan: 100, baseCreditMicros: 40_000_000, baseYuanMicros: 400_000, tiers: [] },
+    pricing: {
+      mode: "fixed",
+      unit: "request",
+      currency: "CNY",
+      creditsPerYuan: 100,
+      baseCreditMicros: 40_000_000,
+      baseYuanMicros: 400_000,
+      tiers: [],
+    },
   };
 }

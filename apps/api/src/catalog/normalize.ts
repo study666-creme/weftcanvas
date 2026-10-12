@@ -11,9 +11,13 @@ import {
   type ModelReferenceMedia,
   type PublicModel,
   type PublicModelCatalog,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 
-import { sourceCatalogModelSchema, sourceCatalogSchema, type SourceCatalogModel } from "./source-schema.js";
+import {
+  sourceCatalogModelSchema,
+  sourceCatalogSchema,
+  type SourceCatalogModel,
+} from "./source-schema.js";
 import { applyRawIdLabels, applySeedanceSplitOverlay } from "./seedance-overlay.js";
 import type { StoredCatalogSnapshot } from "./store.js";
 
@@ -43,20 +47,32 @@ export type CatalogCompatibilityOverlay = {
   /** overlay 的策展规则变化时递增，让带 overlay 的快照独立失效。 */
   versionOffset?: number;
   /** 向解析后的 source 注入上游缺失、站点仍提供的兼容模型。 */
-  addKnownModels?(source: ParsedSourceCatalog, options: { includeKnownModels: boolean }): ParsedSourceCatalog;
+  addKnownModels?(
+    source: ParsedSourceCatalog,
+    options: { includeKnownModels: boolean },
+  ): ParsedSourceCatalog;
   /** 逐模型兼容改写（品牌化、固定输出契约等）。 */
-  applyModelCompatibility?(model: SourceCatalogModel, options: { includeKnownModels: boolean }): SourceCatalogModel;
+  applyModelCompatibility?(
+    model: SourceCatalogModel,
+    options: { includeKnownModels: boolean },
+  ): SourceCatalogModel;
   /** 按站点口径修正计价单位（返回 undefined = 沿用上游发布的单位）。 */
-  priceUnitOverride?(model: SourceCatalogModel, publishedUnit: SourceCatalogModel["pricing"]["unit"]): SourceCatalogModel["pricing"]["unit"] | undefined;
+  priceUnitOverride?(
+    model: SourceCatalogModel,
+    publishedUnit: SourceCatalogModel["pricing"]["unit"],
+  ): SourceCatalogModel["pricing"]["unit"] | undefined;
   /** 原始模型行级别的站点兼容注入（sanitize 阶段）。 */
-  ensureRawCompatibilityModels?(models: Array<Record<string, unknown>>): Array<Record<string, unknown>>;
+  ensureRawCompatibilityModels?(
+    models: Array<Record<string, unknown>>,
+  ): Array<Record<string, unknown>>;
   /** 旧快照的站点兼容迁移（载入阶段）；未注入 = 原样使用快照。 */
   ensureSnapshotCompatibility?(snapshot: StoredCatalogSnapshot): StoredCatalogSnapshot;
 };
 
 const MEDIA_REFERENCE_PARAMETER_NAME = /^(?:reference|ref)(image|video|audio)s?(?:url)?s?$/;
 const BARE_MEDIA_PARAMETER_NAME = /^(image|video|audio)(?:s|urls?)?$/;
-const POSITIONED_IMAGE_PARAMETER_NAME = /^(first|start|last|end)(?:(?:frame)(?:image)?|image)(?:url)?$/;
+const POSITIONED_IMAGE_PARAMETER_NAME =
+  /^(first|start|last|end)(?:(?:frame)(?:image)?|image)(?:url)?$/;
 const SPECIALIZED_IMAGE_PARAMETER_NAME = /^(style|element)(?:references?|images?)(?:url)?s?$/;
 const INPUT_MEDIA_PARAMETER_NAME = /^(?:input|source)(image|video|audio)(?:url)?s?$/;
 const BLOCKED_PATH_SEGMENTS = new Set(["__proto__", "constructor", "prototype"]);
@@ -85,17 +101,23 @@ export function normalizeSourceCatalog(
   },
 ): StoredCatalogSnapshot {
   const overlay = options.overlay;
-  const parsed = applyRawIdLabels(applySeedanceSplitOverlay(sourceCatalogSchema.parse(sanitizeSourceCatalog(value, overlay))));
-  const source = overlay?.addKnownModels?.(parsed, { includeKnownModels: Boolean(options.includeKnownModels) })
-    ?? parsed;
+  const parsed = applyRawIdLabels(
+    applySeedanceSplitOverlay(sourceCatalogSchema.parse(sanitizeSourceCatalog(value, overlay))),
+  );
+  const source =
+    overlay?.addKnownModels?.(parsed, {
+      includeKnownModels: Boolean(options.includeKnownModels),
+    }) ?? parsed;
   const sourceModels: Record<string, string> = {};
   const routes: StoredCatalogSnapshot["routes"] = {};
   const publicModels: PublicModel[] = [];
   const usedIds = new Set<string>();
 
   for (const sourceModel of source.models) {
-    const model = overlay?.applyModelCompatibility?.(sourceModel, { includeKnownModels: Boolean(options.includeKnownModels) })
-      ?? sourceModel;
+    const model =
+      overlay?.applyModelCompatibility?.(sourceModel, {
+        includeKnownModels: Boolean(options.includeKnownModels),
+      }) ?? sourceModel;
     if (model.selectable === false || !model.public) continue;
     let route: StoredCatalogSnapshot["routes"][string];
     try {
@@ -105,15 +127,19 @@ export function normalizeSourceCatalog(
       throw error;
     }
     const publicId = model.public.id.trim();
-    if (usedIds.has(publicId)) throw new CatalogValidationError(`Duplicate public model id: ${publicId}`);
+    if (usedIds.has(publicId))
+      throw new CatalogValidationError(`Duplicate public model id: ${publicId}`);
     usedIds.add(publicId);
     sourceModels[publicId] = model.id;
     routes[publicId] = route;
     publicModels.push(normalizeModel(model, source.credits_per_yuan, overlay));
   }
 
-  if (!publicModels.length) throw new CatalogValidationError("Catalog contains no selectable public models");
-  publicModels.sort((left, right) => left.order - right.order || left.label.localeCompare(right.label, "zh-CN"));
+  if (!publicModels.length)
+    throw new CatalogValidationError("Catalog contains no selectable public models");
+  publicModels.sort(
+    (left, right) => left.order - right.order || left.label.localeCompare(right.label, "zh-CN"),
+  );
 
   const pricingVersion = source.pricing_version.trim()
     ? source.pricing_version
@@ -160,32 +186,41 @@ const CANONICAL_PUBLIC_PARAMETER_LABELS: Readonly<Record<string, string>> = {
   resolution: "分辨率",
 };
 
-
 /** 上游把「同时发布了按次零售价」标记在 tags 里；缺 tags 时视为没有按次价。 */
 function hasPerRequestTag(tags: string | undefined) {
   return (tags ?? "").split(",").some((tag) => tag.trim().toLowerCase() === "per-request");
 }
 
 /** 内部导出：站点 overlay 的旧快照迁移复用同一套模型归一化。 */
-export function normalizeModel(model: SourceCatalogModel, catalogCreditsPerYuan: number, overlay?: CatalogCompatibilityOverlay) {
+export function normalizeModel(
+  model: SourceCatalogModel,
+  catalogCreditsPerYuan: number,
+  overlay?: CatalogCompatibilityOverlay,
+) {
   const sourceParameters = projectPublicParameters(model);
   const parameters = sourceParameters
-    .filter((parameter) => parameter.name !== "model" && !isMediaParameter(
-      parameter.name,
-      parameter.format ?? parameter.items?.format,
-      parameter.path,
-    ))
+    .filter(
+      (parameter) =>
+        parameter.name !== "model" &&
+        !isMediaParameter(
+          parameter.name,
+          parameter.format ?? parameter.items?.format,
+          parameter.path,
+        ),
+    )
     .map(normalizeParameter);
   const inferredResolution = fixedResolutionFromModelId(model);
   if (inferredResolution && !hasDeclaredResolution(parameters)) {
-    parameters.push(modelParameterSchema.parse({
-      name: "resolution",
-      label: "分辨率",
-      type: "string",
-      required: false,
-      fixed: inferredResolution,
-      mutuallyExclusiveWith: [],
-    }));
+    parameters.push(
+      modelParameterSchema.parse({
+        name: "resolution",
+        label: "分辨率",
+        type: "string",
+        required: false,
+        fixed: inferredResolution,
+        mutuallyExclusiveWith: [],
+      }),
+    );
   }
   const outputCount = model.output.count;
   const fixedCount = outputCount?.fixed;
@@ -199,13 +234,15 @@ export function normalizeModel(model: SourceCatalogModel, catalogCreditsPerYuan:
     order: model.order ?? 0,
     ...(model.listed === false ? { listed: false } : {}),
     ...(hasPerRequestTag(model.tags) ? { perRequest: true } : {}),
-    ...(protocol ? {
-      protocol: {
-        version: protocol.version,
-        endpoint: protocol.endpoint,
-        mediaRoles: protocol.media_roles,
-      },
-    } : {}),
+    ...(protocol
+      ? {
+          protocol: {
+            version: protocol.version,
+            endpoint: protocol.endpoint,
+            mediaRoles: protocol.media_roles,
+          },
+        }
+      : {}),
     input: {
       textRequired: model.input?.text?.required === true,
       images: normalizeInputCount(model, "images"),
@@ -226,7 +263,11 @@ export function normalizeModel(model: SourceCatalogModel, catalogCreditsPerYuan:
 function imageProtocolForModel(model: SourceCatalogModel) {
   if (model.modality !== "image") return undefined;
   const path = model.endpoint?.path;
-  if (path !== "/v1/images/generations" && path !== "/v1/chat/completions" && path !== "/v1/midjourney/generations") {
+  if (
+    path !== "/v1/images/generations" &&
+    path !== "/v1/chat/completions" &&
+    path !== "/v1/midjourney/generations"
+  ) {
     return undefined;
   }
   const roles = new Set<"reference" | "style_reference" | "element_reference" | "mask">();
@@ -235,7 +276,10 @@ function imageProtocolForModel(model: SourceCatalogModel) {
     if (/(?:mask|inpaint)/.test(name)) roles.add("mask");
     else if (/style(?:reference|image)/.test(name)) roles.add("style_reference");
     else if (/element(?:reference|image)/.test(name)) roles.add("element_reference");
-    else if (isMediaParameter(parameter.name, parameter.format ?? parameter.items?.format, parameter.path)) roles.add("reference");
+    else if (
+      isMediaParameter(parameter.name, parameter.format ?? parameter.items?.format, parameter.path)
+    )
+      roles.add("reference");
   }
   if (!roles.size) roles.add("reference");
   return {
@@ -278,41 +322,53 @@ function canonicalizePublicImageParameters(model: SourceCatalogModel): SourceCat
   const aspect = parameters.find((parameter) => parameter.name.trim() === "aspect_ratio");
   const ratioAlias = parameters.find((parameter) => parameter.name.trim() === "ratio");
   const size = parameters.find((parameter) => parameter.name.trim() === "size");
-  const hasRatioOptions = Boolean(size?.options?.length)
-    && size!.options!.every((option) => typeof option === "string" && /^(?:auto|\d+:\d+)$/u.test(option));
+  const hasRatioOptions =
+    Boolean(size?.options?.length) &&
+    size!.options!.every(
+      (option) => typeof option === "string" && /^(?:auto|\d+:\d+)$/u.test(option),
+    );
 
   if (!aspect && !ratioAlias && size && hasRatioOptions) {
-    parameters = parameters.map((parameter) => parameter === size
-      ? {
-        ...parameter,
-        name: "aspect_ratio",
-        path: "aspect_ratio",
-        label: "画面比例",
-      }
-      : parameter);
+    parameters = parameters.map((parameter) =>
+      parameter === size
+        ? {
+            ...parameter,
+            name: "aspect_ratio",
+            path: "aspect_ratio",
+            label: "画面比例",
+          }
+        : parameter,
+    );
   } else if (!aspect && ratioAlias) {
-    parameters = parameters.map((parameter) => parameter === ratioAlias
-      ? {
-        ...parameter,
-        name: "aspect_ratio",
-        path: "aspect_ratio",
-        label: "画面比例",
-      }
-      : parameter);
+    parameters = parameters.map((parameter) =>
+      parameter === ratioAlias
+        ? {
+            ...parameter,
+            name: "aspect_ratio",
+            path: "aspect_ratio",
+            label: "画面比例",
+          }
+        : parameter,
+    );
   }
 
-  const hasCanonicalAspect = parameters.some((parameter) => parameter.name.trim() === "aspect_ratio");
+  const hasCanonicalAspect = parameters.some(
+    (parameter) => parameter.name.trim() === "aspect_ratio",
+  );
   if (hasCanonicalAspect) {
-    parameters = parameters.filter((parameter) => !["size", "aspectRatio", "ratio"].includes(parameter.name.trim()));
+    parameters = parameters.filter(
+      (parameter) => !["size", "aspectRatio", "ratio"].includes(parameter.name.trim()),
+    );
   }
   return parameters === model.parameters ? model : { ...model, parameters };
 }
 
 function publicParameterAliases(model: SourceCatalogModel) {
   const aliases = new Map<string, string>();
-  const requestExample = isRecord(model.documentation) && isRecord(model.documentation.request_example)
-    ? model.documentation.request_example
-    : undefined;
+  const requestExample =
+    isRecord(model.documentation) && isRecord(model.documentation.request_example)
+      ? model.documentation.request_example
+      : undefined;
   for (const family of PUBLIC_PARAMETER_ALIAS_FAMILIES) {
     const parameters = model.parameters.filter((parameter) => family.includes(parameter.name));
     if (parameters.length < 2) continue;
@@ -320,16 +376,26 @@ function publicParameterAliases(model: SourceCatalogModel) {
       ? parameters.filter((parameter) => Object.hasOwn(requestExample, parameter.name))
       : [];
     let canonical: SourceParameter | undefined;
-    if (family.includes("resolution") && parameters.some((parameter) => parameter.name === "resolution")) {
+    if (
+      family.includes("resolution") &&
+      parameters.some((parameter) => parameter.name === "resolution")
+    ) {
       canonical = parameters.find((parameter) => parameter.name === "resolution");
     } else if (documented.length === 1) {
       canonical = documented[0];
     } else {
-      const nonCompatibility = parameters.filter((parameter) => !isCompatibilityParameter(parameter));
+      const nonCompatibility = parameters.filter(
+        (parameter) => !isCompatibilityParameter(parameter),
+      );
       if (nonCompatibility.length === 1) canonical = nonCompatibility[0];
-      else if (family.includes("seconds")) canonical = parameters.find((parameter) => parameter.name === "seconds") ?? parameters[0];
-      else if (family.includes("aspect_ratio")) canonical = parameters.find((parameter) => parameter.name === "aspect_ratio") ?? parameters[0];
-      else canonical = parameters.find((parameter) => parameter.name === "resolution") ?? parameters[0];
+      else if (family.includes("seconds"))
+        canonical = parameters.find((parameter) => parameter.name === "seconds") ?? parameters[0];
+      else if (family.includes("aspect_ratio"))
+        canonical =
+          parameters.find((parameter) => parameter.name === "aspect_ratio") ?? parameters[0];
+      else
+        canonical =
+          parameters.find((parameter) => parameter.name === "resolution") ?? parameters[0];
     }
     if (!canonical) continue;
     for (const parameter of parameters) {
@@ -340,8 +406,10 @@ function publicParameterAliases(model: SourceCatalogModel) {
 }
 
 function isCompatibilityParameter(parameter: SourceParameter) {
-  return COMPATIBILITY_LABEL_PATTERN.test(parameter.label ?? "")
-    || /(?:compat|alias)/iu.test(parameter.label ?? "");
+  return (
+    COMPATIBILITY_LABEL_PATTERN.test(parameter.label ?? "") ||
+    /(?:compat|alias)/iu.test(parameter.label ?? "")
+  );
 }
 
 type MediaKind = "image" | "video" | "audio";
@@ -359,17 +427,24 @@ function normalizeReferenceMedia(model: SourceCatalogModel): ModelReferenceMedia
   const source = model.input?.reference_media;
   if (!mediaParameters.length && !source) return undefined;
   const images = normalizeReferenceInputCount(
-    mediaParameters.filter(({ binding }) => binding.kind === "image" && ["reference", "first", "last"].includes(binding.position)),
+    mediaParameters.filter(
+      ({ binding }) =>
+        binding.kind === "image" && ["reference", "first", "last"].includes(binding.position),
+    ),
     source?.images,
     "image",
     model.modality === "image" ? 0 : undefined,
   );
   const styleImages = normalizeReferenceInputCount(
-    mediaParameters.filter(({ binding }) => binding.kind === "image" && binding.position === "style"),
+    mediaParameters.filter(
+      ({ binding }) => binding.kind === "image" && binding.position === "style",
+    ),
     source?.style_images,
   );
   const elementImages = normalizeReferenceInputCount(
-    mediaParameters.filter(({ binding }) => binding.kind === "image" && binding.position === "element"),
+    mediaParameters.filter(
+      ({ binding }) => binding.kind === "image" && binding.position === "element",
+    ),
     source?.element_images,
   );
   const videos = normalizeReferenceInputCount(
@@ -403,16 +478,22 @@ function normalizeReferenceInputCount(
     if (!source) return undefined;
     const max = source.max;
     return {
-      min: max === 0 ? 0 : minimumOverride ?? source.min ?? 0,
+      min: max === 0 ? 0 : (minimumOverride ?? source.min ?? 0),
       ...(max !== undefined ? { max } : {}),
       multiple: source.multiple ?? (max !== undefined && max > 1),
       ...(kind === "image" && source.role ? { role: source.role } : {}),
     };
   }
 
-  const uniqueParameters = [...new Map(parameters.map((item) => [`${item.path}:${item.parameter.type}`, item])).values()];
-  const positioned = uniqueParameters.filter(({ binding }) => binding.position === "first" || binding.position === "last");
-  const arrayParameter = uniqueParameters.find(({ parameter }) => parameter.type === "array")?.parameter;
+  const uniqueParameters = [
+    ...new Map(parameters.map((item) => [`${item.path}:${item.parameter.type}`, item])).values(),
+  ];
+  const positioned = uniqueParameters.filter(
+    ({ binding }) => binding.position === "first" || binding.position === "last",
+  );
+  const arrayParameter = uniqueParameters.find(
+    ({ parameter }) => parameter.type === "array",
+  )?.parameter;
   const singleParameters = uniqueParameters.filter(({ parameter }) => parameter.type === "string");
   // When a route exposes both an all-purpose image array and optional
   // first/last fields, the provider binds ordinary Canvas references to the
@@ -423,7 +504,9 @@ function normalizeReferenceInputCount(
     ? positioned.filter(({ parameter }) => parameter.required === true).length
     : arrayParameter
       ? Math.max(arrayParameter.min_items ?? 0, arrayParameter.required === true ? 1 : 0)
-      : singleParameters.some(({ parameter }) => parameter.required === true) ? 1 : 0;
+      : singleParameters.some(({ parameter }) => parameter.required === true)
+        ? 1
+        : 0;
   const inferredMax = usesFrames
     ? positioned.length
     : arrayParameter
@@ -431,14 +514,16 @@ function normalizeReferenceInputCount(
       : 1;
   const max = minimumDefined(inferredMax, source?.max);
   const multiple = Boolean(
-    (usesFrames ? positioned.length > 1 : arrayParameter && (inferredMax === undefined || inferredMax > 1))
-    && source?.multiple !== false
-    && (max === undefined || max > 1),
+    (usesFrames
+      ? positioned.length > 1
+      : arrayParameter && (inferredMax === undefined || inferredMax > 1)) &&
+    source?.multiple !== false &&
+    (max === undefined || max > 1),
   );
   const role = usesFrames ? "frame" : kind === "image" ? source?.role : undefined;
 
   return {
-    min: max === 0 ? 0 : minimumOverride ?? Math.max(inferredMin, source?.min ?? 0),
+    min: max === 0 ? 0 : (minimumOverride ?? Math.max(inferredMin, source?.min ?? 0)),
     ...(max !== undefined ? { max } : {}),
     multiple,
     ...(role ? { role } : {}),
@@ -447,8 +532,16 @@ function normalizeReferenceInputCount(
 
 function bindableMediaParameters(model: SourceCatalogModel): BindableMediaParameter[] {
   return model.parameters.flatMap((parameter) => {
-    if ((parameter.type !== "string" && parameter.type !== "array") || parameter.fixed !== undefined) return [];
-    const binding = mediaParameterBinding(parameter.name, parameter.format ?? parameter.items?.format, parameter.path);
+    if (
+      (parameter.type !== "string" && parameter.type !== "array") ||
+      parameter.fixed !== undefined
+    )
+      return [];
+    const binding = mediaParameterBinding(
+      parameter.name,
+      parameter.format ?? parameter.items?.format,
+      parameter.path,
+    );
     if (!binding) return [];
     return [{ parameter, path: parameter.path ?? parameter.name, binding }];
   });
@@ -460,16 +553,24 @@ function aggregateReferenceLimit(parameters: BindableMediaParameter[]) {
   for (const { parameter } of parameters) {
     const constraints = [
       parameter.aggregate_constraint
-        ? { fields: parameter.aggregate_constraint.fields, max: parameter.aggregate_constraint.max_total_items }
+        ? {
+            fields: parameter.aggregate_constraint.fields,
+            max: parameter.aggregate_constraint.max_total_items,
+          }
         : undefined,
       parameter.aggregateConstraint
-        ? { fields: parameter.aggregateConstraint.fields, max: parameter.aggregateConstraint.maxTotalItems }
+        ? {
+            fields: parameter.aggregateConstraint.fields,
+            max: parameter.aggregateConstraint.maxTotalItems,
+          }
         : undefined,
     ];
     for (const constraint of constraints) {
       if (!constraint) continue;
       const fields = new Set(constraint.fields.map((field) => field.trim()));
-      if ([...declaredPaths].every((path) => fields.has(path) || fields.has(path.split(".").at(-1)!))) {
+      if (
+        [...declaredPaths].every((path) => fields.has(path) || fields.has(path.split(".").at(-1)!))
+      ) {
         limits.push(constraint.max);
       }
     }
@@ -497,8 +598,9 @@ function hasDeclaredResolution(parameters: ModelParameter[]) {
   return parameters.some((parameter) => {
     if (["resolution", "size"].includes(parameter.name.trim().toLowerCase())) return true;
     if (parameter.name.trim().toLowerCase() !== "quality") return false;
-    const values = [parameter.fixed, parameter.default, ...(parameter.options ?? [])]
-      .map((value) => typeof value === "string" ? value.toLowerCase() : "");
+    const values = [parameter.fixed, parameter.default, ...(parameter.options ?? [])].map(
+      (value) => (typeof value === "string" ? value.toLowerCase() : ""),
+    );
     return values.some((value) => value === "1k" || value === "2k" || value === "4k");
   });
 }
@@ -526,14 +628,20 @@ function normalizeParameter(parameter: SourceCatalogModel["parameters"][number])
 }
 
 /** 内部导出：站点 overlay 的旧快照迁移复用同一路由归一化。 */
-export function normalizePrivateRoute(model: SourceCatalogModel): StoredCatalogSnapshot["routes"][string] {
+export function normalizePrivateRoute(
+  model: SourceCatalogModel,
+): StoredCatalogSnapshot["routes"][string] {
   const expectedPath = ENDPOINT_BY_MODALITY[model.modality as keyof typeof ENDPOINT_BY_MODALITY];
   if (!expectedPath || !model.endpoint || !expectedPath.has(model.endpoint.path)) {
-    throw new CatalogValidationError(`Unsupported execution endpoint for public model ${model.public?.id ?? model.id}`);
+    throw new CatalogValidationError(
+      `Unsupported execution endpoint for public model ${model.public?.id ?? model.id}`,
+    );
   }
   const modelParameter = model.parameters.find((parameter) => parameter.name === "model");
   if (!modelParameter || modelParameter.fixed !== model.id) {
-    throw new CatalogValidationError(`Public model ${model.public?.id ?? model.id} has no fixed private model route`);
+    throw new CatalogValidationError(
+      `Public model ${model.public?.id ?? model.id} has no fixed private model route`,
+    );
   }
   return {
     sourceModelId: model.id,
@@ -557,13 +665,22 @@ export function normalizePrivateRoute(model: SourceCatalogModel): StoredCatalogS
 
 function safeParameterPath(value: string) {
   const segments = value.split(".");
-  if (!segments.length || segments.length > 8 || segments.some((segment) => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(segment) || BLOCKED_PATH_SEGMENTS.has(segment))) {
+  if (
+    !segments.length ||
+    segments.length > 8 ||
+    segments.some(
+      (segment) => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(segment) || BLOCKED_PATH_SEGMENTS.has(segment),
+    )
+  ) {
     throw new CatalogValidationError(`Unsafe model parameter path: ${value}`);
   }
   return segments.join(".");
 }
 
-function normalizeInputCount(model: SourceCatalogModel, kind: "images" | "videos" | "audios"): ModelInputCount | undefined {
+function normalizeInputCount(
+  model: SourceCatalogModel,
+  kind: "images" | "videos" | "audios",
+): ModelInputCount | undefined {
   const source = model.input?.[kind];
   const mediaKind = kind.slice(0, -1) as "image" | "video" | "audio";
   const mediaParameters = model.parameters.filter((parameter) => {
@@ -572,21 +689,29 @@ function normalizeInputCount(model: SourceCatalogModel, kind: "images" | "videos
       parameter.format ?? parameter.items?.format,
       parameter.path,
     );
-    return binding?.kind === mediaKind && binding.position !== "style" && binding.position !== "element";
+    return (
+      binding?.kind === mediaKind && binding.position !== "style" && binding.position !== "element"
+    );
   });
   const arrayParameter = mediaParameters.find((parameter) => parameter.type === "array");
   const singleParameters = mediaParameters.filter((parameter) => parameter.type !== "array");
   if (!source && !mediaParameters.length) return undefined;
-  const positionedCount = singleParameters.filter((parameter) => mediaParameterBinding(
-    parameter.name,
-    parameter.format ?? parameter.items?.format,
-    parameter.path,
-  )?.position !== "reference").length;
-  const inferredMax = arrayParameter ? undefined : positionedCount || (singleParameters.length ? 1 : undefined);
+  const positionedCount = singleParameters.filter(
+    (parameter) =>
+      mediaParameterBinding(
+        parameter.name,
+        parameter.format ?? parameter.items?.format,
+        parameter.path,
+      )?.position !== "reference",
+  ).length;
+  const inferredMax = arrayParameter
+    ? undefined
+    : positionedCount || (singleParameters.length ? 1 : undefined);
   const max = source?.max ?? arrayParameter?.max_items ?? inferredMax;
-  const minimum = model.modality === "image" && kind === "images"
-    ? 0
-    : source?.min ?? arrayParameter?.min_items ?? 0;
+  const minimum =
+    model.modality === "image" && kind === "images"
+      ? 0
+      : (source?.min ?? arrayParameter?.min_items ?? 0);
   return {
     min: minimum,
     ...(max !== undefined ? { max } : {}),
@@ -610,19 +735,25 @@ function normalizePricing(
   // pair, so expose the catalog's base rates (falling back to the first named
   // tier when a source omits the base fields) and keep the public mode stable.
   const publicMode = pricing.mode === "tiered_token" ? "token" : pricing.mode;
-  const tokenTier = pricing.mode === "tiered_token"
-    ? pricing.tiers?.find(isNamedTokenTier)
-    : undefined;
-  const inputCreditsPerMillion = pricing.input_credits_per_million ?? tokenTier?.input_credits_per_million;
-  const outputCreditsPerMillion = pricing.output_credits_per_million ?? tokenTier?.output_credits_per_million;
+  const tokenTier =
+    pricing.mode === "tiered_token" ? pricing.tiers?.find(isNamedTokenTier) : undefined;
+  const inputCreditsPerMillion =
+    pricing.input_credits_per_million ?? tokenTier?.input_credits_per_million;
+  const outputCreditsPerMillion =
+    pricing.output_credits_per_million ?? tokenTier?.output_credits_per_million;
   const inputYuanPerMillion = pricing.input_yuan_per_million ?? tokenTier?.input_yuan_per_million;
-  const outputYuanPerMillion = pricing.output_yuan_per_million ?? tokenTier?.output_yuan_per_million;
-  const estimatedYuanPerSecond = typeof pricing.estimated_yuan_per_second === "number" && Number.isFinite(pricing.estimated_yuan_per_second) && pricing.estimated_yuan_per_second >= 0
-    ? pricing.estimated_yuan_per_second
-    : undefined;
-  const estimateNote = typeof pricing.estimate_note === "string" && pricing.estimate_note.trim()
-    ? pricing.estimate_note.trim()
-    : undefined;
+  const outputYuanPerMillion =
+    pricing.output_yuan_per_million ?? tokenTier?.output_yuan_per_million;
+  const estimatedYuanPerSecond =
+    typeof pricing.estimated_yuan_per_second === "number" &&
+    Number.isFinite(pricing.estimated_yuan_per_second) &&
+    pricing.estimated_yuan_per_second >= 0
+      ? pricing.estimated_yuan_per_second
+      : undefined;
+  const estimateNote =
+    typeof pricing.estimate_note === "string" && pricing.estimate_note.trim()
+      ? pricing.estimate_note.trim()
+      : undefined;
   return modelPricingSchema.parse({
     mode: publicMode,
     unit,
@@ -632,23 +763,39 @@ function normalizePricing(
     ...(pricing.yuan !== undefined ? { baseYuanMicros: toMicros(pricing.yuan) } : {}),
     // Named token tiers cannot be represented by the current public pricing
     // schema; their base rates above are still sufficient for token quotes.
-    tiers: pricing.mode === "tiered_token" ? [] : (pricing.tiers ?? []).filter(isConditionalTier).map((tier) => ({
-      when: normalizePricingCondition(tier.when, aliases),
-      creditMicros: toMicros(tier.credits),
-      yuanMicros: toMicros(tier.yuan),
-    })),
-    ...(inputCreditsPerMillion !== undefined ? { inputCreditMicrosPerMillion: toMicros(inputCreditsPerMillion) } : {}),
-    ...(outputCreditsPerMillion !== undefined ? { outputCreditMicrosPerMillion: toMicros(outputCreditsPerMillion) } : {}),
-    ...(inputYuanPerMillion !== undefined ? { inputYuanMicrosPerMillion: toMicros(inputYuanPerMillion) } : {}),
-    ...(outputYuanPerMillion !== undefined ? { outputYuanMicrosPerMillion: toMicros(outputYuanPerMillion) } : {}),
+    tiers:
+      pricing.mode === "tiered_token"
+        ? []
+        : (pricing.tiers ?? []).filter(isConditionalTier).map((tier) => ({
+            when: normalizePricingCondition(tier.when, aliases),
+            creditMicros: toMicros(tier.credits),
+            yuanMicros: toMicros(tier.yuan),
+          })),
+    ...(inputCreditsPerMillion !== undefined
+      ? { inputCreditMicrosPerMillion: toMicros(inputCreditsPerMillion) }
+      : {}),
+    ...(outputCreditsPerMillion !== undefined
+      ? { outputCreditMicrosPerMillion: toMicros(outputCreditsPerMillion) }
+      : {}),
+    ...(inputYuanPerMillion !== undefined
+      ? { inputYuanMicrosPerMillion: toMicros(inputYuanPerMillion) }
+      : {}),
+    ...(outputYuanPerMillion !== undefined
+      ? { outputYuanMicrosPerMillion: toMicros(outputYuanPerMillion) }
+      : {}),
     // token 计价的视频模型没有可估算的浏览器侧 token 量，只能靠站点发布的
     // 元/秒参考价报价。丢掉这两个字段就等于让画布无价可报。
-    ...(estimatedYuanPerSecond !== undefined ? { estimatedYuanMicrosPerSecond: toMicros(estimatedYuanPerSecond) } : {}),
+    ...(estimatedYuanPerSecond !== undefined
+      ? { estimatedYuanMicrosPerSecond: toMicros(estimatedYuanPerSecond) }
+      : {}),
     ...(estimateNote !== undefined ? { estimateNote } : {}),
   });
 }
 
-function normalizePricingCondition(condition: Record<string, string | number | boolean>, aliases: ReadonlyMap<string, string>) {
+function normalizePricingCondition(
+  condition: Record<string, string | number | boolean>,
+  aliases: ReadonlyMap<string, string>,
+) {
   const normalized: Record<string, string | number | boolean> = {};
   for (const [name, value] of Object.entries(condition)) {
     const canonical = aliases.get(name) ?? name;
@@ -662,11 +809,18 @@ function normalizePricingCondition(condition: Record<string, string | number | b
 
 type SourcePricingTier = NonNullable<SourceCatalogModel["pricing"]["tiers"]>[number];
 
-function isNamedTokenTier(tier: SourcePricingTier): tier is Extract<SourcePricingTier, { name: string }> {
+function isNamedTokenTier(
+  tier: SourcePricingTier,
+): tier is Extract<SourcePricingTier, { name: string }> {
   return "name" in tier;
 }
 
-function isConditionalTier(tier: SourcePricingTier): tier is Extract<SourcePricingTier, { when: Record<string, unknown>; yuan: number; credits: number }> {
+function isConditionalTier(
+  tier: SourcePricingTier,
+): tier is Extract<
+  SourcePricingTier,
+  { when: Record<string, unknown>; yuan: number; credits: number }
+> {
   return "when" in tier && typeof tier.yuan === "number" && typeof tier.credits === "number";
 }
 
@@ -679,24 +833,31 @@ function mediaParameterBinding(name: string, format?: string, path?: string): Me
   if (pathBinding) return pathBinding;
   const nameBinding = mediaBindingFromName(name);
   if (nameBinding) return nameBinding;
-  const formatKind = /uri/i.test(format ?? "") ? /(image|video|audio)/i.exec(format ?? "")?.[1]?.toLowerCase() : undefined;
+  const formatKind = /uri/i.test(format ?? "")
+    ? /(image|video|audio)/i.exec(format ?? "")?.[1]?.toLowerCase()
+    : undefined;
   return formatKind ? { kind: formatKind as MediaKind, position: "reference" } : null;
 }
 
 function mediaBindingFromName(value: string | undefined): MediaBinding | null {
   if (!value) return null;
   const normalizedName = value.replaceAll("_", "").toLowerCase();
-  const specializedImage = SPECIALIZED_IMAGE_PARAMETER_NAME.exec(normalizedName)?.[1] as "style" | "element" | undefined;
+  const specializedImage = SPECIALIZED_IMAGE_PARAMETER_NAME.exec(normalizedName)?.[1] as
+    "style" | "element" | undefined;
   if (specializedImage) return { kind: "image", position: specializedImage };
   const positionedImage = POSITIONED_IMAGE_PARAMETER_NAME.exec(normalizedName)?.[1];
   if (positionedImage) {
-    return { kind: "image", position: positionedImage === "first" || positionedImage === "start" ? "first" : "last" };
+    return {
+      kind: "image",
+      position: positionedImage === "first" || positionedImage === "start" ? "first" : "last",
+    };
   }
   const inputKind = INPUT_MEDIA_PARAMETER_NAME.exec(normalizedName)?.[1] as MediaKind | undefined;
   if (inputKind) return { kind: inputKind, position: "reference" };
   const bareKind = BARE_MEDIA_PARAMETER_NAME.exec(normalizedName)?.[1] as MediaKind | undefined;
   if (bareKind) return { kind: bareKind, position: "reference" };
-  const referenceKind = MEDIA_REFERENCE_PARAMETER_NAME.exec(normalizedName)?.[1] as MediaKind | undefined;
+  const referenceKind = MEDIA_REFERENCE_PARAMETER_NAME.exec(normalizedName)?.[1] as
+    MediaKind | undefined;
   if (referenceKind) return { kind: referenceKind, position: "reference" };
   return null;
 }
@@ -707,7 +868,9 @@ function mediaBindingFromName(value: string | undefined): MediaBinding | null {
 function sanitizeSourceCatalog(value: unknown, overlay?: CatalogCompatibilityOverlay) {
   if (!isRecord(value)) return value;
   const sanitizedModels = Array.isArray(value.models)
-    ? value.models.map(sanitizeSourceModel).filter((model): model is Record<string, unknown> => model !== null)
+    ? value.models
+        .map(sanitizeSourceModel)
+        .filter((model): model is Record<string, unknown> => model !== null)
     : value.models;
   const models = Array.isArray(sanitizedModels)
     ? (overlay?.ensureRawCompatibilityModels?.(sanitizedModels) ?? sanitizedModels)
@@ -735,21 +898,32 @@ function sanitizeSourceModel(value: unknown): Record<string, unknown> | null {
   // vary by context tier; normalizePricing folds it into the public `token`
   // mode. Dropping it here silently removed every such model from the picker
   // (2026-09-20: all four Gemini lines plus GPT-5.6 Sol), so it must survive.
-  if (!(["fixed", "tiered", "token", "tiered_token"] as unknown[]).includes(value.pricing.mode)) return null;
-  if (!(["request", "image", "second", "token"] as unknown[]).includes(value.pricing.unit)) return null;
+  if (!(["fixed", "tiered", "token", "tiered_token"] as unknown[]).includes(value.pricing.mode))
+    return null;
+  if (!(["request", "image", "second", "token"] as unknown[]).includes(value.pricing.unit))
+    return null;
   const pricing = { ...value.pricing };
   if (Array.isArray(pricing.tiers)) {
-    pricing.tiers = pricing.tiers.filter((tier) => isRecord(tier)
-      && isRecord(tier.when)
-      && typeof tier.yuan === "number"
-      && Number.isFinite(tier.yuan)
-      && typeof tier.credits === "number"
-      && Number.isFinite(tier.credits));
+    pricing.tiers = pricing.tiers.filter(
+      (tier) =>
+        isRecord(tier) &&
+        isRecord(tier.when) &&
+        typeof tier.yuan === "number" &&
+        Number.isFinite(tier.yuan) &&
+        typeof tier.credits === "number" &&
+        Number.isFinite(tier.credits),
+    );
   }
   const publicValue = isRecord(value.public)
-    ? { ...value.public, description: typeof value.public.description === "string" ? value.public.description : "" }
+    ? {
+        ...value.public,
+        description: typeof value.public.description === "string" ? value.public.description : "",
+      }
     : value.public;
-  const order = typeof value.order === "number" && Number.isFinite(value.order) ? Math.round(value.order) : value.order;
+  const order =
+    typeof value.order === "number" && Number.isFinite(value.order)
+      ? Math.round(value.order)
+      : value.order;
   const candidate = { ...value, pricing, public: publicValue, order };
   return sourceCatalogModelSchema.safeParse(candidate).success ? candidate : null;
 }
@@ -784,6 +958,9 @@ function derivePricingVersion(models: PublicModel[], creditsPerYuan: number) {
       pricing: model.pricing,
     })),
   };
-  const digest = createHash("sha256").update(JSON.stringify(priceContent)).digest("hex").slice(0, 16);
+  const digest = createHash("sha256")
+    .update(JSON.stringify(priceContent))
+    .digest("hex")
+    .slice(0, 16);
   return `content:${digest}`;
 }

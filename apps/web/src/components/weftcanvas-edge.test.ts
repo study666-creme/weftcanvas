@@ -1,7 +1,7 @@
 import { getBezierPath, Position } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 
-import { getKachangEdgePath } from "./kachang-edge";
+import { getWeftcanvasEdgePath } from "./weftcanvas-edge";
 
 const horizontalConnection = {
   sourceX: 0,
@@ -12,9 +12,9 @@ const horizontalConnection = {
   targetPosition: Position.Left,
 };
 
-describe("Kachang edge paths", () => {
+describe("Weftcanvas edge paths", () => {
   it("keeps the established taut curve available", () => {
-    const geometry = getKachangEdgePath(horizontalConnection, "taut");
+    const geometry = getWeftcanvasEdgePath(horizontalConnection, "taut");
 
     expect(geometry.path).toMatch(/^M/);
     expect(geometry.path).toContain("C");
@@ -23,7 +23,7 @@ describe("Kachang edge paths", () => {
   });
 
   it("uses one LibTV-style cubic without forcing a vertical sag", () => {
-    const geometry = getKachangEdgePath(horizontalConnection, "gravity");
+    const geometry = getWeftcanvasEdgePath(horizontalConnection, "gravity");
 
     expect(geometry.path).toMatch(/^M/);
     expect(geometry.path.match(/C/g)).toHaveLength(1);
@@ -32,8 +32,8 @@ describe("Kachang edge paths", () => {
   });
 
   it("keeps same-height soft curves on their baseline at every length", () => {
-    const short = getKachangEdgePath({ ...horizontalConnection, targetX: 48 }, "gravity");
-    const long = getKachangEdgePath({ ...horizontalConnection, targetX: 4_000 }, "gravity");
+    const short = getWeftcanvasEdgePath({ ...horizontalConnection, targetX: 48 }, "gravity");
+    const long = getWeftcanvasEdgePath({ ...horizontalConnection, targetX: 4_000 }, "gravity");
 
     expect(short.focusY).toBe(horizontalConnection.sourceY);
     expect(long.focusY).toBe(horizontalConnection.sourceY);
@@ -47,7 +47,7 @@ describe("Kachang edge paths", () => {
       targetY: 240,
       targetPosition: Position.Top,
     };
-    const geometry = getKachangEdgePath(input, "gravity");
+    const geometry = getWeftcanvasEdgePath(input, "gravity");
     const [libtvPath, libtvFocusX, libtvFocusY] = getBezierPath(input);
 
     expect(geometry).toEqual({ path: libtvPath, focusX: libtvFocusX, focusY: libtvFocusY });
@@ -59,15 +59,18 @@ describe("Kachang edge paths", () => {
   });
 
   it("shares the same focus when the path is traversed from the target", () => {
-    const forward = getKachangEdgePath(horizontalConnection, "gravity");
-    const reverse = getKachangEdgePath({
-      sourceX: horizontalConnection.targetX,
-      sourceY: horizontalConnection.targetY,
-      targetX: horizontalConnection.sourceX,
-      targetY: horizontalConnection.sourceY,
-      sourcePosition: horizontalConnection.targetPosition,
-      targetPosition: horizontalConnection.sourcePosition,
-    }, "gravity");
+    const forward = getWeftcanvasEdgePath(horizontalConnection, "gravity");
+    const reverse = getWeftcanvasEdgePath(
+      {
+        sourceX: horizontalConnection.targetX,
+        sourceY: horizontalConnection.targetY,
+        targetX: horizontalConnection.sourceX,
+        targetY: horizontalConnection.sourceY,
+        sourcePosition: horizontalConnection.targetPosition,
+        targetPosition: horizontalConnection.sourcePosition,
+      },
+      "gravity",
+    );
 
     expect(reverse.focusX).toBe(forward.focusX);
     expect(reverse.focusY).toBe(forward.focusY);

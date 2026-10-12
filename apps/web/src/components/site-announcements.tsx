@@ -5,7 +5,7 @@ import "./site-announcements.css";
 /**
  * 站点公告（画布侧）：拉取部署注入的公告接口里受众为「画布 / 全部」的条目，
  * 右下角非阻塞展示。公告是公开信息，接口匿名可读；已读状态只存本地
- * （当日不再弹），不依赖卡藏登录态。
+ * （当日不再弹），不依赖纬线登录态。
  */
 
 // 公告端点由部署注入（VITE_ANNOUNCEMENTS_API_URL）；公开/自托管构建不配即关闭公告。
@@ -45,7 +45,7 @@ export function SiteAnnouncements() {
       try {
         const res = await fetch(ANNOUNCEMENTS_API, { cache: "no-store" });
         if (!res.ok) return;
-        const json = await res.json() as { data?: { items?: AnnouncementItem[] } };
+        const json = (await res.json()) as { data?: { items?: AnnouncementItem[] } };
         const list = json?.data?.items ?? [];
         if (cancelled) return;
         setItems(
@@ -71,21 +71,21 @@ export function SiteAnnouncements() {
   };
 
   return (
-    <div className="kc-site-announcements" role="status" aria-label="站点公告">
+    <div className="wc-site-announcements" role="status" aria-label="站点公告">
       {items.map((item) => (
-        <div key={item.id} className="kc-site-announcement">
-          <div className="kc-site-announcement-head">
-            <span className="kc-site-announcement-badge">公告</span>
+        <div key={item.id} className="wc-site-announcement">
+          <div className="wc-site-announcement-head">
+            <span className="wc-site-announcement-badge">公告</span>
             <button
               type="button"
-              className="kc-site-announcement-close"
+              className="wc-site-announcement-close"
               aria-label="关闭公告"
               onClick={() => dismiss(item.id)}
             >
               ×
             </button>
           </div>
-          <p className="kc-site-announcement-text">{item.text}</p>
+          <p className="wc-site-announcement-text">{item.text}</p>
         </div>
       ))}
     </div>

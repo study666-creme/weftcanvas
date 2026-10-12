@@ -1,7 +1,11 @@
-import type { CanvasMedia } from "@kachang/contracts";
+import type { CanvasMedia } from "@weftcanvas/contracts";
 
 import { readBlobImageDimensions } from "./image-dimensions";
-import { MEDIA_THUMB_STORE_NAME, __resetMediaDatabaseForTests, openMediaDatabase } from "./media-database";
+import {
+  MEDIA_THUMB_STORE_NAME,
+  __resetMediaDatabaseForTests,
+  openMediaDatabase,
+} from "./media-database";
 
 /**
  * 本地图片缩略管线（多级）。
@@ -22,7 +26,6 @@ import { MEDIA_THUMB_STORE_NAME, __resetMediaDatabaseForTests, openMediaDatabase
  * 仍走原始字节。
  */
 
-const THUMB_LONG_EDGE = 512;
 /** 原图长边不超过该值时不生成缩略：原图本身就是节点展示级别，存缩略反而翻倍。 */
 const THUMB_SOURCE_MIN_EDGE = 640;
 const THUMB_MIME = "image/jpeg";
@@ -128,7 +131,9 @@ async function storeThumbBlob(cacheKey: string, blob: Blob): Promise<void> {
     const database = await openMediaDatabase();
     await new Promise<void>((resolve, reject) => {
       const transaction = database.transaction(MEDIA_THUMB_STORE_NAME, "readwrite");
-      transaction.objectStore(MEDIA_THUMB_STORE_NAME).put({ mediaId: cacheKey, blob, storedAt: Date.now() });
+      transaction
+        .objectStore(MEDIA_THUMB_STORE_NAME)
+        .put({ mediaId: cacheKey, blob, storedAt: Date.now() });
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error ?? new Error("缩略图保存失败"));
     });
@@ -142,8 +147,12 @@ export async function readStoredThumbBlob(cacheKey: string): Promise<Blob | null
   try {
     const database = await openMediaDatabase();
     return await new Promise<Blob | null>((resolve, reject) => {
-      const request = database.transaction(MEDIA_THUMB_STORE_NAME, "readonly").objectStore(MEDIA_THUMB_STORE_NAME).get(cacheKey);
-      request.onsuccess = () => resolve((request.result as { blob: Blob } | undefined)?.blob ?? null);
+      const request = database
+        .transaction(MEDIA_THUMB_STORE_NAME, "readonly")
+        .objectStore(MEDIA_THUMB_STORE_NAME)
+        .get(cacheKey);
+      request.onsuccess = () =>
+        resolve((request.result as { blob: Blob } | undefined)?.blob ?? null);
       request.onerror = () => reject(request.error ?? new Error("缩略图读取失败"));
     });
   } catch {

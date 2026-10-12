@@ -8,14 +8,13 @@ import {
   agentRunErrorSchema,
   agentRunSchema,
   type AgentCanvasContext,
-  type AgentAction,
   type AgentConversation,
   type AgentConversationDetail,
   type AgentExecutionReceipt,
   type AgentMessage,
   type AgentRun,
   type AgentRunError,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 
 import type {
   AgentConversationRecord,
@@ -65,7 +64,9 @@ export class MemoryAgentStore implements AgentStore {
   async listConversations(ownerId: string, projectId: string, limit: number) {
     this.cleanup();
     return [...this.conversations.values()]
-      .filter((conversation) => conversation.ownerId === ownerId && conversation.projectId === projectId)
+      .filter(
+        (conversation) => conversation.ownerId === ownerId && conversation.projectId === projectId,
+      )
       .sort((left, right) => compareTimestampAndId(right, left))
       .slice(0, limit)
       .map(publicConversation);
@@ -76,7 +77,10 @@ export class MemoryAgentStore implements AgentStore {
     return conversation?.ownerId === ownerId ? clone(conversation) : null;
   }
 
-  async getDetail(ownerId: string, conversationId: string): Promise<AgentConversationDetail | null> {
+  async getDetail(
+    ownerId: string,
+    conversationId: string,
+  ): Promise<AgentConversationDetail | null> {
     const conversation = this.conversations.get(conversationId);
     if (!conversation || conversation.ownerId !== ownerId) return null;
 
@@ -99,7 +103,9 @@ export class MemoryAgentStore implements AgentStore {
 
   async getRunContext(ownerId: string, runId: string): Promise<AgentCanvasContext | null> {
     const run = this.runs.get(runId);
-    return run?.ownerId === ownerId ? agentCanvasContextSchema.parse(clone(run.canvasContext)) : null;
+    return run?.ownerId === ownerId
+      ? agentCanvasContextSchema.parse(clone(run.canvasContext))
+      : null;
   }
 
   async getRun(ownerId: string, runId: string) {
@@ -131,7 +137,10 @@ export class MemoryAgentStore implements AgentStore {
     const run = runRecord(input.run);
     const updatedConversation = conversationRecord({
       ...conversation,
-      title: conversation.title === DEFAULT_CONVERSATION_TITLE ? input.suggestedTitle : conversation.title,
+      title:
+        conversation.title === DEFAULT_CONVERSATION_TITLE
+          ? input.suggestedTitle
+          : conversation.title,
       updatedAt: run.createdAt,
     });
 
@@ -151,7 +160,13 @@ export class MemoryAgentStore implements AgentStore {
     return true;
   }
 
-  async completeRun(ownerId: string, runId: string, message: AgentMessage, result: CompleteAgentRunInput, completedAt: string) {
+  async completeRun(
+    ownerId: string,
+    runId: string,
+    message: AgentMessage,
+    result: CompleteAgentRunInput,
+    completedAt: string,
+  ) {
     this.cleanup();
     const run = this.activeRun(ownerId, runId);
     if (!run) return false;
@@ -239,11 +254,13 @@ export class MemoryAgentStore implements AgentStore {
 
   private cleanup() {
     const now = this.now();
-    if (!Number.isFinite(now)) throw new Error("MemoryAgentStore now() must return a finite timestamp");
+    if (!Number.isFinite(now))
+      throw new Error("MemoryAgentStore now() must return a finite timestamp");
     const expiresBefore = now - this.retentionMs;
 
     for (const conversation of this.conversations.values()) {
-      if (Date.parse(conversation.updatedAt) < expiresBefore) this.deleteConversation(conversation.id);
+      if (Date.parse(conversation.updatedAt) < expiresBefore)
+        this.deleteConversation(conversation.id);
     }
 
     const overflow = this.conversations.size - this.maxConversations;
@@ -263,34 +280,38 @@ export class MemoryAgentStore implements AgentStore {
   }
 }
 
-function canResolveProposal(run: AgentRunRecord | undefined, ownerId: string): run is AgentRunRecord {
+function canResolveProposal(
+  run: AgentRunRecord | undefined,
+  ownerId: string,
+): run is AgentRunRecord {
   return Boolean(
-    run
-    && run.ownerId === ownerId
-    && run.status === "completed"
-    && run.executionMode === "proposal"
-    && run.proposal
-    && !run.receipt,
+    run &&
+    run.ownerId === ownerId &&
+    run.status === "completed" &&
+    run.executionMode === "proposal" &&
+    run.proposal &&
+    !run.receipt,
   );
 }
 
 function canRecordReceipt(run: AgentRunRecord | undefined, ownerId: string): run is AgentRunRecord {
   return Boolean(
-    run
-    && run.ownerId === ownerId
-    && run.status === "completed"
-    && !run.receipt
-    && (run.executionMode === "direct" || (run.executionMode === "proposal" && run.proposalStatus === "confirmed")),
+    run &&
+    run.ownerId === ownerId &&
+    run.status === "completed" &&
+    !run.receipt &&
+    (run.executionMode === "direct" ||
+      (run.executionMode === "proposal" && run.proposalStatus === "confirmed")),
   );
 }
 
 function assertRunRelationships(input: CreateAgentRunInput, conversation: AgentConversationRecord) {
   if (
-    input.run.ownerId !== conversation.ownerId
-    || input.run.conversationId !== conversation.id
-    || input.userMessage.conversationId !== conversation.id
-    || input.run.userMessageId !== input.userMessage.id
-    || input.run.canvasContext.projectId !== conversation.projectId
+    input.run.ownerId !== conversation.ownerId ||
+    input.run.conversationId !== conversation.id ||
+    input.userMessage.conversationId !== conversation.id ||
+    input.run.userMessageId !== input.userMessage.id ||
+    input.run.canvasContext.projectId !== conversation.projectId
   ) {
     throw new Error("Agent run does not belong to its conversation and project");
   }
@@ -336,12 +357,14 @@ function compareText(left: string, right: string) {
 }
 
 function positiveNumber(value: number, name: string) {
-  if (!Number.isFinite(value) || value <= 0) throw new RangeError(`${name} must be a positive number`);
+  if (!Number.isFinite(value) || value <= 0)
+    throw new RangeError(`${name} must be a positive number`);
   return value;
 }
 
 function positiveInteger(value: number, name: string) {
-  if (!Number.isInteger(value) || value <= 0) throw new RangeError(`${name} must be a positive integer`);
+  if (!Number.isInteger(value) || value <= 0)
+    throw new RangeError(`${name} must be a positive integer`);
   return value;
 }
 

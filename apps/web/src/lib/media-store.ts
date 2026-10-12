@@ -1,10 +1,15 @@
-import { createId } from "@kachang/canvas-core";
-import type { CanvasMedia } from "@kachang/contracts";
+import { createId } from "@weftcanvas/canvas-core";
+import type { CanvasMedia } from "@weftcanvas/contracts";
 
 import { validateImageBlob, validateMediaBlob } from "./media-validation";
 import { collectProjectMediaIds, readAllProjects } from "./project-library";
 import { collectAssetLibraryMediaIds } from "./asset-library-store";
-import { createMediaUpload, createRequestKey, mediaContentPath, uploadMediaBlob } from "./api-client";
+import {
+  createMediaUpload,
+  createRequestKey,
+  mediaContentPath,
+  uploadMediaBlob,
+} from "./api-client";
 import { invalidateMediaObjectUrl } from "./media-object-url-cache";
 import { removeStoredThumbBlob } from "./local-media-thumb";
 import { MediaCacheIdleQueue, workspaceMediaGestureActive } from "./server-media-cache";
@@ -37,9 +42,13 @@ export function shouldPruneLocalMedia(
 let persistentStorageRequest: Promise<boolean> | null = null;
 const serverMediaCacheRequests = new Map<string, Promise<boolean>>();
 
-export async function storeMedia(file: File, kind: "image" | "video" | "audio"): Promise<CanvasMedia> {
+export async function storeMedia(
+  file: File,
+  kind: "image" | "video" | "audio",
+): Promise<CanvasMedia> {
   assertLocalMediaSize(file.size, kind);
-  const validated = kind === "image" ? await validateImageBlob(file) : await validateMediaBlob(file, kind);
+  const validated =
+    kind === "image" ? await validateImageBlob(file) : await validateMediaBlob(file, kind);
   const media: StoredMedia = {
     id: createId("media"),
     name: file.name || "未命名媒体",
@@ -63,9 +72,14 @@ export async function storeMedia(file: File, kind: "image" | "video" | "audio"):
  * 画布上传降级为直传服务端，节点以 source:"server" 渲染，与生成产物入画布的路径一致。
  * 文件本身的问题（内容非法、解码失败、SVG）会在前置校验中原样抛出，调用方据此报真实原因。
  */
-export async function uploadMediaToServer(file: File, kind: "image" | "video"): Promise<CanvasMedia> {
-  const validated = kind === "image" ? await validateImageBlob(file) : await validateMediaBlob(file, kind);
-  if (validated.mimeType === "image/svg+xml") throw new Error("暂不支持 SVG 文件，请上传 PNG、JPEG 或 WebP 图片");
+export async function uploadMediaToServer(
+  file: File,
+  kind: "image" | "video",
+): Promise<CanvasMedia> {
+  const validated =
+    kind === "image" ? await validateImageBlob(file) : await validateMediaBlob(file, kind);
+  if (validated.mimeType === "image/svg+xml")
+    throw new Error("暂不支持 SVG 文件，请上传 PNG、JPEG 或 WebP 图片");
   const intent = await createMediaUpload({
     kind,
     name: (file.name || "").trim().slice(0, 255) || "未命名媒体",
@@ -73,7 +87,9 @@ export async function uploadMediaToServer(file: File, kind: "image" | "video"): 
     size: validated.blob.size,
     idempotencyKey: createRequestKey("canvas-material"),
   });
-  const ready = intent.upload ? await uploadMediaBlob(intent.media, intent.upload, validated.blob) : intent.media;
+  const ready = intent.upload
+    ? await uploadMediaBlob(intent.media, intent.upload, validated.blob)
+    : intent.media;
   if (ready.status !== "ready") throw new Error(ready.error?.message ?? "素材上传失败，请稍后重试");
   return {
     id: ready.id,
@@ -93,8 +109,11 @@ export function cacheServerMedia(media: CanvasMedia, projectId?: string) {
   const cacheKey = `${projectId ?? "self"}:${media.id}`;
   const existing = serverMediaCacheRequests.get(cacheKey);
   if (existing) return existing;
-  const request = withCrossTabMediaCacheLock(cacheKey, () => downloadAndCacheServerMedia(media, projectId)).finally(() => {
-    if (serverMediaCacheRequests.get(cacheKey) === request) serverMediaCacheRequests.delete(cacheKey);
+  const request = withCrossTabMediaCacheLock(cacheKey, () =>
+    downloadAndCacheServerMedia(media, projectId),
+  ).finally(() => {
+    if (serverMediaCacheRequests.get(cacheKey) === request)
+      serverMediaCacheRequests.delete(cacheKey);
   });
   serverMediaCacheRequests.set(cacheKey, request);
   return request;
@@ -108,7 +127,8 @@ export function cacheServerMediaBlob(media: CanvasMedia, blob: Blob, projectId?:
     const kind = mediaKind(media.mimeType);
     if (!kind) return false;
     try {
-      const validated = kind === "image" ? await validateImageBlob(blob) : await validateMediaBlob(blob, kind);
+      const validated =
+        kind === "image" ? await validateImageBlob(blob) : await validateMediaBlob(blob, kind);
       await writeStoredMedia({
         ...media,
         mimeType: validated.mimeType,
@@ -181,12 +201,13 @@ async function writeServerMediaCacheEntry(
 
 function withCrossTabMediaCacheLock(cacheKey: string, work: () => Promise<boolean>) {
   if (typeof navigator === "undefined" || !navigator.locks?.request) return work();
-  return navigator.locks.request(`kachang-canvas-media:${cacheKey}`, work);
+  return navigator.locks.request(`weftcanvas-media:${cacheKey}`, work);
 }
 
 export function requestPersistentMediaStorage() {
   if (persistentStorageRequest) return persistentStorageRequest;
-  if (typeof navigator === "undefined" || !navigator.storage?.persist) return Promise.resolve(false);
+  if (typeof navigator === "undefined" || !navigator.storage?.persist)
+    return Promise.resolve(false);
   persistentStorageRequest = (async () => {
     if (await navigator.storage.persisted?.()) return true;
     return navigator.storage.persist();
@@ -197,7 +218,10 @@ export function requestPersistentMediaStorage() {
 export async function readMedia(id: string) {
   const database = await openMediaDatabase();
   return new Promise<StoredMedia | null>((resolve, reject) => {
-    const request = database.transaction(MEDIA_STORE_NAME, "readonly").objectStore(MEDIA_STORE_NAME).get(id);
+    const request = database
+      .transaction(MEDIA_STORE_NAME, "readonly")
+      .objectStore(MEDIA_STORE_NAME)
+      .get(id);
     request.onsuccess = () => resolve((request.result as StoredMedia | undefined) ?? null);
     request.onerror = () => reject(request.error ?? new Error("媒体读取失败"));
   });
@@ -206,7 +230,10 @@ export async function readMedia(id: string) {
 export async function listLocalMedia(): Promise<LocalMediaListItem[]> {
   const database = await openMediaDatabase();
   const records = await new Promise<StoredMedia[]>((resolve, reject) => {
-    const request = database.transaction(MEDIA_STORE_NAME, "readonly").objectStore(MEDIA_STORE_NAME).getAll();
+    const request = database
+      .transaction(MEDIA_STORE_NAME, "readonly")
+      .objectStore(MEDIA_STORE_NAME)
+      .getAll();
     request.onsuccess = () => resolve(request.result as StoredMedia[]);
     request.onerror = () => reject(request.error ?? new Error("媒体列表读取失败"));
   });
@@ -228,35 +255,45 @@ export async function removeMedia(id: string) {
   void removeStoredThumbBlob(id);
 }
 
-export async function pruneUnreferencedLocalMedia(referencedIds = collectProjectMediaIds(readAllProjects())) {
+export async function pruneUnreferencedLocalMedia(
+  referencedIds = collectProjectMediaIds(readAllProjects()),
+) {
   if (typeof indexedDB === "undefined") return 0;
   const assetMediaIds = await collectAssetLibraryMediaIds();
   const retainedIds = new Set([...referencedIds, ...assetMediaIds]);
   const database = await openMediaDatabase();
-  const records = await new Promise<Array<Pick<StoredMedia, "id" | "storedAt">>>((resolve, reject) => {
-    const items: Array<Pick<StoredMedia, "id" | "storedAt">> = [];
-    const request = database.transaction(MEDIA_STORE_NAME, "readonly").objectStore(MEDIA_STORE_NAME).openCursor();
-    request.onsuccess = () => {
-      const cursor = request.result;
-      if (!cursor) {
-        resolve(items);
-        return;
-      }
-      const media = cursor.value as StoredMedia;
-      items.push({ id: media.id, storedAt: media.storedAt });
-      cursor.continue();
-    };
-    request.onerror = () => reject(request.error ?? new Error("media keys could not be read"));
-  });
+  const records = await new Promise<Array<Pick<StoredMedia, "id" | "storedAt">>>(
+    (resolve, reject) => {
+      const items: Array<Pick<StoredMedia, "id" | "storedAt">> = [];
+      const request = database
+        .transaction(MEDIA_STORE_NAME, "readonly")
+        .objectStore(MEDIA_STORE_NAME)
+        .openCursor();
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor) {
+          resolve(items);
+          return;
+        }
+        const media = cursor.value as StoredMedia;
+        items.push({ id: media.id, storedAt: media.storedAt });
+        cursor.continue();
+      };
+      request.onerror = () => reject(request.error ?? new Error("media keys could not be read"));
+    },
+  );
   const now = Date.now();
-  const removable = records.filter((media) => shouldPruneLocalMedia(media, retainedIds, now)).map((media) => media.id);
+  const removable = records
+    .filter((media) => shouldPruneLocalMedia(media, retainedIds, now))
+    .map((media) => media.id);
   if (!removable.length) return 0;
   await new Promise<void>((resolve, reject) => {
     const transaction = database.transaction(MEDIA_STORE_NAME, "readwrite");
     const store = transaction.objectStore(MEDIA_STORE_NAME);
     removable.forEach((id) => store.delete(id));
     transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error ?? new Error("media could not be removed"));
+    transaction.onerror = () =>
+      reject(transaction.error ?? new Error("media could not be removed"));
   });
   removable.forEach(invalidateMediaObjectUrl);
   removable.forEach((id) => void removeStoredThumbBlob(id));
@@ -276,7 +313,8 @@ async function downloadAndCacheServerMedia(media: CanvasMedia, projectId?: strin
     });
     if (!response.ok) return false;
     const blob = await boundedResponseBlob(response, localMediaMaxBytes[kind], media.mimeType);
-    const validated = kind === "image" ? await validateImageBlob(blob) : await validateMediaBlob(blob, kind);
+    const validated =
+      kind === "image" ? await validateImageBlob(blob) : await validateMediaBlob(blob, kind);
     await writeStoredMedia({
       ...media,
       mimeType: validated.mimeType,
@@ -309,7 +347,8 @@ async function boundedResponseBlob(response: Response, maxBytes: number, fallbac
   if (declaredSize && /^\d+$/.test(declaredSize) && Number(declaredSize) > maxBytes) {
     throw new Error("Media exceeds the local cache limit");
   }
-  const mimeType = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim() || fallbackMimeType;
+  const mimeType =
+    response.headers.get("Content-Type")?.split(";", 1)[0]?.trim() || fallbackMimeType;
   if (!response.body) {
     const blob = await response.blob();
     if (blob.size > maxBytes) throw new Error("Media exceeds the local cache limit");
@@ -343,5 +382,7 @@ function mediaKind(mimeType: string) {
 
 function assertLocalMediaSize(size: number, kind: keyof typeof localMediaMaxBytes) {
   if (size <= localMediaMaxBytes[kind]) return;
-  throw new Error(`Media exceeds the ${Math.round(localMediaMaxBytes[kind] / 1024 / 1024)} MB local limit`);
+  throw new Error(
+    `Media exceeds the ${Math.round(localMediaMaxBytes[kind] / 1024 / 1024)} MB local limit`,
+  );
 }

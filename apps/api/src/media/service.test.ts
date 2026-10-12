@@ -44,8 +44,9 @@ describe("media upload service", () => {
   it("rejects idempotency reuse with changed immutable input", async () => {
     const service = createService(new MemoryMetadataStore());
     await service.createUpload("user-1", uploadRequest());
-    await expect(service.createUpload("user-1", { ...uploadRequest(), size: BYTES.length + 1 }))
-      .rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT", status: 409 });
+    await expect(
+      service.createUpload("user-1", { ...uploadRequest(), size: BYTES.length + 1 }),
+    ).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT", status: 409 });
   });
 
   it("deletes an unbound owned media and refuses bound or missing ids", async () => {
@@ -60,13 +61,17 @@ describe("media upload service", () => {
     const deleted = await service.delete("user-1", MEDIA_ID);
     expect(deleted).toMatchObject({ id: MEDIA_ID, status: "ready" });
     expect(metadata.records).toHaveLength(0);
-    await expect(service.delete("user-1", MEDIA_ID))
-      .rejects.toMatchObject({ code: "MEDIA_NOT_FOUND", status: 404 });
+    await expect(service.delete("user-1", MEDIA_ID)).rejects.toMatchObject({
+      code: "MEDIA_NOT_FOUND",
+      status: 404,
+    });
 
     await service.createUpload("user-1", uploadRequest());
     metadata.boundIds.add(MEDIA_ID);
-    await expect(service.delete("user-1", MEDIA_ID))
-      .rejects.toMatchObject({ code: "MEDIA_REFERENCED_BY_PROJECT", status: 409 });
+    await expect(service.delete("user-1", MEDIA_ID)).rejects.toMatchObject({
+      code: "MEDIA_REFERENCED_BY_PROJECT",
+      status: 409,
+    });
   });
 
   it("streams, hashes, inspects, and publishes a ready media record", async () => {
@@ -93,13 +98,19 @@ describe("media upload service", () => {
   it("fails checksum and parse errors definitively and removes bytes", async () => {
     const metadata = new MemoryMetadataStore();
     const objects = new MemoryObjectStore();
-    const service = createService(metadata, objects, new FixedInspector(new MediaInspectionError("MEDIA_INVALID", "图片内容无法解码")));
+    const service = createService(
+      metadata,
+      objects,
+      new FixedInspector(new MediaInspectionError("MEDIA_INVALID", "图片内容无法解码")),
+    );
     await service.createUpload("user-1", uploadRequest());
 
-    await expect(service.upload("user-1", MEDIA_ID, chunks(BYTES), {
-      contentType: "image/png",
-      contentLength: BYTES.length,
-    })).rejects.toMatchObject({ code: "MEDIA_INVALID", status: 422 });
+    await expect(
+      service.upload("user-1", MEDIA_ID, chunks(BYTES), {
+        contentType: "image/png",
+        contentLength: BYTES.length,
+      }),
+    ).rejects.toMatchObject({ code: "MEDIA_INVALID", status: 422 });
     expect(objects.bytes).toBeNull();
     expect(await service.get("user-1", MEDIA_ID)).toMatchObject({
       status: "failed",
@@ -114,10 +125,12 @@ describe("media upload service", () => {
     const service = createService(metadata, objects);
     await service.createUpload("user-1", uploadRequest());
 
-    await expect(service.upload("user-1", MEDIA_ID, chunks(BYTES), {
-      contentType: "image/png",
-      contentLength: BYTES.length,
-    })).rejects.toMatchObject({ code: "MEDIA_UPLOAD_INTERRUPTED", status: 503 });
+    await expect(
+      service.upload("user-1", MEDIA_ID, chunks(BYTES), {
+        contentType: "image/png",
+        contentLength: BYTES.length,
+      }),
+    ).rejects.toMatchObject({ code: "MEDIA_UPLOAD_INTERRUPTED", status: 503 });
     expect(await service.get("user-1", MEDIA_ID)).toMatchObject({ status: "pending", error: null });
   });
 
@@ -128,10 +141,12 @@ describe("media upload service", () => {
     const service = createService(metadata, objects);
     await service.createUpload("user-1", uploadRequest());
 
-    await expect(service.upload("user-1", MEDIA_ID, chunks(BYTES), {
-      contentType: "image/png",
-      contentLength: BYTES.length,
-    })).resolves.toMatchObject({ status: "ready" });
+    await expect(
+      service.upload("user-1", MEDIA_ID, chunks(BYTES), {
+        contentType: "image/png",
+        contentLength: BYTES.length,
+      }),
+    ).resolves.toMatchObject({ status: "ready" });
     expect(objects.bytes).toEqual(BYTES);
   });
 
@@ -149,35 +164,45 @@ describe("media upload service", () => {
     });
     await service.createUpload("user-1", uploadRequest());
 
-    await expect(service.upload("user-1", MEDIA_ID, chunks(BYTES), {
-      contentType: "image/png",
-      contentLength: BYTES.length,
-    })).rejects.toMatchObject({ code: "MEDIA_FINALIZATION_UNCONFIRMED", status: 503 });
+    await expect(
+      service.upload("user-1", MEDIA_ID, chunks(BYTES), {
+        contentType: "image/png",
+        contentLength: BYTES.length,
+      }),
+    ).rejects.toMatchObject({ code: "MEDIA_FINALIZATION_UNCONFIRMED", status: 503 });
     expect(await service.get("user-1", MEDIA_ID)).toMatchObject({ status: "uploading" });
 
     metadata.failReadyBeforeCommit = false;
     now += 1_001;
-    await expect(service.upload("user-1", MEDIA_ID, chunks(BYTES), {
-      contentType: "image/png",
-      contentLength: BYTES.length,
-    })).resolves.toMatchObject({ status: "ready" });
+    await expect(
+      service.upload("user-1", MEDIA_ID, chunks(BYTES), {
+        contentType: "image/png",
+        contentLength: BYTES.length,
+      }),
+    ).resolves.toMatchObject({ status: "ready" });
   });
 
   it("enforces type, size, and ownership before consuming content", async () => {
     const service = createService(new MemoryMetadataStore());
-    await expect(service.createUpload("user-1", {
-      ...uploadRequest(),
-      mimeType: "image/svg+xml",
-    })).rejects.toMatchObject({ code: "MEDIA_TYPE_UNAVAILABLE", status: 415 });
+    await expect(
+      service.createUpload("user-1", {
+        ...uploadRequest(),
+        mimeType: "image/svg+xml",
+      }),
+    ).rejects.toMatchObject({ code: "MEDIA_TYPE_UNAVAILABLE", status: 415 });
     await service.createUpload("user-1", uploadRequest());
-    await expect(service.upload("user-2", MEDIA_ID, chunks(BYTES), {
-      contentType: "image/png",
-      contentLength: BYTES.length,
-    })).rejects.toMatchObject({ code: "MEDIA_NOT_FOUND", status: 404 });
-    await expect(service.upload("user-1", MEDIA_ID, chunks(BYTES), {
-      contentType: "image/jpeg",
-      contentLength: BYTES.length,
-    })).rejects.toMatchObject({ code: "MEDIA_CONTENT_TYPE_MISMATCH", status: 415 });
+    await expect(
+      service.upload("user-2", MEDIA_ID, chunks(BYTES), {
+        contentType: "image/png",
+        contentLength: BYTES.length,
+      }),
+    ).rejects.toMatchObject({ code: "MEDIA_NOT_FOUND", status: 404 });
+    await expect(
+      service.upload("user-1", MEDIA_ID, chunks(BYTES), {
+        contentType: "image/jpeg",
+        contentLength: BYTES.length,
+      }),
+    ).rejects.toMatchObject({ code: "MEDIA_CONTENT_TYPE_MISMATCH", status: 415 });
   });
 
   it("persists generated media idempotently without requiring a browser upload intent", async () => {
@@ -203,7 +228,10 @@ describe("media upload service", () => {
       mimeType: "image/png",
       size: BYTES.length,
       sha256,
-      source: (async function* () { consumed = true; yield BYTES; })(),
+      source: (async function* () {
+        consumed = true;
+        yield BYTES;
+      })(),
     });
 
     expect(first).toEqual(second);
@@ -235,14 +263,16 @@ describe("media upload service", () => {
       sha256: createHash("sha256").update(BYTES).digest("hex"),
     };
 
-    await expect(service.persistGenerated("user-1", { ...input, source: chunks(BYTES) }))
-      .rejects.toMatchObject({ code: "MEDIA_FINALIZATION_UNCONFIRMED", status: 503 });
+    await expect(
+      service.persistGenerated("user-1", { ...input, source: chunks(BYTES) }),
+    ).rejects.toMatchObject({ code: "MEDIA_FINALIZATION_UNCONFIRMED", status: 503 });
     expect(await service.get("user-1", MEDIA_ID)).toMatchObject({ status: "uploading" });
 
     metadata.failReadyBeforeCommit = false;
     now += 1_001;
-    await expect(service.persistGenerated("user-1", { ...input, source: chunks(BYTES) }))
-      .resolves.toMatchObject({ status: "ready" });
+    await expect(
+      service.persistGenerated("user-1", { ...input, source: chunks(BYTES) }),
+    ).resolves.toMatchObject({ status: "ready" });
   });
 
   it("signs direct uploads, validates stored bytes, and signs ready downloads", async () => {
@@ -291,24 +321,32 @@ describe("media upload service", () => {
     });
     expect(await service.get("user-1", MEDIA_ID)).toMatchObject({ status: "pending", error: null });
     objects.seed(BYTES);
-    await expect(service.completeDirectUpload("user-1", MEDIA_ID)).resolves.toMatchObject({ status: "ready" });
+    await expect(service.completeDirectUpload("user-1", MEDIA_ID)).resolves.toMatchObject({
+      status: "ready",
+    });
   });
 
   it("lazily generates a thumb variant, serves it from cache, and cleans it up with the media", async () => {
     const metadata = new MemoryMetadataStore();
     const objects = new MultiKeyObjectStore();
-    const png = await sharp({ create: { width: 640, height: 480, channels: 3, background: { r: 180, g: 120, b: 60 } } })
+    const png = await sharp({
+      create: { width: 640, height: 480, channels: 3, background: { r: 180, g: 120, b: 60 } },
+    })
       .png()
       .toBuffer();
     objects.seed(png);
-    const service = createService(metadata, objects, new FixedInspector({
-      kind: "image",
-      mimeType: "image/png",
-      size: png.length,
-      width: 640,
-      height: 480,
-      durationMs: null,
-    }));
+    const service = createService(
+      metadata,
+      objects,
+      new FixedInspector({
+        kind: "image",
+        mimeType: "image/png",
+        size: png.length,
+        width: 640,
+        height: 480,
+        durationMs: null,
+      }),
+    );
     await service.createUpload("user-1", { ...uploadRequest(), size: png.length });
     await service.upload("user-1", MEDIA_ID, chunks(png), {
       contentType: "image/png",
@@ -331,7 +369,10 @@ describe("media upload service", () => {
     expect(objects.writeCount).toBe(writesBefore);
 
     // 他人访问被拒。
-    await expect(service.openThumb("user-2", MEDIA_ID)).rejects.toMatchObject({ code: "MEDIA_NOT_FOUND", status: 404 });
+    await expect(service.openThumb("user-2", MEDIA_ID)).rejects.toMatchObject({
+      code: "MEDIA_NOT_FOUND",
+      status: 404,
+    });
 
     // 删除主素材时缩略派生对象一并清理。
     await service.delete("user-1", MEDIA_ID);
@@ -341,18 +382,25 @@ describe("media upload service", () => {
   it("warms the display thumb in the background as soon as an image upload is ready", async () => {
     const metadata = new MemoryMetadataStore();
     const objects = new MultiKeyObjectStore();
-    const png = await sharp({ create: { width: 640, height: 480, channels: 3, background: { r: 10, g: 20, b: 30 } } })
+    const png = await sharp({
+      create: { width: 640, height: 480, channels: 3, background: { r: 10, g: 20, b: 30 } },
+    })
       .png()
       .toBuffer();
     objects.seed(png);
-    const service = createService(metadata, objects, new FixedInspector({
-      kind: "image",
-      mimeType: "image/png",
-      size: png.length,
-      width: 640,
-      height: 480,
-      durationMs: null,
-    }), { warmThumbnails: true });
+    const service = createService(
+      metadata,
+      objects,
+      new FixedInspector({
+        kind: "image",
+        mimeType: "image/png",
+        size: png.length,
+        width: 640,
+        height: 480,
+        durationMs: null,
+      }),
+      { warmThumbnails: true },
+    );
     await service.createUpload("user-1", { ...uploadRequest(), size: png.length });
     await service.upload("user-1", MEDIA_ID, chunks(png), {
       contentType: "image/png",
@@ -368,9 +416,16 @@ describe("media upload service", () => {
     const metadata = new MemoryMetadataStore();
     const objects = new MultiKeyObjectStore();
     const service = createService(metadata, objects);
-    await service.createUpload("user-1", { ...uploadRequest(), kind: "video", mimeType: "video/mp4" });
+    await service.createUpload("user-1", {
+      ...uploadRequest(),
+      kind: "video",
+      mimeType: "video/mp4",
+    });
     metadata.records[0]!.status = "ready";
-    await expect(service.openThumb("user-1", MEDIA_ID)).rejects.toMatchObject({ code: "MEDIA_THUMB_UNAVAILABLE", status: 404 });
+    await expect(service.openThumb("user-1", MEDIA_ID)).rejects.toMatchObject({
+      code: "MEDIA_THUMB_UNAVAILABLE",
+      status: 404,
+    });
   });
 });
 
@@ -380,7 +435,11 @@ class MemoryMetadataStore implements MediaMetadataStore {
   failReadyBeforeCommit = false;
 
   async findByIdempotency(ownerId: string, idempotencyKey: string) {
-    return clone(this.records.find((item) => item.ownerId === ownerId && item.idempotencyKey === idempotencyKey) ?? null);
+    return clone(
+      this.records.find(
+        (item) => item.ownerId === ownerId && item.idempotencyKey === idempotencyKey,
+      ) ?? null,
+    );
   }
 
   async getById(id: string) {
@@ -388,7 +447,9 @@ class MemoryMetadataStore implements MediaMetadataStore {
   }
 
   async create(media: MediaRecord): Promise<CreateMediaResult> {
-    const existing = this.records.find((item) => item.ownerId === media.ownerId && item.idempotencyKey === media.idempotencyKey);
+    const existing = this.records.find(
+      (item) => item.ownerId === media.ownerId && item.idempotencyKey === media.idempotencyKey,
+    );
     if (existing) return { kind: "existing", media: clone(existing)! };
     this.records.push(clone(media)!);
     return { kind: "created", media: clone(media)! };
@@ -430,7 +491,13 @@ class MemoryMetadataStore implements MediaMetadataStore {
     status: MediaRecord["status"],
     change: Pick<MediaRecord, "status" | "updatedAt">,
   ) {
-    const index = this.records.findIndex((item) => item.id === id && item.ownerId === ownerId && item.revision === revision && item.status === status);
+    const index = this.records.findIndex(
+      (item) =>
+        item.id === id &&
+        item.ownerId === ownerId &&
+        item.revision === revision &&
+        item.status === status,
+    );
     if (index < 0) return null;
     const next = { ...this.records[index]!, ...change, revision: revision + 1 };
     this.records[index] = next;
@@ -438,7 +505,13 @@ class MemoryMetadataStore implements MediaMetadataStore {
   }
 
   private replace(media: MediaRecord, revision: number, status?: MediaRecord["status"]) {
-    const index = this.records.findIndex((item) => item.id === media.id && item.ownerId === media.ownerId && item.revision === revision && (!status || item.status === status));
+    const index = this.records.findIndex(
+      (item) =>
+        item.id === media.id &&
+        item.ownerId === media.ownerId &&
+        item.revision === revision &&
+        (!status || item.status === status),
+    );
     if (index < 0) return null;
     this.records[index] = clone(media)!;
     return clone(media);
@@ -449,7 +522,11 @@ class MemoryObjectStore implements MediaObjectStore {
   protected bytes: Buffer | null = null;
   nextError: Error | null = null;
 
-  async write(_key: string, source: AsyncIterable<Uint8Array>, options: { expectedSize: number; maxBytes: number }) {
+  async write(
+    _key: string,
+    source: AsyncIterable<Uint8Array>,
+    options: { expectedSize: number; maxBytes: number },
+  ) {
     if (this.nextError) {
       const error = this.nextError;
       this.nextError = null;
@@ -458,14 +535,19 @@ class MemoryObjectStore implements MediaObjectStore {
     const values: Buffer[] = [];
     for await (const value of source) values.push(Buffer.from(value));
     this.bytes = Buffer.concat(values);
-    if (this.bytes.length > options.maxBytes) throw new MediaObjectWriteError("MEDIA_TOO_LARGE", "too large", true);
-    if (this.bytes.length !== options.expectedSize) throw new MediaObjectWriteError("MEDIA_SIZE_MISMATCH", "wrong size", true);
-    return { size: this.bytes.length, sha256: createHash("sha256").update(this.bytes).digest("hex") };
+    if (this.bytes.length > options.maxBytes)
+      throw new MediaObjectWriteError("MEDIA_TOO_LARGE", "too large", true);
+    if (this.bytes.length !== options.expectedSize)
+      throw new MediaObjectWriteError("MEDIA_SIZE_MISMATCH", "wrong size", true);
+    return {
+      size: this.bytes.length,
+      sha256: createHash("sha256").update(this.bytes).digest("hex"),
+    };
   }
 
   async withLocalFile<T>(_key: string, action: (path: string) => Promise<T>) {
     if (!this.bytes) throw new Error("missing object");
-    const directory = await mkdtemp(join(tmpdir(), "kachang-service-media-"));
+    const directory = await mkdtemp(join(tmpdir(), "weftcanvas-service-media-"));
     const path = join(directory, "object.media");
     await writeFile(path, this.bytes);
     try {
@@ -477,7 +559,12 @@ class MemoryObjectStore implements MediaObjectStore {
 
   async open(_key: string): Promise<MediaObjectRead> {
     if (!this.bytes) throw new Error("missing object");
-    return { stream: Readable.from(this.bytes), totalSize: this.bytes.length, start: 0, end: this.bytes.length - 1 };
+    return {
+      stream: Readable.from(this.bytes),
+      totalSize: this.bytes.length,
+      start: 0,
+      end: this.bytes.length - 1,
+    };
   }
 
   async remove() {
@@ -494,12 +581,18 @@ class MultiKeyObjectStore implements MediaObjectStore {
   private readonly store = new Map<string, Buffer>();
   writeCount = 0;
 
-  async write(key: string, source: AsyncIterable<Uint8Array>, options: { expectedSize: number; maxBytes: number }) {
+  async write(
+    key: string,
+    source: AsyncIterable<Uint8Array>,
+    options: { expectedSize: number; maxBytes: number },
+  ) {
     const values: Buffer[] = [];
     for await (const value of source) values.push(Buffer.from(value));
     const bytes = Buffer.concat(values);
-    if (bytes.length > options.maxBytes) throw new MediaObjectWriteError("MEDIA_TOO_LARGE", "too large", true);
-    if (bytes.length !== options.expectedSize) throw new MediaObjectWriteError("MEDIA_SIZE_MISMATCH", "wrong size", true);
+    if (bytes.length > options.maxBytes)
+      throw new MediaObjectWriteError("MEDIA_TOO_LARGE", "too large", true);
+    if (bytes.length !== options.expectedSize)
+      throw new MediaObjectWriteError("MEDIA_SIZE_MISMATCH", "wrong size", true);
     this.store.set(key, bytes);
     this.writeCount += 1;
     return { size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") };
@@ -508,7 +601,7 @@ class MultiKeyObjectStore implements MediaObjectStore {
   async withLocalFile<T>(key: string, action: (path: string) => Promise<T>) {
     const bytes = this.store.get(key);
     if (!bytes) throw new Error("missing object");
-    const directory = await mkdtemp(join(tmpdir(), "kachang-service-media-keyed-"));
+    const directory = await mkdtemp(join(tmpdir(), "weftcanvas-service-media-keyed-"));
     const path = join(directory, "object.media");
     await writeFile(path, bytes);
     try {
@@ -521,7 +614,12 @@ class MultiKeyObjectStore implements MediaObjectStore {
   async open(key: string): Promise<MediaObjectRead> {
     const bytes = this.store.get(key);
     if (!bytes) throw new Error("missing object");
-    return { stream: Readable.from(bytes), totalSize: bytes.length, start: 0, end: bytes.length - 1 };
+    return {
+      stream: Readable.from(bytes),
+      totalSize: bytes.length,
+      start: 0,
+      end: bytes.length - 1,
+    };
   }
 
   async remove(key: string) {
@@ -546,7 +644,12 @@ class MemoryDirectObjectStore extends MemoryObjectStore {
 
   async createUploadInstruction(
     _key: string,
-    options: { contentType: string; contentLength: number; sha256: string | null; expiresAt: string },
+    options: {
+      contentType: string;
+      contentLength: number;
+      sha256: string | null;
+      expiresAt: string;
+    },
   ) {
     this.uploadOptions = structuredClone(options);
     return {
@@ -577,14 +680,16 @@ class MemoryDirectObjectStore extends MemoryObjectStore {
 }
 
 class FixedInspector implements MediaInspector {
-  constructor(private readonly result: InspectedMedia | MediaInspectionError = {
-    kind: "image",
-    mimeType: "image/png",
-    size: BYTES.length,
-    width: 64,
-    height: 36,
-    durationMs: null,
-  }) {}
+  constructor(
+    private readonly result: InspectedMedia | MediaInspectionError = {
+      kind: "image",
+      mimeType: "image/png",
+      size: BYTES.length,
+      width: 64,
+      height: 36,
+      durationMs: null,
+    },
+  ) {}
 
   async inspect() {
     if (this.result instanceof MediaInspectionError) throw this.result;

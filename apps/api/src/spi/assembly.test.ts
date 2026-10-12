@@ -1,15 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  readCanvasApiProviderName,
-  resolveProviderPlan,
-} from "./assembly.js";
+import { readCanvasApiProviderName, resolveProviderPlan } from "./assembly.js";
 
 describe("provider name", () => {
   it("accepts the declared names and defaults to auto", () => {
     expect(readCanvasApiProviderName(undefined)).toBe("auto");
     expect(readCanvasApiProviderName("dev-test")).toBe("dev-test");
-    expect(readCanvasApiProviderName(" kachang ")).toBe("kachang");
+    expect(readCanvasApiProviderName(" weftcanvas ")).toBe("weftcanvas");
     expect(readCanvasApiProviderName("auto")).toBe("auto");
   });
 
@@ -26,14 +23,14 @@ describe("provider plan", () => {
     expect(plan.catalogSourceUrl).toBeUndefined();
     expect(plan.catalogVideoInventoryUrl).toBeUndefined();
     expect(plan.stationPricingUrl).toBeUndefined();
-    expect(plan.kachang).toBeNull();
+    expect(plan.weftcanvas).toBeNull();
   });
 
   it("lets dev-test self-hosters point at their own gateway", async () => {
     const plan = await resolveProviderPlan({
       CANVAS_API_PROVIDER: "dev-test",
       CATALOG_SOURCE_URL: "https://models.example.internal/api/catalog",
-      KACHANG_PRICING_URL: "https://models.example.internal/api/pricing",
+      WEFTCANVAS_PRICING_URL: "https://models.example.internal/api/pricing",
     });
     expect(plan.catalogSourceUrl).toBe("https://models.example.internal/api/catalog");
     expect(plan.stationPricingUrl).toBe("https://models.example.internal/api/pricing");
@@ -42,14 +39,16 @@ describe("provider plan", () => {
   it("resolves auto to dev-test when no hosted credentials exist", async () => {
     const plan = await resolveProviderPlan({});
     expect(plan.providerName).toBe("dev-test");
-    expect(plan.kachang).toBeNull();
+    expect(plan.weftcanvas).toBeNull();
   });
 
-  // kachang 私有模块存在时的装配断言（auto→kachang、IDENTITY_PROVIDER 别名）
-  // 在 kachang-assembly.test.ts——公开树不含私有 overlay，点名 kachang 时
+  // weftcanvas 私有模块存在时的装配断言（auto→weftcanvas、IDENTITY_PROVIDER 别名）
+  // 在 weftcanvas-assembly.test.ts——公开树不含私有 overlay，点名 weftcanvas 时
   // resolveProviderPlan 会给出明确的"私有 overlay 缺失"错误。
 
   it("refuses production auto without an explicit choice", async () => {
-    await expect(resolveProviderPlan({ NODE_ENV: "production" })).rejects.toThrow(/CANVAS_API_PROVIDER=dev-test/);
+    await expect(resolveProviderPlan({ NODE_ENV: "production" })).rejects.toThrow(
+      /CANVAS_API_PROVIDER=dev-test/,
+    );
   });
 });

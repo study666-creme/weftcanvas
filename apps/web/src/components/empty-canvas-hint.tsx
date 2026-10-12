@@ -14,15 +14,26 @@ export const EmptyCanvasHint = memo(function EmptyCanvasHint() {
   );
   if (!isEmpty) return null;
   return (
-    <section className="kc-empty-canvas-hint" role="note" aria-label="空白画布提示">
+    <section className="wc-empty-canvas-hint" role="note" aria-label="空白画布提示">
       <strong>画布还是空的</strong>
-      <p>在空白处双击即可创建节点，也可以从左侧「创建工具」加入；拖动节点两侧的圆点就能连成关系。</p>
-      <div className="kc-empty-canvas-hint-steps" aria-hidden="true">
-        <span><MousePointerClick />双击创建</span>
+      <p>
+        在空白处双击即可创建节点，也可以从左侧「创建工具」加入；拖动节点两侧的圆点就能连成关系。
+      </p>
+      <div className="wc-empty-canvas-hint-steps" aria-hidden="true">
+        <span>
+          <MousePointerClick />
+          双击创建
+        </span>
         <i />
-        <span><Waypoints />连接关系</span>
+        <span>
+          <Waypoints />
+          连接关系
+        </span>
         <i />
-        <span><LayoutGrid />拖动布局</span>
+        <span>
+          <LayoutGrid />
+          拖动布局
+        </span>
       </div>
     </section>
   );

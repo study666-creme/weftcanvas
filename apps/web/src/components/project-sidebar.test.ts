@@ -1,4 +1,4 @@
-import type { CloudProjectSummary } from "@kachang/contracts";
+import type { CloudProjectSummary } from "@weftcanvas/contracts";
 import { describe, expect, it } from "vitest";
 
 import { CLOUD_QUOTA_LOCAL_MESSAGE, CLOUD_SIZE_LOCAL_MESSAGE } from "../state/cloud-project-store";
@@ -10,10 +10,16 @@ describe("cloud project sidebar candidates", () => {
     const remoteOnly = cloudSummary("project-remote-only");
     const localProjects = [{ id: shared.id }];
 
-    expect(selectCloudOpenCandidates([shared, remoteOnly], localProjects, {}).map((project) => project.id))
-      .toEqual([shared.id, remoteOnly.id]);
-    expect(selectCloudOpenCandidates([shared, remoteOnly], localProjects, { [shared.id]: {} }).map((project) => project.id))
-      .toEqual([remoteOnly.id]);
+    expect(
+      selectCloudOpenCandidates([shared, remoteOnly], localProjects, {}).map(
+        (project) => project.id,
+      ),
+    ).toEqual([shared.id, remoteOnly.id]);
+    expect(
+      selectCloudOpenCandidates([shared, remoteOnly], localProjects, { [shared.id]: {} }).map(
+        (project) => project.id,
+      ),
+    ).toEqual([remoteOnly.id]);
   });
 
   it("makes local-only persistence and the explicit retry visible in the cloud action", () => {

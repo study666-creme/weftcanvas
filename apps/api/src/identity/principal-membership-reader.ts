@@ -1,4 +1,4 @@
-import type { WalletSummary } from "@kachang/contracts";
+import type { WalletSummary } from "@weftcanvas/contracts";
 import type { Pool } from "pg";
 
 export type PrincipalMembership = WalletSummary["membership"];
@@ -20,7 +20,10 @@ type MembershipRow = {
  * the provider's table shape.
  */
 export class PostgresPrincipalMembershipReader implements PrincipalMembershipReader {
-  constructor(private readonly pool: Pick<Pool, "query">, private readonly now: () => number = Date.now) {}
+  constructor(
+    private readonly pool: Pick<Pool, "query">,
+    private readonly now: () => number = Date.now,
+  ) {}
 
   async readMembership(principalId: string): Promise<PrincipalMembership> {
     const result = await this.pool.query<MembershipRow>(
@@ -36,8 +39,17 @@ export class PostgresPrincipalMembershipReader implements PrincipalMembershipRea
     const primaryUntil = dateMs(row.membership_until);
     const queuedUntil = dateMs(row.membership_queued_until);
     const now = this.now();
-    if (row.membership_tier && (row.membership_until === null || (primaryUntil !== null && primaryUntil > now))) {
-      return membership(row.membership_tier, row.membership_until, row.membership_queued_tier, row.membership_queued_until, true);
+    if (
+      row.membership_tier &&
+      (row.membership_until === null || (primaryUntil !== null && primaryUntil > now))
+    ) {
+      return membership(
+        row.membership_tier,
+        row.membership_until,
+        row.membership_queued_tier,
+        row.membership_queued_until,
+        true,
+      );
     }
     if (row.membership_queued_tier && queuedUntil && queuedUntil > now) {
       return membership(row.membership_queued_tier, row.membership_queued_until, null, null, true);

@@ -8,9 +8,9 @@ import {
   type CanvasGroup,
   type CanvasViewport,
   normalizeDirectorStagePacket,
-} from "@kachang/contracts";
+} from "@weftcanvas/contracts";
 
-import type { KachangEdge, KachangNode } from "../types";
+import type { WeftcanvasEdge, WeftcanvasNode } from "../types";
 import { normalizeAgentCreativeGuidance } from "./agent-creative-guidance";
 
 const MAX_NODES = 120;
@@ -21,8 +21,8 @@ const MAX_NODE_TEXT = 4_000;
 type CanvasContextSource = {
   projectId: string;
   projectName: string;
-  nodes: KachangNode[];
-  edges: KachangEdge[];
+  nodes: WeftcanvasNode[];
+  edges: WeftcanvasEdge[];
   groups: CanvasGroup[];
   viewport?: CanvasViewport;
   directorStage?: AgentDirectorStageSummary;
@@ -30,10 +30,14 @@ type CanvasContextSource = {
 };
 
 export function createAgentCanvasContext(source: CanvasContextSource): AgentCanvasContext {
-  const orderedNodes = [...source.nodes].sort((left, right) => Number(Boolean(right.selected)) - Number(Boolean(left.selected)));
+  const orderedNodes = [...source.nodes].sort(
+    (left, right) => Number(Boolean(right.selected)) - Number(Boolean(left.selected)),
+  );
   const includedNodes = orderedNodes.slice(0, MAX_NODES);
   const includedIds = new Set(includedNodes.map((node) => node.id));
-  const eligibleEdges = source.edges.filter((edge) => includedIds.has(edge.source) && includedIds.has(edge.target));
+  const eligibleEdges = source.edges.filter(
+    (edge) => includedIds.has(edge.source) && includedIds.has(edge.target),
+  );
   const includedEdges = eligibleEdges.slice(0, MAX_EDGES);
   const groups = source.groups.slice(0, MAX_GROUPS).flatMap((group) => {
     const nodeIds = group.nodeIds.filter((id) => includedIds.has(id)).slice(0, MAX_NODES);
@@ -56,18 +60,23 @@ export function createAgentCanvasContext(source: CanvasContextSource): AgentCanv
       kind: node.data.kind,
       text: node.data.body.slice(0, MAX_NODE_TEXT),
       selected: Boolean(node.selected),
-      media: node.data.media && ["image", "video", "audio"].includes(node.data.kind) ? {
-        kind: node.data.kind as "image" | "video" | "audio",
-        mimeType: node.data.media.mimeType,
-        width: node.data.media.width,
-        height: node.data.media.height,
-        durationMs: node.data.media.durationMs,
-      } : null,
+      media:
+        node.data.media && ["image", "video", "audio"].includes(node.data.kind)
+          ? {
+              kind: node.data.kind as "image" | "video" | "audio",
+              mimeType: node.data.media.mimeType,
+              width: node.data.media.width,
+              height: node.data.media.height,
+              durationMs: node.data.media.durationMs,
+            }
+          : null,
     })),
     edges: includedEdges.map((edge) => ({ source: edge.source, target: edge.target })),
     groups,
     directorStage: source.directorStage ?? null,
-    creativeGuidance: normalizeAgentCreativeGuidance(source.creativeGuidance ?? defaultCreativeGuidance()),
+    creativeGuidance: normalizeAgentCreativeGuidance(
+      source.creativeGuidance ?? defaultCreativeGuidance(),
+    ),
   });
 }
 
@@ -115,7 +124,9 @@ export function createAgentContextRevision(source: CanvasContextSource) {
         nodeIds: [...group.nodeIds].sort(compareText),
       })),
     directorStage: source.directorStage ?? null,
-    creativeGuidance: normalizeAgentCreativeGuidance(source.creativeGuidance ?? defaultCreativeGuidance()),
+    creativeGuidance: normalizeAgentCreativeGuidance(
+      source.creativeGuidance ?? defaultCreativeGuidance(),
+    ),
   };
   const serialized = stableStringify(canonical);
   let primary = 0x811c9dc5;
@@ -128,10 +139,13 @@ export function createAgentContextRevision(source: CanvasContextSource) {
   return `ctx-v1-${primary.toString(16).padStart(8, "0")}${secondary.toString(16).padStart(8, "0")}`;
 }
 
-export function readAgentDirectorStageContext(projectId: string, open: boolean): AgentDirectorStageSummary {
+export function readAgentDirectorStageContext(
+  projectId: string,
+  open: boolean,
+): AgentDirectorStageSummary {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(`kachang-canvas:director-stage:v1:${projectId}`);
+    const raw = window.localStorage.getItem(`weftcanvas:director-stage:v1:${projectId}`);
     if (!raw) return null;
     const packet = normalizeDirectorStagePacket((JSON.parse(raw) as { packet?: unknown }).packet);
     return {
@@ -179,7 +193,10 @@ function stableStringify(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
   if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
   const record = value as Record<string, unknown>;
-  return `{${Object.keys(record).sort(compareText).map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`).join(",")}}`;
+  return `{${Object.keys(record)
+    .sort(compareText)
+    .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
+    .join(",")}}`;
 }
 
 function compareText(left: string, right: string) {
