@@ -48,6 +48,14 @@ type CatalogAdapterOptions = {
   overlay?: CatalogCompatibilityOverlay;
   refreshIntervalMs?: number;
   requestTimeoutMs?: number;
+  /**
+   * 单次目录刷新的硬上限。`AbortSignal.timeout` 只能中断 fetch 的传输阶段；DNS
+   * 解析等阶段不被它打断，刷新仍可能悬置。refreshPromise 是被缓存的，一个悬置的
+   * 刷新会让之后所有需要等待刷新的请求（报价、强制刷新）永久挂起——生产已因此
+   * 静默失去报价能力（目录 6h TTL 到期后 quoteAvailable=false，前端直接禁用提交）。
+   * 这里给整次刷新加死线，保证缓存 Promise 一定会 settle。
+   */
+  refreshHardTimeoutMs?: number;
   maxQuoteAgeMs?: number;
   now?: () => number;
 };
@@ -57,6 +65,7 @@ export class WeftcanvasCatalogAdapter {
   private readonly inventoryFetcher: typeof globalThis.fetch;
   private readonly refreshIntervalMs: number;
   private readonly requestTimeoutMs: number;
+  private readonly refreshHardTimeoutMs: number;
   private readonly maxQuoteAgeMs: number;
   private readonly now: () => number;
   private snapshot: StoredCatalogSnapshot | null = null;
@@ -72,6 +81,9 @@ export class WeftcanvasCatalogAdapter {
     this.inventoryFetcher = options.inventoryFetch ?? this.fetcher;
     this.refreshIntervalMs = options.refreshIntervalMs ?? 60_000;
     this.requestTimeoutMs = options.requestTimeoutMs ?? 12_000;
+    // 必须明显大于单个请求的超时，否则正常的两路抓取也会被死线打断。
+    this.refreshHardTimeoutMs =
+      options.refreshHardTimeoutMs ?? Math.max(this.requestTimeoutMs * 2, 30_000);
     this.maxQuoteAgeMs = options.maxQuoteAgeMs ?? 6 * 60 * 60_000;
     this.now = options.now ?? Date.now;
   }
