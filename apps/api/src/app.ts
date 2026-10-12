@@ -365,7 +365,29 @@ export function createApiApp(dependencies: ApiDependencies) {
     context.header("Cache-Control", "private, no-store");
   });
 
-  app.get("/api/health", (context) => context.json({ ok: true, service: "canvas-api" }));
+  app.get("/api/health", async (context) => {
+    context.header("Cache-Control", "no-store");
+    // 目录新鲜度决定「能不能报价、能不能提交」：一旦过期或报价不可用，前端会直接
+    // 禁用提交按钮，而服务本身仍然健康。生产已出现过这种静默失效（刷新卡死 → 目录
+    // TTL 到期 → 用户无法提交，直到有人反馈才发现），所以把这两个信号放进健康响应，
+    // 让看门狗/拨测能据此告警。取快照是非阻塞的：需要刷新时也只是后台触发。
+    const catalog = await dependencies.catalog
+      .getCatalog({ includeOverrides: false })
+      .catch(() => null);
+    return context.json({
+      ok: true,
+      service: "canvas-api",
+      ...(catalog
+        ? {
+            catalog: {
+              version: catalog.version,
+              quoteAvailable: catalog.quoteAvailable,
+              expiresAt: catalog.expiresAt,
+            },
+          }
+        : {}),
+    });
+  });
 
   app.get("/api/ready", async (context) => {
     context.header("Cache-Control", "no-store");

@@ -214,7 +214,7 @@ export class WeftcanvasCatalogAdapter {
 
   private async refreshSafely() {
     if (!this.refreshPromise) {
-      const request = this.refresh()
+      const request = this.withRefreshDeadline(this.refresh())
         .then(() => {
           this.refreshFailureCount = 0;
           this.refreshRetryAt = 0;
@@ -235,6 +235,28 @@ export class WeftcanvasCatalogAdapter {
       this.refreshPromise = request;
     }
     return this.refreshPromise;
+  }
+
+  /**
+   * Bounds one refresh attempt. The abandoned attempt keeps running (its own
+   * per-request signals still apply) but can no longer hold the cached
+   * refreshPromise open, so a single wedged attempt cannot disable quoting until
+   * the process restarts.
+   */
+  private withRefreshDeadline(work: Promise<void>): Promise<void> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`Catalog refresh exceeded ${this.refreshHardTimeoutMs}ms`)),
+        this.refreshHardTimeoutMs,
+      );
+    });
+    return Promise.race([work, deadline]).finally(() => {
+      if (timer !== undefined) clearTimeout(timer);
+      // The losing attempt may still reject later; observe it so the process
+      // does not report an unhandled rejection.
+      void work.catch(() => undefined);
+    });
   }
 
   private async refresh() {
