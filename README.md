@@ -84,6 +84,8 @@ pnpm test:e2e     # Playwright
 安全问题见 [SECURITY.md](SECURITY.md)。
 
 **交流**：QQ 群 **743378399**——用法答疑、插件与协议适配讨论、首发公告都在这。
+商务授权与安全问题邮件 **2705367723@qq.com**（见
+[COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md) / [SECURITY.md](SECURITY.md)）。
 
 ## 来源与致谢
 

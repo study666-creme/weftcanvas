@@ -5,6 +5,8 @@
 Please report security issues via **GitHub private vulnerability reporting**
 (Security tab → "Report a vulnerability"). Do not open a public issue.
 
+You can also email **2705367723@qq.com**.
+
 We aim to acknowledge reports within 7 days. While Weftcanvas is pre-1.0, only
 the latest `main` is supported.
 

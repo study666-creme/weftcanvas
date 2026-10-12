@@ -32,7 +32,7 @@ Examples of unacceptable behavior:
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the community leaders responsible for enforcement via GitHub
-private vulnerability reporting or a direct message to a maintainer. All
+private vulnerability reporting or email **2705367723@qq.com**. All
 complaints will be reviewed and investigated promptly and fairly.
 
 Enforcement scope includes the repository, public spaces when an individual is
