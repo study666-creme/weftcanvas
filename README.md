@@ -1,15 +1,15 @@
-# Weftcanvas（纬线）
+# 纬线无线画布（Weftcanvas）
 
-面向 AI 创作的自托管无限画布：节点编排、自带 Key 直连模型、Agent 连接器、
-持久化生成队列。画布数据默认留在你自己的浏览器里。
+面向 AI 创作的自托管无限画布——画布本身叫「**纬线**」。节点编排、自带 Key 直连模型、
+Agent 连接器、持久化生成队列；画布数据默认留在你自己的浏览器里。
 
-> **状态：首个公开版本整理中（2026-10-10）。**
-> 本仓库正在从私有主干做首次开源拆分。本 README 描述开源范围的目标形态；
-> 拆分尚未完成的项在下面逐条标注，不做完成度上的粉饰。
+> **状态（2026-10-12）**：核心画布、BYOK、Agent 连接器、自托管配方已就绪；
+> 正式美术（logo / 截图 / 演示 GIF）与独立文档站待补。本 README 如实描述当前范围，
+> 不做完成度粉饰。
 
 ## 开源范围
 
-**包含**（拆分完成后即在此仓库可用）：
+**包含**：
 
 - 画布核心：节点、连线、磁性端口、分组、撤销重做、小屏地图、指针反馈、
   两种配色（石墨 / 墨黑）、Three.js 导演台。
@@ -19,6 +19,8 @@
 - Agent：右侧回复工作区 + 本地连接器（Codex 走 MCP 操作当前画布、Blender 走
   `weftcanvas_bridge` 插件）。
 - 生成任务的持久化 worker（PostgreSQL 队列、租约与 fencing）。
+- 自托管配方：`Dockerfile` + `docker-compose.yml`，一键起 `web + api + postgres`
+  （见 [`docs/DEPLOYING.md`](docs/DEPLOYING.md)）。
 
 **不包含**（商业版持有，开源仓库里没有）：
 
@@ -26,15 +28,24 @@
 - 云端钱包、会员、兑换码、模型目录计价映射。
 - 私有 Agent 系统提示词、检索与蒸馏知识、生产运维脚本。
 
-**整理中**（尚未在本仓库完成）：品牌改名（当前源码里仍是旧品牌串）、
-生产端点参数化、容器化部署配方、独立文档站。
-
 ## 快速开始
+
+### 一键自托管（Docker）
+
+```bash
+{ echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)"; \
+  echo "IDENTITY_SESSION_SECRET=$(openssl rand -hex 32)"; } > .env
+docker compose up --build -d      # http://127.0.0.1:8080
+```
+
+细节（worker profile、反向代理、更新）见 [`docs/DEPLOYING.md`](docs/DEPLOYING.md)。
+
+### 本地开发
 
 ```bash
 pnpm install
 pnpm dev          # Web http://127.0.0.1:4173 · API http://127.0.0.1:8787
-pnpm dev:agent    # 可选：私有 Agent 运行时 http://127.0.0.1:8790
+pnpm dev:agent    # 可选：Agent 运行时 http://127.0.0.1:8790
 pnpm typecheck
 pnpm test
 pnpm test:e2e     # Playwright
@@ -58,7 +69,13 @@ pnpm test:e2e     # Playwright
 - **闭源商用**：如果你的产品不能开源，可以购买商业授权免除 AGPL 义务，
   见 [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md)。
 
+## 参与
+
+见 [CONTRIBUTING.md](CONTRIBUTING.md)（开发环境、四个必跑命令、画布手感红线、CLA）；
+安全问题见 [SECURITY.md](SECURITY.md)。
+
 ## 来源与致谢
 
-本项目是独立实现（clean-room），不是任何其他画布项目的 fork；设计上参考了同类
-开源产品的交互与工程实践，详见 [NOTICE.md](NOTICE.md) 与 [PROVENANCE.md](PROVENANCE.md)。
+本项目是独立实现（clean-origin），不是任何其他画布项目的 fork；设计上参考了同类
+开源产品的交互与工程实践。来源登记见 [PROVENANCE.md](PROVENANCE.md)，第三方许可见
+[NOTICE.md](NOTICE.md)；发布前已按 PROVENANCE 清单跑过相似度扫描取证。
