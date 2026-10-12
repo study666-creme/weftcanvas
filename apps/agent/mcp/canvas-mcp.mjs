@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 纬线画布 MCP 桥接（stdio）。
+ * 纬线 MCP 桥接（stdio）。
  *
  * Codex 用 MCP 启动这个进程，它把 MCP 工具调用转成 Canvas Agent 运行时的
  * 画布指令，等浏览器执行完再返回回执。这里不做任何画布写入，也不持有画布状态。

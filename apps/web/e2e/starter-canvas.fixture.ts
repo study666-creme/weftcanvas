@@ -55,7 +55,7 @@ export async function seedStarterCanvas(page: Page) {
   const project = {
     schemaVersion: 1,
     id: "e2e-starter-canvas",
-    name: "纬线画布 1",
+    name: "纬线 1",
     nodes: [
       node(
         "starter-text",

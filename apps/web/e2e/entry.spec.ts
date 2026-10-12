@@ -97,9 +97,9 @@ test("the entry gate opens the single canvas loader without a departure curtain"
   const gate = page.locator(".wc-entry-gate");
   const enter = page.locator(".wc-entry-button");
   await expect(gate).toBeVisible();
-  await expect(gate).toHaveAttribute("aria-label", "纬线画布入口");
+  await expect(gate).toHaveAttribute("aria-label", "纬线入口");
   await expect(enter).toBeVisible();
-  await expect(page.getByRole("heading", { name: "纬线画布", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "纬线", exact: true })).toBeVisible();
   const brandLogo = gate.locator(".wc-entry-brand-mark img");
   await expect(brandLogo).toBeVisible();
   await expect
@@ -387,7 +387,7 @@ test("the entry page remains balanced without horizontal overflow on a phone vie
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "纬线画布", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "纬线", exact: true })).toBeVisible();
   await expect(page.locator(".wc-entry-button")).toBeVisible();
   await expect(page.getByRole("button", { name: "打开画布", exact: true })).toBeVisible();
   await expect(page.getByRole("tablist", { name: "生成类型" })).toBeVisible();

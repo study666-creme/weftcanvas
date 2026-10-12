@@ -440,15 +440,15 @@ export function EntryGate({
   // 上线推广场景下流畅优先于这层装饰，相关 CSS（--spot-*/--par-*）已一并停用。
 
   return (
-    <section className="wc-entry-gate" aria-label="纬线画布入口">
+    <section className="wc-entry-gate" aria-label="纬线入口">
       <div className="wc-entry-showcase">
         <header className="wc-entry-nav" aria-label="主页导航">
-          <a className="wc-entry-brand" href="/" aria-label="返回纬线画布主页">
+          <a className="wc-entry-brand" href="/" aria-label="返回纬线主页">
             <span className="wc-entry-brand-mark">
               <img src="/weftcanvas-logo-ui.webp" alt="" aria-hidden="true" />
             </span>
             <span>
-              <strong>纬线画布</strong>
+              <strong>纬线</strong>
               <small>Weftcanvas</small>
             </span>
           </a>
@@ -906,7 +906,7 @@ export function EntryGate({
                 灵感
               </span>
               <h2>从一句话到一件作品</h2>
-              <p>看看别人用纬线画布生成的画面，点一张即可带着它的提示词开始。</p>
+              <p>看看别人用纬线生成的画面，点一张即可带着它的提示词开始。</p>
             </div>
             <div className="wc-entry-works">
               {SHOWCASE.map((work) => (
@@ -943,7 +943,7 @@ export function EntryGate({
           </section>
 
           <footer className="wc-entry-footer">
-            <span>纬线画布</span>
+            <span>纬线</span>
             <p>一句描述，生成图像与视频；回到画布，让创作继续生长。</p>
             <button type="button" onClick={onEnter}>
               进入画布

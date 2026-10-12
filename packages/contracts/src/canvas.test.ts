@@ -8,7 +8,7 @@ describe("canvasProjectSchema", () => {
     const project = canvasProjectSchema.parse({
       schemaVersion: CANVAS_SCHEMA_VERSION,
       id: "project-1",
-      name: "纬线画布",
+      name: "纬线",
       nodes: [],
       edges: [],
       viewport: { x: 0, y: 0, zoom: 1 },

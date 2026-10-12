@@ -100,7 +100,7 @@ export const TopBar = memo(function TopBar({
 
   return (
     <header className="wc-topbar">
-      <div className="wc-project-console" aria-label="纬线画布">
+      <div className="wc-project-console" aria-label="纬线">
         <button
           type="button"
           className="wc-brand-mark"
@@ -115,7 +115,7 @@ export const TopBar = memo(function TopBar({
           <PanelsTopLeft />
         </span>
         <div className="wc-project-heading">
-          <span>纬线画布</span>
+          <span>纬线</span>
           <input
             className="wc-project-name"
             value={projectName}

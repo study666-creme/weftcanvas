@@ -339,7 +339,7 @@ function loadInitialState() {
   }
   return {
     projectId: createId("project"),
-    projectName: "纬线画布 1",
+    projectName: "纬线 1",
     createdAt: now,
     nodes: [],
     edges: [],
@@ -930,7 +930,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
   setViewport: (viewport) => set({ viewport, saveState: "saving" }),
   setProjectName: (projectName) =>
-    set({ projectName: projectName || "纬线画布 1", saveState: "saving" }),
+    set({ projectName: projectName || "纬线 1", saveState: "saving" }),
   applyAgentActions: (actions) => {
     const state = get();
     const defaultNodeAspectRatio = currentDefaultNodeAspectRatio();
@@ -2159,7 +2159,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     discardPendingNodePositionChanges();
     set({
       projectId: createId("project"),
-      projectName: name?.trim() || "纬线画布 1",
+      projectName: name?.trim() || "纬线 1",
       createdAt: Date.now(),
       nodes: [],
       edges: [],

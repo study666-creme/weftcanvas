@@ -34,7 +34,7 @@ async function seedFixtureProject(page: Page) {
     const project = {
       schemaVersion: 1,
       id: "library-fixture-project",
-      name: "纬线画布 1",
+      name: "纬线 1",
       nodes: [
         {
           id: "fixture-text",
@@ -195,7 +195,7 @@ test("local project library keeps project graphs isolated through create, switch
   await expect(projectRow(page, "项目 A")).toContainText("3 个节点");
   await sidebar.getByLabel("新建项目").click();
 
-  await expect(projectName).toHaveValue("纬线画布 1");
+  await expect(projectName).toHaveValue("纬线 1");
   await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(0);
   await page
     .getByRole("navigation", { name: "创建工具" })

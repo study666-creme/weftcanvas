@@ -292,7 +292,7 @@ export function AuthScreen({
       className={`wc-auth-screen ${videoReady || filmLabels ? "is-film" : ""}`}
       role="dialog"
       aria-modal="true"
-      aria-label="登录纬线画布"
+      aria-label="登录纬线"
     >
       {activePoster ? (
         <img
@@ -365,7 +365,7 @@ export function AuthScreen({
           <img src="/weftcanvas-logo-ui.webp" alt="" aria-hidden="true" />
         </span>
         <span className="wc-auth-brand-copy">
-          <strong>纬线画布</strong>
+          <strong>纬线</strong>
           <small>Weftcanvas</small>
         </span>
       </header>

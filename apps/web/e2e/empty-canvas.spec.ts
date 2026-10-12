@@ -36,7 +36,7 @@ test("a fresh browser starts on a valid empty canvas with zero nodes, edges, and
   await page.goto("/canvas");
 
   await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
-  await expect(page.getByLabel("项目名称")).toHaveValue("纬线画布 1");
+  await expect(page.getByLabel("项目名称")).toHaveValue("纬线 1");
   await expect(page.locator(".wc-empty-canvas-hint")).toHaveCount(1);
   await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(0);
   await expect(page.locator(".react-flow__edge")).toHaveCount(0);
@@ -131,7 +131,7 @@ test("new project starts at zero after preserving the previous project", async (
   await expect(projectRow(page, "保留项目")).toContainText("1 个节点");
   await sidebar.getByLabel("新建项目").click();
 
-  await expect(projectName).toHaveValue("纬线画布 1");
+  await expect(projectName).toHaveValue("纬线 1");
   await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(0);
   await expect(page.locator(".react-flow__edge")).toHaveCount(0);
   await expect(page.locator(".wc-group-frame")).toHaveCount(0);
@@ -162,7 +162,7 @@ test("switching back preserves the prior graph built on an empty start", async (
 
   let sidebar = await openProjectLibrary(page);
   await sidebar.getByLabel("新建项目").click();
-  await expect(projectName).toHaveValue("纬线画布 1");
+  await expect(projectName).toHaveValue("纬线 1");
   await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(0);
 
   sidebar = await openProjectLibrary(page);
@@ -186,17 +186,17 @@ test("deleting the last project creates an empty replacement", async ({ page }) 
   await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(1);
 
   const sidebar = await openProjectLibrary(page);
-  const row = projectRow(page, "纬线画布 1");
+  const row = projectRow(page, "纬线 1");
   await row.locator(".wc-project-more").click();
   await row.getByRole("button", { name: "删除" }).click();
   const confirmation = page.getByRole("dialog", { name: "删除项目" });
-  await expect(confirmation).toContainText("纬线画布 1");
+  await expect(confirmation).toContainText("纬线 1");
   await confirmation.getByRole("button", { name: "删除" }).click();
 
   await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(0);
   await expect(page.locator(".react-flow__edge")).toHaveCount(0);
   await expect(page.locator(".wc-group-frame")).toHaveCount(0);
-  await expect(page.getByLabel("项目名称")).toHaveValue("纬线画布 1");
+  await expect(page.getByLabel("项目名称")).toHaveValue("纬线 1");
   await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
 
   await creation.getByRole("button", { name: "添加文本节点" }).click();

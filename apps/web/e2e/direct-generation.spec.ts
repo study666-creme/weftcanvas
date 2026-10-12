@@ -890,7 +890,7 @@ test("leaving the workbench clears the uploaded materials session", async ({ pag
   await studio.locator("[data-direct-prompt]").fill("一座被雨水照亮的未来城市");
 
   // 通过品牌链接返回首页（离开工作台），会话存储应被清空。
-  await page.getByRole("link", { name: "返回纬线画布首页" }).click();
+  await page.getByRole("link", { name: "返回纬线首页" }).click();
   await expect(page.locator(".wc-entry-gate")).toBeVisible();
   expect(
     await page.evaluate(() => sessionStorage.getItem("weftcanvas:direct-reference-session:v1")),

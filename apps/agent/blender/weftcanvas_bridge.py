@@ -1,4 +1,4 @@
-"""纬线画布 Blender 桥接（Blender 插件形态）。
+"""纬线 Blender 桥接（Blender 插件形态）。
 
 两种工作模式，面板里切换：
 
@@ -27,12 +27,12 @@ import traceback
 import bpy
 
 bl_info = {
-    "name": "纬线画布桥接",
+    "name": "纬线桥接",
     "author": "Weftcanvas",
     "version": (1, 1, 0),
     "blender": (3, 6, 0),
     "location": "View3D > Sidebar > 纬线",
-    "description": "让纬线画布 Agent 在本机 Blender 中执行 Python",
+    "description": "让纬线 Agent 在本机 Blender 中执行 Python",
     "category": "Development",
 }
 

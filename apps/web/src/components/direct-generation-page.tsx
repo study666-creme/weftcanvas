@@ -80,17 +80,12 @@ export function DirectGenerationPage({
       aria-label={modality === "image" ? "图片生成页面" : "视频生成页面"}
     >
       <header className="wc-entry-nav wc-direct-page-nav" aria-label="生成页面导航">
-        <a
-          className="wc-entry-brand"
-          href="/"
-          aria-label="返回纬线画布首页"
-          onClick={leaveWorkbench}
-        >
+        <a className="wc-entry-brand" href="/" aria-label="返回纬线首页" onClick={leaveWorkbench}>
           <span className="wc-entry-brand-mark">
             <img src="/weftcanvas-logo-ui.webp" alt="" aria-hidden="true" />
           </span>
           <span>
-            <strong>纬线画布</strong>
+            <strong>纬线</strong>
             <small>Weftcanvas</small>
           </span>
         </a>

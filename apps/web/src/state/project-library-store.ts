@@ -191,8 +191,8 @@ function loadSummaries() {
 function nextCanvasName(projects: ProjectSummary[]) {
   const names = new Set(projects.map((project) => project.name));
   for (let index = 1; index < 10_000; index += 1) {
-    const candidate = `纬线画布 ${index}`;
+    const candidate = `纬线 ${index}`;
     if (!names.has(candidate)) return candidate;
   }
-  return `纬线画布 ${Date.now()}`;
+  return `纬线 ${Date.now()}`;
 }

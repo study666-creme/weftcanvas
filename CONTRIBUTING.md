@@ -1,6 +1,6 @@
 # Contributing to Weftcanvas
 
-Thanks for your interest in improving Weftcanvas (纬线画布). This document is the
+Thanks for your interest in improving Weftcanvas (纬线). This document is the
 short version; the binding product rules live in [`AGENTS.md`](AGENTS.md) and
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 

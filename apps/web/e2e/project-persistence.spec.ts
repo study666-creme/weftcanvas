@@ -91,7 +91,7 @@ test("graph identity, parameters, task status, groups, and media references surv
 
   let sidebar = await openProjectLibrary(page);
   await sidebar.getByLabel("新建项目").click();
-  await expect(page.getByLabel("项目名称")).toHaveValue("纬线画布 1");
+  await expect(page.getByLabel("项目名称")).toHaveValue("纬线 1");
   await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(0);
   await expect(page.getByText("持久化分镜", { exact: true })).toHaveCount(0);
 
@@ -217,7 +217,7 @@ for (const viewport of [
     await expect(sidebar.getByRole("button", { name: "导出当前" })).toBeVisible();
 
     await sidebar.getByLabel("新建项目").click();
-    await expect(page.getByLabel("项目名称")).toHaveValue("纬线画布 2");
+    await expect(page.getByLabel("项目名称")).toHaveValue("纬线 2");
     const sidebarAfter = await openProjectLibrary(page);
     await expect(sidebarAfter.locator(".wc-project-row")).toHaveCount(2);
 

@@ -379,7 +379,7 @@ function projectSummary(id: string) {
   return {
     schemaVersion: 1,
     id,
-    title: "纬线画布 1",
+    title: "纬线 1",
     revision: 1,
     documentBytes: 512,
     localMediaCount: 0,

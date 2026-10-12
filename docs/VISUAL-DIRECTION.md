@@ -1,6 +1,6 @@
 # Visual Direction: Dark Creative Instrument
 
-Product name: Weftcanvas / 纬线画布
+Product name: Weftcanvas / 纬线
 
 The visual direction follows the established Weftcanvas product language:
 a full-screen graphite workspace, compact floating tools, clear node geometry,

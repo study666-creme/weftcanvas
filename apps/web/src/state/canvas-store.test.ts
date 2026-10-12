@@ -1208,7 +1208,7 @@ describe("empty new-project invariant", () => {
     expect(state.future).toEqual([]);
     expect(state.transactionBase).toBeNull();
     expect(state.projectId).not.toBe("old-project");
-    expect(state.projectName).toBe("纬线画布 1");
+    expect(state.projectName).toBe("纬线 1");
     expect(state.createdAt).toBeGreaterThan(0);
     expect(state.viewport).toEqual({ x: 720, y: 450, zoom: 0.7 });
     expect(state.saveState).toBe("saving");
@@ -1216,7 +1216,7 @@ describe("empty new-project invariant", () => {
     const project = selectProject(state);
     expect(project).toMatchObject({
       id: state.projectId,
-      name: "纬线画布 1",
+      name: "纬线 1",
       nodes: [],
       edges: [],
       groups: [],

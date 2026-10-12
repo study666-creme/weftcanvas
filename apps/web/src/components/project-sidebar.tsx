@@ -125,7 +125,7 @@ export const ProjectSidebar = memo(function ProjectSidebar() {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `${project.name || "纬线画布"}.weftcanvas.json`;
+    anchor.download = `${project.name || "纬线"}.weftcanvas.json`;
     anchor.click();
     URL.revokeObjectURL(url);
     showToast("项目文件已导出", "success");

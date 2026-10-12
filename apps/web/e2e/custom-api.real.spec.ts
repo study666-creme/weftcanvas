@@ -31,13 +31,13 @@ test("real browser-owned API completes one canvas text creation", async ({ page 
   const model = panel.getByLabel("模型");
   await expect(model.locator('option[value="glm-5.1"]')).toHaveCount(1, { timeout: 20_000 });
   await model.selectOption("glm-5.1");
-  const prompt = "连接测试：请只回复“纬线画布已接通”，不要复述问题。";
+  const prompt = "连接测试：请只回复“纬线已接通”，不要复述问题。";
   await page.getByLabel("文本节点提示词").fill(prompt);
   const maxTokens = panel.getByLabel("最大输出 Token");
   if (await maxTokens.count()) await maxTokens.fill("32");
   await panel.getByRole("button", { name: "生成", exact: true }).click();
 
   await expect(textNode.locator(".wc-node-loading")).toHaveCount(0, { timeout: 120_000 });
-  await expect(textNode.locator(".wc-node-text-preview")).toContainText("纬线画布已接通");
+  await expect(textNode.locator(".wc-node-text-preview")).toContainText("纬线已接通");
   await expect(textNode.locator(".wc-node-text-preview")).not.toHaveText(prompt);
 });

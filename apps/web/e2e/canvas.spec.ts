@@ -74,7 +74,7 @@ test("desktop canvas supports core creation and editing flow", async ({ page }) 
   await cleanProject(page);
   await openCanvas(page);
 
-  await expect(page.getByLabel("纬线画布", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("纬线", { exact: true })).toBeVisible();
   const nodes = page.locator(".react-flow__node-weftcanvas");
   await expect(nodes).toHaveCount(3);
 

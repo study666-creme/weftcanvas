@@ -113,7 +113,7 @@ export function CanvasEntryLoader({
           <img src="/weftcanvas-logo-ui.webp" alt="" aria-hidden="true" />
         </span>
         <span>
-          <strong>纬线画布</strong>
+          <strong>纬线</strong>
           <small>Weftcanvas</small>
         </span>
       </header>
