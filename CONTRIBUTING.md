@@ -60,5 +60,6 @@ rows. Changes that trade pointer latency for anything else will not be merged.
 ## Reporting
 
 - Bugs and features: GitHub issues (templates provided).
+- Questions and design discussion: the QQ group **743378399**.
 - Security vulnerabilities: see [`SECURITY.md`](SECURITY.md) — please do not
   open a public issue.

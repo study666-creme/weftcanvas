@@ -74,6 +74,8 @@ pnpm test:e2e     # Playwright
 见 [CONTRIBUTING.md](CONTRIBUTING.md)（开发环境、四个必跑命令、画布手感红线、CLA）；
 安全问题见 [SECURITY.md](SECURITY.md)。
 
+**交流**：QQ 群 **743378399**——用法答疑、插件与协议适配讨论、首发公告都在这。
+
 ## 来源与致谢
 
 本项目是独立实现（clean-origin），不是任何其他画布项目的 fork；设计上参考了同类
