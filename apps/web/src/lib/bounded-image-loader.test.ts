@@ -384,7 +384,9 @@ describe("bounded image loader", () => {
     const { loader, fetchCalls } = makeLoader({
       maxConcurrent: 1,
       maxRetries: 0,
-      attemptTimeoutMs: 5,
+      // 宽松的超时窗口 + 用「等 fetch 真发出」代替固定 sleep：真实计时器下
+      // 5ms 级别的固定等待会在 CI 负载下漂移（曾致 CI 首绿失败）。
+      attemptTimeoutMs: 300,
       nativeDecode: () => new Promise(() => {}),
       fetch: () =>
         new Promise<Response>((resolve) => {
@@ -394,14 +396,17 @@ describe("bounded image loader", () => {
 
     const first = loader.acquire("slow-a");
     const second = loader.acquire("slow-b");
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    // "槽位已释放、b 的 fetch 已发出"的确定信号——不再靠固定时长去撞窗口。
+    await vi.waitFor(() => expect(fetchCalls).toEqual(["slow-a", "slow-b"]), {
+      timeout: 5_000,
+      interval: 10,
+    });
 
     // The timed-out first attempt released its slot and the queued second
     // request started instead of waiting forever.
     expect(await first).toBeNull();
-    expect(fetchCalls).toEqual(["slow-a", "slow-b"]);
+    // 在 b 的 fetch 窗口内解除挂起；a 的迟到完成被忽略（already null）。
     lateResolve(okResponse());
-    await new Promise((resolve) => setTimeout(resolve, 5));
     expect(await second).not.toBeNull();
     loader.release("slow-a");
     loader.release("slow-b");
