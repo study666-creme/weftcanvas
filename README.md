@@ -10,6 +10,12 @@ Agent 连接器、持久化生成队列；画布数据默认留在你自己的�
 > 正式美术（logo / 截图 / 演示 GIF）与独立文档站待补。本 README 如实描述当前范围，
 > 不做完成度粉饰。
 
+## 预览
+
+![纬线画布](docs/screenshots/canvas.png)
+
+![纬线生成工作台](docs/screenshots/workbench.png)
+
 ## 开源范围
 
 **包含**：
