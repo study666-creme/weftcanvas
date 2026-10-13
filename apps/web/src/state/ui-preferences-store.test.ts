@@ -320,6 +320,15 @@ describe("companion anchor", () => {
     });
   });
 
+  it("keeps a node perch across reloads", async () => {
+    const { useUiPreferencesStore } = await import("./ui-preferences-store");
+    useUiPreferencesStore.getState().setCompanionAnchor({ kind: "node", nodeId: "node-7" });
+
+    vi.resetModules();
+    const { useUiPreferencesStore: hydrated } = await import("./ui-preferences-store");
+    expect(hydrated.getState().companionAnchor).toEqual({ kind: "node", nodeId: "node-7" });
+  });
+
   it("clears back to the default spot with null", async () => {
     const { useUiPreferencesStore } = await import("./ui-preferences-store");
     useUiPreferencesStore.getState().setCompanionAnchor({ kind: "free", x: 10, y: 10 });
@@ -336,6 +345,12 @@ describe("companion anchor", () => {
       x: 0.94,
     });
     expect(normalizeCompanionAnchor({ kind: "free", x: Number.NaN, y: 10 })).toBeNull();
+    expect(normalizeCompanionAnchor({ kind: "node", nodeId: "node-1" })).toEqual({
+      kind: "node",
+      nodeId: "node-1",
+    });
+    expect(normalizeCompanionAnchor({ kind: "node" })).toBeNull();
+    expect(normalizeCompanionAnchor({ kind: "node", nodeId: "" })).toBeNull();
     expect(normalizeCompanionAnchor("junk")).toBeNull();
   });
 });

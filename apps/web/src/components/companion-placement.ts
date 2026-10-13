@@ -68,6 +68,8 @@ export type Placement = {
   ledge?: { y: number };
   /** 面板贴顶、上方放不下时改为挂在其下沿（小手扒住底边，上半身藏到面板后）。 */
   hang?: boolean;
+  /** 坐在画布节点上缘角上（点击节点时的默认位）。 */
+  onNode?: boolean;
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -88,6 +90,38 @@ function toRect(element: Element): Rect | null {
 function dockElement(dock: CompanionDock): Element | null {
   const target = DOCK_TARGETS.find((entry) => entry.key === dock);
   return target ? document.querySelector(target.selector) : null;
+}
+
+export function cssEscape(value: string): string {
+  return typeof CSS !== "undefined" && typeof CSS.escape === "function"
+    ? CSS.escape(value)
+    : value.replace(/[^A-Za-z0-9_-]/g, "");
+}
+
+function nodeElement(nodeId: string): Element | null {
+  return document.querySelector(`.react-flow__node[data-id="${cssEscape(nodeId)}"]`);
+}
+
+/**
+ * 坐在节点上缘的右角（用户要的观感：脑袋搭在节点右上角边沿上）。
+ * nodeRect 是节点的视口矩形；返回相对定位父级的中心 x / 顶边 y。
+ * 节点顶边贴出视口时往下兜底，保证她始终完整可见。
+ */
+export function resolveNodePlacement(
+  nodeRect: Rect,
+  size: { width: number; height: number },
+  bounds: Rect,
+): Placement {
+  const left = nodeRect.left - bounds.left;
+  const top = nodeRect.top - bounds.top;
+  const halfWidth = size.width / 2;
+  const x = clamp(
+    left + nodeRect.width - size.width * 0.18,
+    halfWidth - 6,
+    bounds.width - halfWidth + 6,
+  );
+  const y = clamp(top - size.height * 0.52, 4, bounds.height - size.height - 4);
+  return { x, y, onNode: true };
 }
 
 /** 趴着时的层级：压到所趴面板之下，让面板把她下半身遮住。 */
@@ -165,6 +199,15 @@ export function resolveCompanionPlacement(
       x: clamp(anchor.x, halfWidth - 6, bounds.width - halfWidth + 6),
       y: clamp(anchor.y, 4, bounds.height - size.height - 4),
     };
+  }
+
+  if (anchor.kind === "node") {
+    // 节点不在 DOM 里（被删了 / 平移出视口被虚拟化掉）就回默认位，
+    // 别让她挂在最后一个已知坐标上凭空漂着。
+    const element = nodeElement(anchor.nodeId);
+    const rect = element ? toRect(element) : null;
+    if (!rect) return null;
+    return resolveNodePlacement(rect, size, bounds);
   }
 
   const element = dockElement(anchor.dock);

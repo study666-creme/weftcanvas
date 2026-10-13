@@ -15,6 +15,7 @@ import { useUiPreferencesStore, type CompanionStyle } from "../state/ui-preferen
 import {
   DOCK_Z_STEP,
   clampPlacement,
+  cssEscape,
   findDockTargetAt,
   resolveCompanionPlacement,
   shouldResetToDefault,
@@ -139,6 +140,19 @@ export const AgentCompanion = memo(function AgentCompanion({
   const [dragPlacement, setDragPlacement] = useState<Placement | null>(null);
   // 被拎起来的惊慌表情在松手后保留一小会儿，不然表情收得比台词还快。
   const [startled, setStartled] = useState(false);
+  // 锚点切换（点节点、换面板）时滑过去而不是瞬移；拖拽与平移跟随不带过渡，
+  // 保证跟手。首次挂载不滑（刷新后直接从默认位落到存档锚点，不演入场动画）。
+  const [moving, setMoving] = useState(false);
+  const anchorMountedRef = useRef(false);
+  useEffect(() => {
+    if (!anchorMountedRef.current) {
+      anchorMountedRef.current = true;
+      return;
+    }
+    setMoving(true);
+    const timeout = window.setTimeout(() => setMoving(false), 420);
+    return () => window.clearTimeout(timeout);
+  }, [anchor]);
 
   /** 她的定位父级（.wc-app）的范围，拖拽与夹取都以此为界。 */
   const measure = useCallback(() => {
@@ -198,6 +212,46 @@ export const AgentCompanion = memo(function AgentCompanion({
           ),
     );
   }, [anchor, dockTick, dragging, dragPlacement, measure]);
+
+  /**
+   * 坐在节点上时跟着节点走：平移/缩放/拖节点都会改节点的屏幕矩形。
+   * rAF 里只量一次 rect，签名没变就不 setState——静止时零渲染；
+   * 跟随写入不带过渡（moving 置 false），滑动只属于锚点切换那一下。
+   */
+  const nodeAnchorId = anchor?.kind === "node" ? anchor.nodeId : null;
+  useEffect(() => {
+    if (!nodeAnchorId || dragging) return;
+    let frame = 0;
+    const readSignature = () => {
+      const element = document.querySelector(
+        `.react-flow__node[data-id="${cssEscape(nodeAnchorId)}"]`,
+      );
+      if (!element) return "";
+      const rect = element.getBoundingClientRect();
+      return `${rect.left.toFixed(1)},${rect.top.toFixed(1)},${rect.width.toFixed(1)},${rect.height.toFixed(1)}`;
+    };
+    // 起始签名取当前节点位置：换锚点时她的滑动由 placement effect 负责，
+    // 跟随循环只对「启动之后发生的移动」反应，否则第一帧就会把滑动掐掉。
+    let last = readSignature();
+    const tick = () => {
+      frame = window.requestAnimationFrame(tick);
+      const measured = measure();
+      if (!measured || document.visibilityState !== "visible") return;
+      const signature = readSignature();
+      if (!signature || signature === last) return;
+      last = signature;
+      setMoving(false);
+      setPlacement(
+        resolveCompanionPlacement(
+          anchor,
+          { width: measured.width, height: measured.height },
+          measured.bounds,
+        ),
+      );
+    };
+    frame = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frame);
+  }, [nodeAnchorId, dragging, anchor, measure]);
 
   /**
    * 「真的趴在面板上」要看**解出来的位置**，不能只看原始锚点：
@@ -393,9 +447,11 @@ export const AgentCompanion = memo(function AgentCompanion({
           "wc-agent-companion",
           open ? "is-open" : "",
           dragging ? "is-dragging" : "",
+          moving && !dragging ? "is-moving" : "",
           docked && !peeking ? "is-docked" : "",
           peeking ? "is-peeking" : "",
           hanging ? "is-hanging" : "",
+          placement?.onNode ? "is-on-node" : "",
         ]
           .filter(Boolean)
           .join(" ")}

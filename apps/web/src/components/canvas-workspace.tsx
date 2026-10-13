@@ -1331,6 +1331,12 @@ export function CanvasWorkspace({
     setMenu(null);
     setPendingConnectionCreate(null);
   }, []);
+  // 点哪个节点，伙伴就默认坐到哪个节点上缘（已在该节点上则不重复写锚点）。
+  const handleNodeClick = useCallback((_event: ReactMouseEvent, node: WeftcanvasNode) => {
+    const current = useUiPreferencesStore.getState().companionAnchor;
+    if (current?.kind === "node" && current.nodeId === node.id) return;
+    useUiPreferencesStore.getState().setCompanionAnchor({ kind: "node", nodeId: node.id });
+  }, []);
   const handleConfirmClear = useCallback(() => {
     clearCanvas();
     setClearConfirmOpen(false);
@@ -1485,6 +1491,7 @@ export function CanvasWorkspace({
               onMoveEnd={onMoveEnd}
               onNodeDragStart={handleNodeDragStart}
               onNodeDragStop={handleNodeDragStop}
+              onNodeClick={handleNodeClick}
               onSelectionDragStart={handleSelectionDragStart}
               onSelectionDragStop={handleSelectionDragStop}
               onPaneClick={handlePaneClick}

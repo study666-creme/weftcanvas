@@ -80,3 +80,39 @@ describe("resolveCompanionPlacement dock fallbacks", () => {
     ).toBeNull();
   });
 });
+
+describe("resolveCompanionPlacement node perching", () => {
+  function nodeRect(left: number, top: number, width: number, height: number) {
+    return fakeElement({ left, top, width, height, right: left + width, bottom: top + height });
+  }
+
+  it("sits on the top-right corner of the node", () => {
+    withDocument({ '.react-flow__node[data-id="node-1"]': nodeRect(900, 300, 340, 340) });
+    const placement = resolveCompanionPlacement(
+      { kind: "node", nodeId: "node-1" },
+      SIZE,
+      BOUNDS,
+    ) as Placement;
+    expect(placement.onNode).toBe(true);
+    expect(placement.dock).toBeUndefined();
+    // 中心贴着节点右缘内侧，顶边骑在节点上缘上（露出约一半身高在上方）。
+    expect(placement.x).toBeCloseTo(900 + 340 - SIZE.width * 0.18, 1);
+    expect(placement.y).toBeCloseTo(300 - SIZE.height * 0.52, 1);
+  });
+
+  it("keeps her fully visible when the node hugs the viewport edges", () => {
+    withDocument({ '.react-flow__node[data-id="node-2"]': nodeRect(1300, 0, 200, 160) });
+    const placement = resolveCompanionPlacement(
+      { kind: "node", nodeId: "node-2" },
+      SIZE,
+      BOUNDS,
+    ) as Placement;
+    expect(placement.x + SIZE.width / 2).toBeLessThanOrEqual(BOUNDS.width + 6);
+    expect(placement.y).toBeGreaterThanOrEqual(4);
+  });
+
+  it("falls back to the default spot when the node is gone or off-screen", () => {
+    withDocument({ '.react-flow__node[data-id="node-3"]': null });
+    expect(resolveCompanionPlacement({ kind: "node", nodeId: "node-3" }, SIZE, BOUNDS)).toBeNull();
+  });
+});

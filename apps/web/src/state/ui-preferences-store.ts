@@ -71,9 +71,13 @@ export type CompanionDock =
  * - free：x/y 相对工作区的像素，x 是伙伴的中心点、y 是顶边。
  * - dock：趴在某个面板的顶边上，x 记成面板宽度里的比例（0..1），
  *   这样面板变宽变窄、窗口缩放时她都贴在同一条边上。
+ * - node：坐在某个画布节点的上缘角上（点击节点时默认落到这里）。节点被删或
+ *   不在视口里时解不出位置，她回落到默认位。
  */
 export type CompanionAnchor =
-  { kind: "free"; x: number; y: number } | { kind: "dock"; dock: CompanionDock; x: number };
+  | { kind: "free"; x: number; y: number }
+  | { kind: "dock"; dock: CompanionDock; x: number }
+  | { kind: "node"; nodeId: string };
 
 export const COMPANION_DOCKS: readonly CompanionDock[] = [
   "edit-dock",
@@ -95,11 +99,22 @@ export const COMPANION_DOCKS: readonly CompanionDock[] = [
 
 export function normalizeCompanionAnchor(value: unknown): CompanionAnchor | null {
   if (!value || typeof value !== "object") return null;
-  const candidate = value as { kind?: unknown; x?: unknown; y?: unknown; dock?: unknown };
+  const candidate = value as {
+    kind?: unknown;
+    x?: unknown;
+    y?: unknown;
+    dock?: unknown;
+    nodeId?: unknown;
+  };
   if (candidate.kind === "free") {
     if (typeof candidate.x !== "number" || !Number.isFinite(candidate.x)) return null;
     if (typeof candidate.y !== "number" || !Number.isFinite(candidate.y)) return null;
     return { kind: "free", x: candidate.x, y: candidate.y };
+  }
+  if (candidate.kind === "node") {
+    return typeof candidate.nodeId === "string" && candidate.nodeId
+      ? { kind: "node", nodeId: candidate.nodeId }
+      : null;
   }
   if (candidate.kind === "dock") {
     if (
