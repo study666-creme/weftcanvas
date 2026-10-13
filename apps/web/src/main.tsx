@@ -17,6 +17,12 @@ import "./ui-polish.css";
 
 installCanvasReleaseFreshnessGuard();
 
+// 服务端素材延时释放恢复：补跑上次会话遗留的删除队列，避免素材永久占配额。
+// 动态导入，不把 api-client/媒体库拉进登录首屏的入口包。
+void import("./lib/server-media-deletion").then((module) =>
+  module.installServerMediaDeletionRecovery(),
+);
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <AppStartupBoundary>

@@ -99,6 +99,7 @@ import {
 } from "./catalog/overrides.js";
 import { toPublicCatalogView } from "./catalog/public-view.js";
 import { GenerationQuoteService, QuoteValidationError } from "./catalog/quote.js";
+import type { ModelHealth, ModelHealthProvider } from "./catalog/model-health.js";
 import type { ApiReadinessProbe } from "./database/readiness.js";
 import {
   IdentityProviderError,
@@ -251,6 +252,8 @@ type ApiDependencies = {
   allowedOrigins?: readonly string[];
   media?: MediaService;
   cloudResources?: CloudResourceService;
+  /** 模型成功率聚合（来自真实生成任务）；缺省则目录不带 health。 */
+  modelHealth?: ModelHealthProvider;
   multipartMedia?: Pick<
     MediaMultipartService,
     "createUpload" | "signParts" | "getState" | "complete" | "abort"
@@ -638,9 +641,15 @@ export function createApiApp(dependencies: ApiDependencies) {
         awaitVideoAvailability: modality?.success ? modality.data === "video" : true,
       }),
     );
+    const health = await dependencies.modelHealth?.get();
     const data = modality?.success
-      ? { ...catalog, models: catalog.models.filter((model) => model.modality === modality.data) }
-      : catalog;
+      ? {
+          ...catalog,
+          models: withModelHealth(catalog.models, health).filter(
+            (model) => model.modality === modality.data,
+          ),
+        }
+      : { ...catalog, models: withModelHealth(catalog.models, health) };
     const catalogViewVersion = modelCatalogViewVersion(data);
     const etag = `"${data.version}:${data.capabilityVersion}:${data.pricingVersion}:${catalogViewVersion}:${data.quoteAvailable ? "fresh" : "stale"}:${data.expiresAt}:${modality?.success ? modality.data : "all"}"`;
     context.header("ETag", etag);
@@ -689,10 +698,14 @@ export function createApiApp(dependencies: ApiDependencies) {
       dependencies.modelOverrides.load(),
       dependencies.catalog.getCatalog({ includeOverrides: false }),
     ]);
+    const health = await dependencies.modelHealth?.get();
     context.header("Cache-Control", "no-store");
     return context.json({
       ok: true,
-      data: { overrides, models: modelOverrideAdminRows(catalog.models, overrides) },
+      data: {
+        overrides,
+        models: modelOverrideAdminRows(withModelHealth(catalog.models, health), overrides),
+      },
     });
   });
 
@@ -2539,6 +2552,7 @@ export function createApiApp(dependencies: ApiDependencies) {
       session.user.id,
       input.mediaIds,
       quotaBytes,
+      { forceUnbound: input.forceUnbound === true },
     );
     return context.json(cloudResourceCleanupResponseSchema.parse({ ok: true, data: result }));
   });
@@ -3724,6 +3738,15 @@ function modelCatalogViewVersion(catalog: Pick<PublicModelCatalog, "models">) {
     .slice(0, 16);
 }
 
+/** 把聚合出的成功率合并进公共目录模型；无数据模型保持缺省 health。 */
+function withModelHealth(models: PublicModel[], health: Map<string, ModelHealth> | undefined) {
+  if (!health?.size) return models;
+  return models.map((model) => {
+    const stats = health.get(model.id);
+    return stats ? { ...model, health: stats } : model;
+  });
+}
+
 type ModelOverrideAdminRow = {
   id: string;
   label: string;
@@ -3749,6 +3772,9 @@ type ModelOverrideAdminRow = {
   displayName: string | null;
   overrideDescription: string | null;
   zone: "stable" | "promo" | null;
+  /** 近 7 天真实成功率（0..1）与样本数；样本不足或无数据库为 null。 */
+  healthSuccessRate: number | null;
+  healthSamples: number | null;
 };
 
 export function modelOverrideAdminRows(
@@ -3799,6 +3825,8 @@ export function modelOverrideAdminRows(
       displayName: override?.displayName ?? null,
       overrideDescription: override?.description ?? null,
       zone: override?.zone ?? null,
+      healthSuccessRate: model.health?.successRate ?? null,
+      healthSamples: model.health?.sampleCount ?? null,
     };
   });
 }
@@ -3849,6 +3877,9 @@ td .label { display: block; font-size: 12px; color: #7d8684; }
 .name-input { width: 100%; margin-bottom: 4px; }
 .desc-input { width: 100%; font-size: 12px; }
 .badge-promo { border-color: #8a6a2f; color: #e0b25f; }
+.health-good { color: #57b98a; font-weight: 600; }
+.health-mid { color: #e0b25f; font-weight: 600; }
+.health-low { color: #e07a6f; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -3876,9 +3907,9 @@ td .label { display: block; font-size: 12px; color: #7d8684; }
   </div>
   <table>
     <thead><tr>
-      <th style="width:26%">模型</th><th>类型</th><th>分辨率</th><th style="width:180px">当前价</th><th style="width:170px">自定义价（元）</th><th style="width:110px">分区</th><th style="width:200px">显示名 / 简介</th><th style="width:64px">展示</th>
+      <th style="width:24%">模型</th><th>类型</th><th style="width:96px">成功率(7天)</th><th>分辨率</th><th style="width:180px">当前价</th><th style="width:170px">自定义价（元）</th><th style="width:110px">分区</th><th style="width:200px">显示名 / 简介</th><th style="width:64px">展示</th>
     </tr></thead>
-    <tbody id="rows"><tr><td colspan="8" class="muted">输入密钥后点「加载」</td></tr></tbody>
+    <tbody id="rows"><tr><td colspan="9" class="muted">输入密钥后点「加载」</td></tr></tbody>
   </table>
 </main>
 <script>
@@ -3893,6 +3924,12 @@ td .label { display: block; font-size: 12px; color: #7d8684; }
   function fmtYuan(v) { return v === null || v === undefined ? '—' : String(Number(Number(v).toFixed(4))); }
   function esc(v) { return String(v === null || v === undefined ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function unitSuffix(unit) { return unit === 'image' ? '张' : unit === 'second' ? '秒' : '次'; }
+  function healthCell(m) {
+    if (m.healthSuccessRate === null || m.healthSuccessRate === undefined) return '<span class="muted">—</span>';
+    var pct = Math.round(m.healthSuccessRate * 100);
+    var cls = pct >= 90 ? 'health-good' : pct >= 70 ? 'health-mid' : 'health-low';
+    return '<span class="' + cls + '">' + pct + '%</span> <span class="muted">(' + m.healthSamples + ')</span>';
+  }
   function currentPrice(row) {
     if (row.pricingMode === 'token') {
       return '入 ¥' + fmtYuan(row.inputYuanPerMillion) + '/M · 出 ¥' + fmtYuan(row.outputYuanPerMillion) + '/M';
@@ -3916,7 +3953,7 @@ td .label { display: block; font-size: 12px; color: #7d8684; }
       if (!q) return true;
       return (m.id + ' ' + m.label).toLowerCase().indexOf(q) >= 0;
     });
-    if (!list.length) { body.innerHTML = '<tr><td colspan="8" class="muted">没有匹配的模型</td></tr>'; return; }
+    if (!list.length) { body.innerHTML = '<tr><td colspan="9" class="muted">没有匹配的模型</td></tr>'; return; }
     body.innerHTML = list.map(function (m) {
       var o = state.overrides.models[m.id] || {};
       var hidden = o.hidden === true;
@@ -3937,6 +3974,7 @@ td .label { display: block; font-size: 12px; color: #7d8684; }
       return '<tr data-id="' + esc(m.id) + '"' + (hidden ? ' class="hidden-row"' : '') + '>' +
         '<td class="id"><code>' + esc(m.id) + '</code><span class="label">' + esc(shownLabel) + (isPromo ? ' <span class="badge badge-promo">特惠</span>' : '') + '</span></td>' +
         '<td>' + m.modality + ' · ' + m.unit + (m.listed === false ? ' <span class="badge">兼容项</span>' : '') + '</td>' +
+        '<td>' + healthCell(m) + '</td>' +
         '<td class="muted">' + res + '</td>' +
         '<td>' + currentPrice(m) + (o.price && o.price.byResolution ? ' <span class="badge">分档</span>' : '') + (tokenPrice.inputYuanPerMillion !== undefined || tokenPrice.outputYuanPerMillion !== undefined ? ' <span class="badge">已改</span>' : '') + '</td>' +
         '<td>' + priceCell + '</td>' +

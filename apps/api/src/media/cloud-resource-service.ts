@@ -35,14 +35,16 @@ export class CloudResourceService {
   }
 
   /**
-   * 自选清理：只删除“曾被云项目绑定、但项目已删除”的遗留素材。被引用、仍被本地
-   * 画布/工作台使用（未绑定但非遗留）、或不存在的 id 记录在 skipped 里返回，
-   * 绝不静默破坏工程引用或用户唯一副本。
+   * 自选清理：默认只删除“曾被云项目绑定、现已无任何绑定”的遗留素材（orphaned）。
+   * forceUnbound 时连同“未绑定但服务器无法确认本地是否还在用”的素材（active）
+   * 一起删除——调用方（面板）必须已经过用户二次确认并把文件缓存到本地。
+   * 被云项目引用的素材、或不存在的 id 记录在 skipped 里返回，绝不静默破坏工程引用。
    */
   async cleanup(
     ownerId: string,
     requestedIds: readonly string[],
     quotaBytes: number,
+    options: { forceUnbound?: boolean } = {},
   ): Promise<CloudResourceCleanupResult> {
     const resources = await this.store.listOwnedResources(ownerId);
     const byId = new Map(resources.map((item) => [item.media.id, item]));
@@ -60,7 +62,7 @@ export class CloudResourceService {
         skipped.push({ id, reason: "referenced" });
         continue;
       }
-      if (!item.orphaned) {
+      if (!item.orphaned && !options.forceUnbound) {
         skipped.push({ id, reason: "active" });
         continue;
       }

@@ -146,6 +146,20 @@ export type ModelProtocol = z.infer<typeof modelProtocolSchema>;
 export const modelZoneSchema = z.enum(["stable", "promo"]);
 export type ModelZone = z.infer<typeof modelZoneSchema>;
 
+/**
+ * 模型健康度：由服务端从真实生成任务聚合（近 windowHours 内 completed/failed
+ * 终态任务），样本不足的模型不带此字段。只反映本服务通道的实际成功率，
+ * 不是上游站点的宣称值。
+ */
+export const modelHealthSchema = z.object({
+  /** 0..1，completed / (completed + failed)。 */
+  successRate: z.number().min(0).max(1),
+  /** 参与聚合的终态任务数（面板展示样本量，避免把 5 次里成 4 次读成 80%）。 */
+  sampleCount: z.number().int().nonnegative(),
+  windowHours: z.number().int().positive(),
+});
+export type ModelHealth = z.infer<typeof modelHealthSchema>;
+
 export const publicModelSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1),
@@ -168,6 +182,8 @@ export const publicModelSchema = z.object({
   perRequest: z.boolean().optional(),
   /** 运营分区；缺省视为 stable（主推稳定区）。 */
   zone: modelZoneSchema.optional(),
+  /** 服务端聚合的真实成功率；无数据（样本不足/未接数据库）时缺省。 */
+  health: modelHealthSchema.optional(),
   protocol: modelProtocolSchema.optional(),
   input: modelInputSchema,
   output: modelOutputSchema,

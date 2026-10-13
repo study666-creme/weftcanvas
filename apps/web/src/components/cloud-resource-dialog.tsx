@@ -24,8 +24,9 @@ import { mediaContentPath } from "../lib/api-client";
 
 /**
  * 云端资源清理面板：盘点账号下全部服务端素材，标出哪些仍被云项目引用、
- * 哪些已是删除画布后留下的孤立资源；可自选清理，支持清理前先存到本地，
- * 以及一键开启“不再保存素材到云端”。
+ * 哪些是画布已不再引用的遗留资源、哪些「使用中」；遗留素材可自选清理，
+ * 「使用中」素材二次确认后也可清理（删除前先缓存到本地），支持清理前
+ * 存一份到本地素材库，以及一键开启“不再保存素材到云端”。
  */
 export function CloudResourceDialog() {
   const open = useCloudResourceStore((state) => state.open);
@@ -47,6 +48,12 @@ export function CloudResourceDialog() {
   const authenticated = useIdentityStore((state) => state.status === "authenticated");
 
   const [saveLocally, setSaveLocally] = useState(false);
+  // 「使用中」素材需二次确认才清理；选择变化或关闭面板时回到未确认态。
+  const [confirmActive, setConfirmActive] = useState(false);
+
+  useEffect(() => {
+    setConfirmActive(false);
+  }, [open, selected]);
 
   useEffect(() => {
     if (!open) return;
@@ -57,7 +64,7 @@ export function CloudResourceDialog() {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [busy, closeDialog, open]);
 
-  // 只有“画布已删除的遗留素材”可清理。
+  // 可清理 = 遗留素材 + 经确认的「使用中」素材；被云项目引用的始终不可选。
   const orphanItems = useMemo(() => items.filter((item) => item.orphaned), [items]);
   const boundItems = useMemo(() => items.filter((item) => item.projectIds.length > 0), [items]);
   const activeItems = useMemo(
@@ -65,8 +72,12 @@ export function CloudResourceDialog() {
     [items],
   );
   const selectedItems = useMemo(
-    () => orphanItems.filter((item) => selected[item.id]),
-    [orphanItems, selected],
+    () => items.filter((item) => selected[item.id] && item.projectIds.length === 0),
+    [items, selected],
+  );
+  const selectedActiveCount = useMemo(
+    () => selectedItems.filter((item) => !item.orphaned).length,
+    [selectedItems],
   );
   const selectedBytes = selectedItems.reduce((sum, item) => sum + item.size, 0);
   const percent =
@@ -132,8 +143,9 @@ export function CloudResourceDialog() {
               </div>
               {usage ? (
                 <p>
-                  其中画布已删除遗留的孤立资源 {formatBytes(usage.orphanBytes)} ·{" "}
-                  {usage.orphanCount} 个， 清理后即可释放；仍在使用的素材不会被删除。
+                  其中画布已不再引用的遗留资源 {formatBytes(usage.orphanBytes)} ·{" "}
+                  {usage.orphanCount} 个，
+                  清理后即可释放；「使用中」素材确认后可清理，会先缓存到本地。
                 </p>
               ) : null}
             </section>
@@ -187,18 +199,18 @@ export function CloudResourceDialog() {
               ) : (
                 <>
                   <ResourceGroup
-                    title="可清理（画布已删除的遗留素材）"
+                    title="可清理（画布已不再引用）"
                     items={orphanItems}
                     selected={selected}
                     disabled={busy}
                     onToggle={toggle}
                   />
                   <ResourceGroup
-                    title="仍在使用（未被云端画布引用）"
-                    hint="由本地画布或工作台使用，清理会丢失"
+                    title="使用中（未被云端画布引用）"
+                    hint="本地画布或工作台可能还在用；勾选后需确认，清理前会先缓存到本地"
                     items={activeItems}
                     selected={selected}
-                    disabled
+                    disabled={busy}
                     onToggle={toggle}
                   />
                   <ResourceGroup
@@ -255,6 +267,34 @@ export function CloudResourceDialog() {
               </div>
             ) : null}
 
+            {confirmActive && selectedActiveCount > 0 ? (
+              <div className="wc-cloud-res-confirm" role="alert">
+                <AlertCircle aria-hidden="true" />
+                <span>
+                  已选 {selectedActiveCount} 个「使用中」素材：云端无法确认本地画布是否还在引用。
+                  清理前会先把文件缓存到本地素材库；本地若仍引用，将回退到缓存副本，不再占用云端配额。
+                </span>
+                <div>
+                  <button type="button" onClick={() => setConfirmActive(false)} disabled={busy}>
+                    返回
+                  </button>
+                  <button
+                    type="button"
+                    className="is-danger"
+                    disabled={busy}
+                    onClick={() => void cleanup({ saveLocally })}
+                  >
+                    {busy ? (
+                      <LoaderCircle className="is-spinning" aria-hidden="true" />
+                    ) : (
+                      <Trash2 aria-hidden="true" />
+                    )}
+                    确认清理
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
             <footer className="wc-cloud-res-footer">
               <span className="wc-cloud-res-selection">
                 {busy && progress
@@ -269,7 +309,14 @@ export function CloudResourceDialog() {
                   type="button"
                   className="is-danger"
                   disabled={busy || !selectedItems.length}
-                  onClick={() => void cleanup({ saveLocally })}
+                  onClick={() => {
+                    // 「使用中」素材走二次确认，纯遗留素材直接清理。
+                    if (selectedActiveCount > 0 && !confirmActive) {
+                      setConfirmActive(true);
+                      return;
+                    }
+                    void cleanup({ saveLocally });
+                  }}
                 >
                   {busy ? (
                     <LoaderCircle className="is-spinning" aria-hidden="true" />

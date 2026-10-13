@@ -5,6 +5,8 @@ import type { PublicModel } from "@weftcanvas/contracts";
 import {
   buildCategories,
   buildZonedCategories,
+  modelEnergyDisplay,
+  modelEnergyTier,
   partitionModelsByZone,
 } from "./categorized-model-select";
 
@@ -188,5 +190,35 @@ describe("seedance video models", () => {
     const categories = buildCategories("video", catalog);
     const seedance = categories.find((category) => category.id === "seedance");
     expect(seedance?.match(catalog.find((item) => item.id === "S-2.0满血-线路六")!)).toBe(false);
+  });
+});
+
+describe("model energy display", () => {
+  function healthy(successRate: number, sampleCount = 40): PublicModel {
+    return {
+      id: "m",
+      label: "M",
+      modality: "image",
+      operation: "generate",
+      health: { successRate, sampleCount, windowHours: 168 },
+    } as PublicModel;
+  }
+
+  it("hides the energy indicator when the model has no aggregated health", () => {
+    expect(modelEnergyDisplay({ id: "m", label: "M" } as PublicModel)).toBeNull();
+  });
+
+  it("renders percent, tier and a truthful tooltip from real samples", () => {
+    const display = modelEnergyDisplay(healthy(0.92, 137));
+    expect(display).toEqual({
+      percent: 92,
+      tier: "high",
+      title: "近 7 天真实成功率 92%（137 次生成）",
+    });
+    expect(modelEnergyTier(0.9)).toBe("high");
+    expect(modelEnergyTier(0.89)).toBe("mid");
+    expect(modelEnergyTier(0.7)).toBe("mid");
+    expect(modelEnergyTier(0.69)).toBe("low");
+    expect(modelEnergyTier(0)).toBe("low");
   });
 });

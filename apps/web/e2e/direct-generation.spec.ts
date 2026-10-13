@@ -491,7 +491,7 @@ test("image picker groups universal and banana models with English banana varian
   const menu = page.locator(".wc-cat-select-menu");
   await expect(menu).toBeVisible();
   const tabs = menu.getByRole("tab");
-  await expect(tabs).toHaveText(["香蕉5", "全能模型21"]);
+  await expect(tabs).toHaveText(["香蕉", "全能模型2"]);
   await menu.getByRole("tab", { name: "香蕉" }).click();
   const options = menu.getByRole("option");
   await expect(options).toHaveCount(5);
@@ -508,6 +508,68 @@ test("image picker groups universal and banana models with English banana varian
   await expect(menu).not.toContainText("香蕉 · 2代");
   await page.screenshot({
     path: testInfo.outputPath("direct-image-model-groups-mobile.png"),
+    fullPage: false,
+  });
+});
+
+test("model picker shows aggregated success rate and description per option", async ({
+  page,
+}, testInfo) => {
+  const imageModels = [
+    {
+      ...model("image"),
+      id: "nano-banana",
+      label: "香蕉 · 标准 1K",
+      description: "支持多档分辨率的高质量图像模型",
+      health: { successRate: 0.92, sampleCount: 137, windowHours: 168 },
+      order: 40,
+    },
+    {
+      ...model("image"),
+      id: "nano-banana-pro",
+      label: "香蕉 · 专业 1K/2K/4K",
+      description: "专业档，出图更稳",
+      health: { successRate: 0.55, sampleCount: 20, windowHours: 168 },
+      order: 41,
+    },
+    {
+      ...model("image"),
+      id: "nano-banana-2",
+      label: "香蕉 · 2代 1K/2K/4K",
+      description: "第二代香蕉模型",
+      order: 42,
+    },
+  ];
+  await mockDirectApis(page, { image: imageModels });
+  await page.goto("/generate/image");
+
+  await page.getByRole("button", { name: "模型" }).click();
+  const menu = page.locator(".wc-cat-select-menu");
+  await expect(menu).toBeVisible();
+  const options = menu.getByRole("option");
+  await expect(options).toHaveCount(3);
+
+  // 有成功率数据：能量条 + 百分比 + 真实样本 tooltip。
+  const first = options.nth(0);
+  await expect(first.locator(".wc-cat-select-energy")).toBeVisible();
+  await expect(first.locator(".wc-cat-select-energy")).toHaveText("92%");
+  await expect(first.locator(".wc-cat-select-energy")).toHaveAttribute(
+    "title",
+    "近 7 天真实成功率 92%（137 次生成）",
+  );
+  await expect(first.locator(".wc-cat-select-energy")).toHaveClass(/is-high/);
+  await expect(first.locator(".wc-cat-select-option-desc")).toHaveText(
+    "支持多档分辨率的高质量图像模型",
+  );
+  // 低成功率标红。
+  await expect(options.nth(1).locator(".wc-cat-select-energy")).toHaveClass(/is-low/);
+  await expect(options.nth(1).locator(".wc-cat-select-energy")).toHaveText("55%");
+  // 无数据模型不渲染能量条，但简介照常展示。
+  await expect(options.nth(2).locator(".wc-cat-select-energy")).toHaveCount(0);
+  await expect(options.nth(2).locator(".wc-cat-select-option-desc")).toHaveText("第二代香蕉模型");
+
+  await page.screenshot({
+    path: testInfo.outputPath("model-picker-energy-and-description.png"),
     fullPage: false,
   });
 });

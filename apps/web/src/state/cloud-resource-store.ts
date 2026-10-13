@@ -1,10 +1,10 @@
-import type { CloudResource, CloudResourceUsage } from "@weftcanvas/contracts";
+import type { CanvasMedia, CloudResource, CloudResourceUsage } from "@weftcanvas/contracts";
 import { create } from "zustand";
 
 import { cleanupCloudResources, listCloudResources, mediaContentPath } from "../lib/api-client";
 import { ensureMediaAsset } from "../lib/asset-library-store";
 import { readSkipCloudUploads, writeSkipCloudUploads } from "../lib/cloud-media-preference";
-import { storeMedia } from "../lib/media-store";
+import { cacheServerMedia, storeMedia } from "../lib/media-store";
 import { useCloudProjectStore } from "./cloud-project-store";
 import { useIdentityStore } from "./identity-store";
 import { useToastStore } from "./toast-store";
@@ -103,42 +103,65 @@ export const useCloudResourceStore = create<CloudResourceState>((set, get) => ({
     if (!ownerId) return;
     const items = get().items;
     const byId = new Map(items.map((item) => [item.id, item]));
-    // 只有“画布已删除的遗留素材”可清理；未绑定但在用的素材是本地画布的唯一副本，跳过。
+    // 可选中的只有两类：「可清理」遗留素材，与经用户二次确认的「使用中」素材
+    // （未绑定云项目、服务器无法确认本地是否还在引用）。被云项目引用的不在此列。
     const targets: CloudResource[] = [];
     for (const id of Object.keys(get().selected)) {
       const item = byId.get(id);
-      if (item && item.orphaned) targets.push(item);
+      if (item && item.projectIds.length === 0) targets.push(item);
     }
     if (!targets.length) {
       useToastStore.getState().show("请先选择要清理的云端资源", "info");
       return;
     }
+    const activeTargets = targets.filter((item) => !item.orphaned);
 
-    set({
-      busy: true,
-      error: null,
-      progress: saveLocally ? { total: targets.length, done: 0 } : null,
-    });
+    set({ busy: true, error: null });
     try {
+      // 「使用中」素材删除前必须先按同 id 缓存到本地素材库：本地画布若还引用，
+      // 删后从缓存继续渲染。任一失败就整体放弃，避免“没存下来又清掉了”。
+      // 「可清理」素材已无任何画布引用，不做强制缓存（网络差时也能释放配额）。
+      const preSteps: Array<{ item: CloudResource; run: () => Promise<boolean> }> = [];
+      for (const item of activeTargets) {
+        preSteps.push({ item, run: () => cacheServerMedia(toCanvasMedia(item)) });
+      }
       if (saveLocally) {
+        for (const item of targets) {
+          preSteps.push({
+            item,
+            run: async () => {
+              await saveResourceLocally(item);
+              return true;
+            },
+          });
+        }
+      }
+      if (preSteps.length) {
+        set({ progress: { total: preSteps.length, done: 0 } });
         const failures: string[] = [];
-        for (let index = 0; index < targets.length; index += 1) {
-          const item = targets[index]!;
+        for (let index = 0; index < preSteps.length; index += 1) {
+          const step = preSteps[index]!;
           try {
-            await saveResourceLocally(item);
+            if (!(await step.run())) throw new Error("下载失败");
           } catch (cause) {
-            failures.push(`${item.name}（${cause instanceof Error ? cause.message : "保存失败"}）`);
+            failures.push(
+              `${step.item.name}（${cause instanceof Error ? cause.message : "保存失败"}）`,
+            );
           }
           if (currentOwnerId() !== ownerId) return;
-          set({ progress: { total: targets.length, done: index + 1 } });
+          set({ progress: { total: preSteps.length, done: index + 1 } });
         }
         if (failures.length) {
           // 有素材没能存到本地就整体放弃删除，避免“没存下来又清掉了”。
           throw new Error(`以下素材未能保存到本地，已取消清理：${failures.join("、")}`);
         }
+        set({ progress: null });
       }
 
-      const result = await cleanupCloudResources({ mediaIds: targets.map((item) => item.id) });
+      const result = await cleanupCloudResources({
+        mediaIds: targets.map((item) => item.id),
+        ...(activeTargets.length ? { forceUnbound: true } : {}),
+      });
       if (currentOwnerId() !== ownerId) return;
       const freedLabel = formatBytes(result.freedBytes);
       const skippedReferenced = result.skipped.filter(
@@ -185,6 +208,21 @@ export const useCloudResourceStore = create<CloudResourceState>((set, get) => ({
       progress: null,
     }),
 }));
+
+/** 清理「使用中」素材前按同 id 缓存到本地素材库用的最小媒体描述。 */
+function toCanvasMedia(item: CloudResource): CanvasMedia {
+  return {
+    id: item.id,
+    name: item.name,
+    mimeType: item.mimeType,
+    size: item.size,
+    source: "server",
+    serverId: item.id,
+    width: item.width,
+    height: item.height,
+    durationMs: item.durationMs,
+  };
+}
 
 /** 供 cloud-project-media 在同步前判断是否跳过素材上传。 */
 async function saveResourceLocally(item: CloudResource) {

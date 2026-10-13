@@ -364,6 +364,65 @@
   height: 14px;
 }
 
+/* 「使用中」素材清理前的二次确认条：琥珀告警色，与错误红区分。 */
+.wc-cloud-res-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 18px 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--wc-amber);
+  background: var(--wc-amber-soft);
+  border-radius: 7px;
+}
+
+.wc-cloud-res-confirm > svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.wc-cloud-res-confirm > span {
+  flex: 1;
+  min-width: 0;
+}
+
+.wc-cloud-res-confirm > div {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+.wc-cloud-res-confirm button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: inherit;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.wc-cloud-res-confirm button.is-danger {
+  color: var(--wc-danger);
+  border-color: var(--wc-danger);
+}
+
+.wc-cloud-res-confirm button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.wc-cloud-res-confirm button svg {
+  width: 12px;
+  height: 12px;
+}
+
 .wc-cloud-res-footer {
   display: flex;
   align-items: center;

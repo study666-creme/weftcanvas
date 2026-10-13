@@ -3295,6 +3295,14 @@
   box-shadow: inset 2px 0 0 var(--entry-text);
 }
 
+/* 两行选项布局的外壳：第一行名称/价格/能量，第二行简介。 */
+.wc-cat-select-option-stack {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
 .wc-cat-select-option-copy {
   display: flex;
   min-width: 0;
@@ -3311,6 +3319,62 @@
   letter-spacing: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 简介第二行：单行省略，完整文案走 title。 */
+.wc-cat-select-option-desc {
+  overflow: hidden;
+  max-width: 100%;
+  color: var(--entry-muted);
+  font-size: 11px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 能量条：服务端真实成功率。新 token，不复用 --entry-jade（它喂 24 条规则）。 */
+.wc-cat-select-energy {
+  --energy-high: #57b98a;
+  --energy-mid: #c7a45f;
+  --energy-low: #d0796f;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wc-cat-select-energy.is-high {
+  color: var(--energy-high);
+}
+
+.wc-cat-select-energy.is-mid {
+  color: var(--energy-mid);
+}
+
+.wc-cat-select-energy.is-low {
+  color: var(--energy-low);
+}
+
+.wc-cat-select-energy-bar {
+  width: 34px;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--entry-border);
+}
+
+.wc-cat-select-energy-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: currentColor;
+}
+
+.wc-cat-select-energy em {
+  font-style: normal;
+  font-weight: 600;
 }
 
 /* 价格徽标紧跟模型名，一眼对照；不再推到行尾 */

@@ -10,6 +10,35 @@ export function isPromoZoneModel(model: PublicModel) {
   return model.zone === "promo";
 }
 
+/** 能量档位：按真实成功率分三档着色（与特惠免责声明互补，不冲突）。 */
+export type ModelEnergyTier = "high" | "mid" | "low";
+
+export function modelEnergyTier(successRate: number): ModelEnergyTier {
+  if (successRate >= 0.9) return "high";
+  if (successRate >= 0.7) return "mid";
+  return "low";
+}
+
+/**
+ * 模型选择器的能量显示：把服务端聚合的近 7 天成功率转成「条 + 百分比」。
+ * 无 health（样本不足/未接库）返回 null，调用方整块不渲染。
+ */
+export function modelEnergyDisplay(model: PublicModel): {
+  percent: number;
+  tier: ModelEnergyTier;
+  title: string;
+} | null {
+  const health = model.health;
+  if (!health) return null;
+  const percent = Math.round(health.successRate * 100);
+  const days = Math.max(1, Math.round(health.windowHours / 24));
+  return {
+    percent,
+    tier: modelEnergyTier(health.successRate),
+    title: `近 ${days} 天真实成功率 ${percent}%（${health.sampleCount} 次生成）`,
+  };
+}
+
 /** 分类内稳定区与特惠区的分界声明。 */
 export const PROMO_MODEL_NOTICE = "以下为特惠模型：随时可能下架或不可用，可用时也不保证成功率";
 
@@ -321,6 +350,7 @@ export function CategorizedModelSelect({
             {activeModels.map((model, index) => {
               const active = model.id === value;
               const promo = isPromoZoneModel(model);
+              const energy = modelEnergyDisplay(model);
               const isPromoBlockStart =
                 promo && (index === 0 || !isPromoZoneModel(activeModels[index - 1]!));
               return (
@@ -340,11 +370,29 @@ export function CategorizedModelSelect({
                       setOpen(false);
                     }}
                   >
-                    <span className="wc-cat-select-option-copy">
-                      <strong>{modelPickerLabel(model)}</strong>
-                      {/* 价格紧跟模型名：原来 price 推到行尾，名字与价格隔得太远不好对照 */}
-                      <span className="wc-cat-select-option-price">{modelPriceLabel(model)}</span>
-                      {promo ? <span className="wc-cat-select-promo-badge">特惠</span> : null}
+                    <span className="wc-cat-select-option-stack">
+                      <span className="wc-cat-select-option-copy">
+                        <strong>{modelPickerLabel(model)}</strong>
+                        {/* 价格紧跟模型名：原来 price 推到行尾，名字与价格隔得太远不好对照 */}
+                        <span className="wc-cat-select-option-price">{modelPriceLabel(model)}</span>
+                        {promo ? <span className="wc-cat-select-promo-badge">特惠</span> : null}
+                        {energy ? (
+                          <span
+                            className={`wc-cat-select-energy is-${energy.tier}`}
+                            title={energy.title}
+                          >
+                            <span className="wc-cat-select-energy-bar" aria-hidden="true">
+                              <i style={{ width: `${energy.percent}%` }} />
+                            </span>
+                            <em>{energy.percent}%</em>
+                          </span>
+                        ) : null}
+                      </span>
+                      {model.description ? (
+                        <small className="wc-cat-select-option-desc" title={model.description}>
+                          {model.description}
+                        </small>
+                      ) : null}
                     </span>
                     {active ? <Check aria-hidden="true" className="wc-cat-select-check" /> : null}
                   </button>

@@ -353,6 +353,27 @@ State is a JSON file at `MODEL_OVERRIDES_PATH` (default
 `pricingVersion` so already-issued quotes are not silently repriced; a
 visibility-only edit keeps the upstream version.
 
+## Model health (success rate) in the picker (2026-10-13)
+
+The public catalog carries an optional `health` per model
+(`{ successRate, sampleCount, windowHours }`, contracts `modelHealthSchema`).
+It is aggregated by `apps/api/src/catalog/model-health.ts` from this service's
+own durable generation jobs: terminal jobs (`completed`/`failed`) over a
+rolling 7-day window grouped by `model_id`,
+`successRate = completed / (completed + failed)`. Models with fewer than 5
+terminal samples publish no health (no fabricated numbers), and without
+Postgres configured the field is simply absent. Results are cached for 5
+minutes and served stale on refresh failure; the catalog ETag rotates with the
+merged view.
+
+The canvas model picker renders this as an energy indicator (bar + percent,
+green ≥90 / amber 70–90 / red <70, tooltip states window and sample count)
+next to the model name, and shows the model `description` on a second line.
+The operator admin page (`/admin/model-overrides`) shows the same aggregate in
+a 成功率(7天) column — the picker mirrors this surface, they share one source.
+BYOK browser-direct models have no server-side jobs and therefore no energy
+bar.
+
 ### Banana line group-standard prices
 
 The 纬线 catalog publishes one price per model, but some 香蕉 lines bill on a

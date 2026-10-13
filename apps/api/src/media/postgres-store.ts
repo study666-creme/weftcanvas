@@ -509,11 +509,6 @@ export class PostgresMediaMetadataStore implements MediaMetadataStore, CloudReso
             FROM canvas_media_project_bindings AS binding
             WHERE binding.owner_id = media.owner_id AND binding.media_id = media.id
           )
-          AND NOT EXISTS (
-            SELECT 1
-            FROM canvas_cloud_projects AS project
-            WHERE project.owner_id = media.owner_id AND project.id = media.project_id
-          )
         ) AS orphaned
        FROM canvas_media AS media
        WHERE media.owner_id = $1
@@ -547,11 +542,6 @@ export class PostgresMediaMetadataStore implements MediaMetadataStore, CloudReso
            SELECT 1
            FROM canvas_media_project_bindings AS binding
            WHERE binding.owner_id = media.owner_id AND binding.media_id = media.id
-         )
-         AND NOT EXISTS (
-           SELECT 1
-           FROM canvas_cloud_projects AS project
-           WHERE project.owner_id = media.owner_id AND project.id = media.project_id
          )`,
     );
     return result.rows.map((row) => row.owner_id);

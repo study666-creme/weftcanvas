@@ -173,4 +173,22 @@ describe("CloudResourceService", () => {
     expect(remaining.items.map((item) => item.id)).toEqual([ACTIVE_ID]);
     expect(remaining.usage.usedBytes).toBe(50);
   });
+
+  it("forceUnbound also cleans unbound-but-active media, never referenced ones", async () => {
+    const { service } = setup();
+    const result = await service.cleanup(
+      OWNER,
+      [ACTIVE_ID, BOUND_ID, "44444444-4444-4444-8444-444444444444"],
+      300,
+      { forceUnbound: true },
+    );
+
+    // 「使用中」素材经用户显式确认后随 forceUnbound 删除；绑定项照旧跳过。
+    expect(result.deleted.map((item) => item.id)).toEqual([ACTIVE_ID]);
+    expect(result.freedBytes).toBe(50);
+    expect(result.skipped).toEqual([
+      { id: BOUND_ID, reason: "referenced" },
+      { id: "44444444-4444-4444-8444-444444444444", reason: "missing" },
+    ]);
+  });
 });

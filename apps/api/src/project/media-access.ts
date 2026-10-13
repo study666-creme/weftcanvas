@@ -6,6 +6,15 @@ export interface CloudProjectMediaValidator {
     projectId: string,
     mediaIds: readonly string[],
   ): Promise<boolean>;
+  /**
+   * 保存成功后把该项目的素材绑定收敛到文档仍引用的素材集合：节点删除后，
+   * 素材不再显示「已被引用」，转为可清理。keepMediaIds 之外的绑定行会被移除。
+   */
+  reconcileBindings?(
+    ownerId: string,
+    projectId: string,
+    keepMediaIds: readonly string[],
+  ): Promise<void>;
 }
 
 export class PostgresCloudProjectMediaValidator implements CloudProjectMediaValidator {
@@ -33,5 +42,18 @@ export class PostgresCloudProjectMediaValidator implements CloudProjectMediaVali
     );
     const foundIds = new Set(result.rows.map((row) => row.id));
     return uniqueIds.every((id) => foundIds.has(id));
+  }
+
+  async reconcileBindings(
+    ownerId: string,
+    projectId: string,
+    keepMediaIds: readonly string[],
+  ): Promise<void> {
+    await this.pool.query(
+      `DELETE FROM canvas_media_project_bindings
+       WHERE owner_id = $1 AND project_id = $2
+         AND NOT (media_id = ANY($3::text[]))`,
+      [ownerId, projectId, [...new Set(keepMediaIds)]],
+    );
   }
 }

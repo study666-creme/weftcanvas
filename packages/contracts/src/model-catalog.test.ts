@@ -4,6 +4,7 @@ import {
   generationQuoteRequestSchema,
   generationQuoteSchema,
   publicModelCatalogSchema,
+  publicModelSchema,
 } from "./model-catalog";
 
 const catalog = {
@@ -53,6 +54,23 @@ describe("model catalog contracts", () => {
     });
     expect(parsed.models[0]?.parameters[0]?.mutuallyExclusiveWith).toEqual([]);
     expect(parsed.models[0]).not.toHaveProperty("endpoint");
+  });
+
+  it("carries optional aggregated health and bounds its rate", () => {
+    const base = catalog.models[0]!;
+    expect(publicModelSchema.parse(base)).not.toHaveProperty("health");
+    expect(
+      publicModelSchema.parse({
+        ...base,
+        health: { successRate: 0.92, sampleCount: 50, windowHours: 168 },
+      }).health,
+    ).toEqual({ successRate: 0.92, sampleCount: 50, windowHours: 168 });
+    expect(() =>
+      publicModelSchema.parse({
+        ...base,
+        health: { successRate: 1.5, sampleCount: 50, windowHours: 168 },
+      }),
+    ).toThrow();
   });
 
   it("bounds quote quantities and preserves integer micro amounts", () => {

@@ -209,7 +209,7 @@ export async function listCloudResources() {
   return response.data;
 }
 
-/** 自选清理未被任何云项目引用的云端素材；被引用的 id 会原样跳过。 */
+/** 自选清理云端素材：遗留素材直接删；「使用中」素材需带 forceUnbound（调用方已二次确认并缓存本地）。被云项目引用的 id 会原样跳过。 */
 export async function cleanupCloudResources(value: CloudResourceCleanupRequest) {
   const response = await request(
     "/api/v1/media/cleanup",

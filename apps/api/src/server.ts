@@ -47,6 +47,7 @@ import {
 } from "./project/entitlements.js";
 import { PostgresCloudProjectStore } from "./project/postgres-store.js";
 import { PostgresCloudProjectMediaValidator } from "./project/media-access.js";
+import { PostgresModelHealthProvider } from "./catalog/model-health.js";
 import { CloudProjectService } from "./project/service.js";
 import { CloudProjectCollaborationService } from "./project/collaboration-service.js";
 import { PostgresCloudProjectCollaborationStore } from "./project/postgres-collaboration-store.js";
@@ -371,6 +372,8 @@ const app = createApiApp({
   entitlements: cloudProjectEntitlements,
   media,
   cloudResources: cloudResourceService,
+  // 模型成功率来自本服务真实生成任务；无库时目录不带 health。
+  ...(pool ? { modelHealth: new PostgresModelHealthProvider(pool) } : {}),
   multipartMedia,
   projects: cloudProjects,
   collaboration,

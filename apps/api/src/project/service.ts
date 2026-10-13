@@ -294,6 +294,7 @@ export class CloudProjectService {
       );
     }
     if (result.kind === "storage_limit") throw storageLimit();
+    await this.reconcileProjectBindings(ownerId, projectId, write.referencedMediaIds);
     return withRefresh(publicProject(result.project), resolved);
   }
 
@@ -353,6 +354,7 @@ export class CloudProjectService {
       );
     }
     if (result.kind === "storage_limit") throw storageLimit();
+    await this.reconcileProjectBindings(access.ownerId, projectId, write.referencedMediaIds);
     return withRefresh(publicProject(result.project), actorEntitlements);
   }
 
@@ -444,6 +446,22 @@ export class CloudProjectService {
       throw invalidProjectMedia();
     }
   }
+
+  /**
+   * 保存成功后收敛绑定：文档已不再引用的素材解绑，转为面板里的「可清理」。
+   * 尽力而为——失败只会让素材多保留一次绑定，下次保存会重试，不该让已成功的
+   * 保存报错。
+   */
+  private async reconcileProjectBindings(
+    ownerId: string,
+    projectId: string,
+    keepMediaIds: readonly string[],
+  ) {
+    if (!this.mediaValidator?.reconcileBindings) return;
+    await this.mediaValidator
+      .reconcileBindings(ownerId, projectId, keepMediaIds)
+      .catch(() => undefined);
+  }
 }
 
 function documentWrite(value: unknown) {
@@ -470,6 +488,16 @@ function documentWrite(value: unknown) {
         document.nodes.flatMap((node) =>
           node.data.media?.serverId ? [node.data.media.serverId] : [],
         ),
+      ),
+    ],
+    // 绑定收敛的保留集合：除节点自身的 serverId 外，剪辑时间线的 clip.mediaId
+    // 也指向服务端素材（服务端素材 id 即 serverId），本地 id 混入无害。
+    referencedMediaIds: [
+      ...new Set(
+        document.nodes.flatMap((node) => [
+          ...(node.data.media?.serverId ? [node.data.media.serverId] : []),
+          ...(node.data.edit?.clips.map((clip) => clip.mediaId) ?? []),
+        ]),
       ),
     ],
   };

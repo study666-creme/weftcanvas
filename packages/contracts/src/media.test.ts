@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  cloudResourceCleanupRequestSchema,
   mediaUploadInstructionSchema,
   mediaUploadRequestSchema,
   publicMediaSchema,
@@ -78,5 +79,28 @@ describe("media contracts", () => {
         completeUrl: "/api/v1/media/55555555-5555-4555-8555-555555555555/complete",
       }),
     ).toMatchObject({ completeUrl: expect.stringContaining("/complete") });
+  });
+
+  it("accepts an explicit forceUnbound flag on cloud resource cleanup", () => {
+    expect(
+      cloudResourceCleanupRequestSchema.parse({
+        mediaIds: ["55555555-5555-4555-8555-555555555555"],
+        forceUnbound: true,
+      }),
+    ).toEqual({
+      mediaIds: ["55555555-5555-4555-8555-555555555555"],
+      forceUnbound: true,
+    });
+    expect(
+      cloudResourceCleanupRequestSchema.parse({
+        mediaIds: ["55555555-5555-4555-8555-555555555555"],
+      }),
+    ).not.toHaveProperty("forceUnbound");
+    expect(() =>
+      cloudResourceCleanupRequestSchema.parse({
+        mediaIds: ["55555555-5555-4555-8555-555555555555"],
+        forceUnbound: "yes",
+      }),
+    ).toThrow();
   });
 });

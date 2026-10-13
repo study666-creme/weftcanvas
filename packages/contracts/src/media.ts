@@ -215,7 +215,10 @@ export const providerMediaReferenceResponseSchema = z.object({
 
 /**
  * 云端资源清理：列出账号下全部服务端素材及其项目绑定关系，供用户自选删除。
- * 未绑定（无任何云项目引用）的素材可安全清理；被项目引用的素材需先删除项目。
+ * 「可清理」（orphaned：曾有云项目意图、现已无任何绑定）可直接删除；
+ * 「使用中」（从未绑定过云项目，可能是本地画布的唯一副本）需用户在面板里
+ * 显式确认（forceUnbound）才会删除，删除前浏览器会先把文件缓存到本地素材库；
+ * 「已被引用」（仍被某个云项目绑定）不可删除，需先删项目或在画布里去掉引用。
  */
 /** 服务端素材主键：DB 为 TEXT，历史上可能有非 UUID 的旧 id，这里只做长度约束。 */
 export const cloudResourceIdSchema = z.string().trim().min(1).max(128);
@@ -234,9 +237,10 @@ export const cloudResourceSchema = z
     durationMs: z.number().int().positive().nullable(),
     projectIds: z.array(mediaProjectIdSchema).max(200),
     /**
-     * 真正的“孤立资源”：曾被某个云项目绑定，但该项目已删除（绑定已级联移除）。
-     * 只有这类素材可以安全清理；未被任何云项目绑定、但由本地画布/工作台直接上传的
-     * 素材（source 上传、projectIds 为空且 orphaned=false）可能是用户唯一副本，不动。
+     * “可清理”的遗留素材：上传时带过云项目意图（曾被绑定），但当前已无任何
+     * 绑定——项目删除会级联解绑，画布保存时也会把不再被文档引用的绑定收敛掉。
+     * 未被任何云项目绑定过、由本地画布/工作台直接上传的素材（projectIds 为空且
+     * orphaned=false）可能是用户唯一副本，面板显示「使用中」，仅在显式确认后删。
      */
     orphaned: z.boolean(),
     createdAt: z.string().datetime({ offset: true }),
@@ -270,6 +274,13 @@ export const cloudResourceListResponseSchema = z.object({
 export const cloudResourceCleanupRequestSchema = z
   .object({
     mediaIds: z.array(cloudResourceIdSchema).min(1).max(500),
+    /**
+     * 显式确认删除「使用中」素材（未绑定云项目、服务器无法确认本地画布是否
+     * 还在引用）。前端只有在用户二次确认并先把文件缓存到本地后才置 true；
+     * 不带此标志的请求保持旧行为：只删 orphaned，active 一律 skipped。
+     * 无论与否，仍被云项目绑定的素材永远不删。
+     */
+    forceUnbound: z.boolean().optional(),
   })
   .strict();
 export type CloudResourceCleanupRequest = z.infer<typeof cloudResourceCleanupRequestSchema>;
