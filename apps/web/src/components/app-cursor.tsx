@@ -2,7 +2,11 @@ import { Hand, HandGrab } from "lucide-react";
 import { memo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
+// 组件自带样式：AppCursor 挂在 App 顶层、全路由共享，不能依赖工作区懒加载的
+// workbench-styles 才存在（那样首屏/登录页只有光标逻辑没有光标样式）。
+import "../app-cursor.css";
 import { useUiPreferencesStore } from "../state/ui-preferences-store";
+import { useCursorInteractionStore } from "../state/cursor-interaction-store";
 
 type CursorMode = "default" | "link" | "drag" | "pan" | "text" | "native";
 
@@ -66,8 +70,9 @@ function isFinePointerEvent(event: PointerEvent) {
   return !event.pointerType || event.pointerType === "mouse" || event.pointerType === "pen";
 }
 
-export const AppCursor = memo(function AppCursor({ panActive }: { panActive: boolean }) {
+export const AppCursor = memo(function AppCursor() {
   const cursorStyle = useUiPreferencesStore((state) => state.cursorStyle);
+  const panActive = useCursorInteractionStore((state) => state.panActive);
   const rootRef = useRef<HTMLDivElement>(null);
   const pointerRef = useRef<HTMLDivElement>(null);
   const panActiveRef = useRef(panActive);

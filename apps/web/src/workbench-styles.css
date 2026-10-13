@@ -14,7 +14,7 @@
 @import "./styles-workbench.css";
 @import "./entry-gate-workbench.css";
 @import "./appearance-panel.css";
-@import "./app-cursor.css";
+/* app-cursor.css 改由组件自带（AppCursor 全局挂载，不再依赖工作区懒加载链）。 */
 @import "./canvas-effects.css";
 @import "./airy-theme.css";
 @import "./ink-scheme.css";

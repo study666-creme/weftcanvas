@@ -57,6 +57,7 @@ import { useAgentStore } from "../state/agent-store";
 import { useCanvasStore } from "../state/canvas-store";
 import { useCloudProjectStore } from "../state/cloud-project-store";
 import { useUiShellStore } from "../state/ui-shell-store";
+import { useCursorInteractionStore } from "../state/cursor-interaction-store";
 import { useDirectorStageLaunchStore } from "../state/director-stage-launch-store";
 import { useGenerationStore } from "../state/generation-store";
 import { useIdentityStore } from "../state/identity-store";
@@ -66,7 +67,6 @@ import { useUiPreferencesStore } from "../state/ui-preferences-store";
 import type { WeftcanvasEdge, WeftcanvasNode } from "../types";
 import { AgentCompanion } from "./agent-companion";
 import { ActivityPanel } from "./activity-panel";
-import { AppCursor } from "./app-cursor";
 import { CanvasControlBridge } from "./canvas-control-bridge";
 import { PointerFeedback } from "./pointer-feedback";
 import { BottomToolbar } from "./bottom-toolbar";
@@ -266,6 +266,12 @@ export function CanvasWorkspace({
   const closeAppearance = useUiShellStore((state) => state.closeSettings);
   const appearanceTriggerRef = useRef<HTMLButtonElement>(null);
   const [panMode, setPanMode] = useState(false);
+  // 空格平移手势推给全局 AppCursor（它挂在 App 顶层，不再由工作区挂载）。
+  useEffect(() => {
+    const setPanActive = useCursorInteractionStore.getState().setPanActive;
+    setPanActive(panMode);
+    return () => setPanActive(false);
+  }, [panMode]);
   const [miniMapOpen, setMiniMapOpen] = useState(readPersistedMiniMapOpen);
   const shortcutsOpen = useUiShellStore((state) => state.shortcutsOpen);
   const setShortcutsOpen = useUiShellStore((state) => state.setShortcutsOpen);
@@ -1577,10 +1583,8 @@ export function CanvasWorkspace({
               <ZoomControl miniMapOpen={miniMapOpen} onToggleMiniMap={handleToggleMiniMap} />
             </ReactFlow>
             <EmptyCanvasHint />
-            {/* 自绘光标只挂在工作区：首屏/登录页仍是原生光标（那里主线程最忙，且
-            自绘光标要隐藏系统光标才成立）。panMode 就是空格平移手势，抬头交给
-            它决定是否显示"抓手"。 */}
-            <AppCursor panActive={panMode} />
+            {/* 自绘光标已上提为 App 顶层全局挂载（全路由共享一个实例，
+            切路由不重挂）；空格平移手势经 cursor-interaction-store 传入。 */}
           </CanvasEdgeRuntimeContext.Provider>
         </CanvasNodeRuntimeContext.Provider>
         {pendingConnectionCreate ? (

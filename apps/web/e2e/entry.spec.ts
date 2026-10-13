@@ -424,3 +424,44 @@ test("reduced motion keeps the direct loader entry functional", async ({ page })
   await expect(page.locator(".wc-canvas-entry-loader")).toBeVisible();
   await expect(page.locator(".wc-app")).toHaveClass(/wc-app--entry-inside/);
 });
+
+test("the custom cursor is live on the entry page without blocking clicks", async ({ page }) => {
+  // 本机若跑着 API，匿名会话会触发登录优先整页替代入口门（存量环境耦合，
+  // 见 showLoginFirst）；本用例自带会话 mock，保持自足。
+  await page.route(/\/api\/v1\/auth\/session(?:\?.*)?$/, (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        data: {
+          user: {
+            id: "07d3b269-6bc3-4dbb-b67f-28664c787f00",
+            email: "creator@example.com",
+            displayName: "创作者",
+            createdAt: new Date().toISOString(),
+          },
+          expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+        },
+      },
+    }),
+  );
+  await page.goto("/");
+  await expect(page.locator(".wc-entry-gate")).toBeVisible();
+
+  // 首动前保留原生光标（自绘光标画出来才接管）。
+  const root = page.locator("html");
+  await expect(root).not.toHaveClass(/has-wc-cursor/);
+  const cursor = page.getByTestId("app-cursor");
+  await expect(cursor).toBeAttached();
+
+  await page.mouse.move(320, 320);
+  await expect(cursor).toHaveClass(/is-visible/);
+  await expect(root).toHaveClass(/has-wc-cursor/);
+  await page.mouse.move(640, 400);
+  await expect(cursor.locator(".wc-app-cursor-pointer")).toHaveAttribute("style", /translate3d/);
+
+  // 悬停按钮切 link 态；自绘光标 pointer-events:none，点击照常穿透。
+  await page.locator(".wc-entry-button").hover();
+  await expect(cursor).toHaveClass(/is-link/);
+  await page.locator(".wc-entry-button").click();
+  await expect(page).toHaveURL(/\/canvas$/);
+});

@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useSta
 import { flushSync } from "react-dom";
 
 import { PointerFeedback } from "./components/pointer-feedback";
+import { AppCursor } from "./components/app-cursor";
 import { GlobalConfirmDialog } from "./components/global-confirm-dialog";
 import { GlobalTooltip } from "./components/global-tooltip";
 import { SiteAnnouncements } from "./components/site-announcements";
@@ -338,6 +339,8 @@ export function App() {
         data-edge-flow-style={edgeFlowStyle}
       >
         <PointerFeedback />
+        {/* 自绘光标全局挂载：直出工作台与首页/画布共用一个实例。 */}
+        <AppCursor />
         <Suspense fallback={null}>
           <AccountDataController />
         </Suspense>
@@ -395,9 +398,11 @@ export function App() {
         </Suspense>
       ) : null}
       {route.view === "home" ? <PointerFeedback /> : null}
-      {/* 首屏/登录页不再挂自绘光标：它隐藏系统光标并用 DOM 逐帧跟随，主线程
-          一忙就「鼠标发黏」。这里回归原生光标（硬件合成零延迟）；画布工作区若
-          挂载它，由各自路由自行决定。 */}
+      {/* 自绘光标全局挂载（首页/登录/画布共用，切路由不重挂）。旧注释里
+          「首屏不挂、防主线程发黏」针对的是早期 DOM 逐帧跟随实现；现为
+          rAF 合帧 + transform-only + 零尺寸锚点（app-cursor.css 有合成层
+          断言守着），首屏成本可忽略。 */}
+      <AppCursor />
       {route.view === "canvas" || accountDialogOpen ? (
         <Suspense fallback={null}>
           <AccountDataController />
