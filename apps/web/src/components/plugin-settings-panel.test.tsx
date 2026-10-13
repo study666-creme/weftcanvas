@@ -23,15 +23,22 @@ describe("plugin settings panel", () => {
     expect(withoutPlugin).not.toContain("spec-settings");
   });
 
-  it("offers reinstall for uninstalled official plugins", async () => {
-    // 测试环境是全新模块注册表：split-list 未装载 → 面板显示重装入口。
+  it("offers install for uninstalled official plugins and disable for installed ones", async () => {
+    // 测试环境是全新模块注册表：官方 split-list 未装载 → 面板按「可装载」呈现。
     const uninstalled = renderToStaticMarkup(<PluginSettingsPanel />);
-    expect(uninstalled).toContain("装载 split-list");
+    expect(uninstalled).toContain('data-plugin-id="split-list"');
+    expect(uninstalled).toContain('data-status="uninstalled"');
+    expect(uninstalled).toContain("装载");
+    // 官方插件用友好名展示，而非裸 id。
+    expect(uninstalled).toContain("批量拆单");
 
     await installPlugin({ id: "split-list", version: "0.1.0", setup: () => {} });
     const installed = renderToStaticMarkup(<PluginSettingsPanel />);
-    expect(installed).toContain("split-list");
-    expect(installed).not.toContain("装载 split-list");
+    expect(installed).toContain('data-status="installed"');
+    expect(installed).toContain("停用");
+    expect(installed).toContain("卸载");
+    // 已装载的行没有「装载/启用」主操作按钮（说明卡里的“装载”二字不算）。
+    expect(installed).not.toContain("is-primary");
     uninstallPlugin("split-list");
   });
 });

@@ -80,6 +80,19 @@
   --whale-lean: -4deg;
 }
 
+/* 挂在面板下沿（顶栏等贴顶的面板）：上半身藏到面板后，只露下半身，微微后仰。
+   与 is-docked 相反——那里遮底、这里遮顶。 */
+.wc-agent-companion.is-hanging:not(.is-dragging) .wc-whale-sprite {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0 30%, #000 46%);
+  mask-image: linear-gradient(to bottom, transparent 0 30%, #000 46%);
+  --whale-lean: 3deg;
+}
+
+.wc-agent-companion.is-hanging:not(.is-dragging) .wc-whale-aura {
+  opacity: 0.45;
+  height: calc(var(--whale-w) * 0.62);
+}
+
 /* 状态点挂在右下角，两档都在同一个视觉位置。 */
 .wc-agent-companion[data-companion-style="whale"] .wc-agent-companion-state {
   right: 5px;

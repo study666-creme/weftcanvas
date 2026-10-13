@@ -7,6 +7,7 @@ import {
   Image as ImageIcon,
   LoaderCircle,
   Moon,
+  Music2,
   Settings,
   Sun,
   Video,
@@ -71,13 +72,19 @@ export function DirectGenerationPage({
   const leaveWorkbench = () => {
     clearDirectReferenceSession();
     clearDirectDraftSession();
-    useDirectReferenceStore.setState({ references: { image: [], video: [] } });
+    useDirectReferenceStore.setState({ references: { image: [], video: [], audio: [] } });
   };
 
   return (
     <section
       className="wc-direct-page"
-      aria-label={modality === "image" ? "图片生成页面" : "视频生成页面"}
+      aria-label={
+        modality === "image"
+          ? "图片生成页面"
+          : modality === "video"
+            ? "视频生成页面"
+            : "音频生成页面"
+      }
     >
       <header className="wc-entry-nav wc-direct-page-nav" aria-label="生成页面导航">
         <a className="wc-entry-brand" href="/" aria-label="返回纬线首页" onClick={leaveWorkbench}>
@@ -97,6 +104,10 @@ export function DirectGenerationPage({
           <a className={modality === "video" ? "is-active" : undefined} href="/generate/video">
             <Video aria-hidden="true" />
             视频生成
+          </a>
+          <a className={modality === "audio" ? "is-active" : undefined} href="/generate/audio">
+            <Music2 aria-hidden="true" />
+            音频生成
           </a>
         </nav>
         <div className="wc-entry-nav-actions">

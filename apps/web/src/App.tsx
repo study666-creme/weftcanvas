@@ -11,6 +11,7 @@ import { useCollaborationDialogStore } from "./state/collaboration-dialog-store"
 import { useCloudResourceStore } from "./state/cloud-resource-store";
 import { useIdentityStore } from "./state/identity-store";
 import { useUiPreferencesStore } from "./state/ui-preferences-store";
+import { useThemeCommandStore } from "./state/theme-command-store";
 import { readPersistedWalletOrder } from "./lib/wallet-order-storage";
 import {
   autoThemeNow,
@@ -73,6 +74,7 @@ function routeFromPath(pathname = window.location.pathname): AppRoute {
   if (path === "/") return { view: "home" };
   if (path === "/generate/image") return { view: "generate", modality: "image" };
   if (path === "/generate/video") return { view: "generate", modality: "video" };
+  if (path === "/generate/audio") return { view: "generate", modality: "audio" };
   return { view: "canvas" };
 }
 
@@ -188,6 +190,26 @@ export function App() {
     persistThemeMode("manual");
     applyTheme(next);
   };
+
+  // Agent 的 ui_set_theme 通过命令桥请求切主题：App 是主题落地的唯一 owner，
+  // 这里订阅意图并复用手动的 applyTheme（保留 View Transition 与持久化）。
+  const themeCommand = useThemeCommandStore((state) => state.command);
+  useEffect(() => {
+    if (!themeCommand) return;
+    if (themeCommand.action === "auto") {
+      persistThemeMode("auto");
+      applyTheme(autoThemeNow());
+      return;
+    }
+    persistThemeMode("manual");
+    applyTheme(
+      themeCommand.action === "toggle"
+        ? themeRef.current === "light"
+          ? "dark"
+          : "light"
+        : themeCommand.action,
+    );
+  }, [themeCommand, applyTheme]);
 
   useEffect(() => {
     if (accountDialogOpen) setAccountDialogLoaded(true);

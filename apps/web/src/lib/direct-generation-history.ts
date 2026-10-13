@@ -1,6 +1,6 @@
 import { publicGenerationJobSchema, type PublicGenerationJob } from "@weftcanvas/contracts";
 
-export type DirectGenerationModality = "image" | "video";
+export type DirectGenerationModality = "image" | "video" | "audio";
 
 export type DirectGenerationHistory = Record<DirectGenerationModality, PublicGenerationJob[]>;
 
@@ -8,6 +8,7 @@ export const DIRECT_GENERATION_PROJECT_ID = "home-direct-generation";
 export const DIRECT_GENERATION_NODE_IDS: Record<DirectGenerationModality, string> = {
   image: "home-direct-image",
   video: "home-direct-video",
+  audio: "home-direct-audio",
 };
 
 const STORAGE_PREFIX = "weftcanvas:direct-generation:v1:";
@@ -17,7 +18,7 @@ const MAX_JOBS_PER_MODALITY = 40;
 const MAX_HIDDEN_ARTIFACTS = 200;
 
 export function emptyDirectGenerationHistory(): DirectGenerationHistory {
-  return { image: [], video: [] };
+  return { image: [], video: [], audio: [] };
 }
 
 export function readDirectGenerationHistory(userId: string): DirectGenerationHistory {
@@ -27,11 +28,13 @@ export function readDirectGenerationHistory(userId: string): DirectGenerationHis
       schemaVersion?: unknown;
       image?: unknown;
       video?: unknown;
+      audio?: unknown;
     } | null;
     if (value?.schemaVersion !== STORAGE_SCHEMA_VERSION) return emptyDirectGenerationHistory();
     return {
       image: normalizeJobs(value.image, "image"),
       video: normalizeJobs(value.video, "video"),
+      audio: normalizeJobs(value.audio, "audio"),
     };
   } catch {
     return emptyDirectGenerationHistory();
@@ -47,6 +50,7 @@ export function writeDirectGenerationHistory(userId: string, history: DirectGene
         schemaVersion: STORAGE_SCHEMA_VERSION,
         image: normalizeJobs(history.image, "image"),
         video: normalizeJobs(history.video, "video"),
+        audio: normalizeJobs(history.audio, "audio"),
       }),
     );
     return true;
@@ -108,6 +112,10 @@ export function mergeDirectGenerationJobs(
     video: normalizeJobs(
       [...remote.filter((job) => job.modality === "video"), ...local.video],
       "video",
+    ),
+    audio: normalizeJobs(
+      [...remote.filter((job) => job.modality === "audio"), ...local.audio],
+      "audio",
     ),
   };
 }

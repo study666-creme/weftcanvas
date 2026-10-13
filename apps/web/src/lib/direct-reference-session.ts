@@ -39,6 +39,7 @@ export type PersistedDirectReferenceSession = {
   schemaVersion: number;
   image: PersistedDirectReference[];
   video: PersistedDirectReference[];
+  audio: PersistedDirectReference[];
 };
 
 export function isDirectGenerationPath(pathname: string): boolean {
@@ -64,6 +65,7 @@ export function readDirectReferenceSession(): PersistedDirectReferenceSession | 
       schemaVersion: REFERENCE_SESSION_SCHEMA_VERSION,
       image: normalizePersistedReferences(record.image),
       video: normalizePersistedReferences(record.video),
+      audio: normalizePersistedReferences(record.audio),
     };
   } catch {
     return null;
@@ -79,8 +81,9 @@ export function writeDirectReferenceSession(
     schemaVersion: REFERENCE_SESSION_SCHEMA_VERSION,
     image: persistReferences(references.image),
     video: persistReferences(references.video),
+    audio: persistReferences(references.audio),
   };
-  if (!session.image.length && !session.video.length) {
+  if (!session.image.length && !session.video.length && !session.audio.length) {
     clearDirectReferenceSession();
     return;
   }
@@ -104,10 +107,11 @@ export function clearDirectReferenceSession(): void {
 // 恢复为内存态引用：预览指向服务端内容路径，状态置为已就绪，重新生成上传幂等键。
 export function restoreDirectReferenceSession(): Record<DirectModalityKey, DirectReference[]> {
   const session = readDirectReferenceSession();
-  if (!session) return { image: [], video: [] };
+  if (!session) return { image: [], video: [], audio: [] };
   return {
     image: restoreReferences(session.image),
     video: restoreReferences(session.video),
+    audio: restoreReferences(session.audio),
   };
 }
 
@@ -123,7 +127,7 @@ export function initialDirectReferenceSession(
     return restoreDirectReferenceSession();
   }
   clearDirectReferenceSession();
-  return { image: [], video: [] };
+  return { image: [], video: [], audio: [] };
 }
 
 function persistReferences(items: DirectReference[]): PersistedDirectReference[] {
@@ -224,6 +228,7 @@ export type PersistedDirectDraftSession = {
   schemaVersion: 1;
   image: PersistedDirectDraft | null;
   video: PersistedDirectDraft | null;
+  audio: PersistedDirectDraft | null;
 };
 
 const MAX_DRAFT_PROMPT_LENGTH = 4_000;
@@ -250,6 +255,7 @@ export function readDirectDraftSession(): PersistedDirectDraftSession | null {
       schemaVersion: DRAFT_SESSION_SCHEMA_VERSION,
       image: normalizePersistedDraft(record.image),
       video: normalizePersistedDraft(record.video),
+      audio: normalizePersistedDraft(record.audio),
     };
   } catch {
     return null;
@@ -265,8 +271,9 @@ export function writeDirectDraftSession(
     schemaVersion: DRAFT_SESSION_SCHEMA_VERSION,
     image: isEmptyDraft(drafts.image) ? null : drafts.image,
     video: isEmptyDraft(drafts.video) ? null : drafts.video,
+    audio: isEmptyDraft(drafts.audio) ? null : drafts.audio,
   };
-  if (!session.image && !session.video) {
+  if (!session.image && !session.video && !session.audio) {
     clearDirectDraftSession();
     return;
   }
@@ -299,6 +306,7 @@ export function initialDirectDraftSession(pathname?: string): PersistedDirectDra
         schemaVersion: DRAFT_SESSION_SCHEMA_VERSION,
         image: null,
         video: null,
+        audio: null,
       }
     );
   }
@@ -307,6 +315,7 @@ export function initialDirectDraftSession(pathname?: string): PersistedDirectDra
     schemaVersion: DRAFT_SESSION_SCHEMA_VERSION,
     image: null,
     video: null,
+    audio: null,
   };
 }
 

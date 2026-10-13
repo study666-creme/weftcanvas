@@ -19,6 +19,7 @@ import { nodeCreationDimensions } from "../lib/node-factory";
 import { findOpenNodePosition } from "../lib/node-placement";
 import { useCanvasStore } from "../state/canvas-store";
 import { useUiPreferencesStore } from "../state/ui-preferences-store";
+import { useUiShellStore } from "../state/ui-shell-store";
 import { useCreatableNodeDefinitions } from "../lib/node-registry";
 import type { InsertableAsset } from "../lib/insertable-asset";
 import type { WeftcanvasEdge, WeftcanvasNode } from "../types";
@@ -73,6 +74,8 @@ export const BottomToolbar = memo(function BottomToolbar({
   const hasContent = useCanvasStore((state) => state.nodes.length > 0 || state.edges.length > 0);
   const deleteSelection = useCanvasStore((state) => state.deleteSelection);
   const defaultNodeAspectRatio = useUiPreferencesStore((state) => state.defaultNodeAspectRatio);
+  const settingsSection = useUiShellStore((state) => state.settingsSection);
+  const setSettingsSection = useUiShellStore((state) => state.setSettingsSection);
   const creatableNodes = useCreatableNodeDefinitions();
   const { getZoom, screenToFlowPosition, setCenter } = useReactFlow<
     WeftcanvasNode,
@@ -188,6 +191,8 @@ export const BottomToolbar = memo(function BottomToolbar({
           open={appearanceOpen}
           triggerRef={appearanceTriggerRef}
           onClose={onCloseAppearance}
+          section={settingsSection}
+          onSectionChange={setSettingsSection}
         />
         <div className="wc-edit-dock-side wc-edit-dock-side--left">
           <button

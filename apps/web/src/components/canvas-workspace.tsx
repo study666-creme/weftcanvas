@@ -56,6 +56,7 @@ import { getGroupBounds, indexCanvasNodes, type NodeGroupBounds } from "../lib/n
 import { useAgentStore } from "../state/agent-store";
 import { useCanvasStore } from "../state/canvas-store";
 import { useCloudProjectStore } from "../state/cloud-project-store";
+import { useUiShellStore } from "../state/ui-shell-store";
 import { useDirectorStageLaunchStore } from "../state/director-stage-launch-store";
 import { useGenerationStore } from "../state/generation-store";
 import { useIdentityStore } from "../state/identity-store";
@@ -259,19 +260,26 @@ export function CanvasWorkspace({
   const [pendingConnectionCreate, setPendingConnectionCreate] =
     useState<PendingConnectionCreate | null>(null);
   // appearanceOpen 由顶部"设置"键（hover 弹 4 项 / 点击开面板）和底部 UI 设置按钮共用，
-  // 提升到 workspace 顶层避免两边各自维护状态导致重复打开。
-  const [appearanceOpen, setAppearanceOpen] = useState(false);
+  // 提升到 ui-shell-store 让 Agent 的 ui_* 动作也能开合同一批面板。
+  const appearanceOpen = useUiShellStore((state) => state.settingsOpen);
+  const toggleAppearance = useUiShellStore((state) => state.toggleSettings);
+  const closeAppearance = useUiShellStore((state) => state.closeSettings);
   const appearanceTriggerRef = useRef<HTMLButtonElement>(null);
   const [panMode, setPanMode] = useState(false);
   const [miniMapOpen, setMiniMapOpen] = useState(readPersistedMiniMapOpen);
-  const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const [resourceOpen, setResourceOpen] = useState(false);
+  const shortcutsOpen = useUiShellStore((state) => state.shortcutsOpen);
+  const setShortcutsOpen = useUiShellStore((state) => state.setShortcutsOpen);
+  const resourceOpen = useUiShellStore((state) => state.resourceOpen);
+  const openResource = useUiShellStore((state) => state.openResource);
+  const closeResource = useUiShellStore((state) => state.closeResource);
   // resourceOpen 的即时镜像：开合判断要在事件处理里读到最新值，不能依赖 state 更新时序。
   const resourceOpenRef = useRef(false);
   resourceOpenRef.current = resourceOpen;
   const resourceOpenedAtRef = useRef(0);
   const resourcePaintedRef = useRef(false);
-  const [activityOpen, setActivityOpen] = useState(false);
+  const activityOpen = useUiShellStore((state) => state.activityOpen);
+  const setActivityOpen = useUiShellStore((state) => state.setActivityOpen);
+  const toggleActivity = useUiShellStore((state) => state.toggleActivity);
   // 专注模式：生成中自动收起画布四周的工具浮岛；Tab 手动开关，Esc 退出，鼠标移近屏幕边缘浮现对应工具。
   const [focusPinned, setFocusPinned] = useState(false);
   // 生成中自动收起后，用户按 Tab/Esc 主动恢复界面时置为 true，避免 generatingActive 仍为真导致按了没反应。
@@ -1280,27 +1288,27 @@ export function CanvasWorkspace({
         performance.now() - resourceOpenedAtRef.current < RESOURCE_TOGGLE_REFLEX_MS
       )
         return;
-      setResourceOpen(false);
+      closeResource();
       return;
     }
     resourcePaintedRef.current = false;
     resourceOpenedAtRef.current = performance.now();
     closeAgent();
-    setResourceOpen(true);
-  }, [closeAgent]);
+    openResource();
+  }, [closeAgent, closeResource, openResource]);
 
   const handleToggleAgent = useCallback(() => {
-    setResourceOpen(false);
+    closeResource();
     toggleAgent();
-  }, [toggleAgent]);
+  }, [closeResource, toggleAgent]);
 
   const handleToggleMiniMap = useCallback(() => {
     setMiniMapOpen((value) => !value);
   }, []);
 
-  const handleOpenShortcuts = useCallback(() => setShortcutsOpen(true), []);
-  const handleToggleActivity = useCallback(() => setActivityOpen((value) => !value), []);
-  const handleCloseActivity = useCallback(() => setActivityOpen(false), []);
+  const handleOpenShortcuts = useCallback(() => setShortcutsOpen(true), [setShortcutsOpen]);
+  const handleToggleActivity = useCallback(() => toggleActivity(), [toggleActivity]);
+  const handleCloseActivity = useCallback(() => setActivityOpen(false), [setActivityOpen]);
   const handleTogglePan = useCallback(() => setPanMode((value) => !value), []);
   const handleImport = useCallback(() => fileInputRef.current?.click(), []);
   const handleContextUpload = useCallback((anchor: XYPosition) => {
@@ -1309,7 +1317,7 @@ export function CanvasWorkspace({
   }, []);
   const handleRequestClear = useCallback(() => setClearConfirmOpen(true), []);
   const handleCloseClear = useCallback(() => setClearConfirmOpen(false), []);
-  const handleCloseResource = useCallback(() => setResourceOpen(false), []);
+  const handleCloseResource = useCallback(() => closeResource(), [closeResource]);
   const handleResourceDrawerPainted = useCallback(() => {
     resourcePaintedRef.current = true;
   }, []);
@@ -1414,8 +1422,8 @@ export function CanvasWorkspace({
           onToggleActivity={handleToggleActivity}
           appearanceOpen={appearanceOpen}
           appearanceTriggerRef={appearanceTriggerRef}
-          onToggleAppearance={() => setAppearanceOpen((value) => !value)}
-          onCloseAppearance={() => setAppearanceOpen(false)}
+          onToggleAppearance={toggleAppearance}
+          onCloseAppearance={closeAppearance}
         />
       ) : null}
       {!agentOpen ? <StorageTipBanner /> : null}
@@ -1562,8 +1570,8 @@ export function CanvasWorkspace({
                 getCanvasCenter={getFlowCenterScreen}
                 appearanceOpen={appearanceOpen}
                 appearanceTriggerRef={appearanceTriggerRef}
-                onToggleAppearance={() => setAppearanceOpen((value) => !value)}
-                onCloseAppearance={() => setAppearanceOpen(false)}
+                onToggleAppearance={toggleAppearance}
+                onCloseAppearance={closeAppearance}
                 onInsertAsset={insertResourceAsset}
               />
               <ZoomControl miniMapOpen={miniMapOpen} onToggleMiniMap={handleToggleMiniMap} />

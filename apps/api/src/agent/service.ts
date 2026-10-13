@@ -610,7 +610,12 @@ function isDirectAction(action: AgentAction) {
     action.type === "canvas_set_viewport" ||
     action.type === "canvas_director_open" ||
     action.type === "canvas_director_select_shot" ||
-    action.type === "canvas_director_update_entity"
+    action.type === "canvas_director_update_entity" ||
+    // 外壳面板开合/主题/配色是无破坏性的 UI 导航，允许直接执行。
+    action.type === "ui_open_panel" ||
+    action.type === "ui_close_panel" ||
+    action.type === "ui_set_theme" ||
+    action.type === "ui_set_color_scheme"
   );
 }
 

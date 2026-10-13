@@ -56,7 +56,15 @@ export type CompanionDock =
   | "agent-drawer"
   | "resource-drawer"
   | "workspace-assets"
-  | "appearance";
+  | "appearance"
+  | "topbar"
+  | "project-sidebar"
+  | "activity-panel"
+  | "create-rail"
+  | "zoom-control"
+  | "shortcuts"
+  | "account-dialog"
+  | "clip-editor";
 
 /**
  * 伙伴被拖到哪了。null = 默认位置（画布顶部居中，和小熊 / 机器人一致）。
@@ -75,6 +83,14 @@ export const COMPANION_DOCKS: readonly CompanionDock[] = [
   "resource-drawer",
   "workspace-assets",
   "appearance",
+  "topbar",
+  "project-sidebar",
+  "activity-panel",
+  "create-rail",
+  "zoom-control",
+  "shortcuts",
+  "account-dialog",
+  "clip-editor",
 ];
 
 export function normalizeCompanionAnchor(value: unknown): CompanionAnchor | null {

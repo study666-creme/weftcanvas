@@ -293,7 +293,8 @@
   grid-template-columns: repeat(5, minmax(46px, 1fr));
 }
 
-.wc-ui-settings .wc-appearance-segmented.wc-appearance-segmented--nodes {
+.wc-ui-settings .wc-appearance-segmented.wc-appearance-segmented--nodes,
+.wc-ui-settings .wc-appearance-segmented.wc-appearance-segmented--edges {
   grid-template-columns: repeat(5, minmax(48px, 1fr));
 }
 
@@ -301,9 +302,10 @@
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
+/* 生成动效是四张预览卡，整行平铺：三列会把第四张挤成孤零零的半行。 */
 .wc-ui-settings .wc-appearance-segmented--previews,
 .wc-ui-settings .wc-appearance-segmented--previews:not(.wc-appearance-segmented--swatches) {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   padding: 0;
   border: 0;
@@ -878,4 +880,24 @@
   border-radius: 8px;
   color: var(--wc-text-muted, inherit);
   opacity: 0.8;
+}
+
+/* 一行的操作按钮组（停用/卸载、启用、装载）。 */
+.wc-plugin-settings-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* 主操作（启用/装载）用强调色描边，区别于次级的停用/卸载。 */
+.wc-plugin-settings-action.is-primary {
+  border-color: color-mix(in srgb, var(--entry-jade, currentColor) 55%, transparent);
+  color: var(--entry-jade, inherit);
+}
+
+/* 未装载/已停用的行整体降饱和，让「在用」的插件一眼可辨。 */
+.wc-plugin-settings-row[data-status="disabled"],
+.wc-plugin-settings-row[data-status="uninstalled"] {
+  opacity: 0.72;
 }

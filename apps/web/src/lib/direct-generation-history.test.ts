@@ -26,8 +26,14 @@ describe("direct generation history", () => {
     const image = job("image-job", "image");
     const video = job("video-job", "video");
 
-    expect(writeDirectGenerationHistory("user-a", { image: [image], video: [video] })).toBe(true);
-    expect(readDirectGenerationHistory("user-a")).toEqual({ image: [image], video: [video] });
+    expect(
+      writeDirectGenerationHistory("user-a", { image: [image], video: [video], audio: [] }),
+    ).toBe(true);
+    expect(readDirectGenerationHistory("user-a")).toEqual({
+      image: [image],
+      video: [video],
+      audio: [],
+    });
     expect(readDirectGenerationHistory("user-b")).toEqual(emptyDirectGenerationHistory());
   });
 
@@ -41,7 +47,7 @@ describe("direct generation history", () => {
     };
     const wrongProject = { ...job("other", "image"), projectId: "another-project" };
 
-    const merged = mergeDirectGenerationJobs({ image: [original], video: [] }, [
+    const merged = mergeDirectGenerationJobs({ image: [original], video: [], audio: [] }, [
       current,
       wrongProject,
       { broken: true } as unknown as PublicGenerationJob,

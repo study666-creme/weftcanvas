@@ -14,6 +14,14 @@ export const DOCK_TARGETS: readonly DockTarget[] = [
   { key: "resource-drawer", selector: ".wc-resource-drawer" },
   { key: "workspace-assets", selector: ".wc-workspace-assets" },
   { key: "appearance", selector: ".wc-appearance-toolbar" },
+  { key: "topbar", selector: ".wc-topbar" },
+  { key: "project-sidebar", selector: ".wc-project-sidebar" },
+  { key: "activity-panel", selector: ".wc-activity-panel" },
+  { key: "create-rail", selector: ".wc-create-rail" },
+  { key: "zoom-control", selector: ".wc-zoom-control" },
+  { key: "shortcuts", selector: ".wc-shortcuts-panel" },
+  { key: "account-dialog", selector: ".wc-account-dialog" },
+  { key: "clip-editor", selector: ".wc-clip-editor" },
 ];
 
 /**
@@ -58,6 +66,8 @@ export type Placement = {
   wall?: { x: number };
   /** 横向面板的顶边在父级坐标系里的 y。 */
   ledge?: { y: number };
+  /** 面板贴顶、上方放不下时改为挂在其下沿（小手扒住底边，上半身藏到面板后）。 */
+  hang?: boolean;
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -189,15 +199,28 @@ export function resolveCompanionPlacement(
 
   // 趴横向面板的顶边（另一面「墙」横过来了）：正面趴，头和胸口在边沿上方，
   // 下缘 PEEK_LEDGE_HIDDEN 段身高被面板盖住。面板 z 更高，遮挡是真的。
-  const y = top - size.height * (1 - PEEK_LEDGE_HIDDEN);
-  if (y < 2) return null;
+  const ledgeY = top - size.height * (1 - PEEK_LEDGE_HIDDEN);
+  const x = clamp(left + rect.width * anchor.x, halfWidth - 6, bounds.width - halfWidth + 6);
+  if (ledgeY >= 2) {
+    return {
+      x,
+      y: ledgeY,
+      z: Math.max(1, z - DOCK_Z_STEP),
+      dock: anchor.dock,
+      ledge: { y: top },
+    };
+  }
 
+  // 面板贴顶（顶栏等），上方放不下她——改为挂在下沿：顶边压进面板底缘一点，
+  // 面板 z 更高把她上半身藏住，读起来像扒着底边往下探。仍放不下就回默认位。
+  const hangY = top + rect.height - size.height * PEEK_LEDGE_HIDDEN;
+  if (hangY + size.height > bounds.height - 2) return null;
   return {
-    x: clamp(left + rect.width * anchor.x, halfWidth - 6, bounds.width - halfWidth + 6),
-    y,
+    x,
+    y: clamp(hangY, 2, bounds.height - size.height - 4),
     z: Math.max(1, z - DOCK_Z_STEP),
     dock: anchor.dock,
-    ledge: { y: top },
+    hang: true,
   };
 }
 

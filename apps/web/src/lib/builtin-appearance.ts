@@ -52,6 +52,11 @@ registerAll("edgePathStyle", [
   { id: "gravity", label: "柔弧", geometry: "gravity", pathCurvature: 0.25 },
   // 翡翠是纯 CSS 换肤档：几何复用张力，颜色交给 emerald-edge.css。
   { id: "emerald", label: "翡翠", geometry: "taut", pathCurvature: 0.32 },
+  // 游丝同理，且刻意与张力同曲率：这根丝的区别只在粗细与颜色。
+  // 备忘——pathCurvature 只在**回流边**（目标在源左侧）起作用：xyflow 的
+  // calculateControlOffset 在 distance>=0 时把控制点偏移钉死为 0.5*distance，
+  // 普通左→右连线的弧度与曲率无关。想改常规弧度得换 geometry，别调这个数。
+  { id: "gossamer", label: "游丝", geometry: "taut", pathCurvature: 0.42 },
 ]);
 
 registerAll("edgeFlowStyle", [

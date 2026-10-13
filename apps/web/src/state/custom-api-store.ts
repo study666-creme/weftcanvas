@@ -578,7 +578,7 @@ function createChoice(
     },
     route,
     executable,
-    unsupportedReason: executable ? null : "当前音频模型没有已配置的兼容调用协议",
+    unsupportedReason: executable ? null : "当前模型没有已配置的兼容调用协议",
   };
 }
 

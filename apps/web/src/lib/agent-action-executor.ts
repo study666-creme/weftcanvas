@@ -2,6 +2,11 @@ import { normalizeDirectorStagePacket, type AgentAction } from "@weftcanvas/cont
 
 import { useCanvasStore } from "../state/canvas-store";
 import { useDirectorStageLaunchStore } from "../state/director-stage-launch-store";
+import { useProjectAssetStore } from "../state/project-asset-store";
+import { useProjectLibraryStore } from "../state/project-library-store";
+import { useThemeCommandStore } from "../state/theme-command-store";
+import { useUiPreferencesStore } from "../state/ui-preferences-store";
+import { useUiShellStore } from "../state/ui-shell-store";
 
 const EXECUTED_RUNS_KEY = "weftcanvas:agent-action-runs:v2";
 
@@ -45,14 +50,92 @@ export function executeAgentActions(
 
   const canvas = useCanvasStore.getState().applyAgentActions(actions);
   const directorApplied = useDirectorStageLaunchStore.getState().runAgentActions(actions);
+  const ui = applyUiActions(actions);
   const result = {
-    applied: canvas.applied + directorApplied,
-    skipped: canvas.skipped,
-    skippedActions: canvas.skippedActions,
+    applied: canvas.applied + directorApplied + ui.applied,
+    skipped: canvas.skipped + ui.skipped,
+    skippedActions: [...canvas.skippedActions, ...ui.skippedActions],
     alreadyApplied: false,
   };
   markExecuted({ id: storageId, ...result });
   return result;
+}
+
+/**
+ * 面板开合/主题/配色动作的分发。这些都不进画布 undo 历史、不占画布 revision：
+ * 它们只是外壳 UI 的意图，落地由各自的 store 完成。未知类型不计入。
+ */
+function applyUiActions(actions: AgentAction[]): {
+  applied: number;
+  skipped: number;
+  skippedActions: Array<{ index: number; reason: string }>;
+} {
+  let applied = 0;
+  const shell = useUiShellStore.getState();
+  for (const action of actions) {
+    switch (action.type) {
+      case "ui_open_panel": {
+        switch (action.panel) {
+          case "settings":
+            shell.openSettings(action.section);
+            break;
+          case "resource-drawer":
+            shell.openResource(action.tab);
+            break;
+          case "asset-library":
+            useProjectAssetStore.getState().setOpen(true);
+            break;
+          case "project-library":
+            useProjectLibraryStore.getState().setOpen(true);
+            break;
+          case "activity":
+            shell.setActivityOpen(true);
+            break;
+          case "shortcuts":
+            shell.setShortcutsOpen(true);
+            break;
+        }
+        applied += 1;
+        break;
+      }
+      case "ui_close_panel": {
+        switch (action.panel) {
+          case "settings":
+            shell.closeSettings();
+            break;
+          case "resource-drawer":
+            shell.closeResource();
+            break;
+          case "asset-library":
+            useProjectAssetStore.getState().setOpen(false);
+            break;
+          case "project-library":
+            useProjectLibraryStore.getState().setOpen(false);
+            break;
+          case "activity":
+            shell.setActivityOpen(false);
+            break;
+          case "shortcuts":
+            shell.setShortcutsOpen(false);
+            break;
+        }
+        applied += 1;
+        break;
+      }
+      case "ui_set_theme":
+        useThemeCommandStore.getState().requestTheme(action.theme);
+        applied += 1;
+        break;
+      case "ui_set_color_scheme":
+        useUiPreferencesStore.getState().setColorScheme(action.scheme);
+        applied += 1;
+        break;
+      default:
+        // 非 UI 动作由画布/导演台分发处理，这里既不算应用也不算跳过。
+        break;
+    }
+  }
+  return { applied, skipped: 0, skippedActions: [] };
 }
 
 function readExecution(id: string): StoredExecution | null {

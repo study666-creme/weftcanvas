@@ -85,6 +85,18 @@ as `async: true`, `n: 1`, and model-specific fixed durations are server-owned
 and must be included in the execution request even when they are hidden from
 the browser.
 
+Audio output is a reviewed execution modality as of 2026-10-12. The catalog
+normalization allowlist admits two audio endpoint shapes only: OpenAI-compatible
+`/v1/chat/completions` (synchronous, returns time-limited audio links) and the
+strict Gemini-native `/v1beta/models/<id>:generateContent` (returns inline PCM
+that the execution side wraps into WAV before it enters the media pipeline). Any
+other audio path is dropped at normalization. Audio models carry an `audio.v1`
+protocol declaring the delivery format (`url` or `inline-data`); the private
+route additionally carries the PCM sample rate and channel count so both hosted
+and BYOK execution produce a playable file. Audio is billed per request; the
+quote layer already accepted audio as an input role, and now accepts it as an
+output modality end to end (hosted job, BYOK direct, standalone workbench).
+
 MiniMax H3 publishes the resolution labels declared by the live catalog:
 `768`, `1080p`, `2K`, and `4K`. The first two are the ordinary H3 video path;
 `2K` and `4K` are reference-media modes and require at least one reference

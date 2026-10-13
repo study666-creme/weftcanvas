@@ -121,6 +121,59 @@ describe("generation config", () => {
     });
   });
 
+  it("binds audio prompts to messages (chat) and contents (Gemini native) shapes", () => {
+    const suno: PublicModel = {
+      ...imageModel(),
+      id: "music-suno",
+      modality: "audio",
+      output: { type: "audio", minCount: 2, maxCount: 2 },
+      parameters: [
+        {
+          name: "messages",
+          label: "消息",
+          type: "array",
+          required: true,
+          mutuallyExclusiveWith: [],
+        },
+      ],
+      pricing: { mode: "fixed", unit: "request", currency: "CNY", creditsPerYuan: 100, tiers: [] },
+    };
+    expect(composeModelParameters(suno, "轻快的钢琴背景音乐", {})).toEqual({
+      messages: [{ role: "user", content: "轻快的钢琴背景音乐" }],
+    });
+
+    const tts: PublicModel = {
+      ...suno,
+      id: "voice-tts",
+      output: { type: "audio", minCount: 1, maxCount: 1 },
+      parameters: [
+        {
+          name: "contents",
+          label: "对话内容",
+          type: "array",
+          required: true,
+          mutuallyExclusiveWith: [],
+        },
+        {
+          name: "speechConfig",
+          label: "语音配置",
+          type: "object",
+          required: true,
+          options: ["Kore", "Puck"],
+          mutuallyExclusiveWith: [],
+        },
+      ],
+    };
+    expect(composeModelParameters(tts, "你好，欢迎收听", {})).toEqual({
+      contents: [{ role: "user", parts: [{ text: "你好，欢迎收听" }] }],
+      // 带选项的 object 参数按选项值提交（必填兜底第一项），执行侧再包对象形态。
+      speechConfig: "Kore",
+    });
+    expect(composeModelParameters(tts, "你好", { speechConfig: "Puck" })).toMatchObject({
+      speechConfig: "Puck",
+    });
+  });
+
   it("binds the only required text capability even when its public name differs", () => {
     const model = imageModel();
     model.parameters = [

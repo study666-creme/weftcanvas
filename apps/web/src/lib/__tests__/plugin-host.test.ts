@@ -4,7 +4,12 @@ import { definePlugin, type Plugin, type PluginContext } from "@weftcanvas/plugi
 
 import { getNodeDefinition, listCreatableNodes, listNodes } from "../node-registry";
 import "../builtin-nodes";
-import { installPlugin, uninstallPlugin } from "../plugin-host";
+import {
+  getPluginPreference,
+  installPlugin,
+  setPluginEnabled,
+  uninstallPlugin,
+} from "../plugin-host";
 
 function makePlugin(id: string, setup: (ctx: PluginContext) => void): Plugin {
   return definePlugin({ id, version: "0.1.0", setup });
@@ -97,6 +102,34 @@ describe("plugin host", () => {
     );
     await expect(ops!.apply([{ type: "make_me_a_sandwich" }])).rejects.toThrow();
     uninstallPlugin("spec-alpha");
+  });
+
+  it("persists disable/uninstall intent so a reload does not silently reinstall", async () => {
+    const plugin = makePlugin("spec-alpha", (ctx) => {
+      ctx.nodes.registerNode({
+        name: "card",
+        label: () => "演示卡",
+        createDraft: () => ({ width: 100, height: 80 }),
+      });
+    });
+    await installPlugin(plugin);
+    expect(getPluginPreference("spec-alpha")).toBeUndefined();
+    expect(getNodeDefinition("plugin:spec-alpha:card")).not.toBeNull();
+
+    // 停用：回收节点，偏好记为 disabled。
+    setPluginEnabled("spec-alpha", false);
+    expect(getNodeDefinition("plugin:spec-alpha:card")).toBeNull();
+    expect(getPluginPreference("spec-alpha")).toBe("disabled");
+    expect(memoryStorage.get("weftcanvas:plugins:v1")).toContain("disabled");
+
+    // 重新装载清掉偏好。
+    await installPlugin(plugin);
+    expect(getPluginPreference("spec-alpha")).toBeUndefined();
+
+    // 卸载：偏好记为 uninstalled（区别于停用）。
+    uninstallPlugin("spec-alpha");
+    expect(getPluginPreference("spec-alpha")).toBe("uninstalled");
+    expect(memoryStorage.get("weftcanvas:plugins:v1")).toContain("uninstalled");
   });
 
   it("validates plugin identity in definePlugin", () => {

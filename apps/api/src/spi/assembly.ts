@@ -7,6 +7,7 @@ import type { IdentityProvider } from "../identity/provider.js";
 import type { GenerationJobService } from "../generation/service.js";
 import type { WalletProvider } from "../wallet/provider.js";
 import type { GenerationProvider, HostedAccountProvider } from "./types.js";
+import { readUpstreamEnv } from "./upstream-env.js";
 
 /**
  * Provider 装配（docs/PLUGIN-ROADMAP.md §5 P2）。
@@ -76,11 +77,16 @@ export async function resolveProviderPlan(env: {
   CANVAS_API_PROVIDER?: string;
   /** 旧变量名，向后兼容：native → dev-test，prompt-hub → weftcanvas。 */
   IDENTITY_PROVIDER?: string;
+  /** 上游凭据/度量：新中立名 CANVAS_UPSTREAM_ANON_KEY 优先，旧名继续生效。 */
+  CANVAS_UPSTREAM_ANON_KEY?: string;
   PROMPT_HUB_ANON_KEY?: string;
   VITE_CARD_LIBRARY_ANON_KEY?: string;
   NODE_ENV?: string;
+  CANVAS_UPSTREAM_CATALOG_URL?: string;
   CATALOG_SOURCE_URL?: string;
+  CANVAS_UPSTREAM_VIDEO_INVENTORY_URL?: string;
   VIDEO_INVENTORY_URL?: string;
+  CANVAS_UPSTREAM_PRICING_URL?: string;
   WEFTCANVAS_PRICING_URL?: string;
 }): Promise<ProviderPlan> {
   const requestedRaw = env.CANVAS_API_PROVIDER?.trim() || env.IDENTITY_PROVIDER?.trim();
@@ -90,13 +96,12 @@ export async function resolveProviderPlan(env: {
       : requestedRaw === "prompt-hub"
         ? "weftcanvas"
         : readCanvasApiProviderName(requestedRaw);
-  const hostedConfigured = Boolean(
-    (env.PROMPT_HUB_ANON_KEY ?? env.VITE_CARD_LIBRARY_ANON_KEY)?.trim(),
-  );
+  const upstream = readUpstreamEnv(env);
+  const hostedConfigured = Boolean(upstream.anonKey);
   if (requested === "auto" && env.NODE_ENV === "production" && !hostedConfigured) {
     // 生产环境必须显式表态：要么配置托管凭据（weftcanvas），要么明确 dev-test。
     throw new Error(
-      "Production requires PROMPT_HUB_ANON_KEY or an explicit CANVAS_API_PROVIDER=dev-test",
+      "Production requires CANVAS_UPSTREAM_ANON_KEY (or the legacy PROMPT_HUB_ANON_KEY) or an explicit CANVAS_API_PROVIDER=dev-test",
     );
   }
   const providerName: ResolvedCanvasApiProviderName =
@@ -105,9 +110,9 @@ export async function resolveProviderPlan(env: {
     return {
       providerName,
       // dev-test 只认显式配置的自托管端点（OpenAI-compatible 网关等），没有默认值。
-      catalogSourceUrl: env.CATALOG_SOURCE_URL?.trim() || undefined,
-      catalogVideoInventoryUrl: env.VIDEO_INVENTORY_URL?.trim() || undefined,
-      stationPricingUrl: env.WEFTCANVAS_PRICING_URL?.trim() || undefined,
+      catalogSourceUrl: upstream.catalogSourceUrl,
+      catalogVideoInventoryUrl: upstream.videoInventoryUrl,
+      stationPricingUrl: upstream.pricingUrl,
       weftcanvas: null,
     };
   }

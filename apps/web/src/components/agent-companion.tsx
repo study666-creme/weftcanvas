@@ -208,6 +208,8 @@ export const AgentCompanion = memo(function AgentCompanion({
   const docked = Boolean(placement?.dock);
   /** 趴在面板上 vs 从 Agent 抽屉边缘探出头——两种贴法的观感完全不同。 */
   const peeking = placement?.dock === "agent-drawer";
+  /** 面板贴顶、上方放不下时挂在面板下沿。 */
+  const hanging = Boolean(placement?.hang);
 
   // 台词只对鲸鱼娘有意义（气泡由 WhaleGirlCompanion 渲染）；其余形象拖拽时
   // 不必白算台词。
@@ -393,6 +395,7 @@ export const AgentCompanion = memo(function AgentCompanion({
           dragging ? "is-dragging" : "",
           docked && !peeking ? "is-docked" : "",
           peeking ? "is-peeking" : "",
+          hanging ? "is-hanging" : "",
         ]
           .filter(Boolean)
           .join(" ")}

@@ -68,15 +68,25 @@ export function AppearanceToolbar({
   triggerRef,
   onClose,
   initialSection = "ui",
+  section: controlledSection,
+  onSectionChange,
 }: {
   open: boolean;
   triggerRef: RefObject<HTMLButtonElement | null>;
   onClose: () => void;
   /** 首次打开时的板块；此后与画布一致，记住用户上次停留的板块。 */
   initialSection?: SettingsSection;
+  /** 受控板块：画布从 ui-shell-store 传入，让 Agent 的 ui_open_panel 能切板块。 */
+  section?: SettingsSection;
+  onSectionChange?: (section: SettingsSection) => void;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
-  const [section, setSection] = useState<SettingsSection>(initialSection);
+  const [internalSection, setInternalSection] = useState<SettingsSection>(initialSection);
+  const section = controlledSection ?? internalSection;
+  const setSection = (next: SettingsSection) => {
+    onSectionChange?.(next);
+    if (controlledSection === undefined) setInternalSection(next);
+  };
   const [activeTab, setActiveTab] = useState<AppearanceTab>("visual");
   // 外观档位从注册表读取（docs/PLUGIN-ROADMAP.md §4）：外观包装/卸后按钮自动增减。
   const nodeStyleOptions = useAppearanceOptions("canvasVisualStyle");
@@ -383,7 +393,12 @@ export function AppearanceToolbar({
               ))}
             </PreferenceGroup>
 
-            <PreferenceGroup icon={<Spline aria-hidden="true" />} label="线形" ariaLabel="连线形态">
+            <PreferenceGroup
+              icon={<Spline aria-hidden="true" />}
+              label="线形"
+              ariaLabel="连线形态"
+              variant="edges"
+            >
               {edgePathStyleOptions.map((style) => (
                 <PreferenceButton
                   key={style.id}
@@ -463,7 +478,13 @@ function PreferenceGroup({
   icon: ReactNode;
   label: string;
   ariaLabel: string;
-  variant?: "swatches" | "previews" | "ratios" | "nodes" | "full";
+  /**
+   * 决定这一组排成几列（见 appearance-panel.css 的 --* 规则）。档位是开放注册的
+   * （外观包/插件都能加），所以**选项数一变就要回来看这里**：格子数写死而选项变多，
+   * 多出来的那个会掉到第二行变成孤零零的一格。e2e/appearance-panel-rows.spec.ts
+   * 钉住了"每组都排成一行"，掉了行会直接红。
+   */
+  variant?: "swatches" | "previews" | "ratios" | "nodes" | "edges" | "full";
   children: ReactNode;
 }) {
   return (

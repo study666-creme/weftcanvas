@@ -1188,6 +1188,181 @@ describe("Grok custom video requests", () => {
   });
 });
 
+describe("custom API audio execution", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("executes a chat-completions music model and stores each downloaded track", async () => {
+    const calls: Array<{ url: string; body: unknown }> = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, body: init?.body });
+      if (url.endsWith("/v1/chat/completions"))
+        return jsonResponse({
+          choices: [{ message: { content: "", audio: { url: "https://cdn.example/a.mp3" } } }],
+          data: [{ url: "https://cdn.example/b.mp3" }],
+        });
+      return new Response(new Uint8Array([0xff, 0xfb, 0x90, 0x00]), {
+        status: 200,
+        headers: { "Content-Type": "audio/mpeg" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { storeMedia } = await import("./media-store");
+
+    const result = await executeCustomGeneration({
+      connection: { baseUrl: "http://127.0.0.1", apiKey: "secret" },
+      model: audioModel(),
+      route: audioChatRoute(),
+      parameters: { messages: [{ role: "user", content: "轻快的钢琴曲" }] },
+      inputs: emptyInputs(),
+    });
+
+    const submit = calls.find((call) => call.url.endsWith("/v1/chat/completions"));
+    expect(JSON.parse(String(submit?.body))).toMatchObject({
+      model: "private-suno",
+      messages: [{ role: "user", content: "轻快的钢琴曲" }],
+    });
+    expect(result.media).toHaveLength(2);
+    // storeMedia 的 mock 在整个测试文件共享，只看本测试的两次调用（按序）。
+    const stored = vi.mocked(storeMedia).mock.calls;
+    expect(stored.slice(-2).map((call) => call[1])).toEqual(["audio", "audio"]);
+    expect((stored.at(-2)?.[0] as File).type).toBe("audio/mpeg");
+    expect((stored.at(-1)?.[0] as File).type).toBe("audio/mpeg");
+  });
+
+  it("wraps a bare voice option into the Gemini speechConfig object shape", async () => {
+    const pcm = Buffer.from([0x00, 0x10, 0x20, 0x30]);
+    const calls: Array<{ url: string; body: unknown }> = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, body: init?.body });
+      if (url.includes(":generateContent"))
+        return jsonResponse({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    inlineData: {
+                      mimeType: "audio/l16; rate=24000; channels=1",
+                      data: pcm.toString("base64"),
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        });
+      return new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { storeMedia } = await import("./media-store");
+
+    await executeCustomGeneration({
+      connection: { baseUrl: "http://127.0.0.1", apiKey: "secret" },
+      model: audioModel(),
+      route: audioGeminiRoute(),
+      parameters: {
+        contents: [{ role: "user", parts: [{ text: "你好" }] }],
+        speechConfig: "Kore",
+      },
+      inputs: emptyInputs(),
+    });
+
+    const submit = calls.find((call) => call.url.includes(":generateContent"));
+    const body = JSON.parse(String(submit?.body));
+    expect(body).toMatchObject({
+      contents: [{ role: "user", parts: [{ text: "你好" }] }],
+      generationConfig: {
+        responseModalities: ["AUDIO"],
+        speechConfig: { voiceConfig: { voice: "Kore" } },
+      },
+    });
+    // 无头 PCM 被包成 WAV 后入库（取本测试的最后一次 storeMedia 调用）。
+    const storedFile = vi.mocked(storeMedia).mock.calls.at(-1)?.[0] as File;
+    expect(storedFile.type).toBe("audio/wav");
+    const bytes = new Uint8Array(await storedFile.arrayBuffer());
+    expect(String.fromCharCode(...bytes.subarray(0, 4))).toBe("RIFF");
+    expect(String.fromCharCode(...bytes.subarray(8, 12))).toBe("WAVE");
+    expect(bytes.subarray(44)).toEqual(new Uint8Array(pcm));
+  });
+
+  it("fails explicitly when a chat audio response carries no links", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ choices: [{ message: { content: "完成" } }] })),
+    );
+    await expect(
+      executeCustomGeneration({
+        connection: { baseUrl: "http://127.0.0.1", apiKey: "secret" },
+        model: audioModel(),
+        route: audioChatRoute(),
+        parameters: { messages: [] },
+        inputs: emptyInputs(),
+      }),
+    ).rejects.toMatchObject({ code: "AUDIO_RESULT_UNPARSEABLE" });
+  });
+});
+
+function audioModel(): PublicModel {
+  return {
+    id: "public-audio",
+    label: "Audio model",
+    description: "",
+    modality: "audio",
+    operation: "generate",
+    order: 0,
+    input: { textRequired: true },
+    output: { type: "audio", minCount: 1, maxCount: 2 },
+    parameters: [],
+    pricing: {
+      mode: "fixed",
+      unit: "request",
+      currency: "CNY",
+      creditsPerYuan: 1,
+      baseCreditMicros: 0,
+      baseYuanMicros: 0,
+      tiers: [],
+    },
+  };
+}
+
+function audioChatRoute(): CustomApiRoute {
+  return {
+    sourceModelId: "private-suno",
+    modality: "audio",
+    endpointPath: "/v1/chat/completions",
+    parameters: [
+      { name: "model", path: "model", type: "string", fixed: "private-suno" },
+      { name: "messages", path: "messages", type: "array" },
+      { name: "n", path: "n", type: "integer", fixed: 1 },
+    ],
+  };
+}
+
+function audioGeminiRoute(): CustomApiRoute {
+  return {
+    sourceModelId: "private-gemini-tts",
+    modality: "audio",
+    endpointPath: "/v1beta/models/private-gemini-tts:generateContent",
+    parameters: [
+      { name: "model", path: "model", type: "string", fixed: "private-gemini-tts" },
+      { name: "contents", path: "contents", type: "array" },
+      { name: "speechConfig", path: "generationConfig.speechConfig", type: "object" },
+      {
+        name: "responseModalities",
+        path: "generationConfig.responseModalities",
+        type: "array",
+        fixed: ["AUDIO"],
+      },
+    ],
+  };
+}
+
+function emptyInputs() {
+  return { images: [], styleImages: [], elementImages: [], videos: [], audios: [] };
+}
+
 function routeWithMediaParameter(name: string, type: "array" | "string"): CustomApiRoute {
   const route = baseRoute();
   route.parameters.push({ name, path: "upstream.references", type });

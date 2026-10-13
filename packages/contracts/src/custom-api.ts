@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { AUDIO_PROTOCOL_VERSION, audioOutputFormatSchema } from "./audio-protocol.js";
 import {
   IMAGE_PROTOCOL_VERSION,
   imageMediaRoleSchema,
@@ -110,6 +111,13 @@ const customApiImageProtocolSchema = z
   })
   .passthrough();
 
+const customApiAudioProtocolSchema = z
+  .object({
+    version: z.literal(AUDIO_PROTOCOL_VERSION),
+    output_format: audioOutputFormatSchema,
+  })
+  .passthrough();
+
 export const customApiCatalogModelSchema = z
   .object({
     id: z.string().min(1),
@@ -117,7 +125,13 @@ export const customApiCatalogModelSchema = z
     description: z.string().nullish(),
     modality: z.enum(["text", "image", "video", "audio"]),
     operation: z.string().min(1),
-    protocol: z.union([customApiVideoProtocolSchema, customApiImageProtocolSchema]).optional(),
+    protocol: z
+      .union([
+        customApiVideoProtocolSchema,
+        customApiImageProtocolSchema,
+        customApiAudioProtocolSchema,
+      ])
+      .optional(),
     order: z.number().finite().min(-1_000_000).max(1_000_000).optional(),
     endpoint: z
       .object({

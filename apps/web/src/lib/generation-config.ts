@@ -11,6 +11,9 @@ import { mediaAspectRatioParameterNames, type DefaultNodeAspectRatio } from "./n
 
 const PRIMARY_TEXT_PARAMETERS = new Set(["prompt", "text", "input"]);
 const MESSAGE_PARAMETERS = new Set(["messages"]);
+// Gemini 原生 contents 参数：与 messages 同为「正文绑定参数」，但形态是
+// parts 数组（[{role, parts:[{text}]}]），由 TTS 这类 Gemini 原生音频模型使用。
+const CONTENTS_PARAMETERS = new Set(["contents"]);
 const MEDIA_REFERENCE_PARAMETER_NAME = /^(?:reference|ref)(?:image|video|audio)s?(?:url)?s?$/;
 const BARE_MEDIA_PARAMETER_NAME = /^(image|video|audio)(?:s|urls?)?$/;
 const POSITIONED_IMAGE_PARAMETER_NAME =
@@ -115,7 +118,11 @@ export function modalityForNodeKind(kind: CanvasNodeKind): ModelModality {
 }
 
 export function isBoundTextParameter(parameter: ModelParameter) {
-  return PRIMARY_TEXT_PARAMETERS.has(parameter.name) || MESSAGE_PARAMETERS.has(parameter.name);
+  return (
+    PRIMARY_TEXT_PARAMETERS.has(parameter.name) ||
+    MESSAGE_PARAMETERS.has(parameter.name) ||
+    CONTENTS_PARAMETERS.has(parameter.name)
+  );
 }
 
 export function isModelBoundTextParameter(model: PublicModel, parameter: ModelParameter) {
@@ -132,7 +139,11 @@ export function isModelMediaReferenceParameter(model: PublicModel, parameter: Mo
       ? (`${bareKind}s` as "images" | "videos" | "audios")
       : undefined;
   if (mediaInputName) return acceptsMediaInput(model.input[mediaInputName]);
-  if (!MESSAGE_PARAMETERS.has(parameter.name) || !hasModelMediaInput(model)) return false;
+  if (
+    (!MESSAGE_PARAMETERS.has(parameter.name) && !CONTENTS_PARAMETERS.has(parameter.name)) ||
+    !hasModelMediaInput(model)
+  )
+    return false;
   return model.parameters.some(
     (candidate) => candidate.name !== parameter.name && PRIMARY_TEXT_PARAMETERS.has(candidate.name),
   );
@@ -265,6 +276,8 @@ export function composeModelParameters(
     if (parameter.fixed !== undefined) value = parameter.fixed;
     else if (parameter.name === textParameterName && MESSAGE_PARAMETERS.has(parameter.name))
       value = [{ role: "user", content: body }];
+    else if (parameter.name === textParameterName && CONTENTS_PARAMETERS.has(parameter.name))
+      value = [{ role: "user", parts: [{ text: body }] }];
     else if (parameter.name === textParameterName) value = body;
     else
       value = firstValidParameterValue(
@@ -364,6 +377,9 @@ function hasValue(value: unknown) {
 
 function matchesParameterType(parameter: ModelParameter, value: unknown) {
   if (value === undefined) return false;
+  // 发布了枚举选项的参数以选项值为准（如 speechConfig 的音色名），与底层
+  // 传输类型无关——选项就是用户可见的形态，执行侧负责包成线上对象结构。
+  if (parameter.options?.some((option) => Object.is(option, value))) return true;
   if (parameter.type === "string") return typeof value === "string";
   if (parameter.type === "number" || parameter.type === "integer")
     return typeof value === "number" && Number.isFinite(value);

@@ -5,6 +5,7 @@ import {
   modelPricingSchema,
   publicModelCatalogSchema,
   publicModelSchema,
+  isAllowedAudioEndpoint,
   type ModelInputCount,
   type ModelParameter,
   type ModelReferenceImageInput,
@@ -28,7 +29,10 @@ import type { StoredCatalogSnapshot } from "./store.js";
 // 22: MiniMax H3 的计价单位按站点口径纠正为按秒（目录发布的是按次，站点
 //     overlay 的 priceUnitOverride 负责）。必须 bump：不 bump 的话已持久化
 //     的快照会继续按旧口径（按次）报价，等于修复不生效。
-export const CATALOG_NORMALIZATION_VERSION = 23;
+// 23: 上游目录容错（d5eacd4：书信字段一律推导），快照按新解析口径刷新。
+// 24: 音频模型进入执行白名单（chat/completions 返回链接、Gemini 原生返回内联
+//     PCM），目录不再丢弃它们，并给音频模型挂上 audio.v1 协议。
+export const CATALOG_NORMALIZATION_VERSION = 24;
 
 /** 站点 overlay 可以抬高效版本号，让带策展规则的快照独立失效。 */
 export function catalogNormalizationVersion(overlay?: CatalogCompatibilityOverlay) {
@@ -80,6 +84,7 @@ const ENDPOINT_BY_MODALITY = {
   text: new Set(["/v1/chat/completions"]),
   image: new Set(["/v1/images/generations", "/v1/midjourney/generations"]),
   video: new Set(["/v1/videos"]),
+  audio: new Set(["/v1/chat/completions"]),
 } as const;
 
 export class CatalogValidationError extends Error {
@@ -225,6 +230,15 @@ export function normalizeModel(
   const outputCount = model.output.count;
   const fixedCount = outputCount?.fixed;
   const protocol = model.protocol ?? imageProtocolForModel(model);
+  // 音频协议从输出契约推导：内联数据（Gemini 原生 PCM）还是有时效链接（suno）。
+  const audioProtocol =
+    model.modality === "audio"
+      ? {
+          version: "audio.v1" as const,
+          outputFormat:
+            model.output.format === "inline-data" ? ("inline-data" as const) : ("url" as const),
+        }
+      : null;
   return publicModelSchema.parse({
     id: model.public!.id,
     label: model.public!.label,
@@ -234,15 +248,17 @@ export function normalizeModel(
     order: model.order ?? 0,
     ...(model.listed === false ? { listed: false } : {}),
     ...(hasPerRequestTag(model.tags) ? { perRequest: true } : {}),
-    ...(protocol
-      ? {
-          protocol: {
-            version: protocol.version,
-            endpoint: protocol.endpoint,
-            mediaRoles: protocol.media_roles,
-          },
-        }
-      : {}),
+    ...(audioProtocol
+      ? { protocol: audioProtocol }
+      : protocol
+        ? {
+            protocol: {
+              version: protocol.version,
+              endpoint: protocol.endpoint,
+              mediaRoles: protocol.media_roles,
+            },
+          }
+        : {}),
     input: {
       textRequired: model.input?.text?.required === true,
       images: normalizeInputCount(model, "images"),
@@ -632,7 +648,14 @@ export function normalizePrivateRoute(
   model: SourceCatalogModel,
 ): StoredCatalogSnapshot["routes"][string] {
   const expectedPath = ENDPOINT_BY_MODALITY[model.modality as keyof typeof ENDPOINT_BY_MODALITY];
-  if (!expectedPath || !model.endpoint || !expectedPath.has(model.endpoint.path)) {
+  const path = model.endpoint?.path;
+  // 音频多一种端点形态：Gemini 原生 generateContent（路径含模型 id，用严格
+  // 正则匹配，防任意路径注入），其余模态仍按白名单精确匹配。
+  const endpointAllowed =
+    model.modality === "audio" && path
+      ? isAllowedAudioEndpoint(path)
+      : Boolean(expectedPath && path && expectedPath.has(path));
+  if (!model.endpoint || !endpointAllowed) {
     throw new CatalogValidationError(
       `Unsupported execution endpoint for public model ${model.public?.id ?? model.id}`,
     );
@@ -651,6 +674,16 @@ export function normalizePrivateRoute(
       path: model.endpoint.path,
       contentType: model.endpoint.content_type,
     },
+    ...(model.modality === "audio"
+      ? {
+          audioOutput: {
+            format:
+              model.output.format === "inline-data" ? ("inline-data" as const) : ("url" as const),
+            ...(model.output.sample_rate_hz ? { sampleRateHz: model.output.sample_rate_hz } : {}),
+            ...(model.output.channels ? { channels: model.output.channels } : {}),
+          },
+        }
+      : {}),
     parameters: model.parameters.map((parameter) => ({
       name: parameter.name,
       path: safeParameterPath(parameter.path ?? parameter.name),
@@ -866,24 +899,77 @@ function mediaBindingFromName(value: string | undefined): MediaBinding | null {
 // The top-level envelope remains strict; only independently invalid model rows
 // are omitted before the complete catalog is parsed and normalized.
 function sanitizeSourceCatalog(value: unknown, overlay?: CatalogCompatibilityOverlay) {
-  if (!isRecord(value)) return value;
-  const sanitizedModels = Array.isArray(value.models)
-    ? value.models
+  const source = sanitizeCatalogAliases(value);
+  if (!isRecord(source)) return source;
+  const sanitizedModels = Array.isArray(source.models)
+    ? source.models
         .map(sanitizeSourceModel)
         .filter((model): model is Record<string, unknown> => model !== null)
-    : value.models;
+    : source.models;
   const models = Array.isArray(sanitizedModels)
     ? (overlay?.ensureRawCompatibilityModels?.(sanitizedModels) ?? sanitizedModels)
     : sanitizedModels;
   return {
-    ...value,
+    ...source,
     // Keep a valid non-empty upstream version untouched. An empty, missing, or
     // "unknown" sentinel version (any casing, with surrounding whitespace) stays
     // empty so normalization derives a content-based pricing version instead of
     // publishing a literal "unknown" that a selectable paid quote could carry.
-    pricing_version: normalizeSourcePricingVersion(value.pricing_version),
+    pricing_version: normalizeSourcePricingVersion(source.pricing_version),
     models,
   };
+}
+
+/**
+ * 上游目录的书信字段各家写法不同，而这些都不影响"能不能用"——能推导的在这里推导掉，
+ * 让接入方不必改成我们的格式（兼容而非特化）：
+ *
+ * - `models` 也接受 OpenAI 风格的 `data[]`（`/v1/models` 的返回体）；
+ * - 版本/时间字段同时接受 snake_case 与 camelCase；
+ * - 缺 `success` 视为成功（很多上游直接返回对象，没有信封）；
+ * - 缺 `fetched_at` 用当前时间（它只表示这份快照何时取得）；
+ * - 缺 `capability_version` / `version` 用内容摘要（内容变了才变，不伪造人造版本号）；
+ * - 缺 `credits_per_yuan` 取 1（1 积分 = 1 元；这只是显示换算，不参与计费口径）。
+ *
+ * **推导的边界**：模型级价格（`pricing`）绝不猜——那是钱。缺价格的行会被跳过，
+ * 具体是哪些模型、缺什么字段，由 `scripts/upstream-conformance.mjs` 明确列出。
+ */
+function sanitizeCatalogAliases(value: unknown): unknown {
+  if (!isRecord(value)) return value;
+  const models = value.models ?? value.data;
+  const version = firstNonEmptyString(value.version) ?? contentVersion(models);
+  return {
+    ...value,
+    success: value.success ?? true,
+    models,
+    version,
+    capability_version:
+      firstNonEmptyString(value.capability_version, value.capabilityVersion) ??
+      contentVersion(models),
+    fetched_at: firstNonEmptyString(value.fetched_at, value.fetchedAt) ?? new Date().toISOString(),
+    credits_per_yuan:
+      typeof value.credits_per_yuan === "number"
+        ? value.credits_per_yuan
+        : typeof value.creditsPerYuan === "number"
+          ? value.creditsPerYuan
+          : 1,
+    pricing_version: firstNonEmptyString(value.pricing_version, value.pricingVersion) ?? "",
+  };
+}
+
+function firstNonEmptyString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return undefined;
+}
+
+/** 内容摘要：上游没给目录版本时用它，内容变化即变化。 */
+function contentVersion(models: unknown): string {
+  const digest = createHash("sha256")
+    .update(JSON.stringify(models ?? null))
+    .digest("hex");
+  return `content:${digest.slice(0, 16)}`;
 }
 
 function normalizeSourcePricingVersion(value: unknown) {

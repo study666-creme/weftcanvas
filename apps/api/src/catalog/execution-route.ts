@@ -20,6 +20,17 @@ export const privateModelRouteSchema = z.object({
       itemsFormat: z.string().min(1).optional(),
     }),
   ),
+  /**
+   * 音频输出契约（仅 audio 路由携带）：交付形态决定执行侧解析方式，
+   * PCM 参数用于把 Gemini 原生返回的无头音频包成 WAV。
+   */
+  audioOutput: z
+    .object({
+      format: z.enum(["url", "inline-data"]),
+      sampleRateHz: z.number().int().positive().max(192_000).optional(),
+      channels: z.number().int().positive().max(8).optional(),
+    })
+    .optional(),
 });
 export type PrivateModelRoute = z.infer<typeof privateModelRouteSchema>;
 

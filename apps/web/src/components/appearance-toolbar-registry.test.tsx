@@ -38,6 +38,7 @@ describe("appearance registry feeds the settings groups", () => {
     expect(markup).toContain("张力");
     expect(markup).toContain("柔弧");
     expect(markup).toContain("翡翠");
+    expect(markup).toContain("游丝");
   });
 
   it("shows a registered pack and drops it after unregister", () => {

@@ -26,6 +26,21 @@ const stagedImageSourceSchema = z.discriminatedUnion("source", [
   }),
 ]);
 
+const stagedAudioSourceSchema = z.discriminatedUnion("source", [
+  z.object({
+    source: z.literal("url"),
+    url: z
+      .string()
+      .url()
+      .refine((value) => value.startsWith("https://") || value.startsWith("http://")),
+  }),
+  z.object({
+    source: z.literal("base64"),
+    data: z.string().min(1).max(100_000_000),
+    mimeType: z.string().regex(/^audio\/[a-z0-9.+-]+$/i),
+  }),
+]);
+
 export const stagedGenerationResultSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("text"),
@@ -45,6 +60,11 @@ export const stagedGenerationResultSchema = z.discriminatedUnion("kind", [
       .url()
       .max(4096)
       .refine((value) => value.startsWith("https://") || value.startsWith("http://")),
+  }),
+  z.object({
+    kind: z.literal("audio"),
+    items: z.array(stagedAudioSourceSchema).min(1).max(8),
+    usage: providerUsageSchema.optional(),
   }),
 ]);
 export type StagedGenerationResult = z.infer<typeof stagedGenerationResultSchema>;

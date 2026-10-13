@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { audioModelProtocolSchema } from "./audio-protocol.js";
 import { IMAGE_PROTOCOL_VERSION, imageMediaRoleSchema } from "./image-protocol.js";
 import { VIDEO_PROTOCOL_VERSION, videoMediaRoleSchema } from "./video-protocol.js";
 
@@ -129,7 +130,11 @@ export const imageModelProtocolSchema = z.object({
   }),
   mediaRoles: z.array(imageMediaRoleSchema),
 });
-export const modelProtocolSchema = z.union([videoModelProtocolSchema, imageModelProtocolSchema]);
+export const modelProtocolSchema = z.union([
+  videoModelProtocolSchema,
+  imageModelProtocolSchema,
+  audioModelProtocolSchema,
+]);
 export type ModelProtocol = z.infer<typeof modelProtocolSchema>;
 
 /**

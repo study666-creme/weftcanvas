@@ -76,6 +76,15 @@ export class ValidatedGenerationArtifactStore implements GenerationArtifactStore
       };
     }
 
+    if (staged.result.kind === "audio") {
+      const maxStorageBytes = await this.resolveMediaStorageBytes(job.ownerId);
+      const artifacts: GenerationArtifact[] = [];
+      for (const [index, source] of staged.result.items.entries()) {
+        artifacts.push(await this.persistMedia(job, index, source, "audio", maxStorageBytes));
+      }
+      return { artifacts, captureCreditMicros: job.quote.creditMicros };
+    }
+
     throw invalid("RESULT_TYPE_UNAVAILABLE", "当前生成结果类型暂时无法保存");
   }
 
@@ -88,8 +97,9 @@ export class ValidatedGenerationArtifactStore implements GenerationArtifactStore
     index: number,
     source:
       | Extract<StagedGenerationResult, { kind: "image" }>["items"][number]
+      | Extract<StagedGenerationResult, { kind: "audio" }>["items"][number]
       | { source: "url"; url: string },
-    kind: "image" | "video",
+    kind: "image" | "video" | "audio",
     maxStorageBytes: number,
   ) {
     let materialized: MaterializedGenerationMedia;
@@ -235,10 +245,11 @@ function mediaArtifact(jobId: string, index: number, media: PublicMedia): Genera
   };
 }
 
-function resultName(kind: "image" | "video", index: number, mimeType: string) {
+function resultName(kind: "image" | "video" | "audio", index: number, mimeType: string) {
   const extension = extensionForMime(mimeType);
-  const label = kind === "image" ? "生成图片" : "生成视频";
-  return `${label}${kind === "image" ? ` ${index + 1}` : ""}.${extension}`;
+  const label = kind === "image" ? "生成图片" : kind === "video" ? "生成视频" : "生成音频";
+  // 音频一次请求可能返回多首（suno 固定 2 首），编号一律带上。
+  return `${label}${kind === "image" || kind === "audio" ? ` ${index + 1}` : ""}.${extension}`;
 }
 
 function extensionForMime(mimeType: string) {
@@ -258,6 +269,15 @@ function extensionForMime(mimeType: string) {
     "video/mpeg": "mpeg",
     "video/mp2t": "ts",
     "video/ogg": "ogv",
+    "audio/mpeg": "mp3",
+    "audio/mp4": "m4a",
+    "audio/x-m4a": "m4a",
+    "audio/wav": "wav",
+    "audio/x-wav": "wav",
+    "audio/flac": "flac",
+    "audio/aac": "aac",
+    "audio/ogg": "ogg",
+    "audio/webm": "weba",
   };
   return extensions[mimeType] ?? "bin";
 }

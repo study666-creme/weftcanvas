@@ -60,7 +60,7 @@ describe("merged model visibility", () => {
     expect(merged[0]?.label).toContain("图片 API B");
   });
 
-  it("keeps modality assignment separate from executability", async () => {
+  it("makes manually-assigned audio models executable with the chat-completions route", async () => {
     const storage = memoryStorage();
     vi.stubGlobal("localStorage", storage);
     const module = await import("./custom-api-store");
@@ -71,8 +71,12 @@ describe("merged model visibility", () => {
       "audio",
       true,
     );
-    expect(choice).toMatchObject({ rawModelId: "voice-model", executable: false });
-    expect(choice?.unsupportedReason).toContain("音频");
+    expect(choice).toMatchObject({ rawModelId: "voice-model", executable: true });
+    expect(choice?.unsupportedReason).toBeNull();
+    expect(choice?.route).toMatchObject({
+      modality: "audio",
+      endpointPath: "/v1/chat/completions",
+    });
   });
 
   it("deduplicates rich aliases that resolve to one profile model", async () => {

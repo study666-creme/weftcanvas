@@ -1,0 +1,149 @@
+/*
+ * 游丝（gossamer）线条样式 —— 与「张力」「柔弧」「翡翠」「琥珀」并列的线形档。
+ *
+ * 设计目标：把连线还原成一根**中性灰的发丝**，只靠明度分层、不靠颜色与光。
+ * 密集画布下连线多时，任何加粗、色相与投影都会糊成一片；游丝要的是"看得见走向、
+ * 看不见线条本身"：
+ *   · 底线：1px 恒定发丝（non-scaling-stroke），低透明中性灰，无 filter
+ *   · 外圈：整条去掉——玻璃管光晕与这根丝不是一回事
+ *   · 流光：同宽的一段反光沿丝滑过（dash 周期取满 pathLength，循环无跳帧）
+ *   · 端点/箭头：同一支灰，不引入色相
+ * 与石墨/墨黑/纯黑三套配色都协调（颜色全部走 --wc-text* 明度令牌，不含色相），
+ * 浅色主题下整体提一档，避免被白底吃光。
+ *
+ * 几何复用内置「张力」档（注册项声明 geometry: "taut"，曲率见 builtin-appearance），
+ * 本文件只换肤，沿用 .wc-edge-renderer / .wc-edge-aura / .wc-edge-energy 节点结构，
+ * 不动 React 组件。
+ *
+ * 优先级备忘：入口的 ui-polish.css 用 .is-valid 给连接预览上"可落点"绿，
+ * 选择器权重低于本文件的 :root[data-edge-path-style] 前缀，所以那两条状态规则
+ * 在文件末尾原样重申一遍（只改粗细，不改颜色）——否则拖线时的落点反馈会被吃掉。
+ */
+
+:root[data-edge-path-style="gossamer"] {
+  /* 比默认档（48%）再压一档：密集画布里连线要让位给节点，走向仍然读得出。 */
+  --wc-gossamer-base: color-mix(in srgb, var(--wc-text-secondary) 38%, transparent);
+  --wc-gossamer-hover: color-mix(in srgb, var(--wc-text) 62%, transparent);
+  --wc-gossamer-bright: color-mix(in srgb, var(--wc-text) 80%, transparent);
+  --wc-gossamer-spark: color-mix(in srgb, var(--wc-text) 92%, transparent);
+  --wc-gossamer-track: color-mix(in srgb, var(--wc-text-secondary) 26%, transparent);
+}
+
+:root[data-theme="light"][data-edge-path-style="gossamer"] {
+  --wc-gossamer-base: color-mix(in srgb, var(--wc-text-secondary) 58%, transparent);
+  --wc-gossamer-hover: color-mix(in srgb, var(--wc-text) 74%, transparent);
+  --wc-gossamer-bright: color-mix(in srgb, var(--wc-text) 88%, transparent);
+  --wc-gossamer-spark: color-mix(in srgb, var(--wc-text) 96%, transparent);
+  --wc-gossamer-track: color-mix(in srgb, var(--wc-text-secondary) 40%, transparent);
+}
+
+/* —— 基底连线（BaseEdge）：一根丝，放大不涨粗、缩小不消失 —— */
+:root[data-edge-path-style="gossamer"] .react-flow__edge-path {
+  stroke: var(--wc-gossamer-base);
+  stroke-width: 1;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  filter: none;
+}
+
+:root[data-edge-path-style="gossamer"] .react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--wc-gossamer-hover);
+  stroke-width: 1.2;
+}
+
+:root[data-edge-path-style="gossamer"] .react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--wc-gossamer-bright);
+  stroke-width: 1.4;
+}
+
+/* —— 外圈光晕：整条去掉（.wc-edge-aura 连同预览态） —— */
+:root[data-edge-path-style="gossamer"] .wc-edge-aura {
+  display: none;
+}
+
+/* —— 流光：同宽的一段反光。dash 3/153 之和 = pathLength 156，循环首尾相接 —— */
+:root[data-edge-path-style="gossamer"] .wc-edge-energy {
+  stroke: var(--wc-gossamer-spark);
+  stroke-width: 1.1;
+  stroke-dasharray: 3 153;
+  opacity: 0.5;
+  filter: none;
+}
+
+:root[data-edge-path-style="gossamer"] .wc-edge-effect.is-ambient .wc-edge-energy {
+  opacity: 0.32;
+}
+
+:root[data-edge-path-style="gossamer"] .wc-edge-effect.is-active .wc-edge-energy,
+:root[data-edge-path-style="gossamer"] .react-flow__edge.selected .wc-edge-energy {
+  stroke: var(--wc-gossamer-spark);
+  stroke-width: 1.3;
+  opacity: 0.72;
+}
+
+/* —— 连接预览：同一支灰的丝 —— */
+:root[data-edge-path-style="gossamer"] .wc-connection-preview-base {
+  stroke: var(--wc-gossamer-base);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  filter: none;
+}
+
+:root[data-edge-path-style="gossamer"] .wc-edge-energy--preview {
+  stroke: var(--wc-gossamer-spark);
+  stroke-width: 1.1;
+  opacity: 0.56;
+}
+
+/* —— 端点箭头：不引入色相 —— */
+:root[data-edge-path-style="gossamer"] .react-flow__arrowhead polyline {
+  stroke: var(--wc-gossamer-hover);
+  fill: var(--wc-gossamer-hover);
+  filter: none;
+}
+
+/* —— 星点流动档（data-edge-flow-style="stardust"）：收进同一支灰、同一根丝 —— */
+:root[data-edge-path-style="gossamer"][data-edge-flow-style="stardust"] .wc-edge-star-field {
+  stroke: var(--wc-gossamer-track);
+  stroke-width: 1;
+}
+
+:root[data-edge-path-style="gossamer"][data-edge-flow-style="stardust"] .wc-edge-star-inbound {
+  stroke: var(--wc-gossamer-spark);
+  stroke-width: 1.2;
+  filter: none;
+}
+
+:root[data-edge-path-style="gossamer"][data-edge-flow-style="stardust"] .wc-edge-star-focus-ring {
+  stroke: var(--wc-gossamer-hover);
+  stroke-width: 1;
+  fill: none;
+  filter: none;
+}
+
+:root[data-edge-path-style="gossamer"][data-edge-flow-style="stardust"] .wc-edge-star-focus-core {
+  fill: var(--wc-gossamer-bright);
+  filter: none;
+}
+
+/* —— 落点反馈必须活过换肤：颜色沿用 ui-polish 的 success，只把 2.2 收细 —— */
+:root[data-edge-path-style="gossamer"] .wc-connection-preview.is-valid .wc-connection-preview-base,
+:root[data-edge-path-style="gossamer"]
+  .wc-workspace:has(.is-connection-drop-target)
+  .wc-connection-preview-base {
+  stroke: color-mix(in srgb, var(--wc-success) 76%, var(--wc-text));
+  stroke-width: 1.6;
+}
+
+:root[data-edge-path-style="gossamer"] .wc-connection-preview.is-valid .wc-edge-energy--preview,
+:root[data-edge-path-style="gossamer"]
+  .wc-workspace:has(.is-connection-drop-target)
+  .wc-edge-energy--preview,
+:root[data-edge-path-style="gossamer"]
+  .wc-connection-preview.is-valid
+  .wc-edge-star-inbound--target,
+:root[data-edge-path-style="gossamer"]
+  .wc-workspace:has(.is-connection-drop-target)
+  .wc-edge-star-inbound--target {
+  stroke: color-mix(in srgb, var(--wc-success) 72%, var(--wc-text));
+}

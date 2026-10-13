@@ -53,23 +53,30 @@ function session() {
   };
 }
 
-function model(modality: "image" | "video") {
+function model(modality: "image" | "video" | "audio") {
+  const labels = {
+    image: { id: "home-image", label: "首页图片模型", description: "快速生成静帧画面" },
+    video: { id: "home-video", label: "首页视频模型", description: "快速生成动态镜头" },
+    audio: { id: "home-audio", label: "首页音频模型", description: "快速生成音乐或语音" },
+  }[modality];
   return {
-    id: modality === "image" ? "home-image" : "home-video",
-    label: modality === "image" ? "首页图片模型" : "首页视频模型",
-    description: modality === "image" ? "快速生成静帧画面" : "快速生成动态镜头",
+    id: labels.id,
+    label: labels.label,
+    description: labels.description,
     modality,
     operation: "generate",
     order: 0,
     input:
       modality === "image"
         ? { textRequired: true, images: { min: 0, max: 2, multiple: true } }
-        : {
-            textRequired: true,
-            images: { min: 0, max: 2, multiple: true },
-            videos: { min: 0, max: 1, multiple: false },
-            audios: { min: 0, max: 1, multiple: false },
-          },
+        : modality === "video"
+          ? {
+              textRequired: true,
+              images: { min: 0, max: 2, multiple: true },
+              videos: { min: 0, max: 1, multiple: false },
+              audios: { min: 0, max: 1, multiple: false },
+            }
+          : { textRequired: true },
     output: { type: modality, minCount: 1, maxCount: 1 },
     parameters: [
       {
@@ -91,35 +98,38 @@ function model(modality: "image" | "video") {
               mutuallyExclusiveWith: [],
             },
           ]
-        : [
-            {
-              name: "duration",
-              label: "时长",
-              type: "number",
-              required: false,
-              default: 5,
-              min: 1,
-              max: 10,
-              step: 1,
-              mutuallyExclusiveWith: [],
-            },
-            {
-              name: "referenceImages",
-              label: "参考图片链接",
-              type: "array",
-              required: false,
-              items: { type: "string", format: "uri-or-data-image" },
-              mutuallyExclusiveWith: [],
-            },
-          ]),
+        : modality === "video"
+          ? [
+              {
+                name: "duration",
+                label: "时长",
+                type: "number",
+                required: false,
+                default: 5,
+                min: 1,
+                max: 10,
+                step: 1,
+                mutuallyExclusiveWith: [],
+              },
+              {
+                name: "referenceImages",
+                label: "参考图片链接",
+                type: "array",
+                required: false,
+                items: { type: "string", format: "uri-or-data-image" },
+                mutuallyExclusiveWith: [],
+              },
+            ]
+          : []),
     ],
     pricing: {
       mode: "fixed",
-      unit: modality === "image" ? "image" : "second",
+      unit: modality === "image" ? "image" : modality === "video" ? "second" : "request",
       currency: "CNY",
       creditsPerYuan: 100,
-      baseCreditMicros: modality === "image" ? 2_000_000 : 5_000_000,
-      baseYuanMicros: modality === "image" ? 20_000 : 50_000,
+      baseCreditMicros:
+        modality === "image" ? 2_000_000 : modality === "video" ? 5_000_000 : 1_500_000,
+      baseYuanMicros: modality === "image" ? 20_000 : modality === "video" ? 50_000 : 15_000,
       tiers: [],
     },
   };
@@ -147,10 +157,30 @@ function omniVideoModel() {
 
 async function mockDirectApis(
   page: Page,
-  catalogOverrides: Partial<Record<"image" | "video", ReturnType<typeof model>[]>> = {},
+  catalogOverrides: Partial<Record<"image" | "video" | "audio", ReturnType<typeof model>[]>> = {},
   options: { authDelayMs?: number } = {},
 ) {
   await mockAuthenticatedBackgroundApis(page);
+  const labelFor = (modality: string) =>
+    modality === "image" ? "首页图片模型" : modality === "video" ? "首页视频模型" : "首页音频模型";
+  const priceFor = (modality: string) =>
+    modality === "image"
+      ? { creditMicros: 2_000_000, credits: "2", yuanMicros: 20_000, yuan: "0.02", unit: "image" }
+      : modality === "video"
+        ? {
+            creditMicros: 5_000_000,
+            credits: "5",
+            yuanMicros: 50_000,
+            yuan: "0.05",
+            unit: "second",
+          }
+        : {
+            creditMicros: 1_500_000,
+            credits: "1.5",
+            yuanMicros: 15_000,
+            yuan: "0.015",
+            unit: "request",
+          };
   let authHits = 0;
   let generatedImageAvailable = true;
   let generatedImageReads = 0;
@@ -198,14 +228,17 @@ async function mockDirectApis(
     const requestedModality = new URL(route.request().url()).searchParams.get("modality");
     const imageModels = catalogOverrides.image ?? [model("image")];
     const videoModels = catalogOverrides.video ?? [model("video")];
+    const audioModels = catalogOverrides.audio ?? [model("audio")];
     const models =
       requestedModality === "image"
         ? imageModels
         : requestedModality === "video"
           ? videoModels
-          : requestedModality === "text" || requestedModality === "audio"
-            ? []
-            : [...imageModels, ...videoModels];
+          : requestedModality === "audio"
+            ? audioModels
+            : requestedModality === "text"
+              ? []
+              : [...imageModels, ...videoModels, ...audioModels];
     return route.fulfill({
       json: {
         ok: true,
@@ -279,22 +312,23 @@ async function mockDirectApis(
   await page.route("**/api/v1/generation-quotes", async (route) => {
     const request = route.request().postDataJSON();
     quoteRequest = request;
+    const price = priceFor(request.modality);
     await route.fulfill({
       json: {
         ok: true,
         data: {
           id: `quote-${request.modelId}`,
           modelId: request.modelId,
-          modelLabel: request.modelId === "home-image" ? "首页图片模型" : "首页视频模型",
+          modelLabel: labelFor(request.modality),
           modality: request.modality,
           quantity: 1,
           normalizedParameters: request.parameters,
-          creditMicros: request.modality === "image" ? 2_000_000 : 5_000_000,
-          credits: request.modality === "image" ? "2" : "5",
-          yuanMicros: request.modality === "image" ? 20_000 : 50_000,
-          yuan: request.modality === "image" ? "0.02" : "0.05",
+          creditMicros: price.creditMicros,
+          credits: price.credits,
+          yuanMicros: price.yuanMicros,
+          yuan: price.yuan,
           estimated: false,
-          pricingUnit: request.modality === "image" ? "image" : "second",
+          pricingUnit: price.unit,
           catalogVersion: `home-${request.modality}-catalog`,
           capabilityVersion: `home-${request.modality}-capability`,
           pricingVersion: `home-${request.modality}-pricing`,
@@ -310,6 +344,28 @@ async function mockDirectApis(
     submission = route.request().postDataJSON();
     const request = submission;
     const createdAt = new Date().toISOString();
+    const price = priceFor(request.modality);
+    const artifact =
+      request.modality === "image"
+        ? {
+            name: "result.png",
+            mimeType: "image/png",
+            size: visibleGeneratedImage.byteLength,
+            extra: { width: 128, height: 128 },
+          }
+        : request.modality === "video"
+          ? {
+              name: "result.mp4",
+              mimeType: "video/mp4",
+              size: generatedVideoFixture.byteLength,
+              extra: { duration: 4.086009 },
+            }
+          : {
+              name: "result.mp3",
+              mimeType: "audio/mpeg",
+              size: generatedAudioFixture.byteLength,
+              extra: { duration: 1.5 },
+            };
     const completed = {
       schemaVersion: 1,
       version: 1,
@@ -317,23 +373,24 @@ async function mockDirectApis(
       projectId: request.projectId,
       nodeId: request.nodeId,
       modelId: request.modelId,
-      modelLabel: request.modality === "image" ? "首页图片模型" : "首页视频模型",
+      modelLabel: labelFor(request.modality),
       modality: request.modality,
+      parameters: request.parameters,
       status: "completed",
       progress: 100,
       quote: {
         id: `quote-${request.modelId}`,
         modelId: request.modelId,
-        modelLabel: request.modality === "image" ? "首页图片模型" : "首页视频模型",
+        modelLabel: labelFor(request.modality),
         modality: request.modality,
         quantity: 1,
         normalizedParameters: request.parameters,
-        creditMicros: request.modality === "image" ? 2_000_000 : 5_000_000,
-        credits: request.modality === "image" ? "2" : "5",
-        yuanMicros: request.modality === "image" ? 20_000 : 50_000,
-        yuan: request.modality === "image" ? "0.02" : "0.05",
+        creditMicros: price.creditMicros,
+        credits: price.credits,
+        yuanMicros: price.yuanMicros,
+        yuan: price.yuan,
         estimated: false,
-        pricingUnit: request.modality === "image" ? "image" : "second",
+        pricingUnit: price.unit,
         catalogVersion: `home-${request.modality}-catalog`,
         capabilityVersion: `home-${request.modality}-capability`,
         pricingVersion: `home-${request.modality}-pricing`,
@@ -344,13 +401,10 @@ async function mockDirectApis(
           id: `artifact-${request.modality}`,
           kind: request.modality,
           mediaId: `media-${request.modality}`,
-          name: request.modality === "image" ? "result.png" : "result.mp4",
-          mimeType: request.modality === "image" ? "image/png" : "video/mp4",
-          size:
-            request.modality === "image"
-              ? visibleGeneratedImage.byteLength
-              : generatedVideoFixture.byteLength,
-          ...(request.modality === "image" ? { width: 128, height: 128 } : { duration: 4.086009 }),
+          name: artifact.name,
+          mimeType: artifact.mimeType,
+          size: artifact.size,
+          ...artifact.extra,
           createdAt,
         },
       ],
@@ -373,6 +427,9 @@ async function mockDirectApis(
   });
   await page.route("**/api/v1/media/media-video/content*", (route) =>
     route.fulfill({ body: generatedVideoFixture, contentType: "video/mp4" }),
+  );
+  await page.route("**/api/v1/media/media-audio/content*", (route) =>
+    route.fulfill({ body: generatedAudioFixture, contentType: "audio/mpeg" }),
   );
   return {
     readSubmission: () => submission,
@@ -557,10 +614,49 @@ test("standalone image generation submits without canvas nodes and previews the 
   });
 });
 
+test("standalone audio generation submits a hosted job and renders a playable result", async ({
+  page,
+}) => {
+  const { readSubmission } = await mockDirectApis(page);
+  await page.goto("/generate/audio");
+
+  const studio = page.locator("[data-direct-generation]");
+  await expect(studio).toHaveAttribute("data-direct-modality", "audio");
+  await expect(studio.getByRole("button", { name: "模型" })).toContainText("首页音频模型");
+  // 音频模型没有媒体输入：素材区不出现。
+  await expect(studio.locator(".wc-direct-materials")).toHaveCount(0);
+  await studio.locator("[data-direct-prompt]").fill("轻快的钢琴背景音乐");
+  const submit = studio.locator(".wc-direct-submit");
+  await expect(submit).toBeEnabled();
+  await submit.click();
+  const account = page.getByRole("dialog", { name: "纬线账号" });
+  if (await account.isVisible()) {
+    await account.getByLabel("邮箱").fill("creator@example.com");
+    await account.getByLabel("密码").fill("password");
+    await account.getByRole("button", { name: "进入画布" }).click();
+    await expect(account).toBeHidden();
+    await expect(submit).toBeEnabled();
+    await submit.click();
+  }
+  const tile = studio.locator("figure.wc-direct-result-tile.is-audio");
+  await expect(tile).toBeVisible();
+  const audio = tile.locator("audio");
+  await expect(audio).toHaveAttribute("aria-label", /轻快的钢琴背景音乐/);
+  await expect
+    .poll(() => audio.evaluate((element) => element.canPlayType("audio/mpeg") !== ""))
+    .toBe(true);
+  const submission = readSubmission();
+  expect(submission?.projectId).toBe("home-direct-generation");
+  expect(submission?.nodeId).toBe("home-direct-audio");
+  expect(submission?.modality).toBe("audio");
+});
+
 async function hasCachedMedia(page: Page, mediaId: string) {
   return page.evaluate(async (id) => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("weftcanvas-media", 1);
+      // 与 media-database.ts 的 DATABASE_VERSION 保持一致：用更低的版本打开
+      // 已存在的库会直接抛 VersionError。
+      const request = indexedDB.open("weftcanvas-media", 2);
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });

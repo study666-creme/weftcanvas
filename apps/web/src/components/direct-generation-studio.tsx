@@ -117,9 +117,10 @@ import {
 } from "./generation-parameter-field";
 import { ParameterChips } from "./parameter-chips";
 import { CanvasSelect } from "./canvas-select";
+import { MiniAudioPlayer } from "./mini-audio-player";
 import { ResultLightbox, type ResultLightboxItem } from "./result-lightbox";
 
-export type DirectModality = "image" | "video";
+export type DirectModality = "image" | "video" | "audio";
 type QuoteState = "idle" | "loading" | "ready" | "error";
 
 type DirectReference = {
@@ -175,6 +176,12 @@ const MODALITIES: {
     description: "把想法变成一段有镜头感的动态片段",
     icon: Video,
   },
+  {
+    value: "audio",
+    label: "音频生成",
+    description: "一句话得到一段音乐或一条语音",
+    icon: Music2,
+  },
 ];
 
 export function DirectGenerationStudio({
@@ -190,10 +197,12 @@ export function DirectGenerationStudio({
     return {
       image: { ...createDraft(draftSession?.image), references: [...shared.image] },
       video: { ...createDraft(draftSession?.video), references: [...shared.video] },
+      audio: { ...createDraft(draftSession?.audio), references: [...shared.audio] },
     };
   });
   const imageCatalog = useGenerationStore((state) => state.catalogs.image);
   const videoCatalog = useGenerationStore((state) => state.catalogs.video);
+  const audioCatalog = useGenerationStore((state) => state.catalogs.audio);
   const loadCatalog = useGenerationStore((state) => state.loadCatalog);
   const identityStatus = useIdentityStore((state) => state.status);
   const identityUserId = useIdentityStore((state) => state.session?.user.id ?? null);
@@ -201,7 +210,8 @@ export function DirectGenerationStudio({
   const expireIdentity = useIdentityStore((state) => state.expire);
   const loadWalletSummary = useWalletStore((state) => state.loadSummary);
   const draft = drafts[modality];
-  const catalogState = modality === "image" ? imageCatalog : videoCatalog;
+  const catalogState =
+    modality === "image" ? imageCatalog : modality === "video" ? videoCatalog : audioCatalog;
   const previewUrls = useRef(new Set<string>());
   // 最新引用快照：effect 在每次提交后同步；addMaterials 提交时也同步追加，
   // 保证同一事件里并发添加也能看到彼此占用的容量。
@@ -231,6 +241,9 @@ export function DirectGenerationStudio({
   useEffect(() => {
     useDirectReferenceStore.getState().setReferences("video", drafts.video.references);
   }, [drafts.video.references]);
+  useEffect(() => {
+    useDirectReferenceStore.getState().setReferences("audio", drafts.audio.references);
+  }, [drafts.audio.references]);
 
   // 草稿写穿：提示词/模型/参数/数量一变化就写入标签页会话，刷新与提交后保留。
   // 每次 setDrafts 都产生新对象，这里只在可持久化字段变化时重算，避免把
@@ -239,6 +252,7 @@ export function DirectGenerationStudio({
     () => ({
       image: persistDirectDraft(drafts.image),
       video: persistDirectDraft(drafts.video),
+      audio: persistDirectDraft(drafts.audio),
     }),
     [
       drafts.image.prompt,
@@ -251,6 +265,11 @@ export function DirectGenerationStudio({
       drafts.video.parameters,
       drafts.video.quantity,
       drafts.video.maxOutputTokens,
+      drafts.audio.prompt,
+      drafts.audio.modelId,
+      drafts.audio.parameters,
+      drafts.audio.quantity,
+      drafts.audio.maxOutputTokens,
     ],
   );
   const persistedDraftsKey = JSON.stringify(persistedDrafts);
@@ -677,6 +696,7 @@ export function DirectGenerationStudio({
       setDrafts((current) => ({
         image: { ...current.image, jobs: [], submissionUnknown: false, submissionError: null },
         video: { ...current.video, jobs: [], submissionUnknown: false, submissionError: null },
+        audio: { ...current.audio, jobs: [], submissionUnknown: false, submissionError: null },
       }));
       return;
     }
@@ -684,13 +704,14 @@ export function DirectGenerationStudio({
     let active = true;
     const stored = readDirectGenerationHistory(identityUserId);
     setHiddenArtifactKeys(readDirectGenerationHiddenArtifacts(identityUserId));
-    for (const job of [...stored.image, ...stored.video]) {
+    for (const job of [...stored.image, ...stored.video, ...stored.audio]) {
       persistGeneratedJobArtifacts(job);
       watch(job.modality as DirectModality, job);
     }
     setDrafts((current) => ({
       image: { ...current.image, jobs: stored.image },
       video: { ...current.video, jobs: stored.video },
+      audio: { ...current.audio, jobs: stored.audio },
     }));
     setHistoryUserId(identityUserId);
 
@@ -699,19 +720,22 @@ export function DirectGenerationStudio({
         if (!active || useIdentityStore.getState().session?.user.id !== identityUserId) return;
         for (const job of jobs) {
           persistGeneratedJobArtifacts(job);
-          if (job.modality === "image" || job.modality === "video") watch(job.modality, job);
+          if (job.modality === "image" || job.modality === "video" || job.modality === "audio")
+            watch(job.modality, job);
         }
         setDrafts((current) => {
           const merged = mergeDirectGenerationJobs(
             {
               image: current.image.jobs,
               video: current.video.jobs,
+              audio: current.audio.jobs,
             },
             jobs,
           );
           return {
             image: { ...current.image, jobs: merged.image },
             video: { ...current.video, jobs: merged.video },
+            audio: { ...current.audio, jobs: merged.audio },
           };
         });
       })
@@ -729,8 +753,9 @@ export function DirectGenerationStudio({
     writeDirectGenerationHistory(identityUserId, {
       image: drafts.image.jobs,
       video: drafts.video.jobs,
+      audio: drafts.audio.jobs,
     });
-  }, [drafts.image.jobs, drafts.video.jobs, historyUserId, identityUserId]);
+  }, [drafts.image.jobs, drafts.video.jobs, drafts.audio.jobs, historyUserId, identityUserId]);
 
   const removeGeneratedArtifact = (jobId: string, artifactId: string) => {
     if (!identityUserId) return;
@@ -2158,6 +2183,18 @@ const DirectResultMedia = memo(function DirectResultMedia({
   const { url: thumbUrl } = useMediaThumbUrl(media);
   if (!media) return null;
 
+  if (modality === "audio") {
+    return (
+      <DirectAudioResult
+        key={media.id}
+        job={job}
+        media={media}
+        url={url}
+        onRemove={onRemove}
+        onReusePrompt={onReusePrompt}
+      />
+    );
+  }
   return modality === "image" ? (
     <DirectImageResult
       key={media.id}
@@ -2580,6 +2617,92 @@ function DirectVideoResult({
             title="下载"
           >
             <ArrowDownToLine aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+      {downloadError ? (
+        <div className="wc-direct-result-download-error" role="alert">
+          {downloadError}
+        </div>
+      ) : null}
+    </figure>
+  );
+}
+
+/**
+ * 音频结果卡：波形播放器 + 提示词 + 删除/复用/下载。音频不进放大层
+ * （播放器本身就是完整交互），所以不接 onOpen。
+ */
+function DirectAudioResult({
+  job,
+  media,
+  url,
+  onRemove,
+  onReusePrompt,
+}: {
+  job: PublicGenerationJob;
+  media: CanvasMedia;
+  url: string | null;
+  onRemove: () => void;
+  onReusePrompt: () => void;
+}) {
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const prompt = typeof job.parameters?.prompt === "string" ? job.parameters.prompt : "";
+
+  const handleDownload = async () => {
+    if (!url || downloading) return;
+    setDownloading(true);
+    setDownloadError(null);
+    try {
+      await downloadUrl(url, media.name);
+    } catch (cause) {
+      setDownloadError(cause instanceof Error ? cause.message : "音频下载失败，请稍后重试");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <figure className="wc-direct-result-tile is-audio">
+      <header className="wc-direct-result-head">
+        <span className="wc-direct-result-model" title={job.modelLabel}>
+          {job.modelLabel}
+        </span>
+      </header>
+      <div className="wc-direct-result-media wc-direct-result-media--audio">
+        {url ? (
+          <MiniAudioPlayer src={url} label={prompt || job.modelLabel} />
+        ) : (
+          <div className="wc-direct-result-loading" role="status">
+            <LoaderCircle className="is-spinning" aria-hidden="true" />
+            <span>正在读取结果</span>
+          </div>
+        )}
+      </div>
+      <div className="wc-direct-result-body">
+        <span
+          className="wc-direct-result-caption"
+          title={prompt || job.modelLabel}
+          aria-label={`生成提示词：${prompt || job.modelLabel}`}
+        >
+          {prompt || job.modelLabel}
+        </span>
+        <div className="wc-direct-result-controls">
+          <button type="button" aria-label="复用提示词" title="复用提示词" onClick={onReusePrompt}>
+            <RotateCcw aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleDownload()}
+            disabled={!url || downloading}
+            aria-label="下载音频"
+            title="下载"
+          >
+            <ArrowDownToLine aria-hidden="true" />
+          </button>
+          <button type="button" aria-label="删除音频结果" title="从工作台移除" onClick={onRemove}>
+            <Trash2 aria-hidden="true" />
           </button>
         </div>
       </div>

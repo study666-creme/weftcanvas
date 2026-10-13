@@ -212,6 +212,12 @@ export const sourceCatalogModelSchema = z
     output: z
       .object({
         type: z.enum(["text", "image", "video", "audio"]),
+        /** 交付形态：url（有时效链接）或 inline-data（响应体内联 base64）。 */
+        format: z.string().optional(),
+        /** 内联 PCM 的采样规格（Gemini TTS 实测 audio/l16 24kHz 单声道）。 */
+        encoding: z.string().optional(),
+        sample_rate_hz: z.number().int().positive().max(192_000).optional(),
+        channels: z.number().int().positive().max(8).optional(),
         count: sourceCountSchema.optional(),
       })
       .passthrough(),

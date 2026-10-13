@@ -84,6 +84,11 @@ const catalog = new WeftcanvasCatalogAdapter({
     : {}),
   overrides: modelOverrides,
   store,
+  // 单次刷新的硬死线：卡死的刷新不再需要重启进程才能恢复。上游偏慢/偏快时
+  // 运维可以只调这一个值（默认 max(2×请求超时, 30s)）。
+  refreshHardTimeoutMs: optionalPositiveInteger(
+    process.env.CANVAS_UPSTREAM_REFRESH_HARD_TIMEOUT_MS,
+  ),
 });
 const quotes = new GenerationQuoteService(catalog);
 // Warm the shared snapshot before the first creator opens a model picker.
@@ -450,6 +455,12 @@ function readInteger(value: string | undefined, fallback: number, min: number, m
     throw new Error(`Expected an integer between ${min} and ${max}, received ${value}`);
   }
   return parsed;
+}
+
+/** 可选项：未配置返回 undefined（交给被调用方的默认值），配置了就必须是合规整数。 */
+function optionalPositiveInteger(value: string | undefined): number | undefined {
+  if (!value?.trim()) return undefined;
+  return readInteger(value, 0, 1_000, 10 * 60_000);
 }
 
 function readBoolean(value: string | undefined, fallback: boolean) {

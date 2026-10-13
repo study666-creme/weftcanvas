@@ -50,6 +50,36 @@ BYOK (Configuration → Custom API) without any worker.
    docker compose --profile generation up -d
    ```
 
+## Point the canvas at your own upstream
+
+The canvas does not hard-code a model source: it reads a model catalog (models +
+each model's parameter schema + pricing) and a pricing document from whatever
+upstream you configure. An upstream that publishes those documents is enough —
+no code change, no plugin, and the canvas follows listings, renames, and price
+changes automatically.
+
+Set these on the `api` service (all optional; unset means "no upstream"):
+
+| Variable                              | Purpose                                                         |
+| ------------------------------------- | --------------------------------------------------------------- |
+| `CANVAS_API_PROVIDER`                 | `dev-test` for self-hosting (no hosted account/wallet coupling) |
+| `CANVAS_UPSTREAM_CATALOG_URL`         | Your model catalog document                                     |
+| `CANVAS_UPSTREAM_VIDEO_INVENTORY_URL` | Optional video availability document                            |
+| `CANVAS_UPSTREAM_PRICING_URL`         | Optional station text-pricing document                          |
+| `CANVAS_UPSTREAM_API_BASE_URL`        | Base URL used for generation submit/observe                     |
+| `CANVAS_UPSTREAM_AUTH_BASE_URL`       | Optional upstream auth base (only when delegating accounts)     |
+| `CANVAS_UPSTREAM_ANON_KEY`            | Optional upstream credential                                    |
+| `CANVAS_UPSTREAM_REQUEST_TIMEOUT_MS`  | Upstream request timeout (default `45000`)                      |
+
+Older deployments used provider-branded names for the same settings
+(`CATALOG_SOURCE_URL`, `VIDEO_INVENTORY_URL`, `WEFTCANVAS_*`, `PROMPT_HUB_*`,
+`VITE_CARD_LIBRARY_*`). Those still work and are read after the neutral names, so
+existing configurations keep running unchanged.
+
+**Note**: the hosted commercial provider is not part of self-hosting; the SPI
+assembly refuses to start if a build references a provider module that is not
+compiled in.
+
 ## Updates
 
 ```bash

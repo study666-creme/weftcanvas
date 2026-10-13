@@ -2381,6 +2381,14 @@
   opacity: 0;
 }
 
+/* 音频结果卡：横排播放器，不做正方形容器（MiniAudioPlayer 本身是横条）。 */
+.wc-direct-result-media--audio {
+  aspect-ratio: auto;
+  display: flex;
+  align-items: center;
+  padding: 12px;
+}
+
 .wc-direct-result-media.is-ready > video {
   opacity: 1;
 }

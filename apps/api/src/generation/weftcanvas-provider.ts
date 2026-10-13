@@ -6,6 +6,9 @@ import {
   buildImageProtocolRequest,
   buildVideoProtocolRequest,
   imageProtocolResponseSchema,
+  isAllowedAudioEndpoint,
+  isGeminiNativeAudioPath,
+  wrapPcmToWav,
   type ImageMediaInput,
   type VideoMediaInput,
 } from "@weftcanvas/contracts";
@@ -25,6 +28,7 @@ const EXPECTED_ENDPOINTS = {
   text: new Set(["/v1/chat/completions"]),
   image: new Set(["/v1/images/generations", "/v1/midjourney/generations"]),
   video: new Set(["/v1/videos"]),
+  audio: new Set(["/v1/chat/completions"]),
 } as const;
 const IMAGE_MEDIA_NAMES = new Set([
   "image",
@@ -177,14 +181,9 @@ export class WeftcanvasGenerationProvider implements GenerationProvider {
     if (request.quantity !== 1) {
       throw rejected("BATCH_GENERATION_UNAVAILABLE", "当前任务暂不支持批量提交");
     }
-    // Audio output has no reviewed provider execution protocol yet. Fail
-    // explicitly instead of fabricating an endpoint; the catalog never exposes
-    // such models because no execution route is allowlisted for audio.
-    if (request.modality === "audio") {
-      throw rejected("MODEL_MODALITY_UNAVAILABLE", "当前音频模型暂不支持生成");
-    }
     assertExecutionRoute(request.executionRoute, request.modality);
     const payload = await buildWeftcanvasRequestPayload(request, this.options.references);
+    if (request.modality === "audio") normalizeAudioRequestPayload(payload);
     const asyncImage = request.modality === "image" && isAsyncImageRoute(request.executionRoute);
     const response = await this.requestJson(
       asyncImage ? "/v1/videos" : request.executionRoute.endpoint.path,
@@ -193,6 +192,12 @@ export class WeftcanvasGenerationProvider implements GenerationProvider {
     );
     if (request.modality === "text") {
       return this.stage(request.jobId, parseTextResult(response));
+    }
+    if (request.modality === "audio") {
+      return this.stage(
+        request.jobId,
+        parseAudioResult(response, request.executionRoute, this.origin),
+      );
     }
     if (request.modality === "image") {
       if (!asyncImage) {
@@ -1019,6 +1024,142 @@ function parseImageResult(value: unknown, origin: string): StagedGenerationResul
   };
 }
 
+/**
+ * 音频执行有两种上游形态（目录与路由白名单保证只有这两种能进来）：
+ * - `/v1/chat/completions`（suno）：同步返回，音频是**有时效的下载链接**。
+ *   OpenAI 兼容变体很多（message.audio / content 内嵌链接 / data[].url /
+ *   outputs[].content_url），全部尝试收集；一个都收不到就显式失败，绝不伪造。
+ * - Gemini 原生 `:generateContent`（TTS）：parts[].inlineData 返回无头
+ *   PCM，必须按目录声明的采样规格包成 WAV 才能进媒体管线。
+ */
+function parseAudioResult(
+  value: unknown,
+  route: PrivateModelRoute,
+  origin: string,
+): StagedGenerationResult {
+  if (isGeminiNativeAudioPath(route.endpoint.path))
+    return parseGeminiInlineAudioResult(value, route);
+  return parseAudioLinkResult(value, origin);
+}
+
+function parseAudioLinkResult(value: unknown, origin: string): StagedGenerationResult {
+  if (!value || typeof value !== "object") throw audioUnparseable();
+  const response = value as Record<string, unknown>;
+  const urls: string[] = [];
+  const pushUrl = (candidate: unknown) => {
+    if (typeof candidate !== "string") return;
+    const resolved = resolveResultUrl(candidate, origin);
+    if (resolved && !urls.includes(resolved)) urls.push(resolved);
+  };
+  for (const choice of arrayOfRecords(response.choices)) {
+    const message = recordOf(choice.message);
+    if (!message) continue;
+    pushUrl(recordOf(message.audio)?.url);
+    pushUrl(message.audio_url);
+    if (typeof message.content === "string") {
+      for (const match of message.content.matchAll(/https?:\/\/[^\s"'<>()\[\]]+/g))
+        pushUrl(match[0].replace(/[.,;:!?)]+$/, ""));
+    } else if (Array.isArray(message.content)) {
+      for (const part of message.content) {
+        const record = recordOf(part);
+        pushUrl(record ? recordOf(record.audio)?.url : undefined);
+        pushUrl(record?.url);
+      }
+    }
+  }
+  for (const item of arrayOfRecords(response.data)) {
+    pushUrl(item.url);
+    pushUrl(item.audio_url);
+    pushUrl(item.download_url);
+    pushUrl(item.content_url);
+  }
+  for (const item of arrayOfRecords(response.outputs)) {
+    pushUrl(item.content_url);
+    pushUrl(item.download_url);
+    pushUrl(item.url);
+  }
+  pushUrl(recordOf(response.audio)?.url);
+  pushUrl(response.url);
+  pushUrl(response.audio_url);
+  const items = urls.slice(0, 8).map((url) => ({ source: "url" as const, url }));
+  if (!items.length) throw audioUnparseable();
+  return { kind: "audio", items, ...usageResult(usageSchema.safeParse(response.usage).data) };
+}
+
+function parseGeminiInlineAudioResult(
+  value: unknown,
+  route: PrivateModelRoute,
+): StagedGenerationResult {
+  const parts = geminiCandidateParts(value);
+  const inline = parts
+    .map((part) => recordOf(part.inlineData ?? part.inline_data))
+    .filter((entry): entry is Record<string, unknown> =>
+      Boolean(entry && typeof entry.data === "string" && entry.data.length > 0),
+    );
+  if (!inline.length) throw rejected("AUDIO_RESULT_EMPTY", "语音合成没有返回音频数据");
+  const mimeType = typeof inline[0]?.mimeType === "string" ? (inline[0].mimeType as string) : "";
+  // 上游实测：各 part 的 base64 段按序直接拼接即为完整流（段界 4 字符对齐）。
+  const combined = inline.map((entry) => entry.data as string).join("");
+  if (/l16|pcm/i.test(mimeType)) {
+    const pcm = Buffer.from(combined, "base64");
+    if (!pcm.length) throw rejected("AUDIO_RESULT_EMPTY", "语音合成没有返回音频数据");
+    const wav = wrapPcmToWav(new Uint8Array(pcm), {
+      sampleRate: route.audioOutput?.sampleRateHz ?? 24_000,
+      channels: route.audioOutput?.channels ?? 1,
+    });
+    return {
+      kind: "audio",
+      items: [
+        { source: "base64", data: Buffer.from(wav).toString("base64"), mimeType: "audio/wav" },
+      ],
+    };
+  }
+  if (!/^audio\//i.test(mimeType)) throw audioUnparseable();
+  return { kind: "audio", items: [{ source: "base64", data: combined, mimeType }] };
+}
+
+function geminiCandidateParts(value: unknown): Array<Record<string, unknown>> {
+  if (!value || typeof value !== "object") return [];
+  const candidates = (value as Record<string, unknown>).candidates;
+  if (!Array.isArray(candidates)) return [];
+  return candidates.flatMap((candidate) => {
+    const content = recordOf(recordOf(candidate)?.content);
+    const parts = content?.parts;
+    return Array.isArray(parts)
+      ? parts.flatMap((part) => (recordOf(part) ? [recordOf(part)!] : []))
+      : [];
+  });
+}
+
+/** 音色下拉发的是裸选项值（"Kore"），Gemini 的 speechConfig 要对象形态。 */
+function normalizeAudioRequestPayload(payload: Record<string, unknown>) {
+  const generationConfig = recordOf(payload.generationConfig);
+  if (!generationConfig) return;
+  if (typeof generationConfig.speechConfig === "string")
+    generationConfig.speechConfig = { voiceConfig: { voice: generationConfig.speechConfig } };
+}
+
+function audioUnparseable() {
+  return rejected(
+    "AUDIO_RESULT_UNPARSEABLE",
+    "音频结果格式无法识别，需要站点确认上游响应形态后适配",
+  );
+}
+
+function recordOf(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function arrayOfRecords(value: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const record = recordOf(item);
+    return record ? [record] : [];
+  });
+}
+
 function base64Image(value: string, revisedPrompt?: string) {
   const match = /^data:(image\/[a-z0-9.+-]+);base64,(.+)$/is.exec(value);
   return {
@@ -1059,11 +1200,14 @@ function assertExecutionRoute(
   modality: ProviderGenerationRequest["modality"],
 ) {
   const expected = EXPECTED_ENDPOINTS[modality as keyof typeof EXPECTED_ENDPOINTS];
+  const pathAllowed =
+    expected?.has(route.endpoint.path) ||
+    (modality === "audio" && isAllowedAudioEndpoint(route.endpoint.path));
   if (
     !expected ||
     route.modality !== modality ||
     route.endpoint.method !== "POST" ||
-    !expected.has(route.endpoint.path) ||
+    !pathAllowed ||
     route.endpoint.contentType !== "application/json"
   ) {
     throw rejected("EXECUTION_ROUTE_INVALID", "当前模型执行配置无效");

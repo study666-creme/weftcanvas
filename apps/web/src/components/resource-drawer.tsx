@@ -52,6 +52,7 @@ import { requestConfirmation } from "../lib/confirmation";
 import { useCanvasStore } from "../state/canvas-store";
 import { useIdentityStore } from "../state/identity-store";
 import { useToastStore } from "../state/toast-store";
+import { useUiShellStore } from "../state/ui-shell-store";
 import { useMediaUrl } from "../hooks/use-media-url";
 import { useDismissOnOutsideClick } from "../hooks/use-dismiss-on-outside-click";
 import { CardHoverPreview, type CardHoverPreviewSource } from "./card-hover-preview";
@@ -83,7 +84,8 @@ export const ResourceDrawer = memo(function ResourceDrawer({
   onClose: () => void;
   onInsert: (asset: InsertableAsset) => void;
 }) {
-  const [tab, setTab] = useState<"cards" | "assets">("assets");
+  const tab = useUiShellStore((state) => state.resourceTab);
+  const setTab = useUiShellStore((state) => state.setResourceTab);
   const [categories, setCategories] = useState<AssetLibraryCategory[]>([]);
   const [assets, setAssets] = useState<AssetLibraryItem[]>([]);
   const authenticated = useIdentityStore((state) => state.status === "authenticated");

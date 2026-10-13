@@ -147,6 +147,47 @@ const agentDirectorEntityPatchSchema = z
   .strict()
   .refine((value) => Object.keys(value).length > 0, "导演台对象至少需要一项变更");
 
+/**
+ * Agent 可以开合/切换的画布外壳面板（不含内容读写）。这些是**无破坏性**的
+ * UI 导航动作：只是把某个已存在的面板打开、切到某个板块、或切换主题/配色，
+ * 不新增/删除节点、不触发生成、不上传媒体，因此允许 direct 执行。
+ */
+export const agentUiPanels = [
+  "settings",
+  "resource-drawer",
+  "asset-library",
+  "project-library",
+  "activity",
+  "shortcuts",
+] as const;
+export const agentUiPanelSchema = z.enum(agentUiPanels);
+export type AgentUiPanel = z.infer<typeof agentUiPanelSchema>;
+
+/** 设置中心的一级板块，与 appearance-toolbar 的 SettingsSection 对齐。 */
+export const agentSettingsSections = [
+  "ui",
+  "apis",
+  "models",
+  "local",
+  "collaboration",
+  "plugins",
+] as const;
+export const agentSettingsSectionSchema = z.enum(agentSettingsSections);
+export type AgentSettingsSection = z.infer<typeof agentSettingsSectionSchema>;
+
+/** 资源抽屉的两个页签：卡片库 / 资产库。 */
+export const agentResourceTabs = ["cards", "assets"] as const;
+export const agentResourceTabSchema = z.enum(agentResourceTabs);
+export type AgentResourceTab = z.infer<typeof agentResourceTabSchema>;
+
+export const agentThemes = ["light", "dark", "auto", "toggle"] as const;
+export const agentThemeSchema = z.enum(agentThemes);
+export type AgentTheme = z.infer<typeof agentThemeSchema>;
+
+export const agentColorSchemes = ["graphite", "ink", "onyx"] as const;
+export const agentColorSchemeSchema = z.enum(agentColorSchemes);
+export type AgentColorScheme = z.infer<typeof agentColorSchemeSchema>;
+
 export const agentActionSchema = z.discriminatedUnion("type", [
   z
     .object({
@@ -225,6 +266,32 @@ export const agentActionSchema = z.discriminatedUnion("type", [
       entityId: z.string().trim().min(1).max(128),
       entityKind: z.enum(["actor", "prop"]),
       patch: agentDirectorEntityPatchSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("ui_open_panel"),
+      panel: agentUiPanelSchema,
+      section: agentSettingsSectionSchema.optional(),
+      tab: agentResourceTabSchema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("ui_close_panel"),
+      panel: agentUiPanelSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("ui_set_theme"),
+      theme: agentThemeSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("ui_set_color_scheme"),
+      scheme: agentColorSchemeSchema,
     })
     .strict(),
 ]);

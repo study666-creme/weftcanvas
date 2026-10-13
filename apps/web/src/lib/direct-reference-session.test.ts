@@ -84,6 +84,7 @@ describe("writeDirectReferenceSession", () => {
         makeReference({ id: "ref-3", status: "error", serverId: "server-3" }),
       ],
       video: [],
+      audio: [],
     });
     const stored = storage.getItem(DIRECT_REFERENCE_SESSION_KEY);
     expect(stored).toBeTruthy();
@@ -110,6 +111,7 @@ describe("writeDirectReferenceSession", () => {
     writeDirectReferenceSession({
       image: [],
       video: [makeReference({ id: "ref-v", kind: "video", durationMs: 6_500 })],
+      audio: [],
     });
     const parsed = JSON.parse(storage.getItem(DIRECT_REFERENCE_SESSION_KEY) as string) as {
       video: Array<{ durationMs: unknown }>;
@@ -122,6 +124,7 @@ describe("writeDirectReferenceSession", () => {
     writeDirectReferenceSession({
       image: [makeReference({ imagePurpose: "styleImages" })],
       video: [makeReference({ id: "ref-v", kind: "video", imagePurpose: "images" })],
+      audio: [],
     });
     const parsed = JSON.parse(storage.getItem(DIRECT_REFERENCE_SESSION_KEY) as string) as {
       image: Array<{ imagePurpose: unknown }>;
@@ -131,10 +134,10 @@ describe("writeDirectReferenceSession", () => {
     expect(parsed.video[0]?.imagePurpose).toBeNull();
   });
 
-  it("clears the key when both modalities are empty", () => {
+  it("clears the key when every modality is empty", () => {
     const storage = installMemoryStorage();
     storage.setItem(DIRECT_REFERENCE_SESSION_KEY, '{"schemaVersion":1,"image":[],"video":[]}');
-    writeDirectReferenceSession({ image: [], video: [] });
+    writeDirectReferenceSession({ image: [], video: [], audio: [] });
     expect(storage.getItem(DIRECT_REFERENCE_SESSION_KEY)).toBeNull();
   });
 });
@@ -227,7 +230,7 @@ describe("restoreDirectReferenceSession", () => {
 
   it("returns empty collections when the session is absent", () => {
     installMemoryStorage();
-    expect(restoreDirectReferenceSession()).toEqual({ image: [], video: [] });
+    expect(restoreDirectReferenceSession()).toEqual({ image: [], video: [], audio: [] });
   });
 
   it("restores a v1 session without durations and lets the studio backfill them", () => {
@@ -273,8 +276,12 @@ describe("clearDirectReferenceSession", () => {
 describe("initialDirectReferenceSession", () => {
   it("hydrates on workbench routes", () => {
     const storage = installMemoryStorage();
-    expect(initialDirectReferenceSession("/generate/image")).toEqual({ image: [], video: [] });
-    writeDirectReferenceSession({ image: [makeReference()], video: [] });
+    expect(initialDirectReferenceSession("/generate/image")).toEqual({
+      image: [],
+      video: [],
+      audio: [],
+    });
+    writeDirectReferenceSession({ image: [makeReference()], video: [], audio: [] });
     expect(initialDirectReferenceSession("/generate/video").image).toHaveLength(1);
     expect(storage.getItem(DIRECT_REFERENCE_SESSION_KEY)).toBeTruthy();
   });
@@ -289,12 +296,16 @@ describe("initialDirectReferenceSession", () => {
         video: [],
       }),
     );
-    expect(initialDirectReferenceSession("/canvas")).toEqual({ image: [], video: [] });
+    expect(initialDirectReferenceSession("/canvas")).toEqual({ image: [], video: [], audio: [] });
     expect(storage.getItem(DIRECT_REFERENCE_SESSION_KEY)).toBeNull();
   });
 
   it("stays empty when sessionStorage is unavailable", () => {
-    expect(initialDirectReferenceSession("/generate/image")).toEqual({ image: [], video: [] });
+    expect(initialDirectReferenceSession("/generate/image")).toEqual({
+      image: [],
+      video: [],
+      audio: [],
+    });
   });
 });
 
@@ -310,6 +321,7 @@ describe("writeDirectDraftSession", () => {
         maxOutputTokens: 2_048,
       },
       video: null,
+      audio: null,
     });
     const parsed = JSON.parse(storage.getItem(DIRECT_DRAFT_SESSION_KEY) as string) as {
       schemaVersion: number;
@@ -327,10 +339,10 @@ describe("writeDirectDraftSession", () => {
     expect(parsed.video).toBeNull();
   });
 
-  it("clears the key when both modalities are empty", () => {
+  it("clears the key when every modality draft is empty", () => {
     const storage = installMemoryStorage();
     storage.setItem(DIRECT_DRAFT_SESSION_KEY, '{"schemaVersion":1,"image":null,"video":null}');
-    writeDirectDraftSession({ image: null, video: null });
+    writeDirectDraftSession({ image: null, video: null, audio: null });
     expect(storage.getItem(DIRECT_DRAFT_SESSION_KEY)).toBeNull();
   });
 });
@@ -423,6 +435,7 @@ describe("initialDirectDraftSession", () => {
         maxOutputTokens: null,
       },
       video: null,
+      audio: null,
     });
     const session = initialDirectDraftSession("/generate/image");
     expect(session?.image?.prompt).toBe("夜晚的港口");

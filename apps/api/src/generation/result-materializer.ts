@@ -11,6 +11,7 @@ import { MediaInspectionError, type InspectedMedia, type MediaInspector } from "
 import type { StagedGenerationResult } from "./result-staging.js";
 
 type ImageSource = Extract<StagedGenerationResult, { kind: "image" }>["items"][number];
+type AudioSource = Extract<StagedGenerationResult, { kind: "audio" }>["items"][number];
 type RemoteSource = { source: "url"; url: string };
 
 export type MaterializedGenerationMedia = {
@@ -73,7 +74,7 @@ export class GenerationResultMaterializer {
   }
 
   async materialize(
-    source: ImageSource | RemoteSource,
+    source: ImageSource | AudioSource | RemoteSource,
     kind: MediaKind,
   ): Promise<MaterializedGenerationMedia> {
     const id = this.createId();

@@ -17,6 +17,7 @@ import {
   ImagePlus,
   Library,
   Moon,
+  Music2,
   Plus,
   Sparkles,
   Sun,
@@ -63,11 +64,19 @@ import { GenerationParameterField } from "./generation-parameter-field";
 const MODES: { value: DirectModality; label: string; icon: typeof ImageIcon }[] = [
   { value: "image", label: "图片生成", icon: ImageIcon },
   { value: "video", label: "视频生成", icon: Video },
+  { value: "audio", label: "音频生成", icon: Music2 },
 ];
 
 const INSPIRATIONS: Record<DirectModality, string[]> = {
   image: ["赛博朋克城市夜景", "水彩风格的猫", "极简产品摄影", "敦煌飞天壁画", "微距露珠世界"],
   video: ["延时摄影的云海", "雨滴滑落的玻璃窗", "霓虹街道夜行", "篝火旁的星空", "樱花飘落的瞬间"],
+  audio: [
+    "轻快的钢琴背景音乐",
+    "温暖的深夜电台女声开场白",
+    "史诗管弦乐战斗主题曲",
+    "自然友好的中文产品讲解语音",
+    "Lo-fi 学习节奏",
+  ],
 };
 
 const PROMPT_MAX = 4000;
@@ -460,6 +469,10 @@ export function EntryGate({
             <a href="/generate/video">
               <Video aria-hidden="true" />
               视频生成
+            </a>
+            <a href="/generate/audio">
+              <Music2 aria-hidden="true" />
+              音频生成
             </a>
             <a href="/canvas">创作画布</a>
             {CARD_LIBRARY_SITE_URL ? (

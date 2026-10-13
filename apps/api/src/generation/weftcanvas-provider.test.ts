@@ -605,7 +605,7 @@ describe("Weftcanvas generation provider", () => {
     expect(network.calls).toHaveLength(0);
   });
 
-  it("rejects audio submissions explicitly without fabricating a provider request", async () => {
+  it("rejects audio routes on endpoints outside the reviewed allowlist", async () => {
     const network = scriptedFetch([]);
     const provider = createProvider(network.fetch, new MemoryStagingStore());
     const route: PrivateModelRoute = {
@@ -619,20 +619,206 @@ describe("Weftcanvas generation provider", () => {
     };
     await expect(
       provider.submit(request(route, "audio", { prompt: "生成一段音乐" })),
-    ).rejects.toMatchObject({
-      code: "MODEL_MODALITY_UNAVAILABLE",
-      message: "当前音频模型暂不支持生成",
-      outcome: "rejected",
-    });
+    ).rejects.toMatchObject({ code: "EXECUTION_ROUTE_INVALID" });
+    // 音频是同步执行：即便提交过成功，也不存在轮询通道。
     await expect(
-      provider.poll("task-1", request(route, "audio", { prompt: "生成一段音乐" })),
+      provider.poll("task-1", {
+        ...request(
+          {
+            ...route,
+            endpoint: {
+              method: "POST",
+              path: "/v1/chat/completions",
+              contentType: "application/json",
+            },
+          },
+          "audio",
+          { prompt: "生成一段音乐" },
+        ),
+      }),
     ).rejects.toMatchObject({
       code: "TASK_POLLING_UNAVAILABLE",
       outcome: "rejected",
     });
     expect(network.calls).toHaveLength(0);
   });
+
+  it("submits a chat-completions music model and stages its audio links", async () => {
+    const network = scriptedFetch([
+      jsonResponse({
+        choices: [
+          {
+            message: {
+              content: "",
+              audio: { url: "https://cdn.example/track-1.mp3" },
+            },
+          },
+        ],
+        data: [{ url: "https://cdn.example/track-2.mp3" }],
+      }),
+    ]);
+    const staging = new MemoryStagingStore();
+    const provider = createProvider(network.fetch, staging);
+    const result = await provider.submit(
+      request(sunoRoute(), "audio", {
+        messages: [{ role: "user", content: "轻快的钢琴背景音乐" }],
+        stream: false,
+      }),
+    );
+
+    expect(network.calls[0]?.url).toBe("http://127.0.0.1/v1/chat/completions");
+    expect(network.calls[0]?.body).toMatchObject({
+      model: "private-suno",
+      messages: [{ role: "user", content: "轻快的钢琴背景音乐" }],
+      n: 1,
+      stream: false,
+    });
+    expect(await stagedResult(staging, result)).toMatchObject({
+      kind: "audio",
+      items: [
+        { source: "url", url: "https://cdn.example/track-1.mp3" },
+        { source: "url", url: "https://cdn.example/track-2.mp3" },
+      ],
+    });
+  });
+
+  it("extracts audio links embedded in message content", async () => {
+    const network = scriptedFetch([
+      jsonResponse({
+        choices: [
+          {
+            message: {
+              content: "生成完成：https://cdn.example/a.mp3 和 https://cdn.example/b.mp3",
+            },
+          },
+        ],
+      }),
+    ]);
+    const staging = new MemoryStagingStore();
+    const provider = createProvider(network.fetch, staging);
+    const result = await provider.submit(
+      request(sunoRoute(), "audio", { messages: [{ role: "user", content: "音乐" }] }),
+    );
+    const staged = await stagedResult(staging, result);
+    expect(staged).toMatchObject({ kind: "audio" });
+    if (staged.kind !== "audio") throw new Error("expected audio");
+    expect(staged.items.map((item) => (item.source === "url" ? item.url : item.source))).toEqual([
+      "https://cdn.example/a.mp3",
+      "https://cdn.example/b.mp3",
+    ]);
+  });
+
+  it("fails explicitly when a chat audio response carries no recognizable links", async () => {
+    const network = scriptedFetch([jsonResponse({ choices: [{ message: { content: "完成" } }] })]);
+    const provider = createProvider(network.fetch, new MemoryStagingStore());
+    await expect(
+      provider.submit(request(sunoRoute(), "audio", { messages: [] })),
+    ).rejects.toMatchObject({ code: "AUDIO_RESULT_UNPARSEABLE" });
+  });
+
+  it("submits a Gemini-native TTS model and stages WAV-wrapped inline audio", async () => {
+    // 24kHz 单声道 16-bit 的 4 个采样点（8 字节 PCM）。
+    const pcm = Buffer.from([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
+    const network = scriptedFetch([
+      jsonResponse({
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: "audio/l16; rate=24000; channels=1",
+                    data: pcm.toString("base64"),
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    ]);
+    const staging = new MemoryStagingStore();
+    const provider = createProvider(network.fetch, staging);
+    const result = await provider.submit(
+      request(geminiTtsRoute(), "audio", {
+        contents: [{ role: "user", parts: [{ text: "你好，这是一段语音合成测试。" }] }],
+        speechConfig: "Kore",
+      }),
+    );
+
+    expect(network.calls[0]?.url).toBe(
+      "http://127.0.0.1/v1beta/models/private-gemini-tts:generateContent",
+    );
+    // 裸音色值被包成 Gemini 要求的对象形态；固定档位由目录参数投影。
+    expect(network.calls[0]?.body).toMatchObject({
+      model: "private-gemini-tts",
+      contents: [{ role: "user", parts: [{ text: "你好，这是一段语音合成测试。" }] }],
+      generationConfig: {
+        responseModalities: ["AUDIO"],
+        speechConfig: { voiceConfig: { voice: "Kore" } },
+      },
+    });
+    const staged = await stagedResult(staging, result);
+    expect(staged).toMatchObject({ kind: "audio" });
+    if (staged.kind !== "audio") throw new Error("expected audio");
+    expect(staged.items).toHaveLength(1);
+    const item = staged.items[0]!;
+    if (item.source !== "base64") throw new Error("expected base64 audio");
+    expect(item.mimeType).toBe("audio/wav");
+    const wav = Buffer.from(item.data, "base64");
+    expect(wav.subarray(0, 4).toString()).toBe("RIFF");
+    expect(wav.subarray(8, 12).toString()).toBe("WAVE");
+    expect(wav.readUInt32LE(24)).toBe(24_000);
+    expect(wav.subarray(44)).toEqual(pcm);
+  });
+
+  it("fails explicitly when a TTS response carries no inline audio", async () => {
+    const network = scriptedFetch([jsonResponse({ candidates: [{ content: { parts: [] } }] })]);
+    const provider = createProvider(network.fetch, new MemoryStagingStore());
+    await expect(
+      provider.submit(request(geminiTtsRoute(), "audio", { contents: [], speechConfig: "Kore" })),
+    ).rejects.toMatchObject({ code: "AUDIO_RESULT_EMPTY" });
+  });
 });
+
+function sunoRoute(): PrivateModelRoute {
+  return {
+    sourceModelId: "private-suno",
+    modality: "audio",
+    endpoint: { method: "POST", path: "/v1/chat/completions", contentType: "application/json" },
+    audioOutput: { format: "url" },
+    parameters: [
+      { name: "model", path: "model", type: "string", fixed: "private-suno" },
+      { name: "messages", path: "messages", type: "array" },
+      { name: "n", path: "n", type: "integer", fixed: 1 },
+      { name: "stream", path: "stream", type: "boolean" },
+    ],
+  };
+}
+
+function geminiTtsRoute(): PrivateModelRoute {
+  return {
+    sourceModelId: "private-gemini-tts",
+    modality: "audio",
+    endpoint: {
+      method: "POST",
+      path: "/v1beta/models/private-gemini-tts:generateContent",
+      contentType: "application/json",
+    },
+    audioOutput: { format: "inline-data", sampleRateHz: 24_000, channels: 1 },
+    parameters: [
+      { name: "model", path: "model", type: "string", fixed: "private-gemini-tts" },
+      { name: "contents", path: "contents", type: "array" },
+      { name: "speechConfig", path: "generationConfig.speechConfig", type: "object" },
+      {
+        name: "responseModalities",
+        path: "generationConfig.responseModalities",
+        type: "array",
+        fixed: ["AUDIO"],
+      },
+    ],
+  };
+}
 
 describe("video failure parsing", () => {
   it.each([

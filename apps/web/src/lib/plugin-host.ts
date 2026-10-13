@@ -61,6 +61,51 @@ const listeners = new Set<() => void>();
 // 只在装载/卸载时重建，读取方永远拿到同一个引用。
 let installedSnapshot: readonly string[] = [];
 
+/**
+ * 插件的**用户偏好**（跨刷新持久）。历史上装/卸只活在内存里：官方插件每次启动
+ * 无条件重装，用户在设置里点「卸载」刷新后又被装回来。这里把意图持久化：
+ * - uninstalled：用户卸载，启动时不再自动装载（显示为「可重新装载」）；
+ * - disabled：用户停用，节点类型被回收但插件仍在「已装」列表里，一键可恢复。
+ * 缺省（不在表里）= 启用。
+ */
+const PLUGIN_PREFERENCES_KEY = "weftcanvas:plugins:v1";
+export type PluginPreference = "disabled" | "uninstalled";
+let preferences: Record<string, PluginPreference> = readPreferences();
+
+function readPreferences(): Record<string, PluginPreference> {
+  try {
+    const raw = localStorage.getItem(PLUGIN_PREFERENCES_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const result: Record<string, PluginPreference> = {};
+    for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (value === "disabled" || value === "uninstalled") result[id] = value;
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+function persistPreferences() {
+  try {
+    localStorage.setItem(PLUGIN_PREFERENCES_KEY, JSON.stringify(preferences));
+  } catch {
+    // 存储不可用时保持内存态，本次会话行为不变。
+  }
+}
+
+export function getPluginPreference(pluginId: string): PluginPreference | undefined {
+  return preferences[pluginId];
+}
+
+export function setPluginPreference(pluginId: string, preference: PluginPreference | undefined) {
+  if (preference === undefined) delete preferences[pluginId];
+  else preferences[pluginId] = preference;
+  persistPreferences();
+}
+
 function emitChange() {
   installedSnapshot = [...loadedPlugins.keys()];
   for (const listener of listeners) listener();
@@ -239,11 +284,37 @@ export async function installPlugin(module: { default: Plugin } | Plugin): Promi
   const context = createPluginContext(plugin, disposers, registeredKinds);
   await plugin.setup(context);
   loadedPlugins.set(plugin.id, { plugin, disposers, registeredKinds });
+  setPluginPreference(plugin.id, undefined);
   emitChange();
 }
 
 /** 卸载一个插件：onDispose 逆序执行（节点注册随 disposer 回收）。 */
 export function uninstallPlugin(pluginId: string): void {
+  const loaded = loadedPlugins.get(pluginId);
+  if (loaded) {
+    loadedPlugins.delete(pluginId);
+    for (const disposer of [...loaded.disposers].reverse()) {
+      try {
+        disposer();
+      } catch (error) {
+        console.error(`[plugin-host] 插件 ${pluginId} 的清理回调失败`, error);
+      }
+    }
+  }
+  setPluginPreference(pluginId, "uninstalled");
+  emitChange();
+}
+
+/**
+ * 停用/启用一个已装载的插件。停用 = 回收节点类型但保留「已装」身份（区别于卸载）；
+ * 启用只在当前会话内重新 setup（官方插件的重新装载走 installOfficialPlugin）。
+ */
+export function setPluginEnabled(pluginId: string, enabled: boolean): void {
+  if (enabled) {
+    if (loadedPlugins.has(pluginId)) return;
+    // 内存里没有（例如刚停用），无法在此凭空重建模块；交回官方装载路径。
+    return;
+  }
   const loaded = loadedPlugins.get(pluginId);
   if (!loaded) return;
   loadedPlugins.delete(pluginId);
@@ -254,6 +325,7 @@ export function uninstallPlugin(pluginId: string): void {
       console.error(`[plugin-host] 插件 ${pluginId} 的清理回调失败`, error);
     }
   }
+  setPluginPreference(pluginId, "disabled");
   emitChange();
 }
 

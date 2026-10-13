@@ -23,7 +23,7 @@ export type DirectReference = {
   durationMs: number | null;
 };
 
-export type DirectModalityKey = "image" | "video";
+export type DirectModalityKey = "image" | "video" | "audio";
 
 type DirectReferenceState = {
   references: Record<DirectModalityKey, DirectReference[]>;

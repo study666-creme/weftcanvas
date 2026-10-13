@@ -6,6 +6,9 @@ import {
   customApiVideoResponseSchema,
   buildImageProtocolRequest,
   buildVideoProtocolRequest,
+  isAllowedAudioEndpoint,
+  isGeminiNativeAudioPath,
+  wrapPcmToWav,
   modelParameterSchema,
   publicModelSchema,
   type CanvasMedia,
@@ -31,6 +34,7 @@ const EXPECTED_ENDPOINTS: Partial<Record<ModelModality, string | readonly string
   text: "/v1/chat/completions",
   image: "/v1/images/generations",
   video: "/v1/videos",
+  audio: "/v1/chat/completions",
 };
 const IMAGE_ENDPOINTS = ["/v1/images/generations", "/v1/midjourney/generations"] as const;
 const MEDIA_REFERENCE_PARAMETER_NAME = /^(?:reference|ref)(image|video|audio)s?(?:url)?s?$/;
@@ -193,7 +197,9 @@ export async function loadCustomApiCatalog(
     const endpointAllowed =
       item.modality === "image"
         ? IMAGE_ENDPOINTS.includes(item.endpoint.path as (typeof IMAGE_ENDPOINTS)[number])
-        : item.endpoint.path === expectedEndpoint;
+        : item.modality === "audio"
+          ? isAllowedAudioEndpoint(item.endpoint.path)
+          : item.endpoint.path === expectedEndpoint;
     if (
       item.selectable === false ||
       !expectedEndpoint ||
@@ -339,7 +345,7 @@ export function createSyntheticCustomModel(modelId: string, modality: ModelModal
   const knownModel = createKnownCustomModel(modelId, modality);
   if (knownModel) return knownModel;
   const textParameter =
-    modality === "text"
+    modality === "text" || modality === "audio"
       ? {
           name: "messages",
           label: "消息",
@@ -358,10 +364,7 @@ export function createSyntheticCustomModel(modelId: string, modality: ModelModal
   return publicModelSchema.parse({
     id: modelId,
     label: modelId,
-    description:
-      modality === "audio"
-        ? "已从 API 拉取；当前音频调用协议尚未配置"
-        : "已从 API 拉取；使用当前模态的兼容调用协议",
+    description: "已从 API 拉取；使用当前模态的兼容调用协议",
     modality,
     operation: modality === "text" ? "chat" : "generate",
     order: 0,
@@ -392,14 +395,18 @@ export function createSyntheticCustomRoute(
   const endpointPath: string =
     modality === "image" ? "/v1/images/generations" : (EXPECTED_ENDPOINTS[modality] as string);
   if (!endpointPath) return null;
-  const inputName = modality === "text" ? "messages" : "prompt";
+  const inputName = modality === "text" || modality === "audio" ? "messages" : "prompt";
   return {
     sourceModelId: modelId,
     modality,
     endpointPath,
     parameters: [
       { name: "model", path: "model", type: "string", fixed: modelId },
-      { name: inputName, path: inputName, type: modality === "text" ? "array" : "string" },
+      {
+        name: inputName,
+        path: inputName,
+        type: modality === "text" || modality === "audio" ? "array" : "string",
+      },
       ...(modality === "image"
         ? [
             {
@@ -525,6 +532,7 @@ export async function executeCustomGeneration(input: {
       : input.model.modality === "image" && input.model.protocol?.version === "image.v1"
         ? buildImageRequestPayload(input.model.id, input.route, input.parameters, input.inputs)
         : buildRequestPayload(input.route, input.parameters, input.inputs);
+  if (input.model.modality === "audio") normalizeAudioSpeechConfig(payload);
   assertKnownModelConstraints(input.route, payload, input.inputs);
   input.onProgress?.(8);
   const response = await requestJson(
@@ -573,6 +581,22 @@ export async function executeCustomGeneration(input: {
     }
     return { media };
   }
+  if (input.model.modality === "audio") {
+    const media: CanvasMedia[] = [];
+    if (isGeminiNativeAudioPath(input.route.endpointPath)) {
+      const blob = geminiInlineAudioBlob(response);
+      media.push(await storeAudioResult(blob, 0));
+    } else {
+      const urls = collectAudioResultUrls(response, origin);
+      for (const [index, url] of urls.entries()) {
+        const blob = await downloadResult(url, origin, apiKey, "audio");
+        media.push(await storeAudioResult(blob, index));
+        input.onProgress?.(Math.min(100, 60 + Math.round(((index + 1) / urls.length) * 40)));
+      }
+    }
+    input.onProgress?.(100);
+    return { media };
+  }
   if (input.model.modality === "video") {
     const completed = await waitForVideo(origin, apiKey, response, input.onProgress);
     const taskId = completed.id ?? completed.task_id;
@@ -614,10 +638,21 @@ async function executeGeminiGeneration(
     );
   }
   if (input.model.modality === "audio") {
-    throw new CustomApiError(
-      "Gemini 原生音频需要专用音频适配器，请使用 OpenAI 兼容渠道",
-      "GEMINI_AUDIO_UNSUPPORTED",
-    );
+    const prompt = geminiPrompt(input.parameters);
+    if (!prompt) throw new CustomApiError("Gemini 模型需要非空提示词", "PROMPT_REQUIRED");
+    input.onProgress?.(12);
+    const speechConfig = geminiSpeechConfig(input.parameters);
+    const response = await requestGeminiContent(origin, apiKey, input.model.id, {
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseModalities: ["AUDIO"],
+        ...(speechConfig ? { speechConfig } : {}),
+      },
+    });
+    const blob = geminiInlineAudioBlob(response);
+    const media = [await storeAudioResult(blob, 0)];
+    input.onProgress?.(100);
+    return { media };
   }
   const prompt = geminiPrompt(input.parameters);
   if (!prompt) throw new CustomApiError("Gemini 模型需要非空提示词", "PROMPT_REQUIRED");
@@ -703,6 +738,138 @@ function geminiImageGenerationConfig(parameters: Record<string, unknown>) {
         }
       : {}),
   };
+}
+
+/** 音色下拉发裸选项值时，包成 Gemini 要求的 speechConfig 对象形态。 */
+function normalizeAudioSpeechConfig(payload: Record<string, unknown>) {
+  const generationConfig =
+    payload.generationConfig && typeof payload.generationConfig === "object"
+      ? (payload.generationConfig as Record<string, unknown>)
+      : null;
+  if (generationConfig && typeof generationConfig.speechConfig === "string")
+    generationConfig.speechConfig = { voiceConfig: { voice: generationConfig.speechConfig } };
+}
+
+function geminiSpeechConfig(parameters: Record<string, unknown>) {
+  const value = parameters.speechConfig ?? parameters.voice;
+  if (typeof value === "string" && value.trim()) return { voiceConfig: { voice: value.trim() } };
+  if (value && typeof value === "object" && !Array.isArray(value))
+    return value as Record<string, unknown>;
+  return null;
+}
+
+/**
+ * chat/completions 音频结果的链接收集（与托管执行侧同一口径的多形态兼容）：
+ * message.audio / content 内嵌链接 / data[].url / outputs[].content_url /
+ * 顶层 url。一个都收不到就显式失败，绝不伪造。
+ */
+function collectAudioResultUrls(value: unknown, origin: string): string[] {
+  if (!value || typeof value !== "object") throw audioUnparseable();
+  const response = value as Record<string, unknown>;
+  const urls: string[] = [];
+  const pushUrl = (candidate: unknown) => {
+    if (typeof candidate !== "string") return;
+    let resolved: string | null = null;
+    try {
+      const url = new URL(candidate, `${origin}/`);
+      if (url.protocol === "https:" || url.protocol === "http:") resolved = url.toString();
+    } catch {
+      /* not a URL */
+    }
+    if (resolved && !urls.includes(resolved)) urls.push(resolved);
+  };
+  const records = (list: unknown) =>
+    Array.isArray(list)
+      ? list.filter((item): item is Record<string, unknown> =>
+          Boolean(item && typeof item === "object" && !Array.isArray(item)),
+        )
+      : [];
+  for (const choice of records(response.choices)) {
+    const message = choice.message as Record<string, unknown> | undefined;
+    if (!message || typeof message !== "object") continue;
+    const audio = message.audio;
+    if (audio && typeof audio === "object") pushUrl((audio as { url?: unknown }).url);
+    pushUrl(message.audio_url);
+    if (typeof message.content === "string") {
+      for (const match of message.content.matchAll(/https?:\/\/[^\s"'<>()\[\]]+/g))
+        pushUrl(match[0].replace(/[.,;:!?)]+$/, ""));
+    } else if (Array.isArray(message.content)) {
+      for (const part of records(message.content)) {
+        const partAudio = part.audio;
+        if (partAudio && typeof partAudio === "object")
+          pushUrl((partAudio as { url?: unknown }).url);
+        pushUrl(part.url);
+      }
+    }
+  }
+  for (const item of records(response.data)) {
+    pushUrl(item.url);
+    pushUrl(item.audio_url);
+    pushUrl(item.download_url);
+    pushUrl(item.content_url);
+  }
+  for (const item of records(response.outputs)) {
+    pushUrl(item.content_url);
+    pushUrl(item.download_url);
+    pushUrl(item.url);
+  }
+  const topAudio = response.audio;
+  if (topAudio && typeof topAudio === "object") pushUrl((topAudio as { url?: unknown }).url);
+  pushUrl(response.url);
+  pushUrl(response.audio_url);
+  const limited = urls.slice(0, 8);
+  if (!limited.length) throw audioUnparseable();
+  return limited;
+}
+
+/** Gemini 原生音频响应：按 parts 顺序拼接内联数据；无头 PCM 包成 WAV。 */
+function geminiInlineAudioBlob(response: unknown): Blob {
+  const chunks = geminiResponseParts(response)
+    .map(
+      (part) =>
+        part.inlineData ??
+        (
+          part as GeminiPart & {
+            inline_data?: { mime_type?: string; mimeType?: string; data?: string };
+          }
+        ).inline_data,
+    )
+    .filter((entry): entry is { mimeType?: string; mime_type?: string; data?: string } =>
+      Boolean(entry && typeof entry.data === "string" && entry.data.length > 0),
+    );
+  if (!chunks.length) throw new CustomApiError("语音合成没有返回音频数据", "AUDIO_RESULT_EMPTY");
+  const mimeType = chunks[0]?.mimeType || chunks[0]?.mime_type || "";
+  // 上游实测：各 part 的 base64 段按序直接拼接即为完整流（段界 4 字符对齐）。
+  const combined = chunks.map((entry) => entry.data!).join("");
+  if (/l16|pcm/i.test(mimeType)) {
+    const sampleRate = Number(/rate=(\d+)/i.exec(mimeType)?.[1] ?? 24_000);
+    const channels = Number(/channels=(\d+)/i.exec(mimeType)?.[1] ?? 1);
+    const binary = atob(combined);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    return new Blob([wrapPcmToWav(bytes, { sampleRate, channels }).slice().buffer], {
+      type: "audio/wav",
+    });
+  }
+  if (!mimeType.toLowerCase().startsWith("audio/")) throw audioUnparseable();
+  return base64Blob(combined, mimeType);
+}
+
+async function storeAudioResult(blob: Blob, index: number): Promise<CanvasMedia> {
+  const type = blob.type || "audio/mpeg";
+  return storeMedia(
+    new File([blob], `generated-${Date.now()}-${index + 1}.${extensionFor(type, "mp3")}`, {
+      type,
+    }),
+    "audio",
+  );
+}
+
+function audioUnparseable() {
+  return new CustomApiError(
+    "音频结果格式无法识别，需要确认上游响应形态",
+    "AUDIO_RESULT_UNPARSEABLE",
+  );
 }
 
 async function geminiInlinePart(value: string, fallbackMimeType: string): Promise<GeminiPart> {
@@ -842,13 +1009,20 @@ function normalizeCustomModel(item: CustomApiCatalogModelSource, id: string): Pu
     operation: item.operation,
     order: item.order ?? 0,
     ...(item.protocol
-      ? {
-          protocol: {
-            version: item.protocol.version,
-            endpoint: item.protocol.endpoint,
-            mediaRoles: item.protocol.media_roles,
-          },
-        }
+      ? item.protocol.version === "audio.v1"
+        ? {
+            protocol: {
+              version: item.protocol.version,
+              outputFormat: item.protocol.output_format,
+            },
+          }
+        : {
+            protocol: {
+              version: item.protocol.version,
+              endpoint: item.protocol.endpoint,
+              mediaRoles: item.protocol.media_roles,
+            },
+          }
       : {}),
     input: {
       textRequired: item.input?.text?.required === true,
@@ -1149,7 +1323,9 @@ function assertRoute(model: PublicModel, route: CustomApiRoute) {
   const endpointAllowed =
     model.modality === "image"
       ? IMAGE_ENDPOINTS.includes(route.endpointPath as (typeof IMAGE_ENDPOINTS)[number])
-      : route.endpointPath === expected;
+      : model.modality === "audio"
+        ? isAllowedAudioEndpoint(route.endpointPath)
+        : route.endpointPath === expected;
   if (!expected || route.modality !== model.modality || !endpointAllowed) {
     throw new CustomApiError("当前模型调用路径不兼容", "ROUTE_INVALID");
   }
@@ -1958,8 +2134,9 @@ async function downloadResult(
   value: string,
   origin: string,
   apiKey: string,
-  kind: "image" | "video",
+  kind: "image" | "video" | "audio",
 ) {
+  const label = kind === "image" ? "图片" : kind === "video" ? "视频" : "音频";
   const url = new URL(value);
   let response: Response;
   try {
@@ -1968,21 +2145,15 @@ async function downloadResult(
       signal: AbortSignal.timeout(5 * 60_000),
     });
   } catch {
-    throw new CustomApiError(
-      `${kind === "image" ? "图片" : "视频"}结果无法下载，请检查文件跨域设置`,
-      "RESULT_DOWNLOAD_FAILED",
-    );
+    throw new CustomApiError(`${label}结果无法下载，请检查文件跨域设置`, "RESULT_DOWNLOAD_FAILED");
   }
   if (!response.ok)
-    throw new CustomApiError(
-      `${kind === "image" ? "图片" : "视频"}结果下载失败 (${response.status})`,
-      "RESULT_DOWNLOAD_FAILED",
-    );
+    throw new CustomApiError(`${label}结果下载失败 (${response.status})`, "RESULT_DOWNLOAD_FAILED");
   try {
     return await response.blob();
   } catch {
     throw new CustomApiError(
-      `${kind === "image" ? "图片" : "视频"}结果读取中断，请稍后从任务记录重试`,
+      `${label}结果读取中断，请稍后从任务记录重试`,
       "RESULT_READ_INTERRUPTED",
     );
   }
