@@ -100,6 +100,8 @@ import {
 import { toPublicCatalogView } from "./catalog/public-view.js";
 import { GenerationQuoteService, QuoteValidationError } from "./catalog/quote.js";
 import type { ModelHealth, ModelHealthProvider } from "./catalog/model-health.js";
+import { CANVAS_OPS_ADMIN_PAGE } from "./ops/admin-page.js";
+import type { CanvasOpsService } from "./ops/service.js";
 import type { ApiReadinessProbe } from "./database/readiness.js";
 import {
   IdentityProviderError,
@@ -254,6 +256,9 @@ type ApiDependencies = {
   cloudResources?: CloudResourceService;
   /** 模型成功率聚合（来自真实生成任务）；缺省则目录不带 health。 */
   modelHealth?: ModelHealthProvider;
+  /** 画布运营后台（只读监控）；缺 secret 时整个面不可见。 */
+  ops?: CanvasOpsService;
+  opsAdminSecret?: string;
   multipartMedia?: Pick<
     MediaMultipartService,
     "createUpload" | "signParts" | "getState" | "complete" | "abort"
@@ -737,6 +742,35 @@ export function createApiApp(dependencies: ApiDependencies) {
     context.header("Cache-Control", "no-store");
     context.header("X-Robots-Tag", "noindex, nofollow");
     return context.body(MODEL_OVERRIDES_ADMIN_PAGE);
+  });
+
+  // 画布运营后台（只读监控）。独立密钥，缺省回落到模型后台那把，少配一个变量。
+  const requireOpsAdmin = (context: { req: { header(name: string): string | undefined } }) =>
+    Boolean(dependencies.ops && dependencies.opsAdminSecret) &&
+    context.req.header("x-canvas-ops-secret") === dependencies.opsAdminSecret;
+
+  app.get("/api/v1/admin/ops/overview", async (context) => {
+    if (!requireOpsAdmin(context)) return context.notFound();
+    context.header("Cache-Control", "no-store");
+    return context.json({ ok: true, data: await dependencies.ops!.overview() });
+  });
+
+  app.get("/api/v1/admin/ops/jobs", async (context) => {
+    if (!requireOpsAdmin(context)) return context.notFound();
+    const status = context.req.query("status") === "all" ? "all" : "failed";
+    const limit = Number(context.req.query("limit") ?? 50);
+    context.header("Cache-Control", "no-store");
+    return context.json({
+      ok: true,
+      data: { jobs: await dependencies.ops!.recentJobs(status, limit) },
+    });
+  });
+
+  app.get("/admin/ops", (context) => {
+    context.header("Content-Type", "text/html; charset=utf-8");
+    context.header("Cache-Control", "no-store");
+    context.header("X-Robots-Tag", "noindex, nofollow");
+    return context.body(CANVAS_OPS_ADMIN_PAGE);
   });
 
   app.post("/api/v1/generation-quotes", async (context) => {

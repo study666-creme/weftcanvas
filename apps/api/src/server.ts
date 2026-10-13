@@ -48,6 +48,9 @@ import {
 import { PostgresCloudProjectStore } from "./project/postgres-store.js";
 import { PostgresCloudProjectMediaValidator } from "./project/media-access.js";
 import { PostgresModelHealthProvider } from "./catalog/model-health.js";
+import { PostgresOpsStore } from "./ops/store.js";
+import { CanvasOpsService } from "./ops/service.js";
+import { createWebhookAlertSink, OpsAlertWatchdog } from "./ops/alert.js";
 import { CloudProjectService } from "./project/service.js";
 import { CloudProjectCollaborationService } from "./project/collaboration-service.js";
 import { PostgresCloudProjectCollaborationStore } from "./project/postgres-collaboration-store.js";
@@ -338,6 +341,43 @@ const anonymousAgentCookieName =
 if (anonymousAgentCookieName.startsWith("__Host-") && !secureCookie) {
   throw new Error("A __Host- anonymous Agent cookie requires SESSION_COOKIE_SECURE=true");
 }
+const modelHealthProvider = pool ? new PostgresModelHealthProvider(pool) : undefined;
+// 画布运营后台：只读监控 + 可选告警看门狗。密钥缺省回落到模型后台那把。
+const opsAdminSecret =
+  process.env.CANVAS_OPS_ADMIN_SECRET?.trim() ||
+  process.env.MODEL_OVERRIDES_ADMIN_SECRET?.trim() ||
+  "";
+const opsService = pool
+  ? new CanvasOpsService({
+      store: new PostgresOpsStore(pool),
+      ...(modelHealthProvider ? { modelHealth: modelHealthProvider } : {}),
+      readCatalogStatus: async () => {
+        const snapshot = await catalog.getCatalog({ includeOverrides: false }).catch(() => null);
+        return snapshot
+          ? {
+              version: snapshot.version,
+              quoteAvailable: snapshot.quoteAvailable,
+              expiresAt: snapshot.expiresAt,
+            }
+          : { version: null, quoteAvailable: false, expiresAt: null };
+      },
+    })
+  : undefined;
+const opsAlertWebhook = process.env.CANVAS_OPS_ALERT_WEBHOOK?.trim();
+const opsAlerts =
+  opsService && opsAlertWebhook
+    ? new OpsAlertWatchdog({
+        ops: opsService,
+        sink: createWebhookAlertSink(opsAlertWebhook),
+        intervalMs: readInteger(
+          process.env.CANVAS_OPS_ALERT_INTERVAL_MS,
+          5 * 60_000,
+          30_000,
+          3_600_000,
+        ),
+        onError: (error) => console.error("ops alert failed", error),
+      })
+    : undefined;
 const app = createApiApp({
   agent,
   connectors,
@@ -373,7 +413,9 @@ const app = createApiApp({
   media,
   cloudResources: cloudResourceService,
   // 模型成功率来自本服务真实生成任务；无库时目录不带 health。
-  ...(pool ? { modelHealth: new PostgresModelHealthProvider(pool) } : {}),
+  ...(modelHealthProvider ? { modelHealth: modelHealthProvider } : {}),
+  ...(opsService ? { ops: opsService } : {}),
+  ...(opsService && opsAdminSecret ? { opsAdminSecret } : {}),
   multipartMedia,
   projects: cloudProjects,
   collaboration,
@@ -431,12 +473,14 @@ const app = createApiApp({
 
 const server = serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, (info) => {
   console.log(`Canvas API listening on http://127.0.0.1:${info.port}`);
+  opsAlerts?.start();
 });
 
 let shuttingDown = false;
 const shutdown = () => {
   if (shuttingDown) return;
   shuttingDown = true;
+  opsAlerts?.stop();
   server.close(async () => {
     await pool?.end().catch((error) => console.error("Failed to close the database pool", error));
     process.exit(0);
