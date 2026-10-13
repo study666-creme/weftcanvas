@@ -708,6 +708,53 @@ describe("Weftcanvas generation provider", () => {
     ]);
   });
 
+  // 2026-10-13 用真实令牌实测 suno（HTTP 200 / ~60s）得到的响应形态：两条带签名的
+  // 有时效 mp3 链接以 Markdown 链接嵌在 message.content 里。域名与签名已脱敏，
+  // 结构（含括号包裹、query 参数）保持原样——解析正则靠「排除右括号」在链接处收尾。
+  it("parses the real suno response: markdown-linked signed URLs in message content", async () => {
+    const network = scriptedFetch([
+      jsonResponse({
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: "assistant",
+              content:
+                "[音乐音频 1](https://cdn.example/media/track-a-output-0.mp3?expires=1791864235&signature=aaa111)\n" +
+                "[音乐音频 2](https://cdn.example/media/track-a-output-1.mp3?expires=1791864235&signature=bbb222)",
+            },
+            finish_reason: "stop",
+          },
+        ],
+        created: 1791860576,
+        id: "chatcmpl-example",
+        model: "suno",
+        object: "chat.completion",
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      }),
+    ]);
+    const staging = new MemoryStagingStore();
+    const provider = createProvider(network.fetch, staging);
+    const result = await provider.submit(
+      request(sunoRoute(), "audio", {
+        messages: [{ role: "user", content: "Create upbeat piano background music." }],
+      }),
+    );
+    const staged = await stagedResult(staging, result);
+    expect(staged).toMatchObject({ kind: "audio" });
+    if (staged.kind !== "audio") throw new Error("expected audio");
+    expect(staged.items).toEqual([
+      {
+        source: "url",
+        url: "https://cdn.example/media/track-a-output-0.mp3?expires=1791864235&signature=aaa111",
+      },
+      {
+        source: "url",
+        url: "https://cdn.example/media/track-a-output-1.mp3?expires=1791864235&signature=bbb222",
+      },
+    ]);
+  });
+
   it("fails explicitly when a chat audio response carries no recognizable links", async () => {
     const network = scriptedFetch([jsonResponse({ choices: [{ message: { content: "完成" } }] })]);
     const provider = createProvider(network.fetch, new MemoryStagingStore());
