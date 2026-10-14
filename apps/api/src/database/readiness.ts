@@ -52,13 +52,8 @@ async function migrationsReady(client: PoolClient, expected: readonly string[]) 
 }
 
 async function browserAccessLockedDown(client: PoolClient) {
-  const roles = await client.query<{ role_count: string | number }>(
-    `SELECT COUNT(*)::INTEGER AS role_count
-     FROM pg_roles
-     WHERE rolname IN ('anon', 'authenticated')`,
-  );
-  if (Number(roles.rows[0]?.role_count ?? 0) !== 2) return false;
-
+  // Native PostgreSQL has no browser roles. Missing roles cannot hold grants;
+  // existing roles and every Canvas table still go through the same checks.
   const tables = await client.query<{
     table_count: string | number;
     insecure_count: string | number;

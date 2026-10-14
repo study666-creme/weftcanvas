@@ -8,6 +8,7 @@
 - 修复状态待确认的旧任务误触发专注模式；更新 BYOK 与项目恢复浏览器测试。
 - Docker 保留工作区依赖，API 与 worker 共用持久化目录，补齐 worker 配置和后台代理。
 - 明确 Compose 内部 PostgreSQL 的连接模式，避免迁移阶段误启用远程数据库 TLS。
+- 修复原生 PostgreSQL 因缺少 Supabase 浏览器角色而无法通过就绪检查的问题，保留表权限与 RLS 校验。
 - 重整 README、接入文档与贡献规范；CI 增加构建、浏览器 smoke 和 Docker 持久化检查。
 
 ## v0.1.0 — 2026-10-12
