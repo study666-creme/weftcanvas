@@ -59,6 +59,7 @@ import { assembleProviderServices, resolveProviderPlan } from "./spi/assembly.js
 import type { GenerationProvider, HostedAccountProvider } from "./spi/types.js";
 
 const port = readPort(process.env.PORT, 8787);
+const hostname = process.env.CANVAS_API_HOST?.trim() || "127.0.0.1";
 // Provider 装配第一步：解析 CANVAS_API_PROVIDER 与端点计划（weftcanvas 私有
 // 模块如被点名会在此加载）。目录/报价必须先建，端点随计划先到。
 const providerPlan = await resolveProviderPlan(process.env);
@@ -471,8 +472,8 @@ const app = createApiApp({
   allowedOrigins: readAllowedOrigins(process.env.APP_ORIGINS),
 });
 
-const server = serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, (info) => {
-  console.log(`Canvas API listening on http://127.0.0.1:${info.port}`);
+const server = serve({ fetch: app.fetch, port, hostname }, (info) => {
+  console.log(`Canvas API listening on http://${hostname}:${info.port}`);
   opsAlerts?.start();
 });
 

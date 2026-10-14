@@ -27,6 +27,9 @@ optional profile and requires a compatible catalog, credentials and result hosts
    the [relay connection guide](CONNECTING-RELAYS.md).
 
 `WEB_PORT` defaults to `127.0.0.1:8080`; `API_PORT` to `127.0.0.1:8787`.
+The API image sets `CANVAS_API_HOST=0.0.0.0` for container networking; host
+ports remain bound to loopback by default. Running Node directly defaults to
+`127.0.0.1` unless `CANVAS_API_HOST` is set explicitly.
 `APP_ORIGINS` must match the browser origin if you change the port or domain.
 For a public domain, use HTTPS and proxy `/api/` and `/admin/` through `web`.
 The production API requires secure session cookies; local loopback is the

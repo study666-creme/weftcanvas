@@ -36,6 +36,13 @@ jobs:
       - run: pnpm --filter @weftcanvas/canvas-web exec playwright install --with-deps chromium
       - name: Browser smoke (local fixtures, no paid calls)
         run: pnpm --filter @weftcanvas/canvas-web exec playwright test e2e/custom-api.spec.ts e2e/project-persistence.spec.ts e2e/plugin-split-list.spec.ts
+      - name: Browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-diagnostics
+          path: test-results/playwright/
+          if-no-files-found: ignore
 
   self-host:
     runs-on: ubuntu-latest
@@ -50,14 +57,16 @@ jobs:
         run: docker compose --project-name weftcanvas-ci up --build -d --wait --wait-timeout 180
       - name: Check API and operator proxy
         run: |
-          curl --fail --retry 5 http://127.0.0.1:8080/api/health
-          curl --fail http://127.0.0.1:8080/admin/ops | grep -q 'html'
+          curl --fail --silent --show-error --retry 5 http://127.0.0.1:8080/api/health
+          curl --fail --silent --show-error http://127.0.0.1:8080/admin/ops --output /tmp/weftcanvas-ci-ops.html
+          grep -q '<title>画布运营后台</title>' /tmp/weftcanvas-ci-ops.html
       - name: Check persistence and shared worker volume
         run: |
           docker compose --project-name weftcanvas-ci exec -T api node -e "require('node:fs').mkdirSync('.data/media-objects',{recursive:true});require('node:fs').writeFileSync('.data/media-objects/ci-marker','persisted')"
           docker compose --project-name weftcanvas-ci up -d --force-recreate --wait api
           docker compose --project-name weftcanvas-ci exec -T api node -e "if(require('node:fs').readFileSync('.data/media-objects/ci-marker','utf8')!=='persisted')process.exit(1)"
           docker compose --project-name weftcanvas-ci run --rm --no-deps --entrypoint node worker -e "if(require('node:fs').readFileSync('.data/media-objects/ci-marker','utf8')!=='persisted')process.exit(1)"
+          curl --fail --silent --show-error --retry 5 http://127.0.0.1:8080/api/ready
       - name: Stack diagnostics
         if: failure()
         run: docker compose --project-name weftcanvas-ci logs --no-color

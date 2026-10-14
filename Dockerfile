@@ -31,6 +31,8 @@ RUN pnpm --filter @weftcanvas/contracts build \
 # One image serves both api and worker; compose overrides the command.
 FROM node:22-bookworm-slim AS api-runtime
 ENV NODE_ENV=production
+# nginx and published ports reach the API through the container network.
+ENV CANVAS_API_HOST=0.0.0.0
 WORKDIR /repo
 COPY --from=build /repo ./
 EXPOSE 8787

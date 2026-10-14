@@ -23,7 +23,12 @@ async function openCreationSettings(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => localStorage.clear());
+  await page.addInitScript(() => {
+    localStorage.clear();
+    // Fix the initial theme independently of the runner's clock and timezone.
+    localStorage.setItem("weftcanvas:theme-mode", "manual");
+    localStorage.setItem("weftcanvas:theme", "dark");
+  });
   await page.route("**/api/v1/auth/session", (route) =>
     route.fulfill({ json: { ok: true, data: null } }),
   );
@@ -89,6 +94,7 @@ test("keeps actions on the single default accent while ready status stays semant
   await page.goto("/canvas");
 
   // 配色档位已下线：全站只有一套强调色，<html> 上不再有 data-accent。
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await expect(page.locator("html")).not.toHaveAttribute("data-accent");
 
   await openCreationSettings(page);
@@ -119,9 +125,14 @@ test("keeps actions on the single default accent while ready status stays semant
 
   await page.getByLabel("关闭设置").click();
   await page.getByLabel("切换主题").click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await openCreationSettings(page);
   colors = await markColor();
   expect(colors.actual).toBe(colors.expected);
+  await expect(dialog.locator(".wc-api-profile-list > button > i.is-ready")).toHaveCSS(
+    "background-color",
+    "rgb(45, 128, 106)",
+  );
   await page.screenshot({ path: testInfo.outputPath("creation-settings-default-light.png") });
 
   await page.setViewportSize({ width: 390, height: 844 });
