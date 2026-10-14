@@ -470,4 +470,156 @@ test.describe("docs screenshot capture", () => {
     await page.waitForTimeout(900);
     await shot(page, "workbench-dark");
   });
+
+  test("byok settings dialog", async ({ page }) => {
+    // BYOK 请求由浏览器直发上游：mock 一个 OpenAI 兼容站点的模型列表，
+    // 让对话框呈现「已连接 + 拉到的模型」的真实形态，而不是错误态。
+    // 带 CORS 头并应答 OPTIONS 预检——Authorization 头会触发预检，缺了它
+    // 浏览器会拒绝响应，对话框就会出现「无法读取模型目录」的黄条。
+    await page.route("https://api.byok.test/v1/models", (route) => {
+      if (route.request().method() === "OPTIONS") {
+        return route.fulfill({
+          status: 204,
+          headers: {
+            "access-control-allow-origin": "*",
+            "access-control-allow-headers": "authorization,content-type",
+            "access-control-allow-methods": "GET,POST,OPTIONS",
+          },
+        });
+      }
+      return route.fulfill({
+        json: {
+          data: [
+            { id: "nano-banana" },
+            { id: "universal-image-2" },
+            { id: "sora-video-mini" },
+            { id: "speech-tts-v3" },
+          ],
+        },
+        headers: { "access-control-allow-origin": "*" },
+      });
+    });
+    await page.route("https://api.byok.test/api/model-catalog", (route) => {
+      if (route.request().method() === "OPTIONS") {
+        return route.fulfill({
+          status: 204,
+          headers: {
+            "access-control-allow-origin": "*",
+            "access-control-allow-headers": "authorization,content-type",
+            "access-control-allow-methods": "GET,OPTIONS",
+          },
+        });
+      }
+      return route.fulfill({
+        json: {
+          success: true,
+          version: "byok-demo-1",
+          capability_version: "2026-10-14",
+          fetched_at: new Date().toISOString(),
+          models: [
+            {
+              id: "nano-banana",
+              modality: "image",
+              operation: "generate",
+              endpoint: {
+                method: "POST",
+                path: "/v1/images/generations",
+                content_type: "application/json",
+              },
+              output: { type: "image" },
+              parameters: [],
+              public: {
+                id: "nano-banana",
+                label: "香蕉 · 标准 1K",
+                description: "写实人像与产品图",
+              },
+            },
+            {
+              id: "universal-image-2",
+              modality: "image",
+              operation: "generate",
+              endpoint: {
+                method: "POST",
+                path: "/v1/images/generations",
+                content_type: "application/json",
+              },
+              output: { type: "image" },
+              parameters: [],
+              public: {
+                id: "universal-image-2",
+                label: "全能模型2 · 高质量",
+                description: "多档分辨率，细节丰富",
+              },
+            },
+            {
+              id: "sora-video-mini",
+              modality: "video",
+              operation: "generate",
+              endpoint: { method: "POST", path: "/v1/videos", content_type: "application/json" },
+              output: { type: "video" },
+              parameters: [],
+              public: {
+                id: "sora-video-mini",
+                label: "视频模型 Mini",
+                description: "8 秒内短镜头",
+              },
+            },
+            {
+              id: "speech-tts-v3",
+              modality: "text",
+              operation: "generate",
+              endpoint: {
+                method: "POST",
+                path: "/v1/chat/completions",
+                content_type: "application/json",
+              },
+              output: { type: "text" },
+              parameters: [],
+              public: {
+                id: "speech-tts-v3",
+                label: "对话模型 V3",
+                description: "长上下文文本生成",
+              },
+            },
+          ],
+        },
+        headers: { "access-control-allow-origin": "*" },
+      });
+    });
+    await openCanvas(page, "light");
+    const profileId = await page.evaluate(async () => {
+      const store = await import("/src/state/custom-api-store.ts");
+      const id = store.useCustomApiStore.getState().addProfile({ name: "我的 OpenAI 兼容站" });
+      // addProfile 只建档案；configureProfile 才真正走连接 + 拉模型。
+      void store.useCustomApiStore.getState().configureProfile(id, {
+        baseUrl: "https://api.byok.test/v1",
+        apiKey: "sk-demo-key-0000",
+        apiFormat: "openai",
+      });
+      store.useCustomApiStore.getState().openDialog();
+      return id;
+    });
+    await expect(page.locator(".wc-custom-api-dialog")).toBeVisible();
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(async (id) => {
+            const store = await import("/src/state/custom-api-store.ts");
+            const profile = store.useCustomApiStore.getState().profiles.find((p) => p.id === id);
+            return profile?.status ?? "";
+          }, profileId),
+        { timeout: 5_000 },
+      )
+      .toBe("ready");
+    await page.waitForTimeout(500);
+    await shot(page, "byok-settings");
+  });
+
+  test("appearance styles", async ({ page }) => {
+    await openCanvas(page, "light");
+    await page.getByRole("button", { name: "打开 UI 设置" }).click();
+    await expect(page.locator(".wc-appearance-toolbar")).toBeVisible();
+    await page.waitForTimeout(600);
+    await shot(page, "appearance-styles");
+  });
 });
