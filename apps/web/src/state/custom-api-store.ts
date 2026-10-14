@@ -9,6 +9,7 @@ import {
 import { create } from "zustand";
 
 import {
+  applyProtocolOverride,
   createSyntheticCustomModel,
   createSyntheticCustomRoute,
   customModelKey,
@@ -18,15 +19,18 @@ import {
   executeCustomGeneration,
   normalizeCustomApiFormat,
   normalizeCustomApiBaseUrl,
+  normalizeProtocolOverride,
   parseCustomModelKey,
   publicReferenceKinds,
   testCustomApiConnection,
   type CustomApiCatalog,
   type CustomApiConnection,
+  type CustomApiProtocolOverride,
   type CustomApiRoute,
   type CustomApiRouteParameter,
 } from "../lib/custom-api";
 import { resolveCanvasApiAccess } from "../lib/canvas-api-access";
+import { modelSupportsModality } from "../lib/custom-model-knowledge";
 import { beginBrowserGeneration, endBrowserGeneration } from "../lib/browser-generation-runtime";
 import { composeModelParameters } from "../lib/generation-config";
 import { prepareCustomGenerationInputs } from "../lib/generation-inputs";
@@ -60,6 +64,17 @@ export type CustomApiProfile = {
   loadedAt: number;
   availableModelIds: string[];
   manualModelModalities: Record<string, ModelModality[]>;
+  /**
+   * 上一次重拉相对上一次结果的增删（内存态，不持久化）：用户需要看到"上游多了/少了
+   * 什么"，而不是自己比对列表。首次拉取不算 diff。
+   */
+  lastSyncDiff: CustomApiSyncDiff | null;
+};
+
+export type CustomApiSyncDiff = {
+  added: string[];
+  removed: string[];
+  at: number;
 };
 
 export type CustomApiModelChoice = {
@@ -80,6 +95,7 @@ type CustomApiProfileInput = {
   apiKey?: string;
   apiFormat?: CustomApiConnection["apiFormat"];
   enabled?: boolean;
+  protocol?: CustomApiProtocolOverride;
 };
 
 type CustomApiState = {
@@ -140,6 +156,8 @@ type PersistedProfile = {
   enabled: boolean;
   availableModelIds: string[];
   manualModelModalities: Record<string, ModelModality[]>;
+  /** 可选协议档案（P0）。旧数据没有该字段 = 走默认路径，无需迁移。 */
+  protocol?: CustomApiProtocolOverride;
 };
 
 const catalogRequests = new Map<string, Promise<CustomApiCatalog | null>>();
@@ -270,6 +288,12 @@ export const useCustomApiStore = create<CustomApiState>((set, get) => {
               error: null,
               loadedAt,
               availableModelIds: catalog.availableModelIds,
+              // 让用户看到上游这次多了/少了什么，而不是自己比对列表。
+              lastSyncDiff: computeSyncDiff(
+                current.availableModelIds,
+                catalog.availableModelIds,
+                loadedAt,
+              ),
               manualModelModalities: mergeRichModelModalities(
                 current.manualModelModalities,
                 catalog,
@@ -344,6 +368,13 @@ export const useCustomApiStore = create<CustomApiState>((set, get) => {
           patch.apiFormat === undefined
             ? current.connection.apiFormat
             : normalizeCustomApiFormat(patch.apiFormat),
+        ...(patch.protocol === undefined
+          ? current.connection.protocol === undefined
+            ? {}
+            : { protocol: current.connection.protocol }
+          : normalizeProtocolOverride(patch.protocol) === undefined
+            ? {}
+            : { protocol: normalizeProtocolOverride(patch.protocol) }),
       };
       const connectionChanged = !sameConnection(connection, current.connection);
       commit(
@@ -479,7 +510,9 @@ export function getCustomModelChoices(
     }
     const syntheticIds = profile.availableModelIds
       .filter((rawModelId) => !coveredRawIds.has(rawModelId))
-      .filter((rawModelId) => profile.manualModelModalities[rawModelId]?.includes(modality))
+      .filter((rawModelId) =>
+        modelSupportsModality(rawModelId, profile.manualModelModalities[rawModelId], modality),
+      )
       .sort((left, right) => left.localeCompare(right));
     for (const rawModelId of syntheticIds) {
       const key = customModelKey(profile.id, modality, rawModelId);
@@ -576,7 +609,8 @@ function createChoice(
       id: key,
       label: `${sourceModel.label} · ${profile.name}`,
     },
-    route,
+    // 协议档案的端点覆盖在此统一生效：选择器与执行读的是同一份路由。
+    route: route ? applyProtocolOverride(route, profile.connection) : null,
     executable,
     unsupportedReason: executable ? null : "当前模型没有已配置的兼容调用协议",
   };
@@ -919,6 +953,9 @@ function serializeState(
       enabled: profile.enabled,
       availableModelIds: profile.availableModelIds,
       manualModelModalities: profile.manualModelModalities,
+      ...(normalizeProtocolOverride(profile.connection.protocol) === undefined
+        ? {}
+        : { protocol: normalizeProtocolOverride(profile.connection.protocol) }),
     })),
   };
 }
@@ -1090,6 +1127,9 @@ function parsePersistedProfile(value: unknown): PersistedProfile | null {
       Array.isArray(source.availableModelIds) ? source.availableModelIds : [],
     ),
     manualModelModalities: parseManualModelModalities(source.manualModelModalities),
+    ...(normalizeProtocolOverride(source.protocol) === undefined
+      ? {}
+      : { protocol: normalizeProtocolOverride(source.protocol) }),
   };
 }
 
@@ -1105,6 +1145,7 @@ function hydrateProfile(
       baseUrl: persisted.baseUrl,
       apiKey: persisted.apiKey,
       apiFormat: normalizeCustomApiFormat(persisted.apiFormat),
+      ...(persisted.protocol === undefined ? {} : { protocol: persisted.protocol }),
     },
     enabled: persisted.enabled,
     status: catalog ? "ready" : "idle",
@@ -1119,6 +1160,8 @@ function hydrateProfile(
     manualModelModalities: catalog
       ? mergeRichModelModalities(persisted.manualModelModalities, catalog)
       : persisted.manualModelModalities,
+    // 同步 diff 是运行期提示，不跨会话保留。
+    lastSyncDiff: null,
   };
 }
 
@@ -1143,6 +1186,9 @@ function createProfile(id: string, input: CustomApiProfileInput): CustomApiProfi
       enabled: input.enabled !== false,
       availableModelIds: [],
       manualModelModalities: {},
+      ...(normalizeProtocolOverride(input.protocol) === undefined
+        ? {}
+        : { protocol: normalizeProtocolOverride(input.protocol) }),
     },
     null,
     0,
@@ -1210,12 +1256,19 @@ function sameConnection(left: CustomApiConnection, right: CustomApiConnection) {
   return (
     left.baseUrl === right.baseUrl &&
     left.apiKey === right.apiKey &&
-    normalizeCustomApiFormat(left.apiFormat) === normalizeCustomApiFormat(right.apiFormat)
+    normalizeCustomApiFormat(left.apiFormat) === normalizeCustomApiFormat(right.apiFormat) &&
+    protocolFingerprint(left.protocol) === protocolFingerprint(right.protocol)
   );
 }
 
+/** 协议档案指纹：任一覆盖项变化都算连接变化，必须重新拉取与重解析路由。 */
+function protocolFingerprint(protocol: CustomApiProtocolOverride | undefined) {
+  const normalized = normalizeProtocolOverride(protocol);
+  return normalized === undefined ? "" : JSON.stringify(normalized);
+}
+
 function connectionIdentity(connection: CustomApiConnection) {
-  return `${connection.baseUrl}\u0000${connection.apiKey}\u0000${normalizeCustomApiFormat(connection.apiFormat)}`;
+  return `${connection.baseUrl}\u0000${connection.apiKey}\u0000${normalizeCustomApiFormat(connection.apiFormat)}\u0000${protocolFingerprint(connection.protocol)}`;
 }
 
 function patchProfile(
@@ -1224,6 +1277,24 @@ function patchProfile(
   patch: Partial<CustomApiProfile>,
 ) {
   return profiles.map((profile) => (profile.id === profileId ? { ...profile, ...patch } : profile));
+}
+
+/**
+ * 同步 diff：只在"已有过一次结果"时才有意义（首次拉取不算变更），且两端都为空时
+ * 不产生提示，避免每次轮询都弹一次噪音。
+ */
+export function computeSyncDiff(
+  before: readonly string[],
+  after: readonly string[],
+  at: number,
+): CustomApiSyncDiff | null {
+  if (!before.length) return null;
+  const beforeSet = new Set(before);
+  const afterSet = new Set(after);
+  const added = after.filter((id) => !beforeSet.has(id));
+  const removed = before.filter((id) => !afterSet.has(id));
+  if (!added.length && !removed.length) return null;
+  return { added, removed, at };
 }
 
 function createProfileId(profiles: CustomApiProfile[]) {

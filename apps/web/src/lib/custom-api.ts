@@ -27,6 +27,7 @@ import {
 } from "@weftcanvas/contracts";
 
 import { storeMedia } from "./media-store";
+import { inferKnowledgePlan, isGrokImagineVideoModel } from "./custom-model-knowledge";
 
 type MediaReferenceKind = "image" | "video" | "audio";
 
@@ -47,11 +48,9 @@ const BLOCKED_PATH_SEGMENTS = new Set(["__proto__", "constructor", "prototype"])
 const CATALOG_REQUEST_TIMEOUT_MS = 12_000;
 const CONNECTION_CHECK_TIMEOUT_MS = 12_000;
 const CUSTOM_MODEL_KEY_PREFIX = "custom:";
+// 官方模型 id / 参数形状的来源是 `custom-model-knowledge.ts`（BYOK 兼容档知识库）；
+// 这里只保留约束校验要用的那一枚 id。
 const GROK_IMAGINE_VIDEO_MODEL_ID = "grok-imagine-video";
-const GROK_IMAGINE_VIDEO_15_MODEL_ID = "grok-imagine-video-1.5";
-const GROK_VIDEO_SECONDS = Array.from({ length: 15 }, (_, index) => String(index + 1));
-const GROK_VIDEO_ASPECT_RATIOS = ["16:9", "9:16", "1:1"];
-const GROK_VIDEO_RESOLUTIONS = ["480p", "720p"];
 const CUSTOM_VIDEO_POLL_INTERVAL_MS = 5_000;
 const CUSTOM_MJ_POLL_INTERVAL_MS = 5_000;
 
@@ -76,7 +75,315 @@ export type CustomApiConnection = {
   apiKey: string;
   /** The wire protocol for this connection. Legacy profiles default to OpenAI. */
   apiFormat?: CustomApiFormat;
+  /**
+   * 可选协议档案（P0）：只在用户显式填写时生效，用来接那些"OpenAI 兼容但字段名/
+   * 端点/认证方式不同"的中转站。缺省完全走今天的默认路径，零迁移。
+   */
+  protocol?: CustomApiProtocolOverride;
 };
+
+export type CustomApiAuthStyle = "bearer" | "header" | "query";
+
+export type CustomApiRequestContentType = "json" | "form" | "multipart";
+
+/** 异步任务的轮询覆盖（P1）：任务号、状态、进度都可能在上游响应里换位置/换值。 */
+export type CustomApiPollOverride = {
+  /** 如 `/v1/tasks/{task_id}`；`{task_id}` 与 `{id}` 都支持。缺省 = `/v1/videos/{id}`。 */
+  urlTemplate?: string;
+  method?: "GET" | "POST";
+  /** 取任务号的候选点路径，排在内置 `id` / `task_id` 之前。 */
+  taskIdPaths?: string[];
+  /** 取状态值的候选点路径，排在内置 `status` 之前。 */
+  statusPaths?: string[];
+  /** 命中即判定完成/失败的状态字面量（大小写不敏感）。 */
+  successValues?: string[];
+  failValues?: string[];
+  /** 进度字段的点路径；缺省读顶层 `progress`。 */
+  progressPath?: string;
+};
+
+/**
+ * 协议档案：认证方式（P0）、按模态的提交端点（P0）、请求体编码（P2）、
+ * 异步轮询（P1）、错误提取与结果 URL 候选点路径（P3）。全部声明式，不执行用户脚本。
+ */
+export type CustomApiProtocolOverride = {
+  auth?: { style: CustomApiAuthStyle; name?: string };
+  endpoints?: Partial<Record<ModelModality, string>>;
+  request?: { contentType?: CustomApiRequestContentType };
+  poll?: CustomApiPollOverride;
+  /** 上游把失败原因放在哪：messagePaths 优先于内置候选，codePaths 同理。 */
+  error?: { messagePaths?: string[]; codePaths?: string[] };
+  resultUrlPaths?: string[];
+};
+
+const CUSTOM_API_AUTH_STYLES: readonly CustomApiAuthStyle[] = ["bearer", "header", "query"];
+const CUSTOM_API_CONTENT_TYPES: readonly CustomApiRequestContentType[] = [
+  "json",
+  "form",
+  "multipart",
+];
+const CUSTOM_API_RESULT_PATH_LIMIT = 20;
+const CUSTOM_API_PATH_LIST_LIMIT = 12;
+const CUSTOM_API_STATUS_VALUE_LIMIT = 12;
+const CUSTOM_API_POLL_TEMPLATE_TOKENS = /\{(?:task_id|id)\}/g;
+
+/**
+ * 归一化用户填写的协议档案：空白、非法、危险项一律丢弃，宁可退回默认也不把坏值
+ * 带进请求。永远只返回声明式数据（点路径/端点/认证样式），不接受脚本。
+ */
+export function normalizeProtocolOverride(value: unknown): CustomApiProtocolOverride | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const source = value as Record<string, unknown>;
+  const protocol: CustomApiProtocolOverride = {};
+
+  const auth = source.auth;
+  if (auth && typeof auth === "object" && !Array.isArray(auth)) {
+    const style = (auth as { style?: unknown }).style;
+    const name = (auth as { name?: unknown }).name;
+    if (typeof style === "string" && CUSTOM_API_AUTH_STYLES.includes(style as CustomApiAuthStyle)) {
+      if (style === "bearer") protocol.auth = { style: "bearer" };
+      else if (typeof name === "string" && isSafeAuthName(name))
+        protocol.auth = { style: style as CustomApiAuthStyle, name: name.trim() };
+    }
+  }
+
+  const endpoints = source.endpoints;
+  if (endpoints && typeof endpoints === "object" && !Array.isArray(endpoints)) {
+    const resolved: Partial<Record<ModelModality, string>> = {};
+    for (const modality of ["text", "image", "video", "audio"] as const) {
+      const path = (endpoints as Record<string, unknown>)[modality];
+      if (typeof path === "string" && isSafeEndpointPath(path)) resolved[modality] = path.trim();
+    }
+    if (Object.keys(resolved).length) protocol.endpoints = resolved;
+  }
+
+  const request = source.request;
+  if (request && typeof request === "object" && !Array.isArray(request)) {
+    const contentType = (request as { contentType?: unknown }).contentType;
+    if (
+      typeof contentType === "string" &&
+      CUSTOM_API_CONTENT_TYPES.includes(contentType as CustomApiRequestContentType) &&
+      contentType !== "json"
+    )
+      protocol.request = { contentType: contentType as CustomApiRequestContentType };
+  }
+
+  const poll = normalizePollOverride(source.poll);
+  if (poll) protocol.poll = poll;
+
+  const error = normalizeErrorOverride(source.error);
+  if (error) protocol.error = error;
+
+  const paths = source.resultUrlPaths;
+  if (Array.isArray(paths)) {
+    const resolved = normalizePathList(paths, CUSTOM_API_RESULT_PATH_LIMIT);
+    if (resolved.length) protocol.resultUrlPaths = resolved;
+  }
+
+  return Object.keys(protocol).length ? protocol : undefined;
+}
+
+function normalizeErrorOverride(value: unknown): CustomApiProtocolOverride["error"] | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const source = value as Record<string, unknown>;
+  const error: NonNullable<CustomApiProtocolOverride["error"]> = {};
+  for (const key of ["messagePaths", "codePaths"] as const) {
+    const raw = source[key];
+    if (Array.isArray(raw) && raw.length) {
+      const resolved = normalizePathList(raw, CUSTOM_API_PATH_LIST_LIMIT);
+      if (resolved.length) error[key] = resolved;
+    }
+  }
+  return Object.keys(error).length ? error : undefined;
+}
+
+function normalizePollOverride(value: unknown): CustomApiPollOverride | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const source = value as Record<string, unknown>;
+  const poll: CustomApiPollOverride = {};
+  if (typeof source.urlTemplate === "string" && isSafePollTemplate(source.urlTemplate))
+    poll.urlTemplate = source.urlTemplate.trim();
+  // GET 是内置默认：不写进档案，避免同一份配置产生不同的指纹。
+  if (source.method === "POST") poll.method = "POST";
+  for (const key of ["taskIdPaths", "statusPaths"] as const) {
+    const raw = source[key];
+    if (Array.isArray(raw) && raw.length) {
+      const resolved = normalizePathList(raw, CUSTOM_API_PATH_LIST_LIMIT);
+      if (resolved.length) poll[key] = resolved;
+    }
+  }
+  for (const key of ["successValues", "failValues"] as const) {
+    const raw = source[key];
+    if (Array.isArray(raw) && raw.length) {
+      const resolved = normalizeStatusValues(raw);
+      if (resolved.length) poll[key] = resolved;
+    }
+  }
+  if (typeof source.progressPath === "string" && isSafeResultPath(source.progressPath))
+    poll.progressPath = source.progressPath.trim();
+  return Object.keys(poll).length ? poll : undefined;
+}
+
+function normalizePathList(values: readonly unknown[], limit: number) {
+  return uniqueStrings(
+    values.filter((path): path is string => typeof path === "string").filter(isSafeResultPath),
+  ).slice(0, limit);
+}
+
+function normalizeStatusValues(values: readonly unknown[]) {
+  return [
+    ...new Set(
+      values
+        .filter((value): value is string => typeof value === "string")
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0 && value.length <= 40),
+    ),
+  ].slice(0, CUSTOM_API_STATUS_VALUE_LIMIT);
+}
+
+function isSafeAuthName(value: string) {
+  const trimmed = value.trim();
+  return trimmed.length > 0 && trimmed.length <= 64 && /^[A-Za-z0-9_-]+$/.test(trimmed);
+}
+
+/** 提交端点必须是站内绝对路径：不接受协议、主机、相对路径、查询串或穿越片段。 */
+function isSafeEndpointPath(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return false;
+  if (trimmed.length > 300 || /\s/.test(trimmed) || trimmed.includes("..")) return false;
+  if (trimmed.includes("?") || trimmed.includes("#")) return false;
+  return trimmed.split("/").every((segment) => !BLOCKED_PATH_SEGMENTS.has(segment));
+}
+
+/** 轮询模板：站内绝对路径 + 查询串，只允许 `{task_id}` / `{id}` 两个占位符。 */
+function isSafePollTemplate(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return false;
+  if (trimmed.length > 300 || /\s/.test(trimmed) || trimmed.includes("..")) return false;
+  const withoutTokens = trimmed.replace(CUSTOM_API_POLL_TEMPLATE_TOKENS, "x");
+  if (withoutTokens.includes("{") || withoutTokens.includes("}")) return false;
+  const [pathname] = withoutTokens.split("?");
+  return (pathname ?? "").split("/").every((segment) => !BLOCKED_PATH_SEGMENTS.has(segment));
+}
+
+function isSafeResultPath(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 120 || /\s/.test(trimmed)) return false;
+  return trimmed
+    .split(".")
+    .every((segment) => segment.length > 0 && !BLOCKED_PATH_SEGMENTS.has(segment));
+}
+
+/**
+ * 认证请求初始化：bearer（默认）/ 自定义头 / 查询参数三种样式共用一处，保证目录
+ * 拉取、模型列表与执行三处认证永远一致。
+ */
+export function customApiAuthInit(connection: CustomApiConnection, path: string) {
+  const origin = normalizeCustomApiBaseUrl(connection.baseUrl);
+  const url = new URL(path, origin);
+  if (url.origin !== origin) throw new CustomApiError("模型调用路径无效", "ROUTE_INVALID");
+  const headers: Record<string, string> = { Accept: "application/json" };
+  const apiKey = connection.apiKey.trim();
+  const auth = normalizeProtocolOverride(connection.protocol)?.auth;
+  if (!apiKey) return { url, headers };
+  if (auth?.style === "query" && auth.name) url.searchParams.set(auth.name, apiKey);
+  else if (auth?.style === "header" && auth.name) headers[auth.name] = apiKey;
+  else headers.Authorization = `Bearer ${apiKey}`;
+  return { url, headers };
+}
+
+/** 该模态实际使用的提交端点：协议档案优先，其次内置默认。 */
+export function protocolEndpoint(
+  connection: CustomApiConnection | undefined,
+  modality: ModelModality,
+  fallback: string | undefined,
+) {
+  const override = connection
+    ? normalizeProtocolOverride(connection.protocol)?.endpoints?.[modality]
+    : undefined;
+  return override ?? fallback;
+}
+
+/** 把协议档案的端点覆盖应用到已解析出的路由上（选择器与执行共用同一份路由）。 */
+export function applyProtocolOverride(
+  route: CustomApiRoute,
+  connection?: CustomApiConnection,
+): CustomApiRoute {
+  const override = connection
+    ? normalizeProtocolOverride(connection.protocol)?.endpoints?.[route.modality]
+    : undefined;
+  if (!override || override === route.endpointPath) return route;
+  return { ...route, endpointPath: override };
+}
+
+function protocolResultPaths(connection: CustomApiConnection | undefined) {
+  return connection ? normalizeProtocolOverride(connection.protocol)?.resultUrlPaths : undefined;
+}
+
+function protocolContentType(connection: CustomApiConnection): CustomApiRequestContentType {
+  return normalizeProtocolOverride(connection.protocol)?.request?.contentType ?? "json";
+}
+
+/**
+ * 请求体编码（P2）：默认 JSON；`form` 走 URLSearchParams（数组重复同名键、对象 JSON
+ * 字符串化）；`multipart` 走 FormData，data URL 会解成文件部件（浏览器自带 boundary）。
+ * 规则保守且可预期，不做任何字段名猜测。
+ */
+export async function buildProtocolRequestBody(
+  value: Record<string, unknown>,
+  contentType: CustomApiRequestContentType,
+): Promise<{ body: BodyInit; headers: Record<string, string> }> {
+  if (contentType === "json")
+    return { body: JSON.stringify(value), headers: { "Content-Type": "application/json" } };
+  if (contentType === "form") {
+    const params = new URLSearchParams();
+    for (const [key, item] of Object.entries(value)) appendFormValue(params, key, item);
+    return {
+      body: params,
+      headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+    };
+  }
+  const form = new FormData();
+  for (const [key, item] of Object.entries(value)) await appendFormDataValue(form, key, item);
+  return { body: form, headers: {} };
+}
+
+function appendFormValue(params: URLSearchParams, key: string, value: unknown) {
+  if (value === undefined || value === null) return;
+  if (Array.isArray(value)) {
+    for (const item of value) appendFormValue(params, key, item);
+    return;
+  }
+  if (typeof value === "object") {
+    params.append(key, JSON.stringify(value));
+    return;
+  }
+  params.append(key, String(value));
+}
+
+async function appendFormDataValue(form: FormData, key: string, value: unknown) {
+  if (value === undefined || value === null) return;
+  if (Array.isArray(value)) {
+    for (const item of value) await appendFormDataValue(form, key, item);
+    return;
+  }
+  if (typeof value === "string" && value.startsWith("data:")) {
+    const blob = await dataUrlBlob(value);
+    const extension = extensionFor(blob.type, "bin");
+    form.append(
+      key,
+      new File([blob], `upload.${extension}`, {
+        type: blob.type || "application/octet-stream",
+      }),
+    );
+    return;
+  }
+  if (typeof value === "object") {
+    form.append(key, JSON.stringify(value));
+    return;
+  }
+  form.append(key, String(value));
+}
 
 export type CustomApiRouteParameter = {
   name: string;
@@ -174,8 +481,9 @@ export async function loadCustomApiCatalog(
   if (apiFormat === "gemini") return loadGeminiCatalog(origin, connection.apiKey);
   let response: Response;
   try {
-    response = await fetch(`${origin}/api/model-catalog`, {
-      headers: { Accept: "application/json" },
+    const request = customApiAuthInit(connection, "/api/model-catalog");
+    response = await fetch(request.url, {
+      headers: request.headers,
       signal: AbortSignal.timeout(CATALOG_REQUEST_TIMEOUT_MS),
     });
   } catch {
@@ -193,13 +501,17 @@ export async function loadCustomApiCatalog(
   const models: PublicModel[] = [];
   const usedIds = new Set<string>();
   for (const item of source.models) {
-    const expectedEndpoint = EXPECTED_ENDPOINTS[item.modality];
+    const overrideEndpoint = normalizeProtocolOverride(connection.protocol)?.endpoints?.[
+      item.modality
+    ];
+    const expectedEndpoint = overrideEndpoint ?? EXPECTED_ENDPOINTS[item.modality];
     const endpointAllowed =
-      item.modality === "image"
+      overrideEndpoint !== undefined ||
+      (item.modality === "image"
         ? IMAGE_ENDPOINTS.includes(item.endpoint.path as (typeof IMAGE_ENDPOINTS)[number])
         : item.modality === "audio"
           ? isAllowedAudioEndpoint(item.endpoint.path)
-          : item.endpoint.path === expectedEndpoint;
+          : item.endpoint.path === expectedEndpoint);
     if (
       item.selectable === false ||
       !expectedEndpoint ||
@@ -211,7 +523,7 @@ export async function loadCustomApiCatalog(
     if (!id || usedIds.has(id)) continue;
     try {
       const model = normalizeCustomModel(item, id);
-      const route = normalizeCustomRoute(item);
+      const route = applyProtocolOverride(normalizeCustomRoute(item), connection);
       usedIds.add(id);
       models.push(model);
       routes[id] = route;
@@ -247,6 +559,7 @@ export async function testCustomApiConnection(
   const apiFormat = normalizeCustomApiFormat(connection.apiFormat);
   const apiKey = connection.apiKey.trim();
   if (!apiKey) throw new CustomApiError("请输入 API Key", "API_KEY_REQUIRED");
+  const protocol = connection.protocol;
 
   if (apiFormat === "gemini") {
     const availableModelIds = await fetchCustomApiModelIdsForFormat(origin, apiKey, apiFormat);
@@ -255,12 +568,12 @@ export async function testCustomApiConnection(
 
   // Capability metadata and token-scoped availability are independent. Start
   // both reads together so one profile never pays a serial network waterfall.
-  const catalogRequest = loadCustomApiCatalog({ baseUrl: origin, apiKey })
+  const catalogRequest = loadCustomApiCatalog({ baseUrl: origin, apiKey, protocol })
     .then((catalog) => ({ catalog, error: null as string | null }))
     .catch((cause) => ({ catalog: null, error: publicCustomApiError(cause) }));
   const [catalogResult, availableModelIds] = await Promise.all([
     catalogRequest,
-    fetchCustomApiModelIdsForFormat(origin, apiKey, apiFormat),
+    fetchCustomApiModelIdsForFormat(origin, apiKey, apiFormat, protocol),
   ]);
   if (!catalogResult.catalog) {
     return modelsOnlyCatalog(availableModelIds, catalogResult.error, apiFormat);
@@ -276,6 +589,7 @@ export async function fetchCustomApiModelIdsForFormat(
   originValue: string,
   apiKeyValue: string,
   apiFormatValue: CustomApiFormat = DEFAULT_CUSTOM_API_FORMAT,
+  protocol?: CustomApiProtocolOverride,
 ) {
   const origin = normalizeCustomApiBaseUrl(originValue);
   const apiFormat = normalizeCustomApiFormat(apiFormatValue);
@@ -283,16 +597,19 @@ export async function fetchCustomApiModelIdsForFormat(
   if (!apiKey) throw new CustomApiError("请输入 API Key", "API_KEY_REQUIRED");
   let response: Response;
   try {
-    response = await fetch(
-      apiFormat === "gemini" ? `${origin}/v1beta/models` : `${origin}/v1/models`,
-      {
-        headers:
-          apiFormat === "gemini"
-            ? { Accept: "application/json", "x-goog-api-key": apiKey }
-            : { Accept: "application/json", Authorization: `Bearer ${apiKey}` },
+    if (apiFormat === "gemini") {
+      response = await fetch(`${origin}/v1beta/models`, {
+        headers: { Accept: "application/json", "x-goog-api-key": apiKey },
         signal: AbortSignal.timeout(CONNECTION_CHECK_TIMEOUT_MS),
-      },
-    );
+      });
+    } else {
+      // 模型列表与执行共用同一套认证样式：自定义头/查询参数的中转站也能连上。
+      const request = customApiAuthInit({ baseUrl: origin, apiKey, protocol }, "/v1/models");
+      response = await fetch(request.url, {
+        headers: request.headers,
+        signal: AbortSignal.timeout(CONNECTION_CHECK_TIMEOUT_MS),
+      });
+    }
   } catch {
     throw new CustomApiError("连接测试失败，请检查网络和跨域设置", "CONNECTION_FAILED");
   }
@@ -522,7 +839,7 @@ export async function executeCustomGeneration(input: {
   if (normalizeCustomApiFormat(input.connection.apiFormat) === "gemini") {
     return executeGeminiGeneration(input, origin, apiKey);
   }
-  assertRoute(input.model, input.route);
+  assertRoute(input.model, input.route, input.connection);
   const isMidjourney =
     input.model.modality === "image" && input.route.endpointPath === "/v1/midjourney/generations";
   const payload = isMidjourney
@@ -536,8 +853,7 @@ export async function executeCustomGeneration(input: {
   assertKnownModelConstraints(input.route, payload, input.inputs);
   input.onProgress?.(8);
   const response = await requestJson(
-    origin,
-    apiKey,
+    input.connection,
     input.route.endpointPath,
     "POST",
     payload,
@@ -553,7 +869,7 @@ export async function executeCustomGeneration(input: {
   }
   if (input.model.modality === "image") {
     if (input.route.endpointPath === "/v1/midjourney/generations") {
-      return executeCustomMidjourneyGeneration(input, origin, apiKey, response);
+      return executeCustomMidjourneyGeneration(input, input.connection, response);
     }
     const parsed = customApiImageResponseSchema.safeParse(response);
     if (!parsed.success) throw new CustomApiError("图片生成返回格式不兼容", "IMAGE_RESULT_INVALID");
@@ -566,7 +882,7 @@ export async function executeCustomGeneration(input: {
     const media: CanvasMedia[] = [];
     for (let index = 0; index < items.length; index += 1) {
       const item = items[index]!;
-      const blob = await imageResultBlob(item, origin, apiKey);
+      const blob = await imageResultBlob(item, input.connection);
       media.push(
         await storeMedia(
           new File(
@@ -589,7 +905,7 @@ export async function executeCustomGeneration(input: {
     } else {
       const urls = collectAudioResultUrls(response, origin);
       for (const [index, url] of urls.entries()) {
-        const blob = await downloadResult(url, origin, apiKey, "audio");
+        const blob = await downloadResult(url, input.connection, "audio");
         media.push(await storeAudioResult(blob, index));
         input.onProgress?.(Math.min(100, 60 + Math.round(((index + 1) / urls.length) * 40)));
       }
@@ -598,11 +914,16 @@ export async function executeCustomGeneration(input: {
     return { media };
   }
   if (input.model.modality === "video") {
-    const completed = await waitForVideo(origin, apiKey, response, input.onProgress);
-    const taskId = completed.id ?? completed.task_id;
-    const url = videoResultUrl(completed) ?? (taskId ? videoContentUrl(origin, taskId) : null);
+    const { payload: completed, taskId } = await waitForVideo(
+      input.connection,
+      response,
+      input.onProgress,
+    );
+    const url =
+      videoResultUrl(completed, protocolResultPaths(input.connection)) ??
+      (taskId ? videoContentUrl(origin, taskId) : null);
     if (!url) throw new CustomApiError("视频任务完成但没有返回可用文件", "VIDEO_RESULT_MISSING");
-    const blob = await downloadResult(url, origin, apiKey, "video");
+    const blob = await downloadResult(url, input.connection, "video");
     const media = await storeMedia(
       new File([blob], `generated-${Date.now()}.${extensionFor(blob.type, "mp4")}`, {
         type: blob.type || "video/mp4",
@@ -1318,14 +1639,19 @@ function minimumDefined(left: number | undefined, right: number | undefined) {
   return Math.min(left, right);
 }
 
-function assertRoute(model: PublicModel, route: CustomApiRoute) {
-  const expected = EXPECTED_ENDPOINTS[model.modality];
+function assertRoute(model: PublicModel, route: CustomApiRoute, connection?: CustomApiConnection) {
+  const override = connection
+    ? normalizeProtocolOverride(connection.protocol)?.endpoints?.[model.modality]
+    : undefined;
+  const expected = override ?? EXPECTED_ENDPOINTS[model.modality];
   const endpointAllowed =
-    model.modality === "image"
-      ? IMAGE_ENDPOINTS.includes(route.endpointPath as (typeof IMAGE_ENDPOINTS)[number])
-      : model.modality === "audio"
-        ? isAllowedAudioEndpoint(route.endpointPath)
-        : route.endpointPath === expected;
+    override !== undefined
+      ? route.endpointPath === override
+      : model.modality === "image"
+        ? IMAGE_ENDPOINTS.includes(route.endpointPath as (typeof IMAGE_ENDPOINTS)[number])
+        : model.modality === "audio"
+          ? isAllowedAudioEndpoint(route.endpointPath)
+          : route.endpointPath === expected;
   if (!expected || route.modality !== model.modality || !endpointAllowed) {
     throw new CustomApiError("当前模型调用路径不兼容", "ROUTE_INVALID");
   }
@@ -1778,34 +2104,30 @@ function requireCompatibleReference(
 }
 
 async function requestJson(
-  origin: string,
-  apiKey: string,
+  connection: CustomApiConnection,
   path: string,
   method: "GET" | "POST",
   body?: Record<string, unknown>,
   timeoutMs = 30_000,
 ) {
-  const url = new URL(path, origin);
-  if (url.origin !== origin) throw new CustomApiError("模型调用路径无效", "ROUTE_INVALID");
+  const { url, headers } = customApiAuthInit(connection, path);
+  const init: RequestInit = { method, headers, signal: AbortSignal.timeout(timeoutMs) };
+  if (body) {
+    const built = await buildProtocolRequestBody(body, protocolContentType(connection));
+    init.body = built.body;
+    Object.assign(headers, built.headers);
+  }
   let response: Response;
   try {
-    response = await fetch(url, {
-      method,
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${apiKey}`,
-        ...(body ? { "Content-Type": "application/json" } : {}),
-      },
-      ...(body ? { body: JSON.stringify(body) } : {}),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    response = await fetch(url, init);
   } catch {
     throw new CustomApiError(
       method === "POST" ? "生成请求连接中断，请先检查任务记录再重试" : "暂时无法获取生成进度",
       "NETWORK_ERROR",
     );
   }
-  if (!response.ok) throw await customApiResponseError(response);
+  if (!response.ok)
+    throw await customApiResponseError(response, normalizeProtocolOverride(connection.protocol));
   try {
     return (await response.json()) as unknown;
   } catch {
@@ -1813,21 +2135,14 @@ async function requestJson(
   }
 }
 
-async function customApiResponseError(response: Response) {
+async function customApiResponseError(response: Response, protocol?: CustomApiProtocolOverride) {
   let detail = "";
+  let code = "";
   try {
-    const value = (await response.json()) as {
-      error?: { message?: unknown } | string;
-      message?: unknown;
-    };
-    detail =
-      typeof value.error === "string"
-        ? value.error
-        : typeof value.error?.message === "string"
-          ? value.error.message
-          : typeof value.message === "string"
-            ? value.message
-            : "";
+    const value: unknown = await response.json();
+    // 先按协议档案的点路径取，再退回内置候选（含 `msg` 这类中转站常见字段）。
+    detail = errorMessageAtPaths(value, protocol)?.value ?? "";
+    code = errorCodeAtPaths(value, protocol)?.value ?? "";
   } catch {
     // Keep a stable public fallback for non-JSON errors.
   }
@@ -1836,18 +2151,20 @@ async function customApiResponseError(response: Response) {
       ? "API Key 无效或没有调用权限"
       : response.status === 429
         ? "请求过于频繁，请稍后重试"
-        : detail.trim().slice(0, 240) || `生成请求失败 (${response.status})`;
+        : detail.trim().slice(0, 240) ||
+          (code
+            ? `生成请求失败 (${response.status} · ${code})`
+            : `生成请求失败 (${response.status})`);
   return new CustomApiError(message, `HTTP_${response.status}`);
 }
 
 async function imageResultBlob(
   item: { url?: string; b64_json?: string },
-  origin: string,
-  apiKey: string,
+  connection: CustomApiConnection,
 ) {
   if (item.b64_json) return base64Blob(item.b64_json, "image/png");
   if (item.url?.startsWith("data:image/")) return dataUrlBlob(item.url);
-  if (item.url && isHttpUrl(item.url)) return downloadResult(item.url, origin, apiKey, "image");
+  if (item.url && isHttpUrl(item.url)) return downloadResult(item.url, connection, "image");
   throw new CustomApiError("图片生成没有返回可用文件", "IMAGE_RESULT_INVALID");
 }
 
@@ -1856,18 +2173,17 @@ async function executeCustomMidjourneyGeneration(
     model: PublicModel;
     onProgress?: (progress: number) => void;
   },
-  origin: string,
-  apiKey: string,
+  connection: CustomApiConnection,
   initial: unknown,
 ): Promise<{ media: CanvasMedia[] }> {
-  const completed = await waitForCustomMidjourney(origin, apiKey, initial, input.onProgress);
+  const completed = await waitForCustomMidjourney(connection, initial, input.onProgress);
   if (!completed.length) {
     throw new CustomApiError("图片生成完成但没有返回可用文件", "IMAGE_RESULT_MISSING");
   }
   const media: CanvasMedia[] = [];
   for (let index = 0; index < completed.length; index += 1) {
     const item = completed[index]!;
-    const blob = await imageResultBlob(item, origin, apiKey);
+    const blob = await imageResultBlob(item, connection);
     media.push(
       await storeMedia(
         new File([blob], `generated-${Date.now()}-${index + 1}.${extensionFor(blob.type, "png")}`, {
@@ -1882,8 +2198,7 @@ async function executeCustomMidjourneyGeneration(
 }
 
 async function waitForCustomMidjourney(
-  origin: string,
-  apiKey: string,
+  connection: CustomApiConnection,
   initial: unknown,
   onProgress?: (progress: number) => void,
 ) {
@@ -1911,8 +2226,7 @@ async function waitForCustomMidjourney(
     await sleep(CUSTOM_MJ_POLL_INTERVAL_MS);
     try {
       current = await requestJson(
-        origin,
-        apiKey,
+        connection,
         usedLegacyTaskPath
           ? `/v1/midjourney/${encodeURIComponent(taskId)}`
           : `/v1/tasks/${encodeURIComponent(taskId)}`,
@@ -1924,8 +2238,7 @@ async function waitForCustomMidjourney(
       if (!usedLegacyTaskPath && error instanceof CustomApiError && error.code === "HTTP_404") {
         usedLegacyTaskPath = true;
         current = await requestJson(
-          origin,
-          apiKey,
+          connection,
           `/v1/midjourney/${encodeURIComponent(taskId)}`,
           "GET",
         );
@@ -2059,28 +2372,102 @@ function customMidjourneySingleItems(value: Record<string, unknown>) {
 }
 
 async function waitForVideo(
-  origin: string,
-  apiKey: string,
+  connection: CustomApiConnection,
   initial: unknown,
   onProgress?: (progress: number) => void,
-) {
-  let current = customApiVideoResponseSchema.parse(initial);
-  const taskId = current.id ?? current.task_id;
+): Promise<{ payload: unknown; taskId: string }> {
+  const protocol = normalizeProtocolOverride(connection.protocol);
+  const poll = protocol?.poll;
+  const customPoll = Boolean(poll);
+  let current = acceptVideoPayload(initial, customPoll);
+  const taskId = pollTaskId(current, poll);
   if (!taskId) throw new CustomApiError("视频任务没有返回任务编号", "VIDEO_TASK_MISSING");
   const deadline = Date.now() + 30 * 60_000;
   while (Date.now() < deadline) {
-    const status = normalizeVideoStatus(current.status);
-    if (status === "failed") throw videoGenerationError(current.error);
+    const status = pollStatus(current, poll);
+    if (status === "failed") throw videoGenerationError(videoFailureInput(current, protocol));
     // Some OpenAI-compatible relays keep the completed response small and
     // expose the bytes only through /v1/videos/{task_id}/content.
-    if (status === "completed") return current;
-    onProgress?.(normalizedProgress(current.progress) ?? (status === "running" ? 48 : 18));
+    if (status === "completed") return { payload: current, taskId };
+    onProgress?.(pollProgress(current, poll) ?? (status === "running" ? 48 : 18));
     await sleep(CUSTOM_VIDEO_POLL_INTERVAL_MS);
-    current = customApiVideoResponseSchema.parse(
-      await requestJson(origin, apiKey, `/v1/videos/${encodeURIComponent(taskId)}`, "GET"),
+    current = acceptVideoPayload(
+      await requestJson(connection, pollUrlFor(poll, taskId), poll?.method ?? "GET"),
+      customPoll,
     );
   }
   throw new CustomApiError("视频生成等待超时，可稍后在任务记录中查看", "VIDEO_TIMEOUT");
+}
+
+function videoRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+/**
+ * 自定义轮询下，上游响应可能不在内置形状里（状态是数字、任务号在别的字段）；解析
+ * 失败时保留原始载荷交给点路径处理。没有自定义轮询时保持原有的严格校验。
+ */
+function acceptVideoPayload(value: unknown, customPoll: boolean): unknown {
+  const parsed = customApiVideoResponseSchema.safeParse(value);
+  if (parsed.success) return parsed.data;
+  return customPoll ? value : customApiVideoResponseSchema.parse(value);
+}
+
+function readFirstPollValueAtPaths(value: unknown, paths: readonly string[]) {
+  return firstEntryAtPaths(value, paths, true)?.value;
+}
+
+function pollTaskId(payload: unknown, poll: CustomApiPollOverride | undefined) {
+  return readFirstPollValueAtPaths(payload, [...(poll?.taskIdPaths ?? []), "id", "task_id"]);
+}
+
+function pollUrlFor(poll: CustomApiPollOverride | undefined, taskId: string) {
+  const encoded = encodeURIComponent(taskId);
+  const template = poll?.urlTemplate;
+  if (template) return template.replace(CUSTOM_API_POLL_TEMPLATE_TOKENS, encoded);
+  return `/v1/videos/${encoded}`;
+}
+
+function pollStatus(
+  payload: unknown,
+  poll: CustomApiPollOverride | undefined,
+): "queued" | "running" | "completed" | "failed" {
+  const configured = Boolean(
+    poll?.statusPaths?.length || poll?.successValues?.length || poll?.failValues?.length,
+  );
+  if (!configured) {
+    const status = videoRecord(payload).status;
+    return normalizeVideoStatus(typeof status === "string" ? status : undefined);
+  }
+  const raw = readFirstPollValueAtPaths(payload, [...(poll?.statusPaths ?? []), "status"]);
+  if (!raw) return "queued";
+  // 未命中的状态一律继续等：宁可等到超时给出明确错误，也不猜"完成"。
+  return pollVerdict(raw, poll);
+}
+
+function pollProgress(payload: unknown, poll: CustomApiPollOverride | undefined) {
+  const value = poll?.progressPath
+    ? valueAtPath(payload, poll.progressPath)
+    : videoRecord(payload).progress;
+  if (typeof value !== "number") return undefined;
+  return normalizedProgress(value);
+}
+
+/**
+ * 视频失败时的错误输入：**只有用户显式声明了错误路径**才改道按路径取值；否则原样交给
+ * `videoGenerationError` 的深搜逻辑（它会同时找 message 与 code，用于识别
+ * Higgsfield 套餐限制、Cloudflare 验证这些已知形态）。内置候选表在这里不参与——它只覆盖
+ * 顶层字段，用它会丢掉深层的错误码。
+ */
+function videoFailureInput(payload: unknown, protocol: CustomApiProtocolOverride | undefined) {
+  const configured = protocol?.error?.messagePaths;
+  if (configured?.length) {
+    const found = firstEntryAtPaths(payload, configured);
+    if (found) return found.value;
+  }
+  return videoRecord(payload).error;
 }
 
 function videoGenerationError(value: unknown) {
@@ -2132,16 +2519,18 @@ function videoErrorDetail(value: unknown, depth = 0): string {
 
 async function downloadResult(
   value: string,
-  origin: string,
-  apiKey: string,
+  connection: CustomApiConnection,
   kind: "image" | "video" | "audio",
 ) {
+  const origin = normalizeCustomApiBaseUrl(connection.baseUrl);
   const label = kind === "image" ? "图片" : kind === "video" ? "视频" : "音频";
   const url = new URL(value);
   let response: Response;
   try {
     response = await fetch(url, {
-      headers: url.origin === origin ? { Authorization: `Bearer ${apiKey}` } : undefined,
+      // 结果字节与站同源时才带凭据（含协议档案的认证样式）；外部 CDN 一律不带。
+      headers:
+        url.origin === origin ? customApiAuthInit(connection, url.pathname).headers : undefined,
       signal: AbortSignal.timeout(5 * 60_000),
     });
   } catch {
@@ -2170,9 +2559,21 @@ function base64Blob(value: string, mimeType: string) {
   }
 }
 
+/**
+ * data URL → Blob，自己解码：不走 `fetch(dataUrl)`。后者在严格的 CSP
+ * (`connect-src`) 下会被拦，而且把一次纯内存操作挂到了网络栈上。
+ */
 async function dataUrlBlob(value: string) {
+  const match = /^data:([^;,]*)((?:;[^,]*)*),(.*)$/s.exec(value);
+  if (!match) throw new CustomApiError("图片数据无法解码", "IMAGE_RESULT_INVALID");
+  const mimeType = match[1] || "application/octet-stream";
+  const isBase64 = /;base64/i.test(match[2] ?? "");
+  const payload = match[3] ?? "";
   try {
-    return await (await fetch(value)).blob();
+    const bytes = isBase64
+      ? Uint8Array.from(atob(payload), (char) => char.charCodeAt(0))
+      : new TextEncoder().encode(decodeURIComponent(payload));
+    return new Blob([bytes], { type: mimeType });
   } catch {
     throw new CustomApiError("图片数据无法解码", "IMAGE_RESULT_INVALID");
   }
@@ -2190,35 +2591,46 @@ function messageText(value: unknown): string {
     .join("");
 }
 
-function videoResultUrl(value: unknown) {
-  for (const path of [
-    "outputs.0.content_url",
-    "outputs.0.download_url",
-    "outputs.0.url",
-    "content_url",
-    "video.url",
-    "url",
-    "video_url",
-    "download_url",
-    "output.url",
-    "output.content_url",
-    "result.url",
-    "result.video_url",
-    "result.content_url",
-    "data.url",
-    "data.video_url",
-    "data.content_url",
-    "data.video.url",
-    "content.url",
-    "content.video_url",
-    "file.url",
-  ]) {
+function videoResultUrl(value: unknown, extraPaths: readonly string[] = []) {
+  return videoResultUrlAtPath(value, extraPaths)?.value ?? null;
+}
+
+function videoResultUrlAtPath(
+  value: unknown,
+  extraPaths: readonly string[] = [],
+): { value: string; path: string } | null {
+  // 协议档案的结果点路径排在内置候选之前：用户对自己的上游响应更清楚。
+  for (const path of [...extraPaths, ...CUSTOM_API_VIDEO_RESULT_PATHS]) {
     const candidate = valueAtPath(value, path);
     if (typeof candidate === "string" && candidate.length <= 4096 && isHttpUrl(candidate))
-      return candidate;
+      return { value: candidate, path };
   }
   return null;
 }
+
+/** 内置结果点路径候选表；协议档案（P0）的 resultUrlPaths 会排在这些之前。 */
+const CUSTOM_API_VIDEO_RESULT_PATHS = [
+  "outputs.0.content_url",
+  "outputs.0.download_url",
+  "outputs.0.url",
+  "content_url",
+  "video.url",
+  "url",
+  "video_url",
+  "download_url",
+  "output.url",
+  "output.content_url",
+  "result.url",
+  "result.video_url",
+  "result.content_url",
+  "data.url",
+  "data.video_url",
+  "data.content_url",
+  "data.video.url",
+  "content.url",
+  "content.video_url",
+  "file.url",
+] as const;
 
 function videoContentUrl(origin: string, taskId: string) {
   return new URL(`/v1/videos/${encodeURIComponent(taskId)}/content`, origin).toString();
@@ -2347,62 +2759,21 @@ export function publicReferenceKinds(route: CustomApiRoute) {
 }
 
 function createKnownCustomModel(modelId: string, modality: ModelModality): PublicModel | null {
-  if (modality !== "video" || !isKnownGrokVideoModel(modelId)) return null;
-  const imageRequired = modelId === GROK_IMAGINE_VIDEO_15_MODEL_ID;
-  const resolutions = imageRequired ? [...GROK_VIDEO_RESOLUTIONS, "1080p"] : GROK_VIDEO_RESOLUTIONS;
+  const plan = inferKnowledgePlan(modelId);
+  if (!plan || !plan.modalities.includes(modality)) return null;
   return publicModelSchema.parse({
     id: modelId,
-    label: imageRequired ? "Grok Imagine Video 1.5" : "Grok Imagine Video",
-    description: imageRequired
-      ? "Grok 1.5 首帧图生视频，必须且只能提供 1 张公网可访问的参考图。"
-      : "Grok 视频生成，支持文生、单首帧和最多 7 张多图参考。",
-    modality: "video",
+    label: plan.label ?? modelId,
+    description: plan.description,
+    modality,
     operation: "generate",
     order: 0,
     input: {
-      textRequired: true,
-      images: imageRequired
-        ? { min: 1, max: 1, multiple: false }
-        : { min: 0, max: 7, multiple: true },
+      textRequired: plan.textRequired,
+      ...(plan.imageInput === undefined ? {} : { images: plan.imageInput }),
     },
-    output: { type: "video", minCount: 1, maxCount: 1 },
-    parameters: [
-      {
-        name: "prompt",
-        label: "提示词",
-        type: "string",
-        required: true,
-        minLength: 1,
-        mutuallyExclusiveWith: [],
-      },
-      {
-        name: "seconds",
-        label: "时长（秒）",
-        type: "string",
-        required: false,
-        default: "6",
-        options: GROK_VIDEO_SECONDS,
-        mutuallyExclusiveWith: [],
-      },
-      {
-        name: "aspect_ratio",
-        label: "画面比例",
-        type: "string",
-        required: false,
-        default: "16:9",
-        options: GROK_VIDEO_ASPECT_RATIOS,
-        mutuallyExclusiveWith: [],
-      },
-      {
-        name: "resolution",
-        label: "分辨率",
-        type: "string",
-        required: false,
-        default: "720p",
-        options: resolutions,
-        mutuallyExclusiveWith: [],
-      },
-    ],
+    output: { type: modality, minCount: 1, maxCount: 1 },
+    parameters: plan.uiParameters,
     pricing: {
       mode: "fixed",
       unit: "request",
@@ -2416,40 +2787,21 @@ function createKnownCustomModel(modelId: string, modality: ModelModality): Publi
 }
 
 function createKnownCustomRoute(modelId: string, modality: ModelModality): CustomApiRoute | null {
-  if (modality !== "video" || !isKnownGrokVideoModel(modelId)) return null;
-  const imageRequired = modelId === GROK_IMAGINE_VIDEO_15_MODEL_ID;
+  const plan = inferKnowledgePlan(modelId);
+  if (!plan || !plan.modalities.includes(modality)) return null;
   return {
     sourceModelId: modelId,
-    modality: "video",
-    endpointPath: "/v1/videos",
+    modality,
+    endpointPath: plan.endpointPath,
     parameters: [
       { name: "model", path: "model", type: "string", fixed: modelId },
-      { name: "prompt", path: "prompt", type: "string" },
-      { name: "seconds", path: "seconds", type: "string" },
-      { name: "aspect_ratio", path: "aspect_ratio", type: "string" },
-      { name: "resolution", path: "resolution", type: "string" },
-      {
-        name: imageRequired ? "first_frame_image" : "image",
-        path: imageRequired ? "first_frame_image" : "image",
-        type: "string",
-        format: "public-http-url",
-      },
-      ...(!imageRequired
-        ? [
-            {
-              name: "reference_images",
-              path: "reference_images",
-              type: "array" as const,
-              itemsFormat: "public-http-url-object",
-            },
-          ]
-        : []),
+      ...plan.wireParameters,
     ],
   };
 }
 
 function isKnownGrokVideoModel(modelId: string) {
-  return modelId === GROK_IMAGINE_VIDEO_MODEL_ID || modelId === GROK_IMAGINE_VIDEO_15_MODEL_ID;
+  return isGrokImagineVideoModel(modelId);
 }
 
 function assertInputCounts(model: PublicModel, inputs: GenerationJobInput) {
@@ -2511,6 +2863,177 @@ function assertKnownModelConstraints(
   if (Number.isFinite(seconds) && seconds > 10) {
     throw new CustomApiError("Grok 多参考图模式最长支持 10 秒", "DURATION_OUT_OF_RANGE");
   }
+}
+
+/**
+ * 协议自检（P3）：拿一段真实的上游响应，告诉你"按当前协议档案会解析出什么"——
+ * 任务号、状态判定、进度、结果 URL，并指出各自命中的点路径。纯本地计算，不发请求、
+ * 不产生任何费用；用户对着真实响应调点路径靠它。
+ */
+export type CustomApiProtocolProbe = {
+  taskId: { value: string; path: string } | null;
+  status: {
+    raw: string;
+    path: string;
+    verdict: "queued" | "running" | "completed" | "failed";
+  } | null;
+  progress: { value: number; path: string } | null;
+  resultUrl: { value: string; path: string } | null;
+  errorMessage: { value: string; path: string } | null;
+  errorCode: { value: string; path: string } | null;
+};
+
+export function probeCustomApiResponse(
+  rawJson: string,
+  protocol: unknown,
+): { ok: true; probe: CustomApiProtocolProbe } | { ok: false; message: string } {
+  const trimmed = rawJson.trim();
+  if (!trimmed) return { ok: false, message: "先粘贴一段上游返回的 JSON" };
+  let parsedValue: unknown;
+  try {
+    parsedValue = JSON.parse(trimmed);
+  } catch {
+    return { ok: false, message: "这段内容不是合法 JSON" };
+  }
+  const override = normalizeProtocolOverride(protocol);
+  const poll = override?.poll;
+
+  const taskIdEntry = firstEntryAtPaths(
+    parsedValue,
+    [...(poll?.taskIdPaths ?? []), "id", "task_id"],
+    true,
+  );
+  const statusEntry = firstEntryAtPaths(
+    parsedValue,
+    [...(poll?.statusPaths ?? []), "status"],
+    true,
+  );
+  const progressPath = poll?.progressPath ?? "progress";
+  const progressValue = valueAtPath(parsedValue, progressPath);
+  const resultEntry = videoResultUrlAtPath(parsedValue, override?.resultUrlPaths);
+
+  return {
+    ok: true,
+    probe: {
+      taskId: taskIdEntry,
+      status: statusEntry
+        ? {
+            raw: statusEntry.value,
+            path: statusEntry.path,
+            verdict: pollVerdict(statusEntry.value, poll),
+          }
+        : null,
+      progress:
+        typeof progressValue === "number" && Number.isFinite(progressValue)
+          ? { value: progressValue, path: progressPath }
+          : null,
+      resultUrl: resultEntry,
+      errorMessage: errorMessageAtPaths(parsedValue, override),
+      errorCode: errorCodeAtPaths(parsedValue, override),
+    },
+  };
+}
+
+function firstEntryAtPaths(
+  value: unknown,
+  paths: readonly string[],
+  allowNumber = false,
+): { value: string; path: string } | null {
+  for (const path of paths) {
+    const found = valueAtPath(value, path);
+    if (typeof found === "string" && found.trim()) return { value: found.trim(), path };
+    // Protocol profiles may name numeric task IDs or status codes. Do not coerce
+    // objects, booleans, or non-finite numbers into a pollable value.
+    if (allowNumber && typeof found === "number" && Number.isFinite(found))
+      return { value: String(found), path };
+  }
+  return null;
+}
+
+function pollVerdict(
+  raw: string,
+  poll: CustomApiPollOverride | undefined,
+): "queued" | "running" | "completed" | "failed" {
+  const configured = Boolean(poll?.successValues?.length || poll?.failValues?.length);
+  const value = raw.toLowerCase();
+  if (configured) {
+    if ((poll?.successValues ?? []).some((candidate) => candidate.toLowerCase() === value))
+      return "completed";
+    if ((poll?.failValues ?? []).some((candidate) => candidate.toLowerCase() === value))
+      return "failed";
+    return "running";
+  }
+  return normalizeVideoStatus(raw);
+}
+
+/**
+ * 测试请求（P3）：向上游发一条**真实的、极便宜的文本请求**，验证认证方式、提交端点与
+ * 请求体编码整条链路。图片/视频不在这里发——那些会产生真实费用，作者用「解析自检」
+ * 对着已有响应调点路径即可。请求由浏览器直发，Key 不出本机（与 BYOK 的既有约定一致）。
+ */
+export async function sendCustomApiTestRequest(
+  connection: CustomApiConnection,
+  modelId: string,
+): Promise<{ path: string; contentType: CustomApiRequestContentType; response: unknown }> {
+  const target = modelId.trim();
+  if (!target) throw new CustomApiError("先填一个用于测试的模型 id", "MODEL_REQUIRED");
+  const path =
+    protocolEndpoint(connection, "text", "/v1/chat/completions") ?? "/v1/chat/completions";
+  const contentType = protocolContentType(connection);
+  const response = await requestJson(
+    connection,
+    path,
+    "POST",
+    {
+      model: target,
+      messages: [{ role: "user", content: "ping" }],
+      max_tokens: 1,
+    },
+    60_000,
+  );
+  return { path, contentType, response };
+}
+
+/** 内置错误提取候选：覆盖 OpenAI 形状与国内外中转站最常见的几种字段名。 */
+const CUSTOM_API_ERROR_MESSAGE_PATHS = [
+  "error.message",
+  "message",
+  "msg",
+  "error_msg",
+  "detail",
+  "error",
+] as const;
+const CUSTOM_API_ERROR_CODE_PATHS = ["error.code", "code", "error_code", "status_code"] as const;
+
+function errorMessageAtPaths(value: unknown, protocol: CustomApiProtocolOverride | undefined) {
+  return (
+    firstEntryAtPaths(value, [
+      ...(protocol?.error?.messagePaths ?? []),
+      ...CUSTOM_API_ERROR_MESSAGE_PATHS,
+    ]) ?? null
+  );
+}
+
+function errorCodeAtPaths(value: unknown, protocol: CustomApiProtocolOverride | undefined) {
+  // 错误码常常是数字（`{"code": 4001}`），所以这里比消息宽松：接受字符串与数字。
+  return (
+    firstScalarAtPaths(value, [
+      ...(protocol?.error?.codePaths ?? []),
+      ...CUSTOM_API_ERROR_CODE_PATHS,
+    ]) ?? null
+  );
+}
+
+function firstScalarAtPaths(
+  value: unknown,
+  paths: readonly string[],
+): { value: string; path: string } | null {
+  for (const path of paths) {
+    const found = valueAtPath(value, path);
+    if (typeof found === "string" && found.trim()) return { value: found.trim(), path };
+    if (typeof found === "number" && Number.isFinite(found)) return { value: String(found), path };
+  }
+  return null;
 }
 
 function isHttpUrl(value: string) {

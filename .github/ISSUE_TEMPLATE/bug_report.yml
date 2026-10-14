@@ -3,10 +3,11 @@ description: Something does not work as expected
 labels: ["bug"]
 body:
   - type: markdown
-    value: |
-      Thanks for taking the time to file a detailed report. Canvas feel issues
-      (latency, jank, pointer behavior) are especially valuable with a screen
-      recording.
+    attributes:
+      value: |
+        Include reproducible steps and redact keys, tokens and signed media URLs.
+        For BYOK issues, also include relay software/version, model ID, protocol,
+        HTTP status and a sanitized response. Never upload a complete API configuration.
   - type: input
     id: environment
     attributes:

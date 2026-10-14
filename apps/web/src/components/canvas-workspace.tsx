@@ -1345,7 +1345,10 @@ export function CanvasWorkspace({
   const dense = nodes.length >= DENSE_NODE_THRESHOLD;
 
   // 专注模式：任一节点在生成即视为创作中，自动收起工具浮岛；Tab 随时手动开关，Esc 退出。
-  const generatingActive = nodes.some((node) => node.data.status === "running");
+  const generatingActive = nodes.some(
+    (node) =>
+      node.data.status === "running" && node.data.generation.jobStatus !== "submission_unknown",
+  );
   // 用户主动恢复（focusSuppressed）优先于「生成中自动收起」，否则生成期间按 Tab/Esc 会没反应。
   const focusActive = (focusPinned || generatingActive) && !focusSuppressed;
 

@@ -34,13 +34,25 @@ import {
   GEMINI_CUSTOM_API_BASE_URL,
   WEFTCANVAS_API_SITE_URL,
   customModelKey,
+  normalizeCustomApiFormat,
+  probeCustomApiResponse,
+  sendCustomApiTestRequest,
+  type CustomApiAuthStyle,
+  type CustomApiProtocolOverride,
+  type CustomApiProtocolProbe,
+  type CustomApiRequestContentType,
 } from "../lib/custom-api";
 import {
   canvasApiAccessLabel,
   resolveCanvasApiAccess,
   type CanvasApiAccess,
 } from "../lib/canvas-api-access";
-import { useCustomApiStore, type CustomApiProfile } from "../state/custom-api-store";
+import { isRecognizedModel, modelSupportsModality } from "../lib/custom-model-knowledge";
+import {
+  useCustomApiStore,
+  type CustomApiProfile,
+  type CustomApiSyncDiff,
+} from "../state/custom-api-store";
 import { useGenerationStore } from "../state/generation-store";
 import { useIdentityStore } from "../state/identity-store";
 import { useWalletStore } from "../state/wallet-store";
@@ -349,6 +361,7 @@ function ApiSettings({
       apiKey?: string;
       apiFormat?: CustomApiFormat;
       enabled?: boolean;
+      protocol?: CustomApiProtocolOverride;
     },
   ) => void;
   onRemove: (id: string) => void;
@@ -495,6 +508,12 @@ function ApiSettings({
               <strong>连接信息</strong>
               <span>浏览器本地配置</span>
             </div>
+            {activeProfile.lastSyncDiff ? (
+              <p className="wc-api-sync-diff" role="status">
+                <RefreshCw aria-hidden="true" />
+                {syncDiffText(activeProfile.lastSyncDiff)}
+              </p>
+            ) : null}
             <div className="wc-custom-api-fields">
               <div className="wc-custom-api-field wc-custom-api-field--name">
                 <label htmlFor={`wc-api-name-${activeProfile.id}`}>配置名称</label>
@@ -599,6 +618,8 @@ function ApiSettings({
                 </span>
               </div>
             </div>
+
+            <AdvancedProtocolFields profile={activeProfile} onCommit={onUpdate} />
 
             {activeProfile.error ? (
               <div className="wc-custom-api-error" role="alert">
@@ -769,13 +790,16 @@ function ModelSettings({
             .filter((rawId) => matchesSearch(rawId, query))
             .map((rawId) => {
               const key = customModelKey(profile.id, modality, rawId);
-              const assigned = profile.manualModelModalities[rawId]?.includes(modality) ?? false;
+              const recognized = isRecognizedModel(rawId);
               return {
                 key,
                 rawId,
                 label: richModelLabel(profile, rawId, modality),
-                detail: rawId,
-                checked: assigned && !hidden.has(key),
+                // 未识别的 id 明确标出来，用户才知道为什么它需要手点一下。
+                detail: recognized ? rawId : `${rawId} · 未识别`,
+                checked:
+                  modelSupportsModality(rawId, profile.manualModelModalities[rawId], modality) &&
+                  !hidden.has(key),
               };
             });
           return (
@@ -889,6 +913,509 @@ function profileStatus(profile: CustomApiProfile) {
       icon: CircleCheck,
     } as const;
   return { label: "尚未同步模型", tone: "idle", icon: CircleDashed } as const;
+}
+
+type ProtocolDraft = {
+  authStyle: CustomApiAuthStyle;
+  authName: string;
+  text: string;
+  image: string;
+  video: string;
+  resultPaths: string;
+  contentType: CustomApiRequestContentType;
+  taskIdPaths: string;
+  statusPaths: string;
+  successValues: string;
+  failValues: string;
+  progressPath: string;
+  pollUrl: string;
+  pollMethod: "GET" | "POST";
+  errorMessagePaths: string;
+  errorCodePaths: string;
+};
+
+const DEFAULT_ENDPOINT_PLACEHOLDER = {
+  text: "/v1/chat/completions",
+  image: "/v1/images/generations",
+  video: "/v1/videos",
+} as const;
+
+function linesToList(value: string) {
+  return value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+/** 状态值允许逗号或换行分隔：用户抄上游文档时两种写法都常见。 */
+function commaOrLinesToList(value: string) {
+  return value
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function protocolDraftOf(profile: CustomApiProfile): ProtocolDraft {
+  const protocol = profile.connection.protocol;
+  const poll = protocol?.poll;
+  return {
+    authStyle: protocol?.auth?.style ?? "bearer",
+    authName: protocol?.auth?.name ?? "",
+    text: protocol?.endpoints?.text ?? "",
+    image: protocol?.endpoints?.image ?? "",
+    video: protocol?.endpoints?.video ?? "",
+    resultPaths: (protocol?.resultUrlPaths ?? []).join("\n"),
+    contentType: protocol?.request?.contentType ?? "json",
+    taskIdPaths: (poll?.taskIdPaths ?? []).join("\n"),
+    statusPaths: (poll?.statusPaths ?? []).join("\n"),
+    successValues: (poll?.successValues ?? []).join(", "),
+    failValues: (poll?.failValues ?? []).join(", "),
+    progressPath: poll?.progressPath ?? "",
+    pollUrl: poll?.urlTemplate ?? "",
+    pollMethod: poll?.method ?? "GET",
+    errorMessagePaths: (protocol?.error?.messagePaths ?? []).join("\n"),
+    errorCodePaths: (protocol?.error?.codePaths ?? []).join("\n"),
+  };
+}
+
+/** 同步 diff 文案：新增里有多少是知识库不认识的（那部分需要用户标类型才可选）。 */
+function syncDiffText(diff: CustomApiSyncDiff) {
+  const parts: string[] = [];
+  if (diff.added.length) {
+    const unrecognized = diff.added.filter((id) => !isRecognizedModel(id)).length;
+    parts.push(
+      unrecognized
+        ? `新增 ${diff.added.length} 个模型（其中 ${unrecognized} 个未识别，需在模型列表里标注类型）`
+        : `新增 ${diff.added.length} 个模型`,
+    );
+  }
+  if (diff.removed.length) parts.push(`下架 ${diff.removed.length} 个模型`);
+  return `上次同步：${parts.join(" · ")}`;
+}
+
+/** 草稿 → 协议档案。提交与「解析自检」必须共用这一份，否则自检用的形状和实际请求不一致。 */
+function protocolFromDraft(draft: ProtocolDraft): CustomApiProtocolOverride {
+  const endpoints: NonNullable<CustomApiProtocolOverride["endpoints"]> = {};
+  if (draft.text.trim()) endpoints.text = draft.text.trim();
+  if (draft.image.trim()) endpoints.image = draft.image.trim();
+  if (draft.video.trim()) endpoints.video = draft.video.trim();
+  return {
+    auth:
+      draft.authStyle === "bearer"
+        ? { style: "bearer" }
+        : {
+            style: draft.authStyle,
+            ...(draft.authName.trim() ? { name: draft.authName.trim() } : {}),
+          },
+    ...(Object.keys(endpoints).length ? { endpoints } : {}),
+    ...(draft.contentType === "json" ? {} : { request: { contentType: draft.contentType } }),
+    poll: {
+      ...(draft.pollUrl.trim() ? { urlTemplate: draft.pollUrl.trim() } : {}),
+      ...(draft.pollMethod === "GET" ? {} : { method: draft.pollMethod }),
+      ...(linesToList(draft.taskIdPaths).length
+        ? { taskIdPaths: linesToList(draft.taskIdPaths) }
+        : {}),
+      ...(linesToList(draft.statusPaths).length
+        ? { statusPaths: linesToList(draft.statusPaths) }
+        : {}),
+      ...(commaOrLinesToList(draft.successValues).length
+        ? { successValues: commaOrLinesToList(draft.successValues) }
+        : {}),
+      ...(commaOrLinesToList(draft.failValues).length
+        ? { failValues: commaOrLinesToList(draft.failValues) }
+        : {}),
+      ...(draft.progressPath.trim() ? { progressPath: draft.progressPath.trim() } : {}),
+    },
+    error: {
+      ...(linesToList(draft.errorMessagePaths).length
+        ? { messagePaths: linesToList(draft.errorMessagePaths) }
+        : {}),
+      ...(linesToList(draft.errorCodePaths).length
+        ? { codePaths: linesToList(draft.errorCodePaths) }
+        : {}),
+    },
+    resultUrlPaths: linesToList(draft.resultPaths),
+  };
+}
+
+/**
+ * 高级协议（P0/P1/P2）：认证方式、按模态端点、请求体编码、异步轮询覆盖。
+ * 全部是声明式覆盖，留空即走默认 OpenAI 兼容路径；不执行任何用户脚本。
+ * 输入用本地草稿 + 失焦提交，避免半打字的路径被归一化吞掉。
+ */
+function AdvancedProtocolFields({
+  profile,
+  onCommit,
+}: {
+  profile: CustomApiProfile;
+  onCommit: (id: string, patch: { protocol?: CustomApiProtocolOverride }) => void;
+}) {
+  const [drafts, setDrafts] = useState<Record<string, ProtocolDraft>>({});
+  const [probeInput, setProbeInput] = useState("");
+  const [probeResult, setProbeResult] = useState<
+    { ok: true; probe: CustomApiProtocolProbe } | { ok: false; message: string } | null
+  >(null);
+  const [testModelId, setTestModelId] = useState("");
+  const [testing, setTesting] = useState(false);
+  const [testError, setTestError] = useState<string | null>(null);
+  const [testPath, setTestPath] = useState<string | null>(null);
+  const draft = drafts[profile.id] ?? protocolDraftOf(profile);
+  const isGemini = normalizeCustomApiFormat(profile.connection.apiFormat) === "gemini";
+  const testTarget = testModelId.trim() || profile.availableModelIds[0] || "";
+  const update = (patch: Partial<ProtocolDraft>) =>
+    setDrafts((current) => ({ ...current, [profile.id]: { ...draft, ...patch } }));
+  const commit = () => {
+    onCommit(profile.id, { protocol: protocolFromDraft(draft) });
+    setDrafts((current) => {
+      const next = { ...current };
+      delete next[profile.id];
+      return next;
+    });
+  };
+
+  /** 测试请求：先把面板草稿落库（测试必须用你看到的那份协议），再发一条真实文本请求。 */
+  const runTestRequest = async () => {
+    const protocol = protocolFromDraft(draft);
+    setTesting(true);
+    setTestError(null);
+    setTestPath(null);
+    onCommit(profile.id, { protocol });
+    try {
+      const result = await sendCustomApiTestRequest(
+        { ...profile.connection, protocol },
+        testTarget,
+      );
+      const pretty = JSON.stringify(result.response, null, 2).slice(0, 4000);
+      setProbeInput(pretty);
+      setProbeResult(probeCustomApiResponse(pretty, protocol));
+      setTestPath(result.path);
+    } catch (cause) {
+      setTestError(cause instanceof Error ? cause.message : "测试请求失败");
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  return (
+    <details className="wc-api-advanced">
+      <summary>
+        <span>高级协议（可选）</span>
+        <small>认证 · 端点 · 请求体 · 异步轮询 · 解析自检</small>
+      </summary>
+      <div className="wc-custom-api-fields">
+        <div className="wc-custom-api-field">
+          <label htmlFor={`wc-api-auth-${profile.id}`}>认证方式</label>
+          <select
+            id={`wc-api-auth-${profile.id}`}
+            value={draft.authStyle}
+            onChange={(event) => update({ authStyle: event.target.value as CustomApiAuthStyle })}
+            onBlur={commit}
+          >
+            <option value="bearer">Authorization: Bearer（默认）</option>
+            <option value="header">自定义请求头</option>
+            <option value="query">查询参数</option>
+          </select>
+        </div>
+        {draft.authStyle !== "bearer" ? (
+          <div className="wc-custom-api-field">
+            <label htmlFor={`wc-api-auth-name-${profile.id}`}>
+              {draft.authStyle === "header" ? "请求头名称" : "参数名称"}
+            </label>
+            <input
+              id={`wc-api-auth-name-${profile.id}`}
+              type="text"
+              value={draft.authName}
+              placeholder={draft.authStyle === "header" ? "x-api-key" : "key"}
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(event) => update({ authName: event.target.value })}
+              onBlur={commit}
+            />
+          </div>
+        ) : null}
+        {(["text", "image", "video"] as const).map((modality) => (
+          <div className="wc-custom-api-field" key={modality}>
+            <label htmlFor={`wc-api-endpoint-${modality}-${profile.id}`}>
+              {modality === "text" ? "文本" : modality === "image" ? "图片" : "视频"}端点路径
+            </label>
+            <input
+              id={`wc-api-endpoint-${modality}-${profile.id}`}
+              type="text"
+              value={draft[modality]}
+              placeholder={DEFAULT_ENDPOINT_PLACEHOLDER[modality]}
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(event) => update({ [modality]: event.target.value })}
+              onBlur={commit}
+            />
+          </div>
+        ))}
+        <div className="wc-custom-api-field">
+          <label htmlFor={`wc-api-content-type-${profile.id}`}>请求体编码</label>
+          <select
+            id={`wc-api-content-type-${profile.id}`}
+            value={draft.contentType}
+            onChange={(event) =>
+              update({ contentType: event.target.value as CustomApiRequestContentType })
+            }
+            onBlur={commit}
+          >
+            <option value="json">JSON（默认）</option>
+            <option value="form">表单 application/x-www-form-urlencoded</option>
+            <option value="multipart">multipart/form-data</option>
+          </select>
+        </div>
+        <div className="wc-custom-api-field">
+          <label htmlFor={`wc-api-poll-url-${profile.id}`}>轮询地址模板</label>
+          <input
+            id={`wc-api-poll-url-${profile.id}`}
+            type="text"
+            value={draft.pollUrl}
+            placeholder={"/v1/tasks/{task_id}"}
+            autoComplete="off"
+            spellCheck={false}
+            onChange={(event) => update({ pollUrl: event.target.value })}
+            onBlur={commit}
+          />
+        </div>
+        <div className="wc-custom-api-field">
+          <label htmlFor={`wc-api-poll-method-${profile.id}`}>轮询方法</label>
+          <select
+            id={`wc-api-poll-method-${profile.id}`}
+            value={draft.pollMethod}
+            onChange={(event) => update({ pollMethod: event.target.value as "GET" | "POST" })}
+            onBlur={commit}
+          >
+            <option value="GET">GET（默认）</option>
+            <option value="POST">POST</option>
+          </select>
+        </div>
+        <div className="wc-custom-api-field wc-custom-api-field--wide">
+          <label htmlFor={`wc-api-task-paths-${profile.id}`}>任务号点路径（可选，每行一条）</label>
+          <textarea
+            id={`wc-api-task-paths-${profile.id}`}
+            value={draft.taskIdPaths}
+            rows={2}
+            placeholder={"data.task.id"}
+            spellCheck={false}
+            onChange={(event) => update({ taskIdPaths: event.target.value })}
+            onBlur={commit}
+          />
+        </div>
+        <div className="wc-custom-api-field wc-custom-api-field--wide">
+          <label htmlFor={`wc-api-status-paths-${profile.id}`}>状态点路径（可选，每行一条）</label>
+          <textarea
+            id={`wc-api-status-paths-${profile.id}`}
+            value={draft.statusPaths}
+            rows={2}
+            placeholder={"data.state"}
+            spellCheck={false}
+            onChange={(event) => update({ statusPaths: event.target.value })}
+            onBlur={commit}
+          />
+        </div>
+        <div className="wc-custom-api-field">
+          <label htmlFor={`wc-api-success-values-${profile.id}`}>完成状态值</label>
+          <input
+            id={`wc-api-success-values-${profile.id}`}
+            type="text"
+            value={draft.successValues}
+            placeholder={"succeeded, 2"}
+            autoComplete="off"
+            spellCheck={false}
+            onChange={(event) => update({ successValues: event.target.value })}
+            onBlur={commit}
+          />
+        </div>
+        <div className="wc-custom-api-field">
+          <label htmlFor={`wc-api-fail-values-${profile.id}`}>失败状态值</label>
+          <input
+            id={`wc-api-fail-values-${profile.id}`}
+            type="text"
+            value={draft.failValues}
+            placeholder={"failed, 3"}
+            autoComplete="off"
+            spellCheck={false}
+            onChange={(event) => update({ failValues: event.target.value })}
+            onBlur={commit}
+          />
+        </div>
+        <div className="wc-custom-api-field">
+          <label htmlFor={`wc-api-progress-path-${profile.id}`}>进度点路径</label>
+          <input
+            id={`wc-api-progress-path-${profile.id}`}
+            type="text"
+            value={draft.progressPath}
+            placeholder={"data.progress"}
+            autoComplete="off"
+            spellCheck={false}
+            onChange={(event) => update({ progressPath: event.target.value })}
+            onBlur={commit}
+          />
+        </div>
+        <div className="wc-custom-api-field wc-custom-api-field--wide">
+          <label htmlFor={`wc-api-error-paths-${profile.id}`}>
+            错误信息点路径（可选，每行一条）
+          </label>
+          <textarea
+            id={`wc-api-error-paths-${profile.id}`}
+            value={draft.errorMessagePaths}
+            rows={2}
+            placeholder={"msg"}
+            spellCheck={false}
+            onChange={(event) => update({ errorMessagePaths: event.target.value })}
+            onBlur={commit}
+          />
+        </div>
+        <div className="wc-custom-api-field wc-custom-api-field--wide">
+          <label htmlFor={`wc-api-error-codes-${profile.id}`}>错误码点路径（可选，每行一条）</label>
+          <textarea
+            id={`wc-api-error-codes-${profile.id}`}
+            value={draft.errorCodePaths}
+            rows={2}
+            placeholder={"code"}
+            spellCheck={false}
+            onChange={(event) => update({ errorCodePaths: event.target.value })}
+            onBlur={commit}
+          />
+        </div>
+        <div className="wc-custom-api-field wc-custom-api-field--wide">
+          <label htmlFor={`wc-api-result-${profile.id}`}>结果取回路径（可选，每行一条）</label>
+          <textarea
+            id={`wc-api-result-${profile.id}`}
+            value={draft.resultPaths}
+            rows={3}
+            placeholder={"data.outputs.0.url"}
+            spellCheck={false}
+            onChange={(event) => update({ resultPaths: event.target.value })}
+            onBlur={commit}
+          />
+          <small className="wc-custom-api-hint">留空即用内置候选；只接受点路径，不接受脚本。</small>
+        </div>
+        <div className="wc-custom-api-field wc-custom-api-field--wide">
+          <label htmlFor={`wc-api-test-model-${profile.id}`}>测试请求</label>
+          <input
+            id={`wc-api-test-model-${profile.id}`}
+            type="text"
+            value={testModelId}
+            placeholder={profile.availableModelIds[0] ?? "用于测试的模型 id"}
+            autoComplete="off"
+            spellCheck={false}
+            onChange={(event) => setTestModelId(event.target.value)}
+          />
+          <span className="wc-custom-api-probe-actions">
+            <button
+              type="button"
+              disabled={
+                testing ||
+                isGemini ||
+                !profile.connection.baseUrl.trim() ||
+                !profile.connection.apiKey.trim() ||
+                !testTarget
+              }
+              onClick={() => void runTestRequest()}
+            >
+              {testing ? "发送中…" : "发送测试请求"}
+            </button>
+            <small className="wc-custom-api-hint">
+              {isGemini
+                ? "Gemini 原生协议不走这里测试"
+                : testPath
+                  ? `已发 ${testPath}，响应见下方自检`
+                  : "浏览器直发，Key 不出本机；只发一条文本请求，不会触发图片/视频计费"}
+            </small>
+          </span>
+          {testError ? (
+            <small className="wc-custom-api-probe-error" role="alert">
+              {testError}
+            </small>
+          ) : null}
+        </div>
+        <div className="wc-custom-api-field wc-custom-api-field--wide">
+          <label htmlFor={`wc-api-probe-${profile.id}`}>解析自检（粘贴上游返回的 JSON）</label>
+          <textarea
+            id={`wc-api-probe-${profile.id}`}
+            value={probeInput}
+            rows={4}
+            placeholder={'{"id":"task_1","status":"succeeded","output":{"url":"https://..."}}'}
+            spellCheck={false}
+            onChange={(event) => setProbeInput(event.target.value)}
+          />
+          <span className="wc-custom-api-probe-actions">
+            <button
+              type="button"
+              onClick={() =>
+                setProbeResult(probeCustomApiResponse(probeInput, protocolFromDraft(draft)))
+              }
+            >
+              解析这段响应
+            </button>
+            <small className="wc-custom-api-hint">
+              只做本地解析，不发请求、不产生费用。改完点路径后先在这里对一遍。
+            </small>
+          </span>
+          {probeResult ? (
+            probeResult.ok ? (
+              <dl className="wc-custom-api-probe-result">
+                <div>
+                  <dt>任务号</dt>
+                  <dd>
+                    {probeResult.probe.taskId
+                      ? `${probeResult.probe.taskId.value}（${probeResult.probe.taskId.path}）`
+                      : "没有命中，请补任务号点路径"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>状态</dt>
+                  <dd>
+                    {probeResult.probe.status
+                      ? `${probeResult.probe.status.verdict}（${probeResult.probe.status.raw} · ${probeResult.probe.status.path}）`
+                      : "没有命中，请补状态点路径"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>进度</dt>
+                  <dd>
+                    {probeResult.probe.progress
+                      ? `${probeResult.probe.progress.value}（${probeResult.probe.progress.path}）`
+                      : "没有命中"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>结果 URL</dt>
+                  <dd>
+                    {probeResult.probe.resultUrl
+                      ? `${probeResult.probe.resultUrl.value}（${probeResult.probe.resultUrl.path}）`
+                      : "没有命中，请补结果取回路径"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>错误信息</dt>
+                  <dd>
+                    {probeResult.probe.errorMessage
+                      ? `${probeResult.probe.errorMessage.value}（${probeResult.probe.errorMessage.path}）`
+                      : "没有命中"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>错误码</dt>
+                  <dd>
+                    {probeResult.probe.errorCode
+                      ? `${probeResult.probe.errorCode.value}（${probeResult.probe.errorCode.path}）`
+                      : "没有命中"}
+                  </dd>
+                </div>
+              </dl>
+            ) : (
+              <small className="wc-custom-api-probe-error" role="alert">
+                {probeResult.message}
+              </small>
+            )
+          ) : null}
+        </div>
+      </div>
+    </details>
+  );
 }
 
 function richModelLabel(profile: CustomApiProfile, rawModelId: string, modality: ModelModality) {

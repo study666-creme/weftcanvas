@@ -38,7 +38,7 @@ test("graph identity, parameters, task status, groups, and media references surv
   await page.route("**/api/v1/generation-quotes", (route) =>
     route.fulfill({ json: { ok: true, data: [] } }),
   );
-  await page.route("**/api/v1/media/server-media-1/content", (route) =>
+  await page.route("**/api/v1/media/server-media-1/content*", (route) =>
     route.fulfill({ body: PIXEL, contentType: "image/png" }),
   );
   await seedPersistedProject(page);

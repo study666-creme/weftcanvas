@@ -4432,6 +4432,140 @@ textarea:focus-visible {
   gap: 9px;
 }
 
+/* 高级协议（P0/P1/P2）：默认折叠，展开后复用字段网格；安静、紧凑，不抢连接信息的焦点。 */
+.wc-api-advanced {
+  margin: 0 18px 4px;
+  border: 1px solid var(--wc-border);
+  border-radius: 10px;
+  background: var(--wc-surface-muted);
+}
+
+.wc-api-advanced > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 9px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.wc-api-advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+.wc-api-advanced > summary > span {
+  color: var(--wc-text);
+  font-size: 11.5px;
+  font-weight: 650;
+}
+
+.wc-api-advanced > summary > small {
+  color: var(--wc-text-tertiary);
+  font-size: 10.5px;
+}
+
+.wc-api-advanced .wc-custom-api-fields {
+  padding: 4px 12px 14px;
+}
+
+.wc-custom-api-field--wide {
+  grid-column: 1 / -1;
+}
+
+.wc-custom-api-field textarea,
+.wc-custom-api-field select {
+  font-family: inherit;
+}
+
+.wc-custom-api-field textarea {
+  resize: vertical;
+  min-height: 56px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.wc-custom-api-hint {
+  color: var(--wc-text-tertiary);
+  font-size: 10.5px;
+}
+
+/* 解析自检（P3）：本地解析上游响应，展示命中点路径。 */
+.wc-custom-api-probe-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.wc-custom-api-probe-actions > button {
+  padding: 5px 10px;
+  border: 1px solid var(--wc-border-strong);
+  border-radius: 7px;
+  background: var(--wc-surface-raised);
+  color: var(--wc-text);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.wc-custom-api-probe-actions > button:hover {
+  border-color: var(--wc-accent);
+}
+
+.wc-custom-api-probe-result {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 9px 11px;
+  border: 1px solid var(--wc-border);
+  border-radius: 8px;
+  background: var(--wc-surface-raised);
+  font-size: 11px;
+}
+
+.wc-custom-api-probe-result > div {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.wc-custom-api-probe-result dt {
+  color: var(--wc-text-tertiary);
+}
+
+.wc-custom-api-probe-result dd {
+  margin: 0;
+  color: var(--wc-text);
+  overflow-wrap: anywhere;
+}
+
+.wc-custom-api-probe-error {
+  color: var(--wc-danger);
+  font-size: 11px;
+}
+
+/* 渠道同步 diff：上游这次多了/少了什么，只在真的发生变化时出现。 */
+.wc-api-sync-diff {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 18px 0;
+  padding: 7px 10px;
+  border: 1px solid var(--wc-border);
+  border-radius: 8px;
+  background: var(--wc-surface-muted);
+  color: var(--wc-text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.wc-api-sync-diff svg {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  color: var(--wc-accent);
+}
+
 .wc-api-profile-editor-body::-webkit-scrollbar,
 .wc-model-source-list::-webkit-scrollbar,
 .wc-local-output-list::-webkit-scrollbar,
@@ -4474,6 +4608,7 @@ textarea:focus-visible {
 
 .wc-api-settings-layout {
   display: grid;
+  min-width: 0;
   height: 100%;
   min-height: 0;
   grid-template-columns: 264px minmax(0, 1fr);

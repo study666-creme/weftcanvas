@@ -82,7 +82,9 @@ describe("buildMediaMultipartRuntime", () => {
 
 describe("buildGenerationRuntime", () => {
   it("still requires generation configuration", () => {
-    expect(() => buildGenerationRuntime(mediaDeps({}))).toThrow(/WEFTCANVAS_API_KEY is required/);
+    expect(() => buildGenerationRuntime(mediaDeps({}))).toThrow(
+      /CANVAS_UPSTREAM_API_KEY is required/,
+    );
     expect(() => buildGenerationRuntime(mediaDeps({ WEFTCANVAS_API_KEY: "key" }))).toThrow(
       /GENERATION_MEDIA_HOSTS/,
     );
@@ -101,6 +103,18 @@ describe("buildGenerationRuntime", () => {
     expect(run.kind).toBe("generation");
     expect(run.runtime).toBeInstanceOf(GenerationWorkerRuntime);
     expect(run.runtime).not.toBeInstanceOf(MediaMultipartWorkerRuntime);
+  });
+
+  it("accepts neutral upstream credentials without the legacy names", () => {
+    const { WEFTCANVAS_API_KEY, WEFTCANVAS_API_BASE_URL, ...env } = generationEnvironment;
+    const run = buildGenerationRuntime(
+      generationDeps({
+        ...env,
+        CANVAS_UPSTREAM_API_KEY: WEFTCANVAS_API_KEY!,
+        CANVAS_UPSTREAM_API_BASE_URL: WEFTCANVAS_API_BASE_URL!,
+      }),
+    );
+    expect(run.kind).toBe("generation");
   });
 });
 

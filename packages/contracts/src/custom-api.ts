@@ -87,7 +87,9 @@ const customApiVideoProtocolSchema = z
     endpoint: z
       .object({
         method: z.literal("POST"),
-        path: z.literal("/v1/videos"),
+        // BYOK 目录可声明非标准的视频提交路径（协议档案 P0 允许用户覆盖）；
+        // 服务端托管执行仍由 model-catalog 的私有路由 schema 决定，不受此处放宽影响。
+        path: z.string().min(1),
       })
       .passthrough(),
     media_roles: z.array(videoMediaRoleSchema),
@@ -100,11 +102,8 @@ const customApiImageProtocolSchema = z
     endpoint: z
       .object({
         method: z.literal("POST"),
-        path: z.enum([
-          "/v1/images/generations",
-          "/v1/chat/completions",
-          "/v1/midjourney/generations",
-        ]),
+        // 同上：BYOK 侧不再把图像端点锁在三条内置路径上。
+        path: z.string().min(1),
       })
       .passthrough(),
     media_roles: z.array(imageMediaRoleSchema),

@@ -1,99 +1,108 @@
-# Self-Hosting (Docker)
+# Self-hosting with Docker
 
-One `docker compose up` gives you the canvas web app, the Canvas API, and
-PostgreSQL. An optional worker profile adds durable server-side generation.
+The default stack runs the web app, Canvas API and PostgreSQL. Local projects
+and browser BYOK work without a generation worker. Server generation is an
+optional profile and requires a compatible catalog, credentials and result hosts.
 
-## What you get
+## Start the stack
 
-| Service    | Role                                                             |
-| ---------- | ---------------------------------------------------------------- |
-| `web`      | nginx serving the built canvas app; proxies `/api` to the API    |
-| `api`      | Canvas API — native identity, wallet, catalog, durable job store |
-| `postgres` | the only required backing store                                  |
-| `worker`   | (profile `generation`) durable generation execution              |
-
-The API runs with `CANVAS_API_PROVIDER=dev-test`: native PostgreSQL identity
-and wallets, zero external services. The canvas is usable immediately —
-projects live in your browser, and model calls can run browser-direct via
-BYOK (Configuration → Custom API) without any worker.
-
-## Requirements
-
-- Docker with Compose v2.
-
-## Setup
-
-1. Create a `.env` next to `docker-compose.yml` with two secrets:
+1. Copy `.env.example` to `.env`. Set `POSTGRES_PASSWORD` and
+   `IDENTITY_SESSION_SECRET` (at least 32 bytes). For example, on Linux/macOS:
 
    ```bash
    { echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)"; \
      echo "IDENTITY_SESSION_SECRET=$(openssl rand -hex 32)"; } > .env
    ```
 
-   Optional: `WEB_PORT` (default `8080`, bound to `127.0.0.1`), `API_PORT`,
-   `REGISTRATION_CREDIT_MICROS` (signup credit grant; default `0`).
+   On Windows PowerShell, copy the template with `Copy-Item .env.example .env`
+   and enter independently generated secrets in the file.
 
 2. Build and start:
 
    ```bash
-   docker compose up --build -d
+   docker compose up --build -d --wait
    ```
 
-   Open `http://127.0.0.1:8080`. If you put it behind a reverse proxy or
-   domain, point that proxy at `web` and keep `/api` same-origin.
+3. Open `http://127.0.0.1:8080`. In settings, add a BYOK configuration using
+   the [relay connection guide](CONNECTING-RELAYS.md).
 
-3. (Optional) durable server-side generation — start the worker with an
-   OpenAI-compatible endpoint; without credentials jobs fail honestly rather
-   than pretending:
+`WEB_PORT` defaults to `127.0.0.1:8080`; `API_PORT` to `127.0.0.1:8787`.
+`APP_ORIGINS` must match the browser origin if you change the port or domain.
+For a public domain, use HTTPS and proxy `/api/` and `/admin/` through `web`.
+The production API requires secure session cookies; local loopback is the
+development access path. Browser BYOK does not require login.
 
-   ```bash
-   docker compose --profile generation up -d
-   ```
+## Services and persistence
 
-## Point the canvas at your own upstream
+| Service    | Role                                             | Persistent state                      |
+| ---------- | ------------------------------------------------ | ------------------------------------- |
+| `web`      | nginx, same-origin API and operator-page proxy   | None                                  |
+| `api`      | Native identity, catalog, media and durable jobs | PostgreSQL and `/repo/.data`          |
+| `postgres` | Application records and job queue                | `canvas-db` volume                    |
+| `worker`   | Optional durable generation execution            | Shared `/repo/.data` in `canvas-data` |
 
-The canvas does not hard-code a model source: it reads a model catalog (models +
-each model's parameter schema + pricing) and a pricing document from whatever
-upstream you configure. An upstream that publishes those documents is enough —
-no code change, no plugin, and the canvas follows listings, renames, and price
-changes automatically.
+The API applies migrations before starting. The worker waits for API readiness,
+so it starts after migrations. API and worker share media objects, result staging
+and download paths. Catalog snapshots and model overrides use the same data volume.
+Recreating containers preserves both named volumes. `docker compose down --volumes`
+deletes them; back up both database and data before an upgrade or migration.
 
-Set these on the `api` service (all optional; unset means "no upstream"):
+Projects and BYOK keys remain in each browser. Project JSON exports contain media
+references, not media files; server backups do not back up local browser data.
 
-| Variable                              | Purpose                                                         |
-| ------------------------------------- | --------------------------------------------------------------- |
-| `CANVAS_API_PROVIDER`                 | `dev-test` for self-hosting (no hosted account/wallet coupling) |
-| `CANVAS_UPSTREAM_CATALOG_URL`         | Your model catalog document                                     |
-| `CANVAS_UPSTREAM_VIDEO_INVENTORY_URL` | Optional video availability document                            |
-| `CANVAS_UPSTREAM_PRICING_URL`         | Optional station text-pricing document                          |
-| `CANVAS_UPSTREAM_API_BASE_URL`        | Base URL used for generation submit/observe                     |
-| `CANVAS_UPSTREAM_AUTH_BASE_URL`       | Optional upstream auth base (only when delegating accounts)     |
-| `CANVAS_UPSTREAM_ANON_KEY`            | Optional upstream credential                                    |
-| `CANVAS_UPSTREAM_REQUEST_TIMEOUT_MS`  | Upstream request timeout (default `45000`)                      |
+## Optional server catalog and generation
 
-Older deployments used provider-branded names for the same settings
-(`CATALOG_SOURCE_URL`, `VIDEO_INVENTORY_URL`, `WEFTCANVAS_*`, `PROMPT_HUB_*`,
-`VITE_CARD_LIBRARY_*`). Those still work and are read after the neutral names, so
-existing configurations keep running unchanged.
+Compose passes the following `.env` settings to the relevant services:
 
-**Note**: the hosted commercial provider is not part of self-hosting; the SPI
-assembly refuses to start if a build references a provider module that is not
-compiled in.
+| Variable                                        | Purpose                                                          |
+| ----------------------------------------------- | ---------------------------------------------------------------- |
+| `CANVAS_UPSTREAM_CATALOG_URL`                   | Catalog satisfying [UPSTREAM-CONTRACT.md](UPSTREAM-CONTRACT.md)  |
+| `CANVAS_UPSTREAM_PRICING_URL`                   | Optional token-pricing reference document                        |
+| `CANVAS_UPSTREAM_VIDEO_INVENTORY_URL`           | Optional video availability document                             |
+| `CANVAS_UPSTREAM_API_BASE_URL`                  | Native worker submit/observe endpoint                            |
+| `CANVAS_UPSTREAM_API_KEY`                       | Worker credential, server-only                                   |
+| `GENERATION_MEDIA_HOSTS`                        | Comma-separated trusted result hostnames; required by the worker |
+| `MEDIA_SIGNING_SECRET`, `MEDIA_PUBLIC_BASE_URL` | Configure together for signed reference-media access             |
+| `REGISTRATION_CREDIT_MICROS`                    | Native signup credit, default `0`                                |
 
-## Updates
+The worker endpoint must use HTTPS and the native generation provider's supported protocols. A generic
+`/v1/models` list is enough for browser BYOK discovery, but not for server pricing
+or arbitrary generation protocols. Verify the catalog with the read-only probe
+and test the intended modalities separately before enabling server generation.
+
+```bash
+docker compose --profile generation up --build -d --wait
+```
+
+The worker still accepts legacy `WEFTCANVAS_API_BASE_URL` and `WEFTCANVAS_API_KEY`
+when neutral variables are unset. Browser advanced-protocol settings apply to
+browser BYOK only and do not configure the worker.
+
+## Operator pages
+
+Set `MODEL_OVERRIDES_ADMIN_SECRET` to enable model administration. The ops console
+uses `CANVAS_OPS_ADMIN_SECRET`, falling back to the model secret when unset.
+Use the same secret for both pages unless separate access is intentional.
+
+- `/admin/ops`: service overview, model controls and operational metrics.
+- `/admin/model-overrides`: model visibility and overrides.
+
+nginx proxies these paths to the API. Leaving both secrets unset disables the
+surfaces. These pages are operational tools; they do not provide a complete
+membership, payment or license-management backend.
+
+## Updates and troubleshooting
 
 ```bash
 git pull
-docker compose up --build -d
+docker compose up --build -d --wait
+docker compose logs --tail 100 api
 ```
 
-Migrations run automatically when the API container starts.
+If startup fails, check the required secrets, PostgreSQL health and API logs.
+If the worker fails, check its key, endpoint and trusted result hosts. For BYOK
+failures, check browser Network output and the relay's CORS/protocol settings.
 
-## Notes
-
-- The hosted commercial provider (`weftcanvas`) is not part of self-hosting; the
-  SPI assembly refuses to start if a build references a provider module that is
-  not compiled in.
-- Media uploads land in the `canvas-data` volume under the API service.
-- This guide covers the single-host demo topology; production hardening (TLS,
-  backups, object storage) is on you or your vendor.
+CI builds this stack and checks startup, operator proxying, container recreation
+and shared-volume persistence using an isolated project and synthetic data.
+For production, configure TLS, backups and suitable storage independently.

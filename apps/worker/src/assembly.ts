@@ -85,7 +85,7 @@ export function buildMediaMultipartRuntime(dependencies: AssemblyDependencies): 
 
 export function buildGenerationRuntime(dependencies: AssemblyDependencies): WorkerRun {
   const { pool, workerId, env } = dependencies;
-  const apiKey = required(env, "WEFTCANVAS_API_KEY");
+  const apiKey = required(env, "CANVAS_UPSTREAM_API_KEY", "WEFTCANVAS_API_KEY");
   const resultHosts = list(env, "GENERATION_MEDIA_HOSTS");
   if (!resultHosts.length)
     throw new Error("GENERATION_MEDIA_HOSTS must list trusted result hostnames");
@@ -101,7 +101,7 @@ export function buildGenerationRuntime(dependencies: AssemblyDependencies): Work
     resolve(env.GENERATION_STAGING_PATH || ".data/generation-results"),
   );
   const provider = new WeftcanvasGenerationProvider({
-    baseUrl: required(env, "WEFTCANVAS_API_BASE_URL"),
+    baseUrl: required(env, "CANVAS_UPSTREAM_API_BASE_URL", "WEFTCANVAS_API_BASE_URL"),
     apiKey,
     staging,
     references,
@@ -176,8 +176,8 @@ function signedMediaAccess(env: NodeJS.ProcessEnv) {
   });
 }
 
-function required(env: NodeJS.ProcessEnv, name: string) {
-  const value = env[name]?.trim();
+function required(env: NodeJS.ProcessEnv, name: string, legacyName?: string) {
+  const value = env[name]?.trim() || (legacyName ? env[legacyName]?.trim() : undefined);
   if (!value) throw new Error(`${name} is required`);
   return value;
 }

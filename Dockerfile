@@ -1,7 +1,7 @@
 # Self-host build for the canvas stack (web + API + worker).
 # Usage: see docs/DEPLOYING.md — `docker compose up --build` is the short path.
 
-FROM node:22-alpine AS base
+FROM node:22-bookworm-slim AS base
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable
 WORKDIR /repo
@@ -14,12 +14,12 @@ COPY packages/canvas-core/package.json packages/canvas-core/
 COPY packages/plugin-sdk/package.json packages/plugin-sdk/
 COPY apps/api/package.json apps/api/
 COPY apps/worker/package.json apps/worker/
+COPY apps/agent/package.json apps/agent/
 COPY apps/web/package.json apps/web/
 COPY plugins/split-list/package.json plugins/split-list/
 RUN pnpm install --frozen-lockfile
 
-FROM base AS build
-COPY --from=deps /repo/node_modules ./node_modules
+FROM deps AS build
 COPY . .
 # `vite build` directly (not the web `build` script): the release validator in that
 # script is a deploy-pipeline gate for the hosted product, irrelevant to self-hosting.
@@ -29,7 +29,7 @@ RUN pnpm --filter @weftcanvas/contracts build \
   && pnpm --filter @weftcanvas/canvas-web exec vite build
 
 # One image serves both api and worker; compose overrides the command.
-FROM node:22-alpine AS api-runtime
+FROM node:22-bookworm-slim AS api-runtime
 ENV NODE_ENV=production
 WORKDIR /repo
 COPY --from=build /repo ./

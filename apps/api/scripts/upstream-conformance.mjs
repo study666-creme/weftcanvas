@@ -1,270 +1,118 @@
 #!/usr/bin/env node
 /**
- * 上游一致性探针 —— 给中转站长/自托管用户**自助**验证用。
- *
- * 目的：把"能不能接上画布"从"问我们"变成"你自己跑一条命令就知道"。它只做只读
- * 检查，不改任何东西，并且**不对上游提出格式要求**——它读你已经发布的端点，告诉你
- * 画布能读到哪里、缺什么。
- *
- * 用法（任选其一，未给的端点会被跳过）：
- *
- *   node apps/api/scripts/upstream-conformance.mjs \
- *     --catalog-url https://your-relay.example.com/api/model-catalog \
- *     --pricing-url  https://your-relay.example.com/api/pricing \
- *     --api-base     https://your-relay.example.com \
- *     [--video-inventory-url ...] [--api-key sk-...]
- *
- * 退出码：0 = 画布可用（可能带提示）；1 = 有阻断缺口。
- *
- * 关于键名：目录文档的 "书信字段"（success / fetched_at / capability_version /
- * credits_per_yuan / 版本号命名）缺失或大小写不同都不影响使用，画布会自动推导；
- * 唯独**模型级价格**不猜——缺价格的模型会被跳过并列在这里。无价格的上游请改走
- * 浏览器 BYOK 直连（不需要服务端报价）。
+ * Read-only catalog validation using the same normalizer as the Canvas API.
+ * Install dependencies and build contracts before running this source CLI.
+ * Exit codes: 0 = selectable catalog, 1 = validation/fetch failure, 2 = usage.
+ * This checks metadata only; it never submits a paid generation request.
  */
+import { pathToFileURL } from "node:url";
+import { tsImport } from "tsx/esm/api";
 
-const args = parseArgs(process.argv.slice(2));
-if (!args["catalog-url"] && !args["api-base"]) {
-  console.error("至少给出 --catalog-url 或 --api-base。用 --help 查看用法（见脚本头部注释）。");
-  process.exit(2);
+const { normalizeSourceCatalog } = await tsImport("../src/catalog/normalize.ts", import.meta.url);
+
+export function validateCatalog(value, now = Date.now()) {
+  const snapshot = normalizeSourceCatalog(value, {
+    validatedAt: now,
+    maxQuoteAgeMs: 60_000,
+    includeKnownModels: false,
+  });
+  return snapshot.catalog.models;
 }
 
-const findings = [];
-const notes = [];
-let blocking = false;
-
-const catalogUrl =
-  args["catalog-url"] ??
-  (args["api-base"] ? joinUrl(args["api-base"], "/api/model-catalog") : null);
-const openAiModelsUrl = args["api-base"] ? joinUrl(args["api-base"], "/v1/models") : null;
-
-banner("上游一致性检查");
-if (args["api-key"]) notes.push("已带凭据请求（值不会回显）");
-
-if (catalogUrl) await checkCatalog(catalogUrl);
-if (openAiModelsUrl) await checkOpenAiModels(openAiModelsUrl);
-if (args["pricing-url"]) await checkPricing(args["pricing-url"]);
-if (args["video-inventory-url"]) await checkVideoInventory(args["video-inventory-url"]);
-
-banner("结论");
-for (const note of notes) console.log(`  · ${note}`);
-if (!findings.length) {
-  console.log("  ✅ 画布可以直接使用这个上游（未发现阻断项）。");
-} else {
-  for (const finding of findings)
-    console.log(`  ${finding.blocking ? "⛔" : "⚠️"} ${finding.text}`);
-}
-console.log(
-  blocking
-    ? "\n结果：有阻断缺口——上面的 ⛔ 项修好后重跑本脚本。"
-    : "\n结果：可用。把结果贴给画布维护者即可开始接入。",
-);
-process.exit(blocking ? 1 : 0);
-
-// ---------------------------------------------------------------- 检查项
-
-async function checkCatalog(url) {
-  section(`目录文档 ${url}`);
-  const payload = await getJson(url);
-  if (!payload.ok) return report(false, `无法读取目录文档：${payload.error}`);
-
-  const body = payload.value;
-  const models = Array.isArray(body?.models)
-    ? body.models
-    : Array.isArray(body?.data)
-      ? body.data
-      : null;
-  if (!models) {
-    return report(true, "目录文档里找不到模型清单（`models[]` 或 OpenAI 风格 `data[]`）。");
-  }
-
-  const envelope = {
-    success: body?.success,
-    version: body?.version ?? body?.catalogVersion,
-    capabilityVersion: body?.capability_version ?? body?.capabilityVersion,
-    fetchedAt: body?.fetched_at ?? body?.fetchedAt,
-    creditsPerYuan: body?.credits_per_yuan ?? body?.creditsPerYuan,
-  };
-  const derived = Object.entries(envelope)
-    .filter(([, value]) => value === undefined || value === null || value === "")
-    .map(([key]) => key);
-  console.log(`  · 模型行：${models.length}`);
-  if (derived.length) {
-    console.log(`  · 这些书信字段缺失，画布会推导（不影响接入）：${derived.join(", ")}`);
-  }
-
-  const priced = [];
-  const unpriced = [];
-  const invalid = [];
-  for (const model of models) {
-    const row = checkModelRow(model);
-    if (row.pricing === "ok") priced.push(model);
-    else if (row.pricing === "missing") unpriced.push(model);
-    else invalid.push({ model, row });
-  }
-
-  console.log(`  · 带价格、可用于报价的模型：${priced.length}`);
-  if (unpriced.length) {
-    console.log(`  · 缺价格、画布会跳过的模型：${unpriced.length}`);
-    for (const model of unpriced.slice(0, 8)) {
-      console.log(`      - ${label(model)}（缺 pricing）`);
-    }
-    if (unpriced.length > 8) console.log(`      … 另外 ${unpriced.length - 8} 个`);
-  }
-  if (invalid.length) {
-    console.log(`  · 价格字段不合规的模型：${invalid.length}`);
-    for (const { model, row } of invalid.slice(0, 5)) {
-      console.log(`      - ${label(model)}：${row.problems.join("；")}`);
-    }
-  }
-
-  if (priced.length === 0) {
-    blocking = true;
-    findings.push({
-      blocking: true,
-      text: catalogUrlFallbackMessage(),
-    });
-  } else if (unpriced.length) {
-    findings.push({
-      blocking: false,
-      text: `有 ${unpriced.length} 个模型缺少 pricing，画布不会列出它们；补上即可一并上架。`,
-    });
-  }
-  if (typeof envelope.creditsPerYuan !== "number" && envelope.creditsPerYuan !== undefined) {
-    findings.push({ blocking: false, text: "credits_per_yuan 不是数字，画布会按 1 处理。" });
-  }
-}
-
-function checkModelRow(model) {
-  if (!isRecord(model)) return { pricing: "missing", problems: ["模型行不是对象"] };
-  const problems = [];
-  for (const field of ["id", "modality", "operation"]) {
-    if (typeof model[field] !== "string" || !model[field].trim()) problems.push(`缺 ${field}`);
-  }
-  if (!isRecord(model.pricing)) return { pricing: "missing", problems };
-  const pricing = model.pricing;
-  if (!["fixed", "tiered", "token", "tiered_token"].includes(pricing.mode)) {
-    problems.push(
-      `pricing.mode 必须是 fixed/tiered/token/tiered_token（当前 ${JSON.stringify(pricing.mode)}）`,
+export async function main(argv = process.argv.slice(2), log = console.log) {
+  const args = parseArgs(argv);
+  if (args.help) {
+    log(
+      "Usage: node apps/api/scripts/upstream-conformance.mjs --catalog-url <url> [--api-base <url>] [--pricing-url <url>] [--video-inventory-url <url>]",
     );
+    log("Optional credential: CANVAS_UPSTREAM_API_KEY environment variable or --api-key <key>.");
+    return 0;
   }
-  if (!["request", "image", "second", "token"].includes(pricing.unit)) {
-    problems.push(
-      `pricing.unit 必须是 request/image/second/token（当前 ${JSON.stringify(pricing.unit)}）`,
-    );
+  if (!args["catalog-url"] && !args["api-base"]) {
+    log("至少给出 --catalog-url 或 --api-base；用 --help 查看用法。");
+    return 2;
   }
-  if (pricing.currency !== "CNY") {
-    problems.push(`pricing.currency 目前只接受 "CNY"（当前 ${JSON.stringify(pricing.currency)}）`);
-  }
-  return problems.length ? { pricing: "invalid", problems } : { pricing: "ok", problems };
-}
-
-async function checkOpenAiModels(url) {
-  section(`OpenAI 兼容模型列表 ${url}`);
-  const payload = await getJson(url);
-  if (!payload.ok) {
-    notes.push("/v1/models 不可读（若你的上游只有目录文档，这是正常的）");
-    return;
-  }
-  const models = Array.isArray(payload.value?.data) ? payload.value.data : [];
-  console.log(`  · 返回 ${models.length} 个模型 id`);
-  notes.push(
-    "注意：/v1/models 只给模型名，没有价格与参数；服务端计费链路需要目录文档里的价格，画布用它无法报价。",
-  );
-}
-
-async function checkPricing(url) {
-  section(`计价文档 ${url}`);
-  const payload = await getJson(url);
-  if (!payload.ok) return report(false, `无法读取计价文档：${payload.error}`);
-  console.log(`  · 可读（${describeShape(payload.value)}）`);
-  notes.push("计价文档用作文字模型的上游费率参考；缺失只影响按 token 计的模型。");
-}
-
-async function checkVideoInventory(url) {
-  section(`视频准入清单 ${url}`);
-  const payload = await getJson(url);
-  if (!payload.ok) return report(false, `无法读取视频准入清单：${payload.error}`);
-  const models = Array.isArray(payload.value?.models)
-    ? payload.value.models
-    : Array.isArray(payload.value?.data)
-      ? payload.value.data
-      : [];
-  console.log(`  · 可读，声明 ${models.length} 条视频模型准入`);
-  notes.push("视频准入清单缺省时，视频模型按目录文档自身声明发布。");
-}
-
-// ---------------------------------------------------------------- 工具
-
-function catalogUrlFallbackMessage() {
-  return "目录文档里没有任何带价格的模型：服务端无法报价，用户就无法提交（无价格的上游请走浏览器 BYOK 直连）。";
-}
-
-function report(isBlocking, text) {
-  blocking = blocking || isBlocking;
-  findings.push({ blocking: isBlocking, text });
-}
-
-async function getJson(url) {
+  const key = args["api-key"] ?? process.env.CANVAS_UPSTREAM_API_KEY;
+  const catalogUrl = args["catalog-url"] ?? joinUrl(args["api-base"], "/api/model-catalog");
+  let blocking = false;
   try {
-    const response = await fetch(url, {
-      headers: {
-        Accept: "application/json",
-        ...(args["api-key"] ? { Authorization: `Bearer ${args["api-key"]}` } : {}),
-      },
-      signal: AbortSignal.timeout(20_000),
-    });
-    if (!response.ok) return { ok: false, error: `HTTP ${response.status}` };
-    return { ok: true, value: await response.json() };
+    const catalog = await getJson(catalogUrl, key);
+    const models = validateCatalog(catalog);
+    log(`目录校验通过：${models.length} 个模型满足画布的路由、参数、输出与报价契约。`);
+    const rawCount = Array.isArray(catalog?.models) ? catalog.models.length : models.length;
+    if (rawCount > models.length)
+      log(`提示：${rawCount - models.length} 行未进入可选目录（下架、缺价格或不支持的路由等）。`);
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    log(`阻断：目录无法供画布使用。${diagnostic(error)}`);
+    blocking = true;
   }
+  // Auxiliary documents are checked for reachability only. Station-specific
+  // pricing and availability formats are not certified by this probe.
+  for (const [option, label] of [
+    ["pricing-url", "计价文档"],
+    ["video-inventory-url", "视频准入清单"],
+  ]) {
+    if (!args[option]) continue;
+    try {
+      await getJson(args[option], key);
+      log(`${label}：可读取 JSON（未验证业务内容）。`);
+    } catch (error) {
+      log(`阻断：显式配置的${label}不可读取。${diagnostic(error)}`);
+      blocking = true;
+    }
+  }
+  if (args["api-base"]) {
+    try {
+      const value = await getJson(joinUrl(args["api-base"], "/v1/models"), key);
+      log(
+        `/v1/models：${Array.isArray(value?.data) ? value.data.length : 0} 个模型；该列表本身不证明协议或价格兼容。`,
+      );
+    } catch {
+      log("提示：/v1/models 不可读取；发布合同目录的上游可不提供此接口。");
+    }
+  }
+  log(
+    blocking
+      ? "结果：存在阻断项，修复后重新校验。"
+      : "结果：目录结构可接入。仍需在浏览器验证 CORS、认证和实际模型执行。",
+  );
+  log("本探针仅发 GET，不生成图片或视频，不验证所有模型的实际可用性。");
+  return blocking ? 1 : 0;
 }
 
-function label(model) {
-  if (!isRecord(model)) return "(非对象)";
-  const id = model.public && isRecord(model.public) ? model.public.id : model.id;
-  return typeof id === "string" && id.trim() ? id : "(无 id)";
+async function getJson(url, key) {
+  const response = await fetch(url, {
+    headers: { Accept: "application/json", ...(key ? { Authorization: `Bearer ${key}` } : {}) },
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
 }
 
-function describeShape(value) {
-  if (Array.isArray(value)) return `数组，${value.length} 项`;
-  if (isRecord(value)) return `对象，字段 ${Object.keys(value).slice(0, 6).join("/")}`;
-  return typeof value;
-}
-
-function isRecord(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+function diagnostic(error) {
+  // Report invalid field paths without echoing complete private payloads.
+  if (Array.isArray(error?.issues))
+    return error.issues
+      .slice(0, 5)
+      .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+      .join("; ");
+  return error instanceof Error ? error.message : "校验失败";
 }
 
 function joinUrl(base, path) {
   return `${base.replace(/\/+$/, "")}${path}`;
 }
 
-function section(title) {
-  console.log(`\n${title}`);
-}
-
-function banner(title) {
-  console.log(`\n=== ${title} ===`);
-}
-
 function parseArgs(argv) {
   const parsed = {};
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
-    if (!token.startsWith("--")) continue;
-    const key = token.slice(2);
-    if (key === "help") {
-      console.log(
-        "见脚本头部注释：node apps/api/scripts/upstream-conformance.mjs --catalog-url <url> [--api-base <url>] [--api-key <key>]",
-      );
-      process.exit(0);
-    }
-    const value = argv[index + 1];
-    if (value && !value.startsWith("--")) {
-      parsed[key] = value;
-      index += 1;
-    }
+    if (token === "--help") parsed.help = true;
+    else if (token.startsWith("--") && argv[index + 1] && !argv[index + 1].startsWith("--"))
+      parsed[token.slice(2)] = argv[++index];
   }
   return parsed;
 }
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
+  process.exitCode = await main();

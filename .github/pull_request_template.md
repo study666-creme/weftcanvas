@@ -7,6 +7,7 @@ What does this PR change, and why? Link the issue if one exists (`Closes #`).
 - [ ] `pnpm format:check` passes
 - [ ] `pnpm typecheck` passes
 - [ ] `pnpm test` passes
+- [ ] `pnpm build` passes
 - [ ] `pnpm test:e2e` passes (required for interaction/pointer changes)
 - [ ] UI changes include before/after screenshots (both colour schemes)
 - [ ] No secrets, keys, or production endpoints in the diff

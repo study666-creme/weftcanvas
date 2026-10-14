@@ -63,6 +63,8 @@ test("creates additional API configurations from the settings surface", async ({
   await enabledToggle.uncheck();
   await expect(dialog.getByRole("button", { name: "配置已停用" })).toBeDisabled();
   await enabledToggle.check();
+  await expect(dialog.getByRole("button", { name: "拉取模型" })).toBeDisabled();
+  await dialog.getByLabel("服务地址").fill(originA);
   await expect(dialog.getByRole("button", { name: "拉取模型" })).toBeEnabled();
   await page.getByLabel("关闭设置").click();
   await openCreationSettings(page);
@@ -101,7 +103,7 @@ test("keeps actions on the single default accent while ready status stays semant
       element.appendChild(probe);
       const expected = getComputedStyle(probe).color;
       probe.remove();
-      const mark = element.querySelector(".wc-custom-api-mark");
+      const mark = element.querySelector(".wc-api-profile-icon");
       return { expected, actual: mark ? getComputedStyle(mark).color : null };
     });
 
@@ -200,10 +202,9 @@ test("merges built-in and multiple API models, honors visibility, and routes by 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByLabel("关闭设置").click();
 
-  await page
-    .getByRole("navigation", { name: "创建工具" })
-    .getByRole("button", { name: "添加文本节点" })
-    .click();
+  const creation = page.getByRole("navigation", { name: "创建工具" });
+  await creation.locator(".wc-create-rail-plus-wrapper").hover();
+  await creation.getByRole("menuitem", { name: "添加文本节点" }).click();
   const textNode = page.locator(
     '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="text"])',
   );
@@ -215,8 +216,8 @@ test("merges built-in and multiple API models, honors visibility, and routes by 
   const imageNode = await createImageNode(page);
   await imageNode.locator(".wc-node-drag-strip").click();
   const panel = page.getByLabel("图片节点创作设置");
-  await expect(panel.locator("[data-generation-model-select]")).toHaveValue(
-    /^custom:.*:image:image-model$/,
+  await expect(panel.getByRole("button", { name: "模型", exact: true })).toContainText(
+    "图片 API B",
   );
   await panel.getByRole("button", { name: "模型", exact: true }).click();
   const modelMenu = page.getByRole("listbox", { name: "模型" });
@@ -305,7 +306,7 @@ test("writes new browser-owned images only to the selected image directory", asy
   expect(await directoryFiles(page, "weftcanvas-generated-video")).toEqual([]);
 });
 
-test("groups custom models in one bottom group and submits an ordinary image input without a reference", async ({
+test("shows custom models after built-in options and submits an image without a reference", async ({
   page,
 }) => {
   await page.route(`${originA}/api/model-catalog`, (route) =>
@@ -326,9 +327,8 @@ test("groups custom models in one bottom group and submits an ordinary image inp
   const panel = page.getByLabel("图片节点创作设置");
   await panel.getByRole("button", { name: "模型", exact: true }).click();
   const modelMenu = page.getByRole("listbox", { name: "模型" });
-  await expect(
-    modelMenu.locator(".wc-canvas-select-group").filter({ hasText: "自有 API" }),
-  ).toHaveCount(1);
+  await expect(modelMenu.getByRole("option").filter({ hasText: "通用图片 API" })).toHaveCount(1);
+  await expect(modelMenu.getByRole("option").last()).toContainText("通用图片 API");
   await modelMenu.getByRole("option").filter({ hasText: "通用图片 API" }).click();
 
   await page.getByLabel("图片节点提示词").fill("无需参考图的文生图");
@@ -359,9 +359,7 @@ test("blocks an image model that explicitly requires a reference image when none
   const panel = page.getByLabel("图片节点创作设置");
   await panel.getByRole("button", { name: "模型", exact: true }).click();
   const modelMenu = page.getByRole("listbox", { name: "模型" });
-  await expect(
-    modelMenu.locator(".wc-canvas-select-group").filter({ hasText: "自有 API" }),
-  ).toHaveCount(1);
+  await expect(modelMenu.getByRole("option").filter({ hasText: "参考图片 API" })).toHaveCount(1);
   await modelMenu.getByRole("option").filter({ hasText: "参考图片 API" }).click();
 
   await page.getByLabel("图片节点提示词").fill("缺少参考图的生成");
@@ -381,10 +379,9 @@ async function addAndPullProfile(
 }
 
 async function createImageNode(page: Page) {
-  await page
-    .getByRole("navigation", { name: "创建工具" })
-    .getByRole("button", { name: "添加图片节点" })
-    .click();
+  const creation = page.getByRole("navigation", { name: "创建工具" });
+  await creation.locator(".wc-create-rail-plus-wrapper").hover();
+  await creation.getByRole("menuitem", { name: "添加图片节点" }).click();
   return page
     .locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="image"])')
     .first();

@@ -5,6 +5,7 @@
   width: min(880px, calc(100vw - 28px));
   max-width: none;
   height: min(660px, calc(100vh - 132px - env(safe-area-inset-bottom)));
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: 44px 40px auto minmax(0, 1fr);
   align-items: stretch;
   gap: 0;
@@ -82,6 +83,8 @@
 
 .wc-ui-settings-tabs {
   display: flex;
+  min-width: 0;
+  overflow-x: auto;
   align-items: end;
   gap: 4px;
   padding: 5px 12px 0;
@@ -91,6 +94,7 @@
 
 .wc-ui-settings .wc-ui-settings-tabs button {
   display: inline-flex;
+  flex-shrink: 0;
   width: auto;
   min-width: 0;
   height: 34px;

@@ -27,8 +27,28 @@ services:
       DATABASE_URL: postgresql://canvas:${POSTGRES_PASSWORD}@postgres:5432/canvas
       IDENTITY_SESSION_SECRET: ${IDENTITY_SESSION_SECRET:?set IDENTITY_SESSION_SECRET in .env}
       REGISTRATION_CREDIT_MICROS: ${REGISTRATION_CREDIT_MICROS:-0}
+      APP_ORIGINS: ${APP_ORIGINS:-http://127.0.0.1:8080}
+      CANVAS_UPSTREAM_CATALOG_URL: ${CANVAS_UPSTREAM_CATALOG_URL:-}
+      CANVAS_UPSTREAM_PRICING_URL: ${CANVAS_UPSTREAM_PRICING_URL:-}
+      CANVAS_UPSTREAM_VIDEO_INVENTORY_URL: ${CANVAS_UPSTREAM_VIDEO_INVENTORY_URL:-}
+      MODEL_OVERRIDES_ADMIN_SECRET: ${MODEL_OVERRIDES_ADMIN_SECRET:-}
+      CANVAS_OPS_ADMIN_SECRET: ${CANVAS_OPS_ADMIN_SECRET:-}
+      MEDIA_SIGNING_SECRET: ${MEDIA_SIGNING_SECRET:-}
+      MEDIA_PUBLIC_BASE_URL: ${MEDIA_PUBLIC_BASE_URL:-}
     volumes:
-      - canvas-data:/repo/apps/api/.data
+      - canvas-data:/repo/.data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8787/api/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+      start_period: 30s
     depends_on:
       postgres:
         condition: service_healthy
@@ -50,12 +70,15 @@ services:
       DATABASE_URL: postgresql://canvas:${POSTGRES_PASSWORD}@postgres:5432/canvas
       GENERATION_WORKER_ENABLED: "true"
       MEDIA_MULTIPART_WORKER_ENABLED: "false"
-      WEFTCANVAS_API_BASE_URL: ${WEFTCANVAS_API_BASE_URL:-}
-      WEFTCANVAS_API_KEY: ${WEFTCANVAS_API_KEY:-}
+      CANVAS_UPSTREAM_API_BASE_URL: ${CANVAS_UPSTREAM_API_BASE_URL:-${WEFTCANVAS_API_BASE_URL:-}}
+      CANVAS_UPSTREAM_API_KEY: ${CANVAS_UPSTREAM_API_KEY:-${WEFTCANVAS_API_KEY:-}}
+      GENERATION_MEDIA_HOSTS: ${GENERATION_MEDIA_HOSTS:-}
+      MEDIA_SIGNING_SECRET: ${MEDIA_SIGNING_SECRET:-}
+      MEDIA_PUBLIC_BASE_URL: ${MEDIA_PUBLIC_BASE_URL:-}
     volumes:
-      - canvas-data:/repo/apps/worker/.data
+      - canvas-data:/repo/.data
     depends_on:
-      postgres:
+      api:
         condition: service_healthy
 
   web:
@@ -63,9 +86,10 @@ services:
       context: .
       target: web-runtime
     ports:
-      - "${WEB_PORT:-8080}:80"
+      - "${WEB_PORT:-127.0.0.1:8080}:80"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
 volumes:
   canvas-db:

@@ -21,7 +21,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run && pnpm test:scripts",
+    "test:scripts": "node --test scripts/newapi-catalog-export.test.mjs scripts/upstream-conformance.test.mjs",
     "test:postgres": "vitest run --maxWorkers=1 src/generation/api-rate-limit.integration.test.ts src/generation/postgres-store.integration.test.ts src/generation/reconciliation.integration.test.ts src/generation/work-queue.integration.test.ts src/identity/postgres-store.integration.test.ts src/media/postgres-store.integration.test.ts"
   },
   "dependencies": {

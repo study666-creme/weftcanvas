@@ -5,6 +5,9 @@ dist
 build
 **/build
 .git
+.data
+**/.data
+.zcode
 .env
 .env.*
 !.env.example

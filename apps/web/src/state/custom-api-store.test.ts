@@ -1,5 +1,5 @@
 import type { ModelModality, PublicModel } from "@weftcanvas/contracts";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { CustomApiCatalog } from "../lib/custom-api";
 import type { CustomApiProfile } from "./custom-api-store";
@@ -10,8 +10,12 @@ afterEach(() => {
 });
 
 describe("custom API profile migration", () => {
-  it("migrates the previous single connection only after writing v2", async () => {
-    const storage = memoryStorage();
+  let storage: ReturnType<typeof memoryStorage>;
+  let module: typeof import("./custom-api-store");
+
+  // Cold module compilation belongs to fixture setup, before the migration assertions.
+  beforeAll(async () => {
+    storage = memoryStorage();
     storage.setItem(
       "weftcanvas:custom-api:v1",
       JSON.stringify({
@@ -21,7 +25,10 @@ describe("custom API profile migration", () => {
     );
     vi.stubGlobal("localStorage", storage);
 
-    const module = await import("./custom-api-store");
+    module = await import("./custom-api-store");
+  });
+
+  it("migrates the previous single connection only after writing v2", () => {
     const state = module.useCustomApiStore.getState();
 
     expect(state.profiles).toHaveLength(1);
@@ -77,6 +84,36 @@ describe("merged model visibility", () => {
       modality: "audio",
       endpointPath: "/v1/chat/completions",
     });
+  });
+
+  it("surfaces knowledge-recognized models without manual tagging and keeps unknown ids out", async () => {
+    const storage = memoryStorage();
+    vi.stubGlobal("localStorage", storage);
+    const module = await import("./custom-api-store");
+
+    // 中转站只给官方 id：视频族自动落到视频模态、官方 id 直显。
+    const bare = profile("bare", "裸中转", "doubao-seedance-2.0");
+    bare.manualModelModalities = {};
+    const [choice] = module.getCustomModelChoices(
+      { profiles: [bare], hiddenModelKeys: [] },
+      "video",
+    );
+    expect(choice?.model.label).toContain("doubao-seedance-2.0");
+    expect(choice?.route).toMatchObject({ modality: "video", endpointPath: "/v1/videos" });
+    expect(
+      module.getCustomModelChoices({ profiles: [bare], hiddenModelKeys: [] }, "image"),
+    ).toEqual([]);
+
+    // 未识别 id 不进选择器，但手动标注后立刻可用——未识别不等于不可用。
+    const unknown = profile("unknown", "未知中转", "vendor-mystery-model");
+    unknown.manualModelModalities = {};
+    expect(
+      module.getCustomModelChoices({ profiles: [unknown], hiddenModelKeys: [] }, "video"),
+    ).toEqual([]);
+    unknown.manualModelModalities = { "vendor-mystery-model": ["video"] };
+    expect(
+      module.getCustomModelChoices({ profiles: [unknown], hiddenModelKeys: [] }, "video"),
+    ).toHaveLength(1);
   });
 
   it("deduplicates rich aliases that resolve to one profile model", async () => {
@@ -145,6 +182,25 @@ describe("merged model visibility", () => {
   });
 });
 
+describe("channel sync diff", () => {
+  it("reports upstream additions and removals, and stays silent otherwise", async () => {
+    const storage = memoryStorage();
+    vi.stubGlobal("localStorage", storage);
+    const module = await import("./custom-api-store");
+
+    // 首次拉取不算变更：没有可比对的"上一次"。
+    expect(module.computeSyncDiff([], ["a", "b"], 1)).toBeNull();
+    // 没有任何变化时不产生噪音提示（轮询每次都会走到这里）。
+    expect(module.computeSyncDiff(["a", "b"], ["b", "a"], 2)).toBeNull();
+
+    expect(module.computeSyncDiff(["a", "b"], ["a", "c", "d"], 3)).toEqual({
+      added: ["c", "d"],
+      removed: ["b"],
+      at: 3,
+    });
+  });
+});
+
 function profile(
   id: string,
   name: string,
@@ -164,6 +220,7 @@ function profile(
     loadedAt: Date.now(),
     availableModelIds: [modelId],
     manualModelModalities: { [modelId]: modalities },
+    lastSyncDiff: null,
   };
 }
 

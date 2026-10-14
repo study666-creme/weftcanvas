@@ -6,11 +6,17 @@ import type {
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  applyProtocolOverride,
+  buildProtocolRequestBody,
   createSyntheticCustomModel,
   createSyntheticCustomRoute,
   buildImageRequestPayload,
+  customApiAuthInit,
   executeCustomGeneration,
   fetchCustomApiModelIdsForFormat,
+  normalizeProtocolOverride,
+  probeCustomApiResponse,
+  sendCustomApiTestRequest,
   testCustomApiConnection,
   type CustomApiRoute,
 } from "./custom-api";
@@ -1552,3 +1558,368 @@ function jsonResponse(value: unknown, status = 200) {
     headers: { "Content-Type": "application/json" },
   });
 }
+
+describe("protocol override (P0)", () => {
+  it("keeps only well-formed auth overrides and drops unsafe names", () => {
+    expect(normalizeProtocolOverride({ auth: { style: "bearer" } })).toEqual({
+      auth: { style: "bearer" },
+    });
+    expect(normalizeProtocolOverride({ auth: { style: "header", name: "x-api-key" } })).toEqual({
+      auth: { style: "header", name: "x-api-key" },
+    });
+    // 自定义头/查询参数必须有合法名字，否则整条覆盖丢弃、退回默认 bearer。
+    expect(
+      normalizeProtocolOverride({ auth: { style: "header", name: "bad name!" } }),
+    ).toBeUndefined();
+    expect(normalizeProtocolOverride({ auth: { style: "query", name: "" } })).toBeUndefined();
+    expect(normalizeProtocolOverride({ auth: { style: "nope" } })).toBeUndefined();
+  });
+
+  it("accepts only in-site absolute endpoint paths", () => {
+    expect(
+      normalizeProtocolOverride({
+        endpoints: {
+          video: "/v1/videos/generate",
+          audio: "/v1/chat/completions",
+          text: "https://evil.test/v1/chat/completions",
+          image: "/v1/../etc/passwd",
+        },
+      }),
+    ).toEqual({ endpoints: { video: "/v1/videos/generate", audio: "/v1/chat/completions" } });
+  });
+
+  it("filters result paths: no blanks, no prototype segments", () => {
+    expect(
+      normalizeProtocolOverride({
+        resultUrlPaths: ["data.outputs.0.url", "   ", "__proto__", "data.url"],
+      }),
+    ).toEqual({ resultUrlPaths: ["data.outputs.0.url", "data.url"] });
+    // 空白协议档案等于没填：默认路径，零迁移。
+    expect(normalizeProtocolOverride({})).toBeUndefined();
+    expect(normalizeProtocolOverride(null)).toBeUndefined();
+  });
+
+  it("applies the configured auth style to outbound requests", () => {
+    const server = "https://relay.test";
+    const bearer = customApiAuthInit({ baseUrl: server, apiKey: "sk-test" }, "/v1/models");
+    expect(bearer.headers.Authorization).toBe("Bearer sk-test");
+
+    const header = customApiAuthInit(
+      {
+        baseUrl: server,
+        apiKey: "sk-test",
+        protocol: { auth: { style: "header", name: "x-api-key" } },
+      },
+      "/v1/models",
+    );
+    expect(header.headers["x-api-key"]).toBe("sk-test");
+    expect(header.headers.Authorization).toBeUndefined();
+
+    const query = customApiAuthInit(
+      { baseUrl: server, apiKey: "sk-test", protocol: { auth: { style: "query", name: "key" } } },
+      "/v1/models",
+    );
+    expect(query.url.searchParams.get("key")).toBe("sk-test");
+    expect(query.headers.Authorization).toBeUndefined();
+  });
+
+  it("overrides the route endpoint only for the configured modality", () => {
+    const route: CustomApiRoute = {
+      sourceModelId: "custom-image",
+      modality: "image",
+      endpointPath: "/v1/images/generations",
+      parameters: [],
+    };
+    const connection = {
+      baseUrl: "https://relay.test",
+      apiKey: "sk-test",
+      protocol: { endpoints: { image: "/v1/custom/images" } },
+    };
+    expect(applyProtocolOverride(route, connection).endpointPath).toBe("/v1/custom/images");
+    // 未配置覆盖 = 原样返回（同一份路由同时供选择器与执行使用）。
+    expect(applyProtocolOverride(route, undefined).endpointPath).toBe("/v1/images/generations");
+    expect(
+      applyProtocolOverride(route, { baseUrl: connection.baseUrl, apiKey: "k" }).endpointPath,
+    ).toBe("/v1/images/generations");
+  });
+});
+
+describe("protocol override (P1/P2): polling and request encoding", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("polls a numeric task ID to a numeric completion status and retrieves the result", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("window", { setTimeout });
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const path = new URL(String(input)).pathname;
+      if (path === "/v1/videos") return jsonResponse({ data: { id: 42, state: 0 } });
+      if (path === "/v1/tasks/42")
+        return jsonResponse({ data: { id: 42, state: 2, url: "https://cdn.test/result.mp4" } });
+      if (path === "/result.mp4")
+        return new Response(new Blob(["video-bytes"], { type: "video/mp4" }));
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const result = executeCustomGeneration({
+      connection: {
+        baseUrl: "https://relay.test",
+        apiKey: "test-key",
+        protocol: {
+          poll: {
+            taskIdPaths: ["data.id"],
+            statusPaths: ["data.state"],
+            successValues: ["2"],
+            failValues: ["3"],
+            urlTemplate: "/v1/tasks/{id}",
+          },
+          resultUrlPaths: ["data.url"],
+        },
+      },
+      model: createSyntheticCustomModel("test-video", "video"),
+      route: createSyntheticCustomRoute("test-video", "video")!,
+      parameters: { prompt: "animate" },
+      inputs: { images: [], styleImages: [], elementImages: [], videos: [], audios: [] },
+    });
+    const assertion = expect(result).resolves.toMatchObject({ media: [{ mimeType: "video/mp4" }] });
+    await vi.advanceTimersByTimeAsync(5_000);
+    await assertion;
+    expect(fetchMock.mock.calls.map(([input]) => new URL(String(input)).pathname)).toEqual([
+      "/v1/videos",
+      "/v1/tasks/42",
+      "/result.mp4",
+    ]);
+  });
+
+  it("uses numeric status codes consistently in the offline response probe", () => {
+    const protocol = {
+      poll: {
+        taskIdPaths: ["data.id"],
+        statusPaths: ["data.state"],
+        successValues: ["2"],
+        failValues: ["3"],
+      },
+    };
+    for (const [state, verdict] of [
+      [0, "running"],
+      [2, "completed"],
+      [3, "failed"],
+    ] as const) {
+      const result = probeCustomApiResponse(JSON.stringify({ data: { id: 42, state } }), protocol);
+      if (!result.ok) throw new Error(result.message);
+      expect(result.probe.taskId?.value).toBe("42");
+      expect(result.probe.status?.verdict).toBe(verdict);
+    }
+    for (const state of [true, {}, [], null]) {
+      const result = probeCustomApiResponse(JSON.stringify({ data: { state } }), protocol);
+      if (!result.ok) throw new Error(result.message);
+      expect(result.probe.status).toBeNull();
+    }
+  });
+  it("keeps poll overrides only when they are well-formed", () => {
+    expect(
+      normalizeProtocolOverride({
+        poll: {
+          urlTemplate: "/v1/tasks/{task_id}",
+          method: "POST",
+          taskIdPaths: ["data.task.id"],
+          statusPaths: ["data.state"],
+          successValues: ["succeeded", "2"],
+          failValues: ["failed"],
+          progressPath: "data.percent",
+        },
+      }),
+    ).toEqual({
+      poll: {
+        urlTemplate: "/v1/tasks/{task_id}",
+        method: "POST",
+        taskIdPaths: ["data.task.id"],
+        statusPaths: ["data.state"],
+        successValues: ["succeeded", "2"],
+        failValues: ["failed"],
+        progressPath: "data.percent",
+      },
+    });
+    // 模板只允许 {task_id}/{id} 占位符，且必须是站内路径。
+    expect(
+      normalizeProtocolOverride({ poll: { urlTemplate: "https://evil.test/t/{id}" } }),
+    ).toBeUndefined();
+    expect(
+      normalizeProtocolOverride({ poll: { urlTemplate: "/v1/tasks/{other}" } }),
+    ).toBeUndefined();
+    expect(
+      normalizeProtocolOverride({ poll: { urlTemplate: "/v1/../tasks/{id}" } }),
+    ).toBeUndefined();
+    // GET 是默认值，不写进档案；json 同理。
+    expect(normalizeProtocolOverride({ poll: { method: "GET" } })).toBeUndefined();
+    expect(normalizeProtocolOverride({ request: { contentType: "json" } })).toBeUndefined();
+    expect(normalizeProtocolOverride({ request: { contentType: "multipart" } })).toEqual({
+      request: { contentType: "multipart" },
+    });
+  });
+
+  it("probes a pasted response and reports the matched point paths", () => {
+    const protocol = {
+      poll: { taskIdPaths: ["data.task.id"], statusPaths: ["data.state"], successValues: ["2"] },
+      resultUrlPaths: ["data.output.video_url"],
+    };
+    const ok = probeCustomApiResponse(
+      JSON.stringify({
+        data: {
+          task: { id: "task_9" },
+          state: "2",
+          output: { video_url: "https://cdn.test/a.mp4" },
+        },
+      }),
+      protocol,
+    );
+    expect(ok.ok).toBe(true);
+    if (!ok.ok) throw new Error("expected a successful probe");
+    expect(ok.probe.taskId).toEqual({ value: "task_9", path: "data.task.id" });
+    expect(ok.probe.status).toEqual({ raw: "2", path: "data.state", verdict: "completed" });
+    expect(ok.probe.resultUrl).toEqual({
+      value: "https://cdn.test/a.mp4",
+      path: "data.output.video_url",
+    });
+
+    // 未配置成功的状态值 → 继续等待（不猜完成）
+    const pending = probeCustomApiResponse('{"data":{"state":"1"}}', protocol);
+    if (!pending.ok) throw new Error("expected a successful probe");
+    expect(pending.probe.status?.verdict).toBe("running");
+
+    expect(probeCustomApiResponse("", protocol).ok).toBe(false);
+    expect(probeCustomApiResponse("not json", protocol).ok).toBe(false);
+  });
+
+  it("sends a real text test request through the configured endpoint and auth", async () => {
+    let captured: { url: string; headers: Record<string, string>; body: string } | null = null;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: URL, init: RequestInit) => {
+        captured = {
+          url: String(url),
+          headers: (init.headers ?? {}) as Record<string, string>,
+          body: String(init.body ?? ""),
+        };
+        return jsonResponse({ choices: [{ message: { content: "ok" } }] });
+      }),
+    );
+
+    const result = await sendCustomApiTestRequest(
+      {
+        baseUrl: "https://relay.test",
+        apiKey: "sk-test",
+        protocol: {
+          auth: { style: "header", name: "x-api-key" },
+          endpoints: { text: "/v1/custom/chat" },
+        },
+      },
+      "mock-text",
+    );
+
+    expect(result.path).toBe("/v1/custom/chat");
+    expect(result.contentType).toBe("json");
+    expect(captured!.url).toBe("https://relay.test/v1/custom/chat");
+    // 认证样式与端点覆盖必须和真实生成走同一套。
+    expect(captured!.headers["x-api-key"]).toBe("sk-test");
+    expect(captured!.headers.Authorization).toBeUndefined();
+    expect(JSON.parse(captured!.body)).toMatchObject({ model: "mock-text", max_tokens: 1 });
+  });
+
+  it("refuses a test request without a model id", async () => {
+    await expect(
+      sendCustomApiTestRequest({ baseUrl: "https://relay.test", apiKey: "sk-test" }, "  "),
+    ).rejects.toThrow("先填一个用于测试的模型 id");
+  });
+
+  it("reads upstream failures through the configured error paths", async () => {
+    // 中转站常见形状：{code, msg}；内置候选已覆盖 msg，但这里显式声明路径以验证优先级。
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ err: { text: "余额不足", no: 4001 } }, 400)),
+    );
+    await expect(
+      sendCustomApiTestRequest(
+        {
+          baseUrl: "https://relay.test",
+          apiKey: "sk-test",
+          protocol: { error: { messagePaths: ["err.text"], codePaths: ["err.no"] } },
+        },
+        "mock-text",
+      ),
+    ).rejects.toThrow("余额不足");
+
+    // 没有配置时也要能读出常见字段（msg / code），不再只认 error.message。
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ code: "RATE_LIMIT", msg: "太频繁" }, 400)),
+    );
+    await expect(
+      sendCustomApiTestRequest({ baseUrl: "https://relay.test", apiKey: "sk-test" }, "t"),
+    ).rejects.toThrow("太频繁");
+
+    // 完全读不出消息时给带错误码的兜底文案，而不是空消息（错误码允许是数字）。
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ nope: 4001 }, 400)),
+    );
+    await expect(
+      sendCustomApiTestRequest(
+        {
+          baseUrl: "https://relay.test",
+          apiKey: "sk-test",
+          protocol: { error: { codePaths: ["nope"] } },
+        },
+        "t",
+      ),
+    ).rejects.toThrow("生成请求失败 (400 · 4001)");
+  });
+
+  it("normalizes error overrides and drops unsafe paths", () => {
+    expect(
+      normalizeProtocolOverride({
+        error: { messagePaths: ["msg", "__proto__"], codePaths: ["code"] },
+      }),
+    ).toEqual({ error: { messagePaths: ["msg"], codePaths: ["code"] } });
+    expect(normalizeProtocolOverride({ error: {} })).toBeUndefined();
+  });
+
+  it("reports error message and code in the probe", () => {
+    const result = probeCustomApiResponse(JSON.stringify({ code: "4001", msg: "余额不足" }), {});
+    if (!result.ok) throw new Error("expected a successful probe");
+    expect(result.probe.errorMessage).toEqual({ value: "余额不足", path: "msg" });
+    expect(result.probe.errorCode).toEqual({ value: "4001", path: "code" });
+  });
+
+  it("builds form and multipart bodies without inventing field names", async () => {
+    const payload = {
+      model: "m",
+      prompt: "hi",
+      tags: ["a", "b"],
+      options: { size: "2k" },
+      image: "data:image/png;base64,iVBORw0KGgo=",
+    };
+    const form = await buildProtocolRequestBody(payload, "form");
+    const params = form.body as URLSearchParams;
+    expect(params.getAll("tags")).toEqual(["a", "b"]);
+    expect(params.get("options")).toBe('{"size":"2k"}');
+    expect(params.get("image")).toBe("data:image/png;base64,iVBORw0KGgo=");
+    expect(form.headers["Content-Type"]).toContain("x-www-form-urlencoded");
+
+    const multipart = await buildProtocolRequestBody(payload, "multipart");
+    const data = multipart.body as FormData;
+    expect(data.get("prompt")).toBe("hi");
+    expect(data.getAll("tags")).toEqual(["a", "b"]);
+    const file = data.get("image");
+    expect(file).toBeInstanceOf(File);
+    expect((file as File).type).toBe("image/png");
+    // multipart 的 Content-Type 必须留给浏览器（带 boundary）。
+    expect(multipart.headers["Content-Type"]).toBeUndefined();
+
+    const json = await buildProtocolRequestBody(payload, "json");
+    expect(json.headers["Content-Type"]).toBe("application/json");
+    expect(JSON.parse(json.body as string)).toMatchObject({ model: "m", prompt: "hi" });
+  });
+});

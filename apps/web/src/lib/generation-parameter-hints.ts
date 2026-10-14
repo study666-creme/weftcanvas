@@ -146,21 +146,15 @@ export const MJ_ACTION_OPTIONS: Record<string, MjActionMeta> = {
   },
 };
 
-/** Midjourney 画质档的数字档位按业界口径给出可读文案。 */
-const MJ_QUALITY_OPTION_LABELS: Record<string, string> = {
-  "0.25": "0.25 草稿",
-  "0.5": "0.5 快速",
-  "1": "1 标准",
-  "2": "2 高清",
-};
-
 const PARAMETER_OPTION_LABELS: Record<string, Record<string, string>> = {
   action: Object.fromEntries(
     Object.entries(MJ_ACTION_OPTIONS).map(([value, meta]) => [value, meta.label]),
   ),
   direction: { left: "向左", right: "向右", up: "向上", down: "向下" },
   dimensions: { SQUARE: "方形 1:1", PORTRAIT: "竖幅 2:3", LANDSCAPE: "横幅 3:2" },
-  quality: MJ_QUALITY_OPTION_LABELS,
+  // Midjourney 的 `quality` 是算力档（0.25/0.5/1/2），不是分辨率档。以前把「2」写成
+  // 「2 高清」，用户会把它当成 2K 出图开关，和真正的 `hd` 开关（PARAMETER_META 里的 hd）
+  // 混成一回事。这里刻意不给它任何站内文案，枚举值原样显示为数字。
 };
 
 /** 参数的一句话解释：目录自带 description 时优先目录，否则查站内文案。 */

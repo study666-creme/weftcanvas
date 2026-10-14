@@ -156,6 +156,21 @@ describe("generation parameter option labels", () => {
     expect(generationParameterOptionLabel(quality, 2)).toBe("2");
   });
 
+  it("shows Midjourney's numeric quality tiers as bare numbers", () => {
+    // Midjourney 的 `quality` 是算力档（0.25/0.5/1/2），不是分辨率档。以前把它写成
+    // 「2 高清」，用户会当成 2K 出图开关，与真正的 `hd` 开关混为一谈。
+    const quality = parameter({
+      name: "quality",
+      label: "生成质量",
+      type: "string",
+      options: ["0.25", "0.5", "1", "2"],
+    });
+
+    expect(
+      ["0.25", "0.5", "1", "2"].map((option) => generationParameterOptionLabel(quality, option)),
+    ).toEqual(["0.25", "0.5", "1", "2"]);
+  });
+
   it("localizes a locked quality text field without changing editable values", () => {
     const fixedQuality = parameter({
       name: "quality",

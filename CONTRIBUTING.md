@@ -6,12 +6,13 @@ short version; the binding product rules live in [`AGENTS.md`](AGENTS.md) and
 
 ## Development environment
 
-- Node.js `>= 20.19` (Vite 8 requires it) — Node 22 LTS recommended.
-- pnpm `>= 9`; the repository pins its exact version via `packageManager`
+- Node.js 22 LTS (the same version used by CI and Docker).
+- pnpm: the repository pins its exact version via `packageManager`
   (corepack picks it up automatically).
 
 ```bash
-pnpm install
+corepack enable
+pnpm install --frozen-lockfile
 pnpm dev:web        # canvas at http://127.0.0.1:4173
 ```
 
@@ -25,10 +26,13 @@ work.
 pnpm format:check   # prettier — run `pnpm format` to fix
 pnpm typecheck      # tsc strict across all workspaces
 pnpm test           # unit tests (Vitest)
+pnpm build          # all distributed runtime artifacts
 pnpm test:e2e       # Playwright, when you touched interaction
 ```
 
-All four must pass; CI enforces them.
+Run the browser specs relevant to your change. CI enforces formatting, types,
+unit/script tests, build, the BYOK/project/plugin browser smoke suite, and Docker
+startup/persistence checks. The full E2E suite may include hosted-only scenarios.
 
 ## Code style
 
@@ -36,6 +40,10 @@ All four must pass; CI enforces them.
   review. TypeScript is `strict` with `noUncheckedIndexedAccess`.
 - Comments state constraints the code cannot show — never narration, never
   changelog-style "why my change is correct".
+- Keep model IDs unchanged. Recognition rules provide defaults; describe relay
+  compatibility only for verified protocols. Never infer prices or successful jobs.
+- Put runtime code in its owning workspace, CLI tools in `scripts/`, and tests
+  next to the behavior they cover. Use descriptive names; avoid one-off debug files.
 - Cross-runtime payloads go through versioned schemas in `packages/contracts`
   first. Runtimes must not import each other's internal state.
 
