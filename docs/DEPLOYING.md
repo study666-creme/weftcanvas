@@ -47,6 +47,10 @@ and download paths. Catalog snapshots and model overrides use the same data volu
 Recreating containers preserves both named volumes. `docker compose down --volumes`
 deletes them; back up both database and data before an upgrade or migration.
 
+The bundled PostgreSQL service is accessible only within the Compose network.
+Its connection URL explicitly uses `sslmode=disable` because that container has
+no TLS listener. Configure TLS separately when using a remote database.
+
 Projects and BYOK keys remain in each browser. Project JSON exports contain media
 references, not media files; server backups do not back up local browser data.
 

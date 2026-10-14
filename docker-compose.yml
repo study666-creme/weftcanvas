@@ -24,7 +24,8 @@ services:
       NODE_ENV: production
       # dev-test = native PostgreSQL identity + durable jobs, zero external services.
       CANVAS_API_PROVIDER: dev-test
-      DATABASE_URL: postgresql://canvas:${POSTGRES_PASSWORD}@postgres:5432/canvas
+      # This database is confined to the Compose network and has no TLS listener.
+      DATABASE_URL: postgresql://canvas:${POSTGRES_PASSWORD}@postgres:5432/canvas?sslmode=disable
       IDENTITY_SESSION_SECRET: ${IDENTITY_SESSION_SECRET:?set IDENTITY_SESSION_SECRET in .env}
       REGISTRATION_CREDIT_MICROS: ${REGISTRATION_CREDIT_MICROS:-0}
       APP_ORIGINS: ${APP_ORIGINS:-http://127.0.0.1:8080}
@@ -67,7 +68,7 @@ services:
     environment:
       NODE_ENV: production
       CANVAS_API_PROVIDER: dev-test
-      DATABASE_URL: postgresql://canvas:${POSTGRES_PASSWORD}@postgres:5432/canvas
+      DATABASE_URL: postgresql://canvas:${POSTGRES_PASSWORD}@postgres:5432/canvas?sslmode=disable
       GENERATION_WORKER_ENABLED: "true"
       MEDIA_MULTIPART_WORKER_ENABLED: "false"
       CANVAS_UPSTREAM_API_BASE_URL: ${CANVAS_UPSTREAM_API_BASE_URL:-${WEFTCANVAS_API_BASE_URL:-}}
