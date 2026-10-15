@@ -1,6 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 import { mkdirSync, readFileSync } from "node:fs";
 
+// 运营后台是 API 内嵌的单文件页：直接复用它的模块，README 里的后台截图与
+// 线上页面同源（接口全部 mock，见 seedOpsConsole）。
+import { CANVAS_OPS_ADMIN_PAGE } from "../../api/src/ops/admin-page.js";
+
 /**
  * 文档截图捕获：README/项目介绍的图库由这里生成。默认跳过，
  * 用 `CAPTURE_DOCS_SHOTS=1 npx playwright test e2e/docs-screenshots.capture.spec.ts`
@@ -387,6 +391,256 @@ test.describe("docs screenshot capture", () => {
     await page.screenshot({ path: `${OUT_DIR}/${name}.png` });
   }
 
+  /**
+   * 运营后台截图：页面本体来自 API（`/admin/ops`，见文件头的 import），
+   * 四个接口全部 mock——虚构的目录、用户与任务，不出现任何真实账号、
+   * 上游模型名或错误码。
+   */
+  async function seedOpsConsole(page: Page, theme: "light" | "dark") {
+    await page.addInitScript((value) => {
+      localStorage.setItem("canvas_admin_theme_v1", value);
+      sessionStorage.setItem("canvas_ops_admin_secret_v1", "docs-preview");
+    }, theme);
+
+    const now = Date.now();
+    await page.route("**/api/v1/admin/ops/overview", (route) =>
+      route.fulfill({
+        json: {
+          ok: true,
+          data: {
+            generatedAt: new Date(now).toISOString(),
+            windowHours: 24,
+            users: 128,
+            projects: 41,
+            media: { count: 2_314, bytes: 5_120_000_000 },
+            jobs: {
+              completed: 261,
+              failed: 19,
+              inFlight: 3,
+              staleInFlight: 1,
+              oldestInFlightUpdatedAt: new Date(now - 42 * 60_000).toISOString(),
+            },
+            catalog: {
+              version: CATALOG_VERSION,
+              quoteAvailable: true,
+              expiresAt: new Date(now + 600_000).toISOString(),
+            },
+            modelHealth: [
+              { modelId: "universal-25", successRate: 0.95, sampleCount: 433 },
+              { modelId: "universal-25-fast", successRate: 0.97, sampleCount: 812 },
+              { modelId: "banana-2", successRate: 0.96, sampleCount: 512 },
+              { modelId: "banana-pro", successRate: 0.61, sampleCount: 67 },
+              { modelId: "s20-max", successRate: 0.88, sampleCount: 291 },
+            ],
+          },
+        },
+      }),
+    );
+    await page.route("**/api/v1/admin/ops/users**", (route) =>
+      route.fulfill({
+        json: {
+          ok: true,
+          data: {
+            total: 3,
+            users: [
+              {
+                id: "usr_77aa21f0",
+                email: "lin@example.com",
+                displayName: "林一",
+                status: "active",
+                createdAt: new Date(now - 40 * 86_400_000).toISOString(),
+                lastLoginAt: new Date(now - 2 * 3_600_000).toISOString(),
+                credits: 1180.5,
+                projects: 6,
+                mediaCount: 84,
+                mediaBytes: 412_000_000,
+                jobs: 96,
+                jobsCompleted: 88,
+                jobsFailed: 8,
+              },
+              {
+                id: "usr_13bb02c4",
+                email: "miao@example.com",
+                displayName: "喵喵不吃鱼",
+                status: "active",
+                createdAt: new Date(now - 12 * 86_400_000).toISOString(),
+                lastLoginAt: new Date(now - 30 * 60_000).toISOString(),
+                credits: 46.25,
+                projects: 2,
+                mediaCount: 12,
+                mediaBytes: 58_000_000,
+                jobs: 15,
+                jobsCompleted: 14,
+                jobsFailed: 1,
+              },
+              {
+                id: "usr_9c03de77",
+                email: "quiet@example.com",
+                displayName: "静水",
+                status: "disabled",
+                createdAt: new Date(now - 90 * 86_400_000).toISOString(),
+                lastLoginAt: new Date(now - 30 * 86_400_000).toISOString(),
+                credits: 0,
+                projects: 0,
+                mediaCount: 3,
+                mediaBytes: 9_000_000,
+                jobs: 7,
+                jobsCompleted: 5,
+                jobsFailed: 2,
+              },
+            ],
+          },
+        },
+      }),
+    );
+    await page.route("**/api/v1/admin/ops/jobs**", (route) =>
+      route.fulfill({
+        json: {
+          ok: true,
+          data: {
+            jobs: [
+              {
+                id: "phj_9f2ab31c",
+                ownerId: "usr_77aa21f0",
+                modelId: "s20-max",
+                modality: "video",
+                status: "failed",
+                errorCode: "UPSTREAM_TIMEOUT",
+                createdAt: new Date(now - 20 * 60_000).toISOString(),
+                updatedAt: new Date(now - 18 * 60_000).toISOString(),
+              },
+              {
+                id: "phj_0d11e5f7",
+                ownerId: "usr_13bb02c4",
+                modelId: "banana-pro",
+                modality: "image",
+                status: "failed",
+                errorCode: "CONTENT_REJECTED",
+                createdAt: new Date(now - 3 * 3_600_000).toISOString(),
+                updatedAt: new Date(now - 3 * 3_600_000).toISOString(),
+              },
+            ],
+          },
+        },
+      }),
+    );
+    await page.route("**/api/v1/admin/model-overrides", (route) =>
+      route.fulfill({
+        json: {
+          ok: true,
+          data: {
+            overrides: {
+              models: {
+                "universal-25": {
+                  displayName: "全能模型2.5 · 高品质",
+                  description: "站内主推，细节与一致性最好",
+                },
+                "s20-max": { zone: "promo" },
+                "seedance-official": {
+                  displayName: "视频模型 · 官方直连",
+                  price: { yuan: 0.8 },
+                },
+              },
+            },
+            models: [
+              {
+                id: "universal-25",
+                label: "全能模型2.5 · 高质量",
+                modality: "image",
+                unit: "image",
+                pricingMode: "fixed",
+                baseYuan: 2.2,
+                inputYuanPerMillion: null,
+                outputYuanPerMillion: null,
+                resolutions: ["1k", "2k", "4k"],
+                listed: true,
+                healthSuccessRate: 0.95,
+                healthSamples: 433,
+              },
+              {
+                id: "universal-25-fast",
+                label: "全能模型2.5 · 快速",
+                modality: "image",
+                unit: "image",
+                pricingMode: "fixed",
+                baseYuan: 1.2,
+                inputYuanPerMillion: null,
+                outputYuanPerMillion: null,
+                resolutions: ["1k", "2k"],
+                listed: true,
+                healthSuccessRate: 0.97,
+                healthSamples: 812,
+              },
+              {
+                id: "banana-2",
+                label: "香蕉 · 2代 1K/2K/4K",
+                modality: "image",
+                unit: "image",
+                pricingMode: "fixed",
+                baseYuan: 0.22,
+                inputYuanPerMillion: null,
+                outputYuanPerMillion: null,
+                resolutions: ["1k", "2k", "4k"],
+                listed: true,
+                healthSuccessRate: 0.96,
+                healthSamples: 512,
+              },
+              {
+                id: "banana-pro",
+                label: "香蕉 · 专业 1K/2K/4K",
+                modality: "image",
+                unit: "image",
+                pricingMode: "fixed",
+                baseYuan: 0.44,
+                inputYuanPerMillion: null,
+                outputYuanPerMillion: null,
+                resolutions: ["1k", "2k", "4k"],
+                listed: true,
+                healthSuccessRate: 0.61,
+                healthSamples: 67,
+              },
+              {
+                id: "s20-max",
+                label: "S-2.0 满血 · 线路六",
+                modality: "video",
+                unit: "second",
+                pricingMode: "fixed",
+                baseYuan: 1.6,
+                inputYuanPerMillion: null,
+                outputYuanPerMillion: null,
+                resolutions: ["720p", "1080p"],
+                listed: true,
+                healthSuccessRate: 0.88,
+                healthSamples: 291,
+              },
+              {
+                id: "seedance-official",
+                label: "Seedance 官方 · Fast",
+                modality: "video",
+                unit: "second",
+                pricingMode: "fixed",
+                baseYuan: 0.9,
+                inputYuanPerMillion: null,
+                outputYuanPerMillion: null,
+                resolutions: ["720p"],
+                listed: true,
+                healthSuccessRate: null,
+                healthSamples: null,
+              },
+            ],
+          },
+        },
+      }),
+    );
+    await page.route("**/admin/ops", (route) =>
+      route.fulfill({ body: CANVAS_OPS_ADMIN_PAGE, contentType: "text/html; charset=utf-8" }),
+    );
+    await page.goto("/admin/ops");
+    await page.getByRole("button", { name: "加载" }).click();
+    await expect(page.locator("#cards .wc-card")).toHaveCount(7);
+    await page.waitForTimeout(300);
+  }
+
   async function openCanvas(page: Page, theme: "light" | "dark") {
     await seedCanvas(page, theme);
     await page.goto("/canvas");
@@ -617,5 +871,20 @@ test.describe("docs screenshot capture", () => {
     await expect(page.locator(".wc-appearance-toolbar")).toBeVisible();
     await page.waitForTimeout(600);
     await shot(page, "appearance-styles");
+  });
+
+  test("ops console overview", async ({ page }) => {
+    await seedOpsConsole(page, "light");
+    await expect(page.locator("#health tr").first()).toContainText("%");
+    await shot(page, "ops-console");
+  });
+
+  test("ops console models", async ({ page }) => {
+    await seedOpsConsole(page, "dark");
+    await page.getByRole("button", { name: "模型运营" }).click();
+    await expect(page.locator('#modelRows tr[data-id="universal-25"]')).toBeVisible();
+    await expect(page.locator("#modelRows").getByText("已改价")).toBeVisible();
+    await page.waitForTimeout(250);
+    await shot(page, "ops-models");
   });
 });

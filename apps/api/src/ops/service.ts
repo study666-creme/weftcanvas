@@ -1,11 +1,16 @@
 import type { ModelHealth } from "@weftcanvas/contracts";
 
 import type { ModelHealthProvider } from "../catalog/model-health.js";
-import type { OpsJobRow, OpsStore } from "./store.js";
+import type { OpsJobRow, OpsStore, OpsUserRow } from "./store.js";
 
 export const OPS_WINDOW_HOURS = 24;
 /** in-flight 任务超过这个时长没更新即视为积压（与告警共用同一口径）。 */
 export const OPS_STALE_INFLIGHT_MS = 30 * 60_000;
+/** 用户搜索词上限：够长到能贴完整邮箱，又不至于把整段查询塞进 ILIKE。 */
+const OPS_USER_QUERY_MAX_LENGTH = 120;
+/** 用户列表默认/最大条数。 */
+const OPS_USER_LIMIT_DEFAULT = 50;
+const OPS_USER_LIMIT_MAX = 200;
 
 export type OpsCatalogStatus = {
   version: string | null;
@@ -85,5 +90,19 @@ export class CanvasOpsService {
 
   recentJobs(status: "failed" | "all", limit: number): Promise<OpsJobRow[]> {
     return this.deps.store.recentJobs(status, Math.min(Math.max(1, limit || 50), 200));
+  }
+
+  /**
+   * 后台「用户」页的读侧入口：搜索词裁剪、条数夹紧、窗口口径固定在服务层，
+   * store 只负责查询本身。
+   */
+  users(query: string, limit: number): Promise<{ total: number; users: OpsUserRow[] }> {
+    const sinceIso = new Date(this.now() - OPS_WINDOW_HOURS * 3_600_000).toISOString();
+    const bounded = Math.min(Math.max(1, limit || OPS_USER_LIMIT_DEFAULT), OPS_USER_LIMIT_MAX);
+    return this.deps.store.recentUsers({
+      query: (query ?? "").trim().slice(0, OPS_USER_QUERY_MAX_LENGTH),
+      sinceIso,
+      limit: bounded,
+    });
   }
 }

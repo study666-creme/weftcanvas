@@ -7,7 +7,7 @@ import { GenerationQuoteService } from "../catalog/quote.js";
 import { buildNonMjSourceCatalog } from "../catalog/nonmj-catalog-fixture.js";
 import { MemoryModelOverrideStore } from "../catalog/overrides.js";
 import { CanvasOpsService } from "./service.js";
-import type { OpsStore } from "./store.js";
+import type { OpsStore, OpsUserQuery } from "./store.js";
 
 const NOW = Date.parse("2026-10-13T12:00:00.000Z");
 
@@ -44,6 +44,30 @@ const store: OpsStore = {
       },
     ].slice(0, limit);
   },
+  async recentUsers(input: OpsUserQuery) {
+    return {
+      total: 1,
+      users: [
+        {
+          id: "owner-1",
+          email: "ops@example.com",
+          displayName: "运营",
+          status: "active" as const,
+          createdAt: new Date(NOW).toISOString(),
+          lastLoginAt: new Date(NOW).toISOString(),
+          credits: 12.5,
+          projects: 2,
+          mediaCount: 4,
+          mediaBytes: 1234,
+          jobs: 3,
+          jobsCompleted: 2,
+          jobsFailed: 1,
+        },
+      ]
+        .filter((u) => !input.query || u.email.includes(input.query))
+        .slice(0, input.limit),
+    };
+  },
 };
 
 function appWith(options: { opsAdminSecret?: string } = {}) {
@@ -75,6 +99,7 @@ describe("canvas ops admin routes", () => {
     const app = appWith({ opsAdminSecret: "s3cret" });
     expect((await app.request("/api/v1/admin/ops/overview")).status).toBe(404);
     expect((await app.request("/api/v1/admin/ops/jobs")).status).toBe(404);
+    expect((await app.request("/api/v1/admin/ops/users")).status).toBe(404);
     expect(
       (
         await app.request("/api/v1/admin/ops/overview", {
@@ -108,12 +133,35 @@ describe("canvas ops admin routes", () => {
     expect(jobs.data.jobs[0]?.errorCode).toBe("UPSTREAM_TIMEOUT");
   });
 
+  it("serves the user directory behind the secret", async () => {
+    const app = appWith({ opsAdminSecret: "s3cret" });
+    const headers = { "x-canvas-ops-secret": "s3cret" };
+
+    const response = await app.request("/api/v1/admin/ops/users?limit=10", { headers });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    const payload = (await response.json()) as {
+      data: { total: number; users: Array<{ email: string; credits: number }> };
+    };
+    expect(payload.data.total).toBe(1);
+    expect(payload.data.users[0]?.email).toBe("ops@example.com");
+    expect(payload.data.users[0]?.credits).toBe(12.5);
+  });
+
   it("serves the console page for humans without leaking it to crawlers", async () => {
     const app = appWith({ opsAdminSecret: "s3cret" });
     const page = await app.request("/admin/ops");
     expect(page.status).toBe(200);
     expect(page.headers.get("content-type")).toContain("text/html");
     expect(page.headers.get("x-robots-tag")).toBe("noindex, nofollow");
-    expect(await page.text()).toContain("画布运营后台");
+    const html = await page.text();
+    expect(html).toContain("画布运营后台");
+    // 四个分区都在，且带画布同款配色切换（石墨 / 墨黑）。
+    for (const tab of ["概览", "用户", "任务", "模型运营"]) expect(html).toContain(tab);
+    expect(html).toContain('data-wc-theme-set="light"');
+    expect(html).toContain('data-wc-theme-set="dark"');
+    expect(html).toContain("--wc-canvas: #e7e8e5");
+    expect(html).toContain("--wc-canvas: #141414");
+    expect(html).toContain("/api/v1/admin/ops/users");
   });
 });

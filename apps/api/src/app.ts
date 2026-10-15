@@ -101,6 +101,7 @@ import { toPublicCatalogView } from "./catalog/public-view.js";
 import { GenerationQuoteService, QuoteValidationError } from "./catalog/quote.js";
 import type { ModelHealth, ModelHealthProvider } from "./catalog/model-health.js";
 import { CANVAS_OPS_ADMIN_PAGE } from "./ops/admin-page.js";
+import { ADMIN_THEME_BOOT_JS, ADMIN_THEME_CSS } from "./ops/admin-theme.js";
 import type { CanvasOpsService } from "./ops/service.js";
 import type { ApiReadinessProbe } from "./database/readiness.js";
 import {
@@ -764,6 +765,14 @@ export function createApiApp(dependencies: ApiDependencies) {
       ok: true,
       data: { jobs: await dependencies.ops!.recentJobs(status, limit) },
     });
+  });
+
+  app.get("/api/v1/admin/ops/users", async (context) => {
+    if (!requireOpsAdmin(context)) return context.notFound();
+    const query = context.req.query("query") ?? "";
+    const limit = Number(context.req.query("limit") ?? 50);
+    context.header("Cache-Control", "no-store");
+    return context.json({ ok: true, data: await dependencies.ops!.users(query, limit) });
   });
 
   app.get("/admin/ops", (context) => {
@@ -3878,51 +3887,70 @@ const MODEL_OVERRIDES_ADMIN_PAGE = `<!DOCTYPE html>
 <meta name="robots" content="noindex, nofollow">
 <title>画布模型上架与定价</title>
 <style>
-:root { color-scheme: dark; }
-* { box-sizing: border-box; }
-body { margin: 0; background: #0f1113; color: #e7eae8; font: 14px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; }
-header { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 14px 18px; background: #17191c; border-bottom: 1px solid #2a2e32; }
-h1 { font-size: 15px; margin: 0 auto 0 0; font-weight: 600; }
-input, button { font: inherit; border-radius: 8px; border: 1px solid #34383d; background: #131518; color: #e7eae8; padding: 7px 10px; }
-input:focus, button:focus { outline: 1px solid #4cbf88; }
-button { cursor: pointer; background: #1d2024; }
-button.primary { background: #2f7d59; border-color: #2f7d59; color: #fff; }
-button:disabled { opacity: .5; cursor: default; }
-main { padding: 16px 18px 64px; }
-#status { font-size: 12px; color: #9aa2a0; }
-#msg { margin: 12px 0; font-size: 13px; min-height: 20px; }
-#msg.ok { color: #6fd39a; }
-#msg.err { color: #ff8f8f; }
+${ADMIN_THEME_CSS}
+/* 本页专属：沿用本页既有类名，观感全部走共享 token（与 /admin/ops 同源）。 */
+header.wc-model-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 18px;
+  background: var(--wc-surface);
+  border-bottom: 1px solid var(--wc-border);
+}
+header.wc-model-header h1 { font-size: 15px; margin: 0 auto 0 0; font-weight: 600; }
+main { padding: 14px 18px 64px; max-width: 1280px; margin: 0 auto; }
+#status { font-size: 12px; color: var(--wc-text-tertiary); }
+#msg { margin: 12px 0 0; font-size: 13px; min-height: 20px; color: var(--wc-text-tertiary); }
+#msg.ok { color: var(--wc-success); }
+#msg.err { color: var(--wc-danger); }
 table { width: 100%; border-collapse: collapse; }
-th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #22262a; vertical-align: middle; }
-th { position: sticky; top: 61px; background: #14171a; font-size: 12px; color: #9aa2a0; font-weight: 500; }
-td.id code { font-size: 12px; color: #b9c6c0; }
-td .label { display: block; font-size: 12px; color: #7d8684; }
-.muted { color: #7d8684; font-size: 12px; }
-.price-input { width: 92px; }
-.hidden-row { opacity: .55; }
-.badge { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; border: 1px solid #34383d; color: #9aa2a0; }
-#filters { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; align-items: center; }
-#filters input { flex: 1; min-width: 180px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--wc-border); vertical-align: middle; }
+th { position: sticky; top: 52px; z-index: 1; background: var(--wc-surface); font-size: 11px; color: var(--wc-text-tertiary); font-weight: 500; }
+td { font-variant-numeric: tabular-nums; }
+td.id code { font-size: 11.5px; color: var(--wc-text-secondary); font-family: ui-monospace, "SF Mono", Consolas, monospace; }
+td .label { display: block; font-size: 12px; color: var(--wc-text-tertiary); }
+.muted { color: var(--wc-text-tertiary); font-size: 12px; }
+.price-input { width: 94px; }
+.hidden-row td { opacity: .5; }
+.badge {
+  display: inline-block; padding: 0 6px; margin-left: 4px; border-radius: 3px; font-size: 11px;
+  line-height: 16px; border: 1px solid var(--wc-border-strong); color: var(--wc-text-secondary);
+}
+.badge.badge-promo { background: var(--wc-amber-soft); border-color: transparent; color: var(--wc-amber); }
+#filters { display: flex; gap: 8px; margin: 14px 0 10px; flex-wrap: wrap; align-items: center; }
+#filters input[type=text] { flex: 1; min-width: 180px; }
+#filters label { color: var(--wc-text-tertiary); font-size: 12px; }
 .token-inputs { display: flex; gap: 4px; }
-.token-inputs .price-input { width: 82px; }
-.hint { color: #7d8684; font-size: 12px; margin: 0 0 10px; }
-.zone-input { width: 104px; }
+.token-inputs .price-input { width: 84px; }
+.hint { color: var(--wc-text-tertiary); font-size: 12px; margin: 12px 0 0; max-width: 980px; }
+.zone-input { width: 108px; }
 .name-input { width: 100%; margin-bottom: 4px; }
 .desc-input { width: 100%; font-size: 12px; }
-.badge-promo { border-color: #8a6a2f; color: #e0b25f; }
-.health-good { color: #57b98a; font-weight: 600; }
-.health-mid { color: #e0b25f; font-weight: 600; }
-.health-low { color: #e07a6f; font-weight: 600; }
+.health-good { color: var(--wc-success); font-weight: 600; }
+.health-mid { color: var(--wc-amber); font-weight: 600; }
+.health-low { color: var(--wc-danger); font-weight: 600; }
+@media (max-width: 720px) {
+  header.wc-model-header { padding: 8px 14px; }
+  main { padding: 12px 14px 48px; }
+}
 </style>
+<script>${ADMIN_THEME_BOOT_JS}</script>
 </head>
 <body>
-<header>
+<header class="wc-model-header">
   <h1>画布模型上架与定价</h1>
   <input id="secret" type="password" placeholder="管理密钥" style="width:200px">
-  <button id="load" class="primary">加载</button>
-  <button id="save" class="primary" disabled>保存</button>
+  <button id="load" class="wc-btn wc-btn-primary">加载</button>
+  <button id="save" class="wc-btn wc-btn-primary" disabled>保存</button>
   <span id="status"></span>
+  <div class="wc-seg" role="group" aria-label="配色">
+    <button type="button" data-wc-theme-set="light" title="石墨（亮色）">石墨</button>
+    <button type="button" data-wc-theme-set="dark" title="墨黑（暗色）">墨黑</button>
+  </div>
 </header>
 <main>
   <div id="msg"></div>

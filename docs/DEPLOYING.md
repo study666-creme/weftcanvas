@@ -91,8 +91,13 @@ Set `MODEL_OVERRIDES_ADMIN_SECRET` to enable model administration. The ops conso
 uses `CANVAS_OPS_ADMIN_SECRET`, falling back to the model secret when unset.
 Use the same secret for both pages unless separate access is intentional.
 
-- `/admin/ops`: service overview, model controls and operational metrics.
-- `/admin/model-overrides`: model visibility and overrides.
+- `/admin/ops`: operator console — overview (users, projects, media, 24h job
+  success/failure, queue backlog, catalog freshness, 7-day model health), user
+  directory, recent jobs, and model listing/pricing controls. Styled from the
+  canvas palette (light 石墨 / dark 墨黑). The overview, user and job sections
+  read the database; the model section works from file storage alone.
+- `/admin/model-overrides`: model visibility and overrides (the same API as the
+  console's model section; embeddable in an existing operator surface).
 
 nginx proxies these paths to the API. Leaving both secrets unset disables the
 surfaces. These pages are operational tools; they do not provide a complete

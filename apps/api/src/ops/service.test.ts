@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ModelHealth } from "@weftcanvas/contracts";
 
 import { CanvasOpsService, OPS_STALE_INFLIGHT_MS, OPS_WINDOW_HOURS } from "./service.js";
-import type { OpsJobRow, OpsStore } from "./store.js";
+import type { OpsJobRow, OpsStore, OpsUserQuery } from "./store.js";
 
 const NOW = Date.parse("2026-10-13T12:00:00.000Z");
 
@@ -33,6 +33,9 @@ function fakeStore(overrides: Partial<OpsStore> = {}): OpsStore & { calls: strin
     },
     async recentJobs(): Promise<OpsJobRow[]> {
       return [];
+    },
+    async recentUsers(_input: OpsUserQuery) {
+      return { total: 0, users: [] };
     },
     ...overrides,
   };
@@ -113,5 +116,29 @@ describe("CanvasOpsService", () => {
 
   it("stale window is shared with the alert watchdog (30 minutes)", () => {
     expect(OPS_STALE_INFLIGHT_MS).toBe(30 * 60_000);
+  });
+
+  it("trims and bounds the user directory query before it reaches the store", async () => {
+    const seen: Array<{ query: string; sinceIso: string; limit: number }> = [];
+    const { service } = setup({
+      store: {
+        async recentUsers(input) {
+          seen.push(input);
+          return { total: 0, users: [] };
+        },
+      },
+    });
+
+    await service.users("  ops@example.com  ", 9_999);
+    expect(seen[0].query).toBe("ops@example.com");
+    expect(seen[0].limit).toBe(200);
+    // 窗口口径与概览一致（24h）。
+    expect(seen[0].sinceIso).toBe(new Date(NOW - OPS_WINDOW_HOURS * 3_600_000).toISOString());
+
+    await service.users("", 0);
+    expect(seen[1].limit).toBe(50);
+    await service.users("x".repeat(500), -3);
+    expect(seen[2].query).toHaveLength(120);
+    expect(seen[2].limit).toBe(1);
   });
 });
