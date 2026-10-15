@@ -38,7 +38,7 @@
 | ![石墨画布](docs/screenshots/canvas-light.png) | ![墨黑画布](docs/screenshots/canvas-dark.png) |
 
 **节点生成面板**——选中节点即开，模型、参数、价格一目了然；角落里的蓝发少女（白色是头饰）
-是可拖拽的 Agent 伙伴，点哪个节点她就坐到哪个节点上：
+是可拖拽的 Agent 伙伴，平时待在画布上方的默认位，输入框打开时她趴到输入框的右上角：
 
 ![节点生成面板](docs/screenshots/generation-panel.png)
 

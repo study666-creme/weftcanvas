@@ -379,6 +379,38 @@ test("blocks an image model that explicitly requires a reference image when none
   expect(generationRequests).toBe(0);
 });
 
+test("workbench (/generate) lists custom models and runs them without login or credits", async ({
+  page,
+}) => {
+  let generationRequests = 0;
+  await page.route(`${originA}/v1/images/generations`, (route) => {
+    expect(route.request().headers().authorization).toBe(`Bearer ${apiKeyA}`);
+    generationRequests += 1;
+    return route.fulfill({ json: { data: [{ b64_json: pixel }] } });
+  });
+
+  await page.goto("/generate/image");
+  await openCreationSettings(page);
+  const dialog = page.getByRole("dialog", { name: "设置" });
+  await addAndPullProfile(dialog, "工作台图片 API", originA, apiKeyA);
+  await page.getByLabel("关闭设置").click();
+
+  // 用户反馈的回归点：接好 API 后，工作台模型选择器必须出现自有模型。
+  await page.getByRole("button", { name: "模型", exact: true }).click();
+  const modelMenu = page.getByRole("listbox", { name: "模型" });
+  const customOption = modelMenu.getByRole("option").filter({ hasText: "工作台图片 API" });
+  await expect(customOption).toHaveCount(1);
+  await customOption.click();
+
+  // 直连分支：不报价、不扣积分、不要求登录。
+  await expect(page.locator(".wc-direct-price")).toContainText("不消耗积分");
+  await expect(page.getByRole("button", { name: "登录画布账号" })).toBeVisible();
+  await page.getByLabel(/提示词/).fill("雨夜站台，电影感构图");
+  await page.getByRole("button", { name: "生成", exact: true }).click();
+  await expect.poll(() => generationRequests).toBe(1);
+  await expect(page.locator(".wc-direct-result-gallery img")).toBeVisible();
+});
+
 async function addAndPullProfile(
   dialog: ReturnType<Page["getByRole"]>,
   name: string,

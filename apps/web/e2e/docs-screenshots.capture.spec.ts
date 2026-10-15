@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 
 /**
  * 文档截图捕获：README/项目介绍的图库由这里生成。默认跳过，
@@ -9,6 +9,21 @@ import { mkdirSync } from "node:fs";
  */
 const CAPTURE = process.env.CAPTURE_DOCS_SHOTS === "1";
 const OUT_DIR = "test-results/docs-shots";
+
+/**
+ * 画布里的演示图：一张真实的人像样张（16:9）。
+ *
+ * 早先这里是 OffscreenCanvas 现画的"雨夜霓虹"——几个纯色霓虹块排成一排，缩放
+ * 到节点里就是一张柱状图，用户点名说它丑（「仓库的画布截图里面那张柱状图演示图
+ * 太丑了，一律换成图二」）。文档图讲的是"一句话生成人像"，就该放一张真的成片。
+ */
+const DEMO_MEDIA = {
+  bytes: readFileSync(new URL("./docs-canvas-portrait.jpg", import.meta.url)),
+  name: "portrait-soft-light.jpg",
+  mimeType: "image/jpeg",
+  width: 1280,
+  height: 720,
+};
 
 /**
  * 文档图必须与真实部署解耦：目录与报价全部 mock。
@@ -183,208 +198,189 @@ test.describe("docs screenshot capture", () => {
       localStorage.setItem("weftcanvas:theme", value);
       localStorage.setItem("weftcanvas:theme-mode", "manual");
     }, theme);
-    await page.addInitScript(async () => {
-      const now = Date.now();
-      // 画一张"雨夜霓虹"当节点图：渐变天空 + 霓虹块 + 路面反光。
-      const canvas = new OffscreenCanvas(960, 540);
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        const sky = ctx.createLinearGradient(0, 0, 0, 540);
-        sky.addColorStop(0, "#101425");
-        sky.addColorStop(0.62, "#232c4d");
-        sky.addColorStop(0.63, "#101218");
-        sky.addColorStop(1, "#05060a");
-        ctx.fillStyle = sky;
-        ctx.fillRect(0, 0, 960, 540);
-        const neon: Array<[number, number, number, number, string]> = [
-          [120, 150, 60, 220, "#e85d75"],
-          [220, 110, 26, 260, "#4dc9f0"],
-          [300, 170, 90, 160, "#f7b731"],
-          [480, 90, 40, 280, "#5cd89a"],
-          [560, 160, 120, 170, "#b38af0"],
-          [760, 120, 50, 250, "#f0665c"],
-        ];
-        for (const [x, y, w, h, color] of neon) {
-          ctx.fillStyle = "#0b0e16";
-          ctx.fillRect(x - 8, y - 8, w + 16, h + 16);
-          ctx.fillStyle = color;
-          ctx.fillRect(x, y, w, h);
-          ctx.globalAlpha = 0.35;
-          ctx.fillRect(x - 3, y + h, w + 6, 90);
-          ctx.globalAlpha = 1;
+    await page.addInitScript(
+      async ({ base64, name, mimeType, width, height }) => {
+        const now = Date.now();
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index += 1) {
+          bytes[index] = binary.charCodeAt(index);
         }
-        ctx.fillStyle = "rgba(255,255,255,0.08)";
-        for (let i = 0; i < 40; i += 1) {
-          ctx.fillRect((i * 137) % 960, 400 + ((i * 53) % 120), 2, 14);
-        }
-      }
-      const blob = await canvas.convertToBlob({ type: "image/png" });
-      const media = {
-        id: "docs-shot-image",
-        name: "rainy-neon-street.png",
-        mimeType: "image/png",
-        size: blob.size,
-        width: 960,
-        height: 540,
-        durationMs: null,
-        blob,
-        storedAt: now,
-      };
-      await new Promise<void>((resolve, reject) => {
-        const open = indexedDB.open("weftcanvas-media", 2);
-        open.addEventListener("upgradeneeded", () => {
-          const db = open.result;
-          if (!db.objectStoreNames.contains("media"))
-            db.createObjectStore("media", { keyPath: "id" });
-          if (!db.objectStoreNames.contains("media-thumbs"))
-            db.createObjectStore("media-thumbs", { keyPath: "id" });
+        const blob = new Blob([bytes], { type: mimeType });
+        const media = {
+          id: "docs-shot-image",
+          name,
+          mimeType,
+          size: blob.size,
+          width,
+          height,
+          durationMs: null,
+          blob,
+          storedAt: now,
+        };
+        await new Promise<void>((resolve, reject) => {
+          const open = indexedDB.open("weftcanvas-media", 2);
+          open.addEventListener("upgradeneeded", () => {
+            const db = open.result;
+            if (!db.objectStoreNames.contains("media"))
+              db.createObjectStore("media", { keyPath: "id" });
+            if (!db.objectStoreNames.contains("media-thumbs"))
+              db.createObjectStore("media-thumbs", { keyPath: "id" });
+          });
+          open.addEventListener("success", () => {
+            const db = open.result;
+            const tx = db.transaction("media", "readwrite");
+            tx.objectStore("media").put(media);
+            tx.addEventListener("complete", () => resolve());
+            tx.addEventListener("error", () => reject(tx.error));
+          });
+          open.addEventListener("error", () => reject(open.error));
         });
-        open.addEventListener("success", () => {
-          const db = open.result;
-          const tx = db.transaction("media", "readwrite");
-          tx.objectStore("media").put(media);
-          tx.addEventListener("complete", () => resolve());
-          tx.addEventListener("error", () => reject(tx.error));
+        const generation = {
+          modelId: null,
+          parameters: {},
+          referenceImagePurposes: {},
+          maxOutputTokens: null,
+          referenceMode: "auto",
+          referenceNodeIds: [],
+          jobId: null,
+          jobVersion: null,
+          jobCreatedAt: null,
+          jobStatus: null,
+          error: null,
+        };
+        const node = (
+          id: string,
+          kind: string,
+          x: number,
+          y: number,
+          width: number,
+          height: number,
+          body: string,
+          accent: string,
+          mediaRef: unknown,
+          config: unknown,
+        ) => ({
+          id,
+          type: "weftcanvas",
+          position: { x, y },
+          width,
+          height,
+          selected: false,
+          data: {
+            kind,
+            body,
+            accent,
+            status: "idle",
+            progress: null,
+            media: mediaRef,
+            directorCapture: null,
+            config,
+            edit: null,
+            music: null,
+            uploading: undefined,
+            generation,
+            createdAt: now,
+            updatedAt: now,
+          },
         });
-        open.addEventListener("error", () => reject(open.error));
-      });
-      const generation = {
-        modelId: null,
-        parameters: {},
-        referenceImagePurposes: {},
-        maxOutputTokens: null,
-        referenceMode: "auto",
-        referenceNodeIds: [],
-        jobId: null,
-        jobVersion: null,
-        jobCreatedAt: null,
-        jobStatus: null,
-        error: null,
-      };
-      const node = (
-        id: string,
-        kind: string,
-        x: number,
-        y: number,
-        width: number,
-        height: number,
-        body: string,
-        accent: string,
-        mediaRef: unknown,
-        config: unknown,
-      ) => ({
-        id,
-        type: "weftcanvas",
-        position: { x, y },
-        width,
-        height,
-        selected: false,
-        data: {
-          kind,
-          body,
-          accent,
-          status: "idle",
-          progress: null,
-          media: mediaRef,
-          directorCapture: null,
-          config,
-          edit: null,
-          music: null,
-          uploading: undefined,
-          generation,
+        const imageMedia = {
+          id: media.id,
+          name: media.name,
+          mimeType: media.mimeType,
+          size: media.size,
+          source: "local",
+          serverId: null,
+          width: media.width,
+          height: media.height,
+          durationMs: null,
+        };
+        const project = {
+          schemaVersion: 1,
+          id: "docs-capture-canvas",
+          name: "纬线 1",
+          nodes: [
+            node(
+              "shot-prompt",
+              "text",
+              40,
+              40,
+              320,
+              180,
+              "一个绝世美人，改良服饰，亚洲面孔，暖调侧光，人像特写。",
+              "jade",
+              null,
+              null,
+            ),
+            node("shot-config", "config", 40, 280, 320, 180, "", "jade", null, {
+              modality: "image",
+              aspectRatio: "16:9",
+              resolution: "1k",
+            }),
+            node(
+              "shot-image",
+              "image",
+              460,
+              42,
+              420,
+              260,
+              "16:9 · 人像特写 · 暖调侧光",
+              "blue",
+              imageMedia,
+              null,
+            ),
+            node(
+              "shot-video",
+              "video",
+              460,
+              360,
+              420,
+              236,
+              "8s · 慢推特写收尾",
+              "violet",
+              null,
+              null,
+            ),
+          ],
+          edges: [
+            { id: "edge-prompt", source: "shot-prompt", target: "shot-image" },
+            { id: "edge-config", source: "shot-config", target: "shot-image" },
+            { id: "edge-chain", source: "shot-image", target: "shot-video" },
+          ],
+          groups: [],
+          viewport: { x: 120, y: 90, zoom: 0.86 },
           createdAt: now,
           updatedAt: now,
-        },
-      });
-      const imageMedia = {
-        id: media.id,
-        name: media.name,
-        mimeType: media.mimeType,
-        size: media.size,
-        source: "local",
-        serverId: null,
-        width: media.width,
-        height: media.height,
-        durationMs: null,
-      };
-      const project = {
-        schemaVersion: 1,
-        id: "docs-capture-canvas",
-        name: "纬线 1",
-        nodes: [
-          node(
-            "shot-prompt",
-            "text",
-            40,
-            40,
-            320,
-            180,
-            "低机位跟拍，湿润石板路反射零散霓虹。人物从画面右侧冲入，急促回头，远处渡轮鸣笛。",
-            "jade",
-            null,
-            null,
-          ),
-          node("shot-config", "config", 40, 280, 320, 180, "", "jade", null, {
-            modality: "image",
-            aspectRatio: "16:9",
-            resolution: "1k",
+        };
+        localStorage.setItem(
+          `weftcanvas:project-data:v1:${encodeURIComponent(project.id)}`,
+          JSON.stringify(project),
+        );
+        localStorage.setItem(
+          "weftcanvas:projects:v1",
+          JSON.stringify({
+            version: 1,
+            projects: [
+              {
+                id: project.id,
+                name: project.name,
+                createdAt: now,
+                updatedAt: now,
+                nodeCount: project.nodes.length,
+              },
+            ],
           }),
-          node(
-            "shot-image",
-            "image",
-            460,
-            42,
-            420,
-            260,
-            "16:9 · 冷雨夜 · 暖色实景光",
-            "blue",
-            imageMedia,
-            null,
-          ),
-          node(
-            "shot-video",
-            "video",
-            460,
-            360,
-            420,
-            236,
-            "12s · 渡轮鸣笛的空镜收尾",
-            "violet",
-            null,
-            null,
-          ),
-        ],
-        edges: [
-          { id: "edge-prompt", source: "shot-prompt", target: "shot-image" },
-          { id: "edge-config", source: "shot-config", target: "shot-image" },
-          { id: "edge-chain", source: "shot-image", target: "shot-video" },
-        ],
-        groups: [],
-        viewport: { x: 120, y: 90, zoom: 0.86 },
-        createdAt: now,
-        updatedAt: now,
-      };
-      localStorage.setItem(
-        `weftcanvas:project-data:v1:${encodeURIComponent(project.id)}`,
-        JSON.stringify(project),
-      );
-      localStorage.setItem(
-        "weftcanvas:projects:v1",
-        JSON.stringify({
-          version: 1,
-          projects: [
-            {
-              id: project.id,
-              name: project.name,
-              createdAt: now,
-              updatedAt: now,
-              nodeCount: project.nodes.length,
-            },
-          ],
-        }),
-      );
-      localStorage.setItem("weftcanvas:active-project:v1", project.id);
-    });
+        );
+        localStorage.setItem("weftcanvas:active-project:v1", project.id);
+      },
+      {
+        base64: DEMO_MEDIA.bytes.toString("base64"),
+        name: DEMO_MEDIA.name,
+        mimeType: DEMO_MEDIA.mimeType,
+        width: DEMO_MEDIA.width,
+        height: DEMO_MEDIA.height,
+      },
+    );
   }
 
   async function shot(page: Page, name: string) {

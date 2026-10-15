@@ -1,0 +1,271 @@
+/* 新手教程浮层（components/onboarding-tour.tsx）。
+   由组件自带，跟着懒加载分包走：首屏与画布都能用，但不进首屏关键 CSS。
+   视觉沿用石墨壳层：小字号、细描边、无装饰图形；高亮环用品牌玉色，
+   是首屏时段唯一的"指示色"。 */
+
+.wc-tour-spotlight,
+.wc-tour-card {
+  --wc-tour-accent: var(--entry-jade, #3f9d7c);
+}
+
+.wc-tour-spotlight {
+  position: fixed;
+  /* 压在首屏门（200）与画布工具浮岛之上，但低于账号/确认弹层（260+）——
+     教程不该盖住用户自己打开的对话框。 */
+  z-index: 210;
+  pointer-events: none;
+  border: 1px solid color-mix(in srgb, var(--wc-tour-accent) 68%, transparent);
+  border-radius: 12px;
+  /* 一个巨大 spread 的投影：环外全部压暗，环内保持原样。 */
+  box-shadow:
+    0 0 0 9999px rgb(4 6 6 / 42%),
+    0 0 0 4px color-mix(in srgb, var(--wc-tour-accent) 14%, transparent),
+    0 12px 30px -12px rgb(0 0 0 / 55%);
+  animation: wc-tour-ring-in 180ms ease-out both;
+}
+
+/* 画布上的步骤要用户动手操作，只压一点点，别让画布看起来像被禁用。 */
+.wc-tour-spotlight[data-dim="soft"] {
+  box-shadow:
+    0 0 0 9999px rgb(4 6 6 / 18%),
+    0 0 0 4px color-mix(in srgb, var(--wc-tour-accent) 16%, transparent),
+    0 12px 30px -12px rgb(0 0 0 / 45%);
+}
+
+.wc-tour-card {
+  position: fixed;
+  z-index: 211;
+  display: grid;
+  width: 316px;
+  gap: 6px;
+  padding: 12px 13px 11px;
+  border: 1px solid var(--wc-border-strong);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--wc-surface-raised) 97%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--wc-text) 9%, transparent),
+    0 20px 44px -22px rgb(0 0 0 / 62%);
+  color: var(--wc-text);
+  animation: wc-tour-card-in 180ms ease-out both;
+}
+
+.wc-tour-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.wc-tour-kicker {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: var(--wc-tour-accent);
+  font-weight: 600;
+}
+
+.wc-tour-close,
+.wc-tour-back,
+.wc-tour-skip,
+.wc-tour-next {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 7px;
+}
+
+.wc-tour-close {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  justify-content: center;
+  padding: 0;
+  color: var(--wc-text-tertiary);
+  border: 1px solid transparent;
+  background: none;
+}
+
+.wc-tour-close:hover {
+  color: var(--wc-text);
+  border-color: var(--wc-border-strong);
+  background: color-mix(in srgb, var(--wc-text) 6%, transparent);
+}
+
+.wc-tour-close svg {
+  width: 13px;
+  height: 13px;
+}
+
+.wc-tour-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.wc-tour-body {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.62;
+  color: var(--wc-text-secondary);
+}
+
+.wc-tour-keys {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 1px;
+}
+
+.wc-tour-keys kbd {
+  padding: 2px 7px;
+  border: 1px solid var(--wc-border-strong);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--wc-text) 6%, transparent);
+  font-family: inherit;
+  font-size: 10.5px;
+  color: var(--wc-text);
+}
+
+.wc-tour-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.wc-tour-progress {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.wc-tour-progress i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--wc-text) 22%, transparent);
+}
+
+.wc-tour-progress i.is-active {
+  background: var(--wc-tour-accent);
+}
+
+.wc-tour-back,
+.wc-tour-skip {
+  margin-left: auto;
+  padding: 5px 8px;
+  font-size: 11.5px;
+  color: var(--wc-text-tertiary);
+  border: 1px solid transparent;
+  background: none;
+}
+
+.wc-tour-back:hover,
+.wc-tour-skip:hover {
+  color: var(--wc-text);
+  border-color: var(--wc-border-strong);
+}
+
+.wc-tour-back svg {
+  width: 13px;
+  height: 13px;
+}
+
+.wc-tour-next {
+  margin-left: auto;
+  padding: 6px 11px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--wc-tour-accent) 78%, var(--wc-text));
+  border: 1px solid color-mix(in srgb, var(--wc-tour-accent) 46%, transparent);
+  background: color-mix(in srgb, var(--wc-tour-accent) 12%, transparent);
+}
+
+.wc-tour-back + .wc-tour-next,
+.wc-tour-skip + .wc-tour-next {
+  margin-left: 0;
+}
+
+.wc-tour-next:hover {
+  background: color-mix(in srgb, var(--wc-tour-accent) 20%, transparent);
+}
+
+.wc-tour-next svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* 指向锚点的箭头：旋转 45° 的小方块，只留朝外的两条边，和卡片描边接上。 */
+.wc-tour-arrow {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  background: var(--wc-surface-raised);
+  transform: rotate(45deg);
+}
+
+.wc-tour-arrow[data-edge="below"] {
+  top: -5px;
+  margin-left: -4.5px;
+  border-top: 1px solid var(--wc-border-strong);
+  border-left: 1px solid var(--wc-border-strong);
+}
+
+.wc-tour-arrow[data-edge="above"] {
+  bottom: -5px;
+  margin-left: -4.5px;
+  border-right: 1px solid var(--wc-border-strong);
+  border-bottom: 1px solid var(--wc-border-strong);
+}
+
+.wc-tour-arrow[data-edge="right"] {
+  left: -5px;
+  margin-top: -4.5px;
+  border-left: 1px solid var(--wc-border-strong);
+  border-bottom: 1px solid var(--wc-border-strong);
+}
+
+.wc-tour-arrow[data-edge="left"] {
+  right: -5px;
+  margin-top: -4.5px;
+  border-top: 1px solid var(--wc-border-strong);
+  border-right: 1px solid var(--wc-border-strong);
+}
+
+@keyframes wc-tour-ring-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes wc-tour-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 减少动效：只保留立刻可见的结果，不做位移与淡入。 */
+@media (prefers-reduced-motion: reduce) {
+  .wc-tour-spotlight,
+  .wc-tour-card {
+    animation: none;
+  }
+}
+
+/* 浅色主题下卡片底要更实一点，否则压在浅画布上读不清描边。
+   卡片 portal 在 body 上，落在 .wc-app 之外，所以按 html 上的主题标记匹配。 */
+:root[data-theme="light"] .wc-tour-card {
+  background: var(--wc-surface-raised);
+}
+
+:root[data-theme="light"] .wc-tour-arrow {
+  background: var(--wc-surface-raised);
+}

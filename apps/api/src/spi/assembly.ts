@@ -54,6 +54,8 @@ export type ProviderPlan = {
   stationPricingUrl: string | undefined;
   /** dev-test 下为 null。 */
   weftcanvas: WeftcanvasProviderModule | null;
+  /** 站点策展层：托管模式来自私有 provider 模块，dev-test 来自可选的 site-overlay。 */
+  catalogOverlay: CatalogCompatibilityOverlay | null;
 };
 
 /**
@@ -70,6 +72,29 @@ async function loadWeftcanvasAssembly(): Promise<WeftcanvasProviderModule> {
       "CANVAS_API_PROVIDER=weftcanvas 需要私有 overlay 模块 apps/api/src/spi/weftcanvas.ts（当前构建不包含它）",
       { cause: error },
     );
+  }
+}
+
+/**
+ * dev-test 的**站点策展层**加载器（可选模块：私有树提供，公开树没有）。
+ *
+ * 本地开发跑在 dev-test provider 上（没有托管凭据），但目录策展是站点口径，
+ * 不该因为换了 provider 就换一套——否则"本地满目录、线上空目录"这种差异会把人
+ * 绕进去。模块缺失（公开树，或自托管者不想要策展）时返回 null，归一化照旧只做
+ * 结构性转换。
+ */
+const DEV_OVERLAY_MODULE_SPECIFIER = "./site-overlay.js";
+
+async function loadDevCatalogOverlay(): Promise<CatalogCompatibilityOverlay | null> {
+  try {
+    const module = (await import(DEV_OVERLAY_MODULE_SPECIFIER)) as {
+      createCatalogOverlay(env: Record<string, string | undefined>): CatalogCompatibilityOverlay;
+    };
+    return module.createCatalogOverlay(process.env);
+  } catch (error) {
+    const code = (error as { code?: string } | null)?.code;
+    if (code === "ERR_MODULE_NOT_FOUND" || code === "MODULE_NOT_FOUND") return null;
+    throw error;
   }
 }
 
@@ -114,11 +139,17 @@ export async function resolveProviderPlan(env: {
       catalogVideoInventoryUrl: upstream.videoInventoryUrl,
       stationPricingUrl: upstream.pricingUrl,
       weftcanvas: null,
+      catalogOverlay: await loadDevCatalogOverlay(),
     };
   }
   const weftcanvas = await loadWeftcanvasAssembly();
   const endpoints = weftcanvas.resolveWeftcanvasEndpoints(env);
-  return { providerName, ...endpoints, weftcanvas };
+  return {
+    providerName,
+    ...endpoints,
+    weftcanvas,
+    catalogOverlay: weftcanvas.createCatalogOverlay(env),
+  };
 }
 
 /** 装配第二阶段的输入：server.ts 已建好的共享服务。 */

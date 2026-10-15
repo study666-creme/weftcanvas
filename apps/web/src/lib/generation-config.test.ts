@@ -55,6 +55,14 @@ describe("generation config", () => {
     // 传输格式任何界面都不能暴露：结果解析依赖固定格式。
     expect(isUserFacingParameter(responseFormat)).toBe(false);
     expect(isUserFacingParameter(responseFormat, { exposeDimensions: true })).toBe(false);
+
+    // 参考视频时长是配套声明（客户端按素材实测提交），不是创作参数：让用户手填
+    // 等于把上游按秒计费的口径交给用户，两个入口都必须隐藏。
+    const referenceVideoDurations = parameter("referenceVideoDurations", "参考视频时长（秒）", {
+      type: "array",
+    });
+    expect(isUserFacingParameter(referenceVideoDurations)).toBe(false);
+    expect(isUserFacingParameter(referenceVideoDurations, { exposeDimensions: true })).toBe(false);
   });
 
   it("recovers a removed built-in model only after a successful live catalog load", () => {

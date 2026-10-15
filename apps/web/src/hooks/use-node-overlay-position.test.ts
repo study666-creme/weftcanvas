@@ -79,4 +79,30 @@ describe("generation overlay vertical placement", () => {
       }),
     ).toEqual({ top: 16, placement: "above" });
   });
+
+  it("reserves room above for the companion perching on the top edge", () => {
+    // 伙伴挂在覆层上沿（露出 66% 身高 ≈ 60px）：翻到上方时上边距要多留 topReserve。
+    // 不留的话她只能翻到覆层下沿，正好压住节点和它的功能栏。
+    expect(
+      fitGenerationOverlayVerticalPosition({
+        nodeBottom: 760,
+        nodeTop: 740,
+        viewportHeight: 768,
+        overlayHeight: 900,
+        topReserve: 62,
+      }),
+    ).toEqual({ top: 78, placement: "above" });
+  });
+
+  it("keeps hugging the node when the reserved room is already available", () => {
+    expect(
+      fitGenerationOverlayVerticalPosition({
+        nodeBottom: 760,
+        nodeTop: 740,
+        viewportHeight: 768,
+        overlayHeight: 300,
+        topReserve: 62,
+      }),
+    ).toEqual({ top: 426, placement: "above" });
+  });
 });

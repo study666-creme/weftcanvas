@@ -1492,6 +1492,12 @@ body.is-canvas-node-dragging
   transform: translate(var(--wc-toolbar-shift), var(--wc-toolbar-shift-y));
 }
 
+/* 让到节点下面时（生成输入框占着节点上方），悬停桥接段要跟到工具栏之上、
+   贴着节点下缘。桥接段只有命中体没有外观，顺序一错指针就在半路掉出功能栏。 */
+.wc-node-toolbar-shell.is-below {
+  flex-direction: column-reverse;
+}
+
 .wc-node-action-toolbar {
   position: relative;
   display: flex;
@@ -4971,6 +4977,46 @@ body.is-canvas-connection-dragging .wc-node-config-shell {
 
 .wc-shortcuts-header .wc-icon-button {
   justify-self: end;
+}
+
+/* 面板底部的新手教程入口：快捷键是"查"，这里给一条"跟着走一遍"的路。 */
+.wc-shortcuts-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border-top: 1px solid var(--wc-border);
+}
+
+.wc-shortcuts-foot p {
+  flex: 1 1 auto;
+  margin: 0;
+  color: var(--wc-text-tertiary);
+  font-size: 11px;
+}
+
+.wc-shortcuts-tutorial {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid color-mix(in srgb, var(--wc-accent) 42%, var(--wc-border));
+  border-radius: 7px;
+  color: var(--wc-text);
+  background: color-mix(in srgb, var(--wc-accent) 12%, transparent);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wc-shortcuts-tutorial:hover {
+  background: color-mix(in srgb, var(--wc-accent) 20%, transparent);
+}
+
+.wc-shortcuts-tutorial svg {
+  width: 14px;
+  height: 14px;
 }
 
 .wc-shortcuts-group {
@@ -10240,6 +10286,19 @@ body.is-canvas-connection-dragging .wc-node-config-shell {
 
 .wc-wallet-state.is-error {
   color: var(--wc-danger);
+}
+
+/* 托管站内测期：充值区换成一句告知，做成可读的正文块而不是居中的状态行。 */
+.wc-wallet-state--notice {
+  min-height: 0;
+  justify-content: flex-start;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--wc-border-strong) 70%, transparent);
+  border-radius: 8px;
+  color: var(--wc-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: left;
 }
 
 .wc-wallet-state > svg {

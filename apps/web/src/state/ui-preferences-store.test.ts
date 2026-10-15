@@ -320,13 +320,17 @@ describe("companion anchor", () => {
     });
   });
 
-  it("keeps a node perch across reloads", async () => {
-    const { useUiPreferencesStore } = await import("./ui-preferences-store");
-    useUiPreferencesStore.getState().setCompanionAnchor({ kind: "node", nodeId: "node-7" });
+  it("migrates a legacy node perch back to the default spot", async () => {
+    // 老版本把她存成「坐在某个节点上」。她不许挂节点（用户 2026-10-15），
+    // 所以旧存档读回时降级成 null = 默认位（天上），而不是留一个解不出位置的锚点。
+    localStorage.setItem(
+      "weftcanvas:ui-preferences:v1",
+      JSON.stringify({ companionAnchor: { kind: "node", nodeId: "node-7" } }),
+    );
 
     vi.resetModules();
     const { useUiPreferencesStore: hydrated } = await import("./ui-preferences-store");
-    expect(hydrated.getState().companionAnchor).toEqual({ kind: "node", nodeId: "node-7" });
+    expect(hydrated.getState().companionAnchor).toBeNull();
   });
 
   it("clears back to the default spot with null", async () => {
@@ -345,10 +349,8 @@ describe("companion anchor", () => {
       x: 0.94,
     });
     expect(normalizeCompanionAnchor({ kind: "free", x: Number.NaN, y: 10 })).toBeNull();
-    expect(normalizeCompanionAnchor({ kind: "node", nodeId: "node-1" })).toEqual({
-      kind: "node",
-      nodeId: "node-1",
-    });
+    // 节点锚点已取消：任何形态的 node 锚点都降级成 null（回天上）。
+    expect(normalizeCompanionAnchor({ kind: "node", nodeId: "node-1" })).toBeNull();
     expect(normalizeCompanionAnchor({ kind: "node" })).toBeNull();
     expect(normalizeCompanionAnchor({ kind: "node", nodeId: "" })).toBeNull();
     expect(normalizeCompanionAnchor("junk")).toBeNull();

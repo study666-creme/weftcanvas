@@ -1,5 +1,15 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { HOSTED_WALLET_NOTICE } from "../src/lib/hosted-wallet-notice";
+
+/**
+ * 托管站内测期不开充值：账户面板里的商品列表、结账、自定义金额、待支付订单这几条
+ * 被一条告知替代（用户 2026-10-15，见 lib/hosted-wallet-notice）。公开/自托管构建
+ * 那份模块是 null，这些用例照旧全跑——结账链路的覆盖落在公开树 CI 上。
+ */
+const RECHARGE_DISABLED = HOSTED_WALLET_NOTICE !== null;
+const RECHARGE_SKIP_REASON = "内测期充值面板关闭（见 lib/hosted-wallet-notice）";
+
 const NOW = "2026-07-20T08:00:00.000Z";
 const EXPIRES_AT = "2099-07-21T08:00:00.000Z";
 const USER_ID = "11111111-1111-4111-8111-111111111111";
@@ -398,6 +408,7 @@ test("画布内注册支持确认密码和待验证邮箱状态", async ({ page 
 });
 
 test("外部账号登录失败会保留表单，成功后加载动态余额、商品和流水", async ({ page }) => {
+  test.skip(RECHARGE_DISABLED, RECHARGE_SKIP_REASON);
   await preparePage(page);
   let activeSession: typeof session | null = null;
   let loginCalls = 0;
@@ -478,6 +489,7 @@ test("外部账号登录失败会保留表单，成功后加载动态余额、�
 });
 
 test("快速重复结账只创建一个订单，pending 转 paid 后刷新余额与流水", async ({ page }) => {
+  test.skip(RECHARGE_DISABLED, RECHARGE_SKIP_REASON);
   await preparePage(page);
   let paid = false;
   let checkoutCalls = 0;
@@ -578,6 +590,7 @@ test("快速重复结账只创建一个订单，pending 转 paid 后刷新余额
 });
 
 test("协作席位商品选择与支付到账使用独立权益提示", async ({ page }) => {
+  test.skip(RECHARGE_DISABLED, RECHARGE_SKIP_REASON);
   await preparePage(page);
   let paid = false;
   let orderReads = 0;
@@ -639,6 +652,7 @@ test("协作席位商品选择与支付到账使用独立权益提示", async ({
 });
 
 test("已退款席位订单不会被显示为支付成功或阻止重新购买", async ({ page }) => {
+  test.skip(RECHARGE_DISABLED, RECHARGE_SKIP_REASON);
   const persistedOrder = {
     version: 1,
     userId: USER_ID,
@@ -679,6 +693,7 @@ test("已退款席位订单不会被显示为支付成功或阻止重新购买",
 });
 
 test("自定义充值校验服务端金额规则，失败重试保留原金额", async ({ page }) => {
+  test.skip(RECHARGE_DISABLED, RECHARGE_SKIP_REASON);
   await preparePage(page);
   await mockAuthenticatedWallet(page, { customTopUp: true });
   const checkoutBodies: unknown[] = [];
@@ -761,6 +776,7 @@ test("自定义充值校验服务端金额规则，失败重试保留原金额",
 });
 
 test("刷新页面会恢复本人待处理订单，退出后清空钱包和订单", async ({ page }) => {
+  test.skip(RECHARGE_DISABLED, RECHARGE_SKIP_REASON);
   const persistedOrder = {
     version: 1,
     userId: USER_ID,
@@ -827,6 +843,7 @@ test("刷新页面会恢复本人待处理订单，退出后清空钱包和订�
 });
 
 test("待处理订单停止自动轮询后可以明确停止跟踪并重新下单", async ({ page }) => {
+  test.skip(RECHARGE_DISABLED, RECHARGE_SKIP_REASON);
   const persistedOrder = {
     version: 1,
     userId: USER_ID,
@@ -950,4 +967,27 @@ test("钱包会话失效时重新打开登录，而不是继续显示旧积分",
   await expect(dialog.getByLabel("邮箱")).toBeVisible();
   await expect(dialog.getByRole("alert")).toContainText("登录已过期");
   await expect(page.getByRole("button", { name: /当前积分/ })).toHaveCount(0);
+});
+
+/**
+ * 内测期的替代面板：商品、自定义金额、支付方式与收银台整段换成一句告知，但余额与
+ * 流水照旧可见（用户 2026-10-15：「把画布内充值面板隐藏，替换成"该项目仅供内部人员
+ * 测试，如需使用请联系 bz4jx3jp2li1"」）。
+ */
+test("内测期充值面板换成内部测试告知", async ({ page }) => {
+  test.skip(!RECHARGE_DISABLED, "公开/自托管构建照旧显示充值面板");
+  await preparePage(page);
+  await mockAuthenticatedWallet(page);
+  await page.goto("/canvas");
+  const dialog = await openWallet(page, "账号：创作者");
+
+  await expect(dialog.getByRole("note")).toContainText("该项目仅供内部人员测试");
+  await expect(dialog.getByRole("note")).toContainText("bz4jx3jp2li1");
+  // 商品、结账、自定义金额一个都不留。
+  await expect(dialog.getByRole("listbox", { name: "充值商品" })).toHaveCount(0);
+  await expect(dialog.getByRole("option", { name: /自定义充值/ })).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: /立即支付/ })).toHaveCount(0);
+  await expect(dialog.getByRole("group", { name: "支付方式" })).toHaveCount(0);
+  // 余额与流水仍在：关掉的是购买，不是账户面板。
+  await expect(dialog.getByText("充值与权益")).toBeVisible();
 });

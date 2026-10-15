@@ -1,5 +1,7 @@
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 
+import { addCanvasNode } from "./canvas-ui.fixture";
+
 type NetworkState = { unmocked: string[]; external: string[] };
 
 const REFERENCE_SVG = Buffer.from(
@@ -57,6 +59,165 @@ const VIDEO_MODEL = {
   },
 };
 
+/**
+ * 输入框在上方时，节点功能栏让到节点下面去。
+ *
+ * 用户 2026-10-15：「输入框在上面的时候，节点上方的功能栏会被挡住，此时应该
+ * 功能栏到下面去」。判据就是两件事：功能栏真的在节点下缘之下，且和输入框不再
+ * 压在一起（分居节点两侧）。反过来，输入框贴节点下方时功能栏照旧留在上面。
+ */
+test("the node toolbar drops below the node once the composer is flipped above it", async ({
+  page,
+}, testInfo) => {
+  await installNetworkGuard(page, { unmocked: [], external: [] });
+  await installCanvasApiMocks(page);
+  await page.addInitScript(seedSingleNodeGraph, { nodeY: 560 });
+  await page.goto("/canvas");
+  await expect(page.locator(".wc-canvas-entry-loader")).toHaveCount(0, { timeout: 5_000 });
+
+  const node = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="image"])',
+  );
+  await node.locator(".wc-node-drag-strip").click();
+
+  const composer = page.locator(".wc-node-prompt-shell");
+  await expect(composer).toBeVisible();
+  // 视口下沿放不下输入框（节点下缘 791px、输入框至少 168px 高），所以它翻到上方。
+  await expect(composer).toHaveAttribute("data-placement", "above");
+  await assertToolbarDroppedBelowNode(page, node, composer, testInfo);
+});
+
+test("the node toolbar stays above while the composer still fits below", async ({ page }) => {
+  await installNetworkGuard(page, { unmocked: [], external: [] });
+  await installCanvasApiMocks(page);
+  await page.addInitScript(seedSingleNodeGraph, { nodeY: 60 });
+  await page.goto("/canvas");
+  await expect(page.locator(".wc-canvas-entry-loader")).toHaveCount(0, { timeout: 5_000 });
+
+  const node = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="image"])',
+  );
+  await node.locator(".wc-node-drag-strip").click();
+
+  const composer = page.locator(".wc-node-prompt-shell");
+  await expect(composer).toBeVisible();
+  await expect(composer).toHaveAttribute("data-placement", "below");
+
+  const toolbar = page.locator("[data-canvas-node-toolbar]");
+  await expect(toolbar).toHaveAttribute("data-placement", "above");
+  const toolbarBox = await toolbar.boundingBox();
+  const nodeBox = await node.boundingBox();
+  expect(toolbarBox).not.toBeNull();
+  expect(nodeBox).not.toBeNull();
+  expect(toolbarBox!.y + toolbarBox!.height).toBeLessThanOrEqual(nodeBox!.y + 1);
+});
+
+async function assertToolbarDroppedBelowNode(
+  page: Page,
+  node: Locator,
+  composer: Locator,
+  testInfo: TestInfo,
+) {
+  const toolbar = page.locator("[data-canvas-node-toolbar]");
+  await expect(toolbar).toHaveAttribute("data-placement", "below");
+  await expect(toolbar).toBeVisible();
+  await page.waitForTimeout(200);
+
+  const toolbarBox = await toolbar.boundingBox();
+  const nodeBox = await node.boundingBox();
+  const composerBox = await composer.boundingBox();
+  expect(toolbarBox).not.toBeNull();
+  expect(nodeBox).not.toBeNull();
+  expect(composerBox).not.toBeNull();
+
+  // 功能栏挂在节点下缘之下，输入框在节点之上：两者不再争同一块地方。
+  expect(toolbarBox!.y).toBeGreaterThanOrEqual(nodeBox!.y + nodeBox!.height - 1);
+  expect(composerBox!.y + composerBox!.height).toBeLessThanOrEqual(nodeBox!.y + 1);
+  expect(toolbarBox!.y).toBeGreaterThanOrEqual(composerBox!.y + composerBox!.height);
+  // 让下来之后仍然整条可见可点，不是被视口下沿切掉一半。
+  expect(toolbarBox!.y + toolbarBox!.height).toBeLessThanOrEqual(900);
+
+  await page.screenshot({
+    path: testInfo.outputPath("toolbar-below-composer.png"),
+    fullPage: false,
+  });
+}
+
+/**
+ * 单个图片节点摆在固定流坐标上（zoom 1、平移 40/40），这样它在屏幕上的位置就是
+ * 确定的：nodeY=560 → 屏幕 620..811（输入框放不下，翻到上方）；
+ * nodeY=60 → 屏幕 100..291（输入框照旧在下方）。
+ */
+function seedSingleNodeGraph({ nodeY }: { nodeY: number }) {
+  const now = Date.now();
+  const project = {
+    schemaVersion: 1,
+    id: "generation-panel-toolbar-flip",
+    name: "功能栏让位画布",
+    nodes: [
+      {
+        id: "flip-image",
+        type: "weftcanvas",
+        position: { x: 60, y: nodeY },
+        width: 340,
+        height: 191,
+        data: {
+          kind: "image",
+          body: "16:9 · 人像特写",
+          accent: "blue",
+          status: "idle",
+          progress: null,
+          media: null,
+          directorCapture: null,
+          config: null,
+          edit: null,
+          music: null,
+          generation: {
+            modelId: null,
+            parameters: {},
+            referenceImagePurposes: {},
+            maxOutputTokens: null,
+            referenceMode: "auto",
+            referenceNodeIds: [],
+            jobId: null,
+            jobVersion: null,
+            jobCreatedAt: null,
+            jobStatus: null,
+            error: null,
+          },
+          createdAt: now,
+          updatedAt: now,
+        },
+      },
+    ],
+    edges: [],
+    groups: [],
+    viewport: { x: 40, y: 40, zoom: 1 },
+    createdAt: now,
+    updatedAt: now,
+  };
+  localStorage.setItem("weftcanvas:active-project:v1", project.id);
+  localStorage.setItem(
+    `weftcanvas:project-data:v1:${encodeURIComponent(project.id)}`,
+    JSON.stringify(project),
+  );
+  localStorage.setItem(
+    "weftcanvas:projects:v1",
+    JSON.stringify({
+      version: 1,
+      projects: [
+        {
+          id: project.id,
+          name: project.name,
+          createdAt: now,
+          updatedAt: now,
+          nodeCount: 1,
+        },
+      ],
+    }),
+  );
+}
+
 test("generation panel geometry holds with one real reference connection at 1440x900 and 1024x768", async ({
   page,
 }, testInfo) => {
@@ -87,8 +248,9 @@ test("generation panel geometry holds with one real reference connection at 1440
   });
   await expect(imageNode.locator("img")).toBeVisible();
 
-  const creation = page.getByRole("navigation", { name: "创建工具" });
-  await creation.getByRole("button", { name: "添加视频节点" }).click();
+  // 创建栏的节点类型是菜单项（role="menuitem"），统一走 fixture 里那条悬浮展开
+  // 再落下一项的手势；按 button 找它找不到。
+  await addCanvasNode(page, "添加视频节点");
   const edges = page.locator(".react-flow__edge");
   await expect(nodes).toHaveCount(4);
   await expect(edges).toHaveCount(2);
@@ -122,12 +284,16 @@ test("generation panel geometry holds with one real reference connection at 1440
   await videoNode.locator(".wc-node-drag-strip").click();
   const settings = page.getByLabel("视频节点创作设置");
   await expect(settings).toBeVisible();
-  await expect(settings.locator("[data-generation-model-select]")).toHaveValue("geometry-video-1");
+  // 输入框底部的紧凑栏用分类选择器（不是 GenerationModelSelect 的隐藏 input），
+  // 选中的模型就看它触发按钮上的文案。
+  await expect(settings.locator(".wc-generation-model-control")).toContainText(
+    "Geometry Video Pro",
+  );
 
   const rail = page.locator(".wc-node-reference-chips");
   await expect(rail).toBeVisible();
   await expect(rail.locator(".wc-node-reference-chip")).toHaveCount(1);
-  await expect(settings.locator(".wc-generation-compact-status.is-linked")).toBeVisible();
+  // 素材连接只看上面这条 rail：底部状态行现在只报上游文本/错误，参考图连接不在那儿出现。
 
   const composer = page.getByLabel("视频节点编辑器");
   await composer.locator("[data-prompt-editor]").fill("雨夜霓虹，人物在渡口奔跑");
@@ -170,6 +336,9 @@ async function assertGenerationPanelGeometry(
       expect(control.box.width, `${label} width`).toBeGreaterThan(0);
       expect(control.box.height, `${label} height`).toBeGreaterThan(0);
       expect(control.inside, `${label} inside viewport ${JSON.stringify(control.box)}`).toBe(true);
+      // 只对真正的交互控件要求"中心点可点"：参考素材栏、紧凑栏这些是被动容器，
+      // 它们大半是空白，要求容器中心能接住指针等于让空白去接，不是真需求。
+      if (control.clickable === null) continue;
       expect(control.clickable, `${label} clickable at its center`).toBe(true);
     }
   }
@@ -244,9 +413,11 @@ async function readGenerationPanelGeometry(composer: Locator) {
           height: number;
         };
         inside: boolean;
-        clickable: boolean;
+        clickable: boolean | null;
       }>
     > = {};
+    const interactiveSelector =
+      'button, input, select, textarea, a[href], [role="button"], [role="tab"], [role="menuitem"]';
     for (const selector of controlSelectors) {
       controls[selector] = [...root.querySelectorAll(selector)].filter(isVisible).map((element) => {
         const rect = element.getBoundingClientRect();
@@ -268,7 +439,9 @@ async function readGenerationPanelGeometry(composer: Locator) {
             rect.top >= -1 &&
             rect.right <= viewport.width + 1 &&
             rect.bottom <= viewport.height + 1,
-          clickable: hit !== null && (element === hit || element.contains(hit)),
+          clickable: element.matches(interactiveSelector)
+            ? hit !== null && (element === hit || element.contains(hit))
+            : null,
         };
       });
     }

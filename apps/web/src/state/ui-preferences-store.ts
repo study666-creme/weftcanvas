@@ -71,13 +71,13 @@ export type CompanionDock =
  * - free：x/y 相对工作区的像素，x 是伙伴的中心点、y 是顶边。
  * - dock：趴在某个面板的顶边上，x 记成面板宽度里的比例（0..1），
  *   这样面板变宽变窄、窗口缩放时她都贴在同一条边上。
- * - node：坐在某个画布节点的上缘角上（点击节点时默认落到这里）。节点被删或
- *   不在视口里时解不出位置，她回落到默认位。
+ *
+ * 没有「坐在节点上」这一档：用户明确要求她平时就在天上待着，不许挂在节点上
+ * （点一个节点她就爬上去，既挡内容又把节点当成了她的归属物）。旧版本存过
+ * `kind:"node"` 的锚点，读取时一律降级成 null（回默认位），见 normalizeCompanionAnchor。
  */
 export type CompanionAnchor =
-  | { kind: "free"; x: number; y: number }
-  | { kind: "dock"; dock: CompanionDock; x: number }
-  | { kind: "node"; nodeId: string };
+  { kind: "free"; x: number; y: number } | { kind: "dock"; dock: CompanionDock; x: number };
 
 export const COMPANION_DOCKS: readonly CompanionDock[] = [
   "edit-dock",
@@ -112,9 +112,9 @@ export function normalizeCompanionAnchor(value: unknown): CompanionAnchor | null
     return { kind: "free", x: candidate.x, y: candidate.y };
   }
   if (candidate.kind === "node") {
-    return typeof candidate.nodeId === "string" && candidate.nodeId
-      ? { kind: "node", nodeId: candidate.nodeId }
-      : null;
+    // 迁移：老版本把她的位置存成「坐在某个节点上」。这个形态已经取消（她不许挂
+    // 节点），所以读到就丢弃、回默认位，而不是保留一个解不出位置的锚点。
+    return null;
   }
   if (candidate.kind === "dock") {
     if (

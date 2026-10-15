@@ -11,6 +11,8 @@ import { ToastViewport } from "./components/toast-viewport";
 import { useCollaborationDialogStore } from "./state/collaboration-dialog-store";
 import { useCloudResourceStore } from "./state/cloud-resource-store";
 import { useIdentityStore } from "./state/identity-store";
+import { useOnboardingStore } from "./state/onboarding-store";
+import { firstStepIndexForRoute, ONBOARDING_STEPS } from "./lib/onboarding";
 import { useUiPreferencesStore } from "./state/ui-preferences-store";
 import { useThemeCommandStore } from "./state/theme-command-store";
 import { readPersistedWalletOrder } from "./lib/wallet-order-storage";
@@ -28,6 +30,9 @@ export type { ThemeMode } from "./lib/theme-schedule";
 type EntryState = "idle" | "inside";
 type AppRoute =
   { view: "home" } | { view: "canvas" } | { view: "generate"; modality: DirectModality };
+
+/** 首屏那一段的第一步：重看教程就是从这里起步，见下面的回首屏 effect。 */
+const FIRST_HOME_STEP = firstStepIndexForRoute("home");
 
 const AccountDataController = lazy(async () => ({
   default: (await import("./components/account-data-controller")).AccountDataController,
@@ -60,6 +65,10 @@ const CanvasEntryLoaderLazy = lazy(async () => ({
 // 避免整包 entry 被入口的模型选择/参数控件依赖图拖大。
 const EntryGateLazy = lazy(async () => ({
   default: (await import("./components/entry-gate")).EntryGate,
+}));
+// 新手教程：跨「首屏 → 画布」的浮层，只在真正运行时才加载它的分包。
+const OnboardingTourLazy = lazy(async () => ({
+  default: (await import("./components/onboarding-tour")).OnboardingTour,
 }));
 
 function SuspenseCanvasLoader() {
@@ -106,6 +115,12 @@ export function App() {
   const cursorStyle = useUiPreferencesStore((state) => state.cursorStyle);
   const edgePathStyle = useUiPreferencesStore((state) => state.edgePathStyle);
   const edgeFlowStyle = useUiPreferencesStore((state) => state.edgeFlowStyle);
+  const onboardingStatus = useOnboardingStore((state) => state.status);
+  /** 教程只认三个界面：入口首屏 / 生成工作台 / 画布；/generate/* 都算工作台。 */
+  const tourRoute: "home" | "workbench" | "canvas" =
+    route.view === "canvas" ? "canvas" : route.view === "generate" ? "workbench" : "home";
+  const onboardingEntryReplay = useOnboardingStore((state) => state.entryReplay);
+  const onboardingStepIndex = useOnboardingStore((state) => state.stepIndex);
   const routeRef = useRef(route);
   routeRef.current = route;
 
@@ -257,6 +272,37 @@ export function App() {
   const enterCanvasRef = useRef(enterCanvas);
   enterCanvasRef.current = enterCanvas;
 
+  // 新手教程：第一次落在入口首屏、或直接落在生成工作台（/generate/*），就把它记起来
+  // 并开跑——这两处共用前两步（认识工作台 → 从本界面右上角打开画布）。所以即使用户是
+  // "登录后自动进画布"这条路、根本没点过入口门，画布步骤照样接得上。
+  // 完成/跳过一次后不再自动弹出。
+  useEffect(() => {
+    // 已经在画布那段流程里（entryState=inside）就不再补开首屏/工作台教程；
+    // 工作台自己的 entryState 是 inside（非 home 路由都算），所以只对 home 生效。
+    if (route.view === "home" && entryState === "inside") return;
+    if (route.view !== "home" && route.view !== "generate") return;
+    useOnboardingStore.getState().start(tourRoute);
+  }, [entryState, route.view, tourRoute]);
+
+  // 重看教程从首屏起步：人在画布上按了「重看新手教程」，先把人送回**首屏**
+  // （用户：「画布引导先要引导用户去首屏，然后从里面再去画布」），首屏那两步
+  // 走完由「进入画布」再把人带回来。
+  //
+  // 只在教程还停在首屏第一步时回送：开始走首屏之后就不再拉人，否则用户刚点
+  // 「进入画布」就被弹回入口页，两个方向当场打架。自动开跑（首访）也不走这条，
+  // 登录后直接进画布的访客照样从画布步骤接上。
+  useEffect(() => {
+    if (!onboardingEntryReplay || onboardingStatus !== "running") return;
+    if (route.view === "home") return;
+    const step = ONBOARDING_STEPS[onboardingStepIndex];
+    if (!step || onboardingStepIndex !== FIRST_HOME_STEP) return;
+    if (route.view === "generate") return;
+    window.history.replaceState(null, "", "/");
+    setRoute({ view: "home" });
+    setEntryState("idle");
+    setCanvasBootVisible(false);
+  }, [onboardingEntryReplay, onboardingStatus, onboardingStepIndex, route.view]);
+
   // 首屏固定先进登录层：未认证访客落到首页即弹出登录（等 hydration 完成再判定，
   // 不会误伤正在恢复会话的已登录用户）。「稍后再说」仍可浏览首页，但进画布会再拦；
   // 账号服务不可用（unavailable）时不弹——没有可登录的入口，画布同样保持封锁。
@@ -368,6 +414,13 @@ export function App() {
         <GlobalTooltip />
         <SiteAnnouncements />
         <ToastViewport />
+        {/* 教程的前两步就长在工作台上（认识 01/STILL → 点右上角「打开画布」），
+            所以这一支也要挂教程浮层，否则从 /generate/* 进来的访客永远看不到它。 */}
+        {onboardingStatus === "running" ? (
+          <Suspense fallback={null}>
+            <OnboardingTourLazy route={tourRoute} canvasBusy={false} onEnterCanvas={enterCanvas} />
+          </Suspense>
+        ) : null}
       </div>
     );
   }
@@ -444,6 +497,15 @@ export function App() {
       <GlobalTooltip />
       <SiteAnnouncements />
       <ToastViewport />
+      {onboardingStatus === "running" ? (
+        <Suspense fallback={null}>
+          <OnboardingTourLazy
+            route={tourRoute}
+            canvasBusy={canvasBootVisible}
+            onEnterCanvas={enterCanvas}
+          />
+        </Suspense>
+      ) : null}
     </div>
   );
 }

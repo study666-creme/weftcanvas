@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import type { Locator, Page } from "@playwright/test";
 
 import { mockAuthenticatedBackgroundApis } from "./authenticated-background.fixture";
+import { skipOnboardingTour } from "./onboarding.fixture";
 import { expect, test } from "./zero-cost-test";
 
 const now = new Date();
@@ -450,6 +451,7 @@ test("homepage keeps direct generation out of the entry page and exposes sticky 
   page,
 }) => {
   await mockDirectApis(page);
+  await skipOnboardingTour(page);
   await page.goto("/");
 
   const gate = page.locator(".wc-entry-gate");

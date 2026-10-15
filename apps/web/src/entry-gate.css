@@ -3673,7 +3673,9 @@
 
 .wc-direct-studio-tabs {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* 三种生成类型排成**一行三列**（用户 2026-10-16：「一行三列」）：图片 / 视频 / 音频
+     并排，不再折成两列两行。窄屏（≤520px）才降回两列，见底部媒体查询。 */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   border-bottom: 1px solid var(--entry-border);
   background: var(--entry-surface);
 }
@@ -4949,6 +4951,11 @@
 @media (max-width: 520px) {
   /* 手机上三列会挤到 60px 以下，降为两列 */
   .wc-direct-result-gallery {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* 生成类型同理：一行三列在手机宽度下每格不足 150px，降回两列。 */
+  .wc-direct-studio-tabs {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

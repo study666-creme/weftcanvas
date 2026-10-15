@@ -14,6 +14,7 @@ import {
   customApiAuthInit,
   executeCustomGeneration,
   fetchCustomApiModelIdsForFormat,
+  loadCustomApiCatalog,
   normalizeProtocolOverride,
   probeCustomApiResponse,
   sendCustomApiTestRequest,
@@ -876,6 +877,68 @@ describe("custom API connection", () => {
         }),
       ]),
     });
+  });
+});
+
+describe("custom API capability catalog behind a blocked CORS preflight", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("retries the public capability catalog without credentials when the keyed read is blocked", async () => {
+    const calls: Array<{ url: string; authorization: string | null }> = [];
+    const record = (url: string, init: RequestInit) => {
+      calls.push({
+        url: String(url),
+        authorization: new Headers(init.headers).get("authorization"),
+      });
+    };
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce((url: string, init: RequestInit) => {
+        record(url, init);
+        // 带 Authorization 的 GET 在浏览器里先发 OPTIONS；中转站不答预检时整条请求失败。
+        return Promise.reject(new TypeError("Failed to fetch"));
+      })
+      .mockImplementationOnce((url: string, init: RequestInit) => {
+        record(url, init);
+        return Promise.resolve(jsonResponse(videoSourceCatalog()));
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const catalog = await loadCustomApiCatalog({
+      baseUrl: "https://relay.example",
+      apiKey: "secret",
+    });
+
+    expect(catalog.capabilitySource).toBe("rich");
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toEqual({
+      url: "https://relay.example/api/model-catalog",
+      authorization: "Bearer secret",
+    });
+    // 匿名重试不带凭据：公开能力目录不需要密钥，因此是简单请求、不触发预检。
+    expect(calls[1]).toEqual({
+      url: "https://relay.example/api/model-catalog",
+      authorization: null,
+    });
+  });
+
+  it("explains the preflight failure and falls back to the model list", async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (String(url).includes("/api/model-catalog"))
+        return Promise.reject(new TypeError("Failed to fetch"));
+      return Promise.resolve(
+        jsonResponse({ object: "list", data: [{ id: "doubao-seedance-2.0" }] }),
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const catalog = await testCustomApiConnection({
+      baseUrl: "https://relay.example",
+      apiKey: "secret",
+    });
+
+    expect(catalog.capabilitySource).toBe("models-only");
+    expect(catalog.catalogWarning).toContain("跨域预检");
   });
 });
 

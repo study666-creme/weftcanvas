@@ -55,6 +55,15 @@ export type CatalogCompatibilityOverlay = {
     source: ParsedSourceCatalog,
     options: { includeKnownModels: boolean },
   ): ParsedSourceCatalog;
+  /**
+   * 策展过滤：整条源模型出门前的最后一次取舍（合规口径、只保留某几家的模型等）。
+   * 返回的列表决定后面的一切——公开目录、私有路由、计价只认过滤后的结果，被删掉
+   * 的模型不会留下半截痕迹。
+   */
+  filterSourceModels?(
+    source: ParsedSourceCatalog,
+    options: { includeKnownModels: boolean },
+  ): ParsedSourceCatalog;
   /** 逐模型兼容改写（品牌化、固定输出契约等）。 */
   applyModelCompatibility?(
     model: SourceCatalogModel,
@@ -113,12 +122,19 @@ export function normalizeSourceCatalog(
     overlay?.addKnownModels?.(parsed, {
       includeKnownModels: Boolean(options.includeKnownModels),
     }) ?? parsed;
+  // 上游一行模型都没给 = 拿到的是半截目录（例如 OpenAI 风格的 data[] 没带计价），
+  // 宁可报错保留上一份快照，也不要发布一份"看起来正常的空目录"。
+  if (!source.models.length) throw new CatalogValidationError("Catalog contains no models");
+  const curated =
+    overlay?.filterSourceModels?.(source, {
+      includeKnownModels: Boolean(options.includeKnownModels),
+    }) ?? source;
   const sourceModels: Record<string, string> = {};
   const routes: StoredCatalogSnapshot["routes"] = {};
   const publicModels: PublicModel[] = [];
   const usedIds = new Set<string>();
 
-  for (const sourceModel of source.models) {
+  for (const sourceModel of curated.models) {
     const model =
       overlay?.applyModelCompatibility?.(sourceModel, {
         includeKnownModels: Boolean(options.includeKnownModels),
@@ -140,7 +156,9 @@ export function normalizeSourceCatalog(
     publicModels.push(normalizeModel(model, source.credits_per_yuan, overlay));
   }
 
-  if (!publicModels.length)
+  // 上游给了可选模型却一个都没发布出来 = 目录坏了，宁可保留上一份快照；策展层
+  // 主动清空（站点选择不上架任何模型）不在此列——那是一份合法的空目录。
+  if (!publicModels.length && curated.models.length)
     throw new CatalogValidationError("Catalog contains no selectable public models");
   publicModels.sort(
     (left, right) => left.order - right.order || left.label.localeCompare(right.label, "zh-CN"),
@@ -148,7 +166,10 @@ export function normalizeSourceCatalog(
 
   const pricingVersion = source.pricing_version.trim()
     ? source.pricing_version
-    : derivePricingVersion(publicModels, source.credits_per_yuan);
+    : // 空目录没有可聚合的价格内容，别让 derivePricingVersion([]) 造一个假版本号。
+      publicModels.length
+      ? derivePricingVersion(publicModels, source.credits_per_yuan)
+      : "empty-catalog";
 
   const catalog = publicModelCatalogSchema.parse({
     version: source.version,

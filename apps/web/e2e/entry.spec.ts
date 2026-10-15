@@ -1,5 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { skipOnboardingTour } from "./onboarding.fixture";
+
+// 首屏第一次打开会自动弹新手教程，它的高亮卡片会盖住入口控件；
+// 教程本身由 e2e/onboarding.spec.ts 覆盖，这里先把它标记成已看过。
+test.beforeEach(async ({ page }) => {
+  await skipOnboardingTour(page);
+});
+
 function catalogModel(modality: "image" | "video") {
   return {
     id: `e2e-${modality}-model`,

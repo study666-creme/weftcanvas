@@ -725,17 +725,18 @@ function withDemoModels(
 ): Record<ModelModality, CatalogState> {
   const patch = (modality: "image" | "video"): CatalogState => {
     const catalog = catalogs[modality];
-    if (catalog.data && catalog.data.models.length) return catalog;
-    const base = catalog.data;
+    // 只有"根本没读到目录"才拿演示条目垫场。读到了但一条模型都没有（站点选择不上架
+    // 任何模型）是站点自己的口径，硬塞演示模型等于把它撤销掉。
+    if (catalog.data) return catalog;
     return {
       status: "ready",
       data: {
-        version: base?.version ?? "demo-catalog",
-        capabilityVersion: base?.capabilityVersion ?? "demo-capability",
-        pricingVersion: base?.pricingVersion ?? "demo-pricing",
-        fetchedAt: base?.fetchedAt ?? new Date().toISOString(),
-        expiresAt: base?.expiresAt ?? new Date(Date.now() + 60 * 60_000).toISOString(),
-        quoteAvailable: base?.quoteAvailable ?? false,
+        version: "demo-catalog",
+        capabilityVersion: "demo-capability",
+        pricingVersion: "demo-pricing",
+        fetchedAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+        quoteAvailable: false,
         models: demoModels(modality),
       },
       error: catalog.error,

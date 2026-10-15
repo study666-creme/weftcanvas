@@ -1,4 +1,4 @@
-import { Keyboard, X } from "lucide-react";
+import { Keyboard, Sparkles, X } from "lucide-react";
 import { memo, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
@@ -9,6 +9,7 @@ const shortcutGroups = [
       { keys: ["Space"], label: "按住平移画布" },
       { keys: ["滚轮"], label: "上下移动画布" },
       { keys: ["Ctrl", "滚轮"], label: "缩放画布" },
+      { keys: ["双击空白"], label: "创建节点" },
       { keys: ["Tab"], label: "专注模式：收起 / 恢复界面" },
       { keys: ["?", "F1"], label: "打开快捷键说明" },
     ],
@@ -46,9 +47,12 @@ function isEditable(target: EventTarget | null) {
 export const CanvasShortcutsPanel = memo(function CanvasShortcutsPanel({
   open,
   onOpenChange,
+  onStartTutorial,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** 重看新手教程：教程走完过的人由这里再叫出来。 */
+  onStartTutorial?: () => void;
 }) {
   const closeButton = useRef<HTMLButtonElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
@@ -133,6 +137,22 @@ export const CanvasShortcutsPanel = memo(function CanvasShortcutsPanel({
             </section>
           ))}
         </div>
+        {onStartTutorial ? (
+          <footer className="wc-shortcuts-foot">
+            <p>第一次用画布？跟着走一遍：从首屏进画布，再创建节点、平移和缩放。</p>
+            <button
+              type="button"
+              className="wc-shortcuts-tutorial"
+              onClick={() => {
+                onOpenChange(false);
+                onStartTutorial();
+              }}
+            >
+              <Sparkles aria-hidden="true" />
+              重看新手教程
+            </button>
+          </footer>
+        ) : null}
       </section>
     </div>,
     document.body,

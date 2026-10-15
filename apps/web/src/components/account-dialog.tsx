@@ -43,6 +43,7 @@ import type {
 
 import { useIdentityStore } from "../state/identity-store";
 import { requestConfirmation } from "../lib/confirmation";
+import { HOSTED_WALLET_NOTICE } from "../lib/hosted-wallet-notice";
 import { useMembershipTaskStore } from "../state/membership-task-store";
 import { useToastStore } from "../state/toast-store";
 import { useWalletStore } from "../state/wallet-store";
@@ -1393,163 +1394,176 @@ export function AccountDialog() {
                     <div className="wc-wallet-section-heading">
                       <div>
                         <strong>充值与权益</strong>
-                        <span>选择商品后打开独立收银台</span>
+                        {HOSTED_WALLET_NOTICE ? null : <span>选择商品后打开独立收银台</span>}
                       </div>
                       <WalletCards aria-hidden="true" />
                     </div>
-                    {productsStatus === "loading" &&
-                    !walletProducts.length &&
-                    !customCreditTopUp ? (
-                      <div className="wc-wallet-state">
-                        <LoaderCircle className="is-spinning" aria-hidden="true" />
-                        正在加载商品
-                      </div>
-                    ) : productsStatus === "error" &&
-                      !walletProducts.length &&
-                      !customCreditTopUp ? (
-                      <div className="wc-wallet-state is-error">
+                    {HOSTED_WALLET_NOTICE ? (
+                      // 内测期不开充值：商品、自定义金额、支付方式与收银台整段隐去，
+                      // 只留一句告知（文案在私有 lib/hosted-wallet-notice.ts）。
+                      <div className="wc-wallet-state wc-wallet-state--notice" role="note">
                         <AlertCircle aria-hidden="true" />
-                        {walletError || "商品暂时无法获取"}
-                        <button type="button" onClick={() => void loadProducts(true)}>
-                          重试
-                        </button>
-                      </div>
-                    ) : walletProducts.length || customCreditTopUp ? (
-                      <div className="wc-wallet-products" role="listbox" aria-label="充值商品">
-                        {walletProducts.map((product) => (
-                          <button
-                            type="button"
-                            role="option"
-                            aria-selected={selectedProductId === product.id}
-                            className={`wc-wallet-product ${selectedProductId === product.id ? "is-selected" : ""}`}
-                            key={product.id}
-                            onClick={() => {
-                              setSelectedProductId(product.id);
-                              setOrderError(null);
-                            }}
-                          >
-                            <span className="wc-wallet-product-check">
-                              {selectedProductId === product.id ? (
-                                <Check aria-hidden="true" />
-                              ) : null}
-                            </span>
-                            <span className="wc-wallet-product-copy">
-                              <strong>{productLabel(product)}</strong>
-                              <small>{productDetail(product)}</small>
-                            </span>
-                            <b>¥{formatMoney(product.amount)}</b>
-                          </button>
-                        ))}
-                        {customCreditTopUp ? (
-                          <button
-                            type="button"
-                            role="option"
-                            aria-selected={customTopUpSelected}
-                            className={`wc-wallet-product ${customTopUpSelected ? "is-selected" : ""}`}
-                            onClick={() => {
-                              setSelectedProductId(customCreditTopUp.productId);
-                              setCustomAmountInput(
-                                (current) => current || String(customCreditTopUp.minAmount),
-                              );
-                              setOrderError(null);
-                            }}
-                          >
-                            <span className="wc-wallet-product-check">
-                              {customTopUpSelected ? <Check aria-hidden="true" /> : null}
-                            </span>
-                            <span className="wc-wallet-product-copy">
-                              <strong>自定义充值</strong>
-                              <small>
-                                {formatCredits(customCreditTopUp.creditsPerYuan)} 积分/元
-                              </small>
-                            </span>
-                            <b>¥{formatMoney(customCreditTopUp.minAmount)} 起</b>
-                          </button>
-                        ) : null}
+                        {HOSTED_WALLET_NOTICE}
                       </div>
                     ) : (
-                      <div className="wc-wallet-state">暂时没有可购买的商品</div>
-                    )}
+                      <>
+                        {productsStatus === "loading" &&
+                        !walletProducts.length &&
+                        !customCreditTopUp ? (
+                          <div className="wc-wallet-state">
+                            <LoaderCircle className="is-spinning" aria-hidden="true" />
+                            正在加载商品
+                          </div>
+                        ) : productsStatus === "error" &&
+                          !walletProducts.length &&
+                          !customCreditTopUp ? (
+                          <div className="wc-wallet-state is-error">
+                            <AlertCircle aria-hidden="true" />
+                            {walletError || "商品暂时无法获取"}
+                            <button type="button" onClick={() => void loadProducts(true)}>
+                              重试
+                            </button>
+                          </div>
+                        ) : walletProducts.length || customCreditTopUp ? (
+                          <div className="wc-wallet-products" role="listbox" aria-label="充值商品">
+                            {walletProducts.map((product) => (
+                              <button
+                                type="button"
+                                role="option"
+                                aria-selected={selectedProductId === product.id}
+                                className={`wc-wallet-product ${selectedProductId === product.id ? "is-selected" : ""}`}
+                                key={product.id}
+                                onClick={() => {
+                                  setSelectedProductId(product.id);
+                                  setOrderError(null);
+                                }}
+                              >
+                                <span className="wc-wallet-product-check">
+                                  {selectedProductId === product.id ? (
+                                    <Check aria-hidden="true" />
+                                  ) : null}
+                                </span>
+                                <span className="wc-wallet-product-copy">
+                                  <strong>{productLabel(product)}</strong>
+                                  <small>{productDetail(product)}</small>
+                                </span>
+                                <b>¥{formatMoney(product.amount)}</b>
+                              </button>
+                            ))}
+                            {customCreditTopUp ? (
+                              <button
+                                type="button"
+                                role="option"
+                                aria-selected={customTopUpSelected}
+                                className={`wc-wallet-product ${customTopUpSelected ? "is-selected" : ""}`}
+                                onClick={() => {
+                                  setSelectedProductId(customCreditTopUp.productId);
+                                  setCustomAmountInput(
+                                    (current) => current || String(customCreditTopUp.minAmount),
+                                  );
+                                  setOrderError(null);
+                                }}
+                              >
+                                <span className="wc-wallet-product-check">
+                                  {customTopUpSelected ? <Check aria-hidden="true" /> : null}
+                                </span>
+                                <span className="wc-wallet-product-copy">
+                                  <strong>自定义充值</strong>
+                                  <small>
+                                    {formatCredits(customCreditTopUp.creditsPerYuan)} 积分/元
+                                  </small>
+                                </span>
+                                <b>¥{formatMoney(customCreditTopUp.minAmount)} 起</b>
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <div className="wc-wallet-state">暂时没有可购买的商品</div>
+                        )}
 
-                    {customTopUpSelected && customCreditTopUp ? (
-                      <div className="wc-wallet-custom-topup">
-                        <label htmlFor="wc-wallet-custom-amount">
-                          <span>自定义金额</span>
-                          <small>
-                            ¥{formatMoney(customCreditTopUp.minAmount)} - ¥
-                            {formatMoney(customCreditTopUp.maxAmount)}
-                          </small>
-                        </label>
-                        <div
-                          className={`wc-wallet-custom-amount ${customAmountValidation.error ? "is-error" : ""}`}
-                        >
-                          <span aria-hidden="true">¥</span>
-                          <input
-                            id="wc-wallet-custom-amount"
-                            type="text"
-                            inputMode="decimal"
-                            autoComplete="off"
-                            maxLength={10}
-                            value={customAmountInput}
-                            aria-invalid={Boolean(customAmountValidation.error)}
-                            aria-describedby="wc-wallet-custom-amount-note"
-                            disabled={paymentBusy || checkoutBlockedByOrder}
-                            onChange={(event) => {
-                              setCustomAmountInput(event.target.value.replace(/[^\d.]/g, ""));
-                              setOrderError(null);
-                            }}
-                          />
-                          <em>
-                            {customAmountValidation.amount === null
-                              ? "积分"
-                              : `${formatCredits(customAmountValidation.amount * customCreditTopUp.creditsPerYuan)} 积分`}
-                          </em>
+                        {customTopUpSelected && customCreditTopUp ? (
+                          <div className="wc-wallet-custom-topup">
+                            <label htmlFor="wc-wallet-custom-amount">
+                              <span>自定义金额</span>
+                              <small>
+                                ¥{formatMoney(customCreditTopUp.minAmount)} - ¥
+                                {formatMoney(customCreditTopUp.maxAmount)}
+                              </small>
+                            </label>
+                            <div
+                              className={`wc-wallet-custom-amount ${customAmountValidation.error ? "is-error" : ""}`}
+                            >
+                              <span aria-hidden="true">¥</span>
+                              <input
+                                id="wc-wallet-custom-amount"
+                                type="text"
+                                inputMode="decimal"
+                                autoComplete="off"
+                                maxLength={10}
+                                value={customAmountInput}
+                                aria-invalid={Boolean(customAmountValidation.error)}
+                                aria-describedby="wc-wallet-custom-amount-note"
+                                disabled={paymentBusy || checkoutBlockedByOrder}
+                                onChange={(event) => {
+                                  setCustomAmountInput(event.target.value.replace(/[^\d.]/g, ""));
+                                  setOrderError(null);
+                                }}
+                              />
+                              <em>
+                                {customAmountValidation.amount === null
+                                  ? "积分"
+                                  : `${formatCredits(customAmountValidation.amount * customCreditTopUp.creditsPerYuan)} 积分`}
+                              </em>
+                            </div>
+                            <p
+                              id="wc-wallet-custom-amount-note"
+                              className={customAmountValidation.error ? "is-error" : ""}
+                            >
+                              {customAmountValidation.error ?? "金额最多保留两位小数"}
+                            </p>
+                          </div>
+                        ) : null}
+
+                        <div className="wc-wallet-payment-row">
+                          <span>支付方式</span>
+                          <div className="wc-wallet-segmented" role="group" aria-label="支付方式">
+                            <button
+                              type="button"
+                              className={paymentMethod === "alipay" ? "is-active" : ""}
+                              aria-pressed={paymentMethod === "alipay"}
+                              disabled={paymentBusy || checkoutBlockedByOrder}
+                              onClick={() => setPaymentMethod("alipay")}
+                            >
+                              <Landmark aria-hidden="true" />
+                              支付宝
+                            </button>
+                          </div>
                         </div>
-                        <p
-                          id="wc-wallet-custom-amount-note"
-                          className={customAmountValidation.error ? "is-error" : ""}
-                        >
-                          {customAmountValidation.error ?? "金额最多保留两位小数"}
-                        </p>
-                      </div>
-                    ) : null}
-
-                    <div className="wc-wallet-payment-row">
-                      <span>支付方式</span>
-                      <div className="wc-wallet-segmented" role="group" aria-label="支付方式">
                         <button
                           type="button"
-                          className={paymentMethod === "alipay" ? "is-active" : ""}
-                          aria-pressed={paymentMethod === "alipay"}
-                          disabled={paymentBusy || checkoutBlockedByOrder}
-                          onClick={() => setPaymentMethod("alipay")}
+                          className="wc-account-submit wc-wallet-checkout"
+                          disabled={
+                            !selectedCheckoutRequest || paymentBusy || checkoutBlockedByOrder
+                          }
+                          onClick={() => void startCheckout()}
                         >
-                          <Landmark aria-hidden="true" />
-                          支付宝
+                          {paymentBusy ? (
+                            <LoaderCircle className="is-spinning" aria-hidden="true" />
+                          ) : selectedProduct?.kind === "collaboration_seat" ? (
+                            <UserPlus aria-hidden="true" />
+                          ) : (
+                            <Coins aria-hidden="true" />
+                          )}
+                          {checkoutBlockedByOrder
+                            ? "请先处理待支付订单"
+                            : selectedCheckoutAmount !== null
+                              ? `立即支付 ¥${formatMoney(selectedCheckoutAmount)}`
+                              : customTopUpSelected
+                                ? "请填写有效金额"
+                                : "请选择商品"}
                         </button>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      className="wc-account-submit wc-wallet-checkout"
-                      disabled={!selectedCheckoutRequest || paymentBusy || checkoutBlockedByOrder}
-                      onClick={() => void startCheckout()}
-                    >
-                      {paymentBusy ? (
-                        <LoaderCircle className="is-spinning" aria-hidden="true" />
-                      ) : selectedProduct?.kind === "collaboration_seat" ? (
-                        <UserPlus aria-hidden="true" />
-                      ) : (
-                        <Coins aria-hidden="true" />
-                      )}
-                      {checkoutBlockedByOrder
-                        ? "请先处理待支付订单"
-                        : selectedCheckoutAmount !== null
-                          ? `立即支付 ¥${formatMoney(selectedCheckoutAmount)}`
-                          : customTopUpSelected
-                            ? "请填写有效金额"
-                            : "请选择商品"}
-                    </button>
+                      </>
+                    )}
                   </section>
 
                   <div className="wc-wallet-side-column">

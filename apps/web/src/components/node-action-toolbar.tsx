@@ -28,6 +28,11 @@ type ToolbarAction = {
 
 type NodeActionToolbarProps = {
   visible: boolean;
+  /**
+   * 功能栏挂在节点哪一侧。默认上方；生成输入框翻到节点上方时（它会盖住功能栏）
+   * 由节点传 "below"，让到节点下面去。
+   */
+  placement?: "above" | "below";
   kind: CanvasNodeKind;
   hasMedia: boolean;
   showGenerationAction: boolean;
@@ -48,6 +53,7 @@ type NodeActionToolbarProps = {
 
 export function NodeActionToolbar({
   visible,
+  placement = "above",
   kind,
   hasMedia,
   showGenerationAction,
@@ -195,15 +201,19 @@ export function NodeActionToolbar({
   return (
     <NodeToolbar
       isVisible={visible}
-      position={Position.Top}
+      position={placement === "below" ? Position.Bottom : Position.Top}
       offset={0}
       className="wc-node-toolbar-anchor"
       data-canvas-node-toolbar
+      data-placement={placement}
       onPointerDown={(event) => event.stopPropagation()}
       onPointerEnter={onPointerEnter}
       onPointerLeave={onPointerLeave}
     >
-      <div ref={shellRef} className="wc-node-toolbar-shell">
+      <div
+        ref={shellRef}
+        className={`wc-node-toolbar-shell${placement === "below" ? " is-below" : ""}`}
+      >
         <div
           ref={scrollRef}
           className="wc-node-action-toolbar nodrag nowheel"

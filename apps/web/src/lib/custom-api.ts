@@ -473,12 +473,31 @@ export function normalizeCustomApiBaseUrl(value: string) {
   return url.origin;
 }
 
-export async function loadCustomApiCatalog(
-  connection: CustomApiConnection,
-): Promise<CustomApiCatalog> {
-  const origin = normalizeCustomApiBaseUrl(connection.baseUrl);
-  const apiFormat = normalizeCustomApiFormat(connection.apiFormat);
-  if (apiFormat === "gemini") return loadGeminiCatalog(origin, connection.apiKey);
+/**
+ * 读取中转站声明的能力目录。
+ *
+ * 这份目录是公开的能力声明（自家托管 API 也匿名读同一份），但**带密钥的 GET 会触发
+ * 浏览器跨域预检**：只给 `/v1/*` 配了 OPTIONS 的中转站会对 `/api/model-catalog` 的
+ * 预检直接 404，于是浏览器整条请求失败，用户「接好 API 却只剩提示词参数、素材与时长/
+ * 比例/分辨率全消失」。所以先带密钥读（尊重需要鉴权的中转站），失败再匿名重试——
+ * 匿名 GET 是简单请求、不发预检，公开目录因此可读。
+ */
+async function readCustomApiCatalogDocument(connection: CustomApiConnection) {
+  const apiKey = connection.apiKey.trim();
+  try {
+    return await requestCustomApiCatalogDocument(connection);
+  } catch (cause) {
+    if (!apiKey) throw cause;
+    try {
+      return await requestCustomApiCatalogDocument({ ...connection, apiKey: "" });
+    } catch {
+      // 保留第一次（带密钥）的失败原因：更贴近用户实际配置的那条路径。
+      throw cause;
+    }
+  }
+}
+
+async function requestCustomApiCatalogDocument(connection: CustomApiConnection) {
   let response: Response;
   try {
     const request = customApiAuthInit(connection, "/api/model-catalog");
@@ -487,16 +506,27 @@ export async function loadCustomApiCatalog(
       signal: AbortSignal.timeout(CATALOG_REQUEST_TIMEOUT_MS),
     });
   } catch {
-    throw new CustomApiError("无法读取模型目录，请检查地址和跨域设置", "CATALOG_UNAVAILABLE");
+    throw new CustomApiError(
+      "无法读取模型能力目录（中转站未放行浏览器跨域预检），已退回仅模型列表",
+      "CATALOG_UNAVAILABLE",
+    );
   }
   if (!response.ok)
     throw new CustomApiError(`模型目录读取失败 (${response.status})`, "CATALOG_UNAVAILABLE");
-  let source;
   try {
-    source = customApiCatalogSchema.parse(await response.json());
+    return customApiCatalogSchema.parse(await response.json());
   } catch {
     throw new CustomApiError("模型目录格式不兼容", "CATALOG_INVALID");
   }
+}
+
+export async function loadCustomApiCatalog(
+  connection: CustomApiConnection,
+): Promise<CustomApiCatalog> {
+  const origin = normalizeCustomApiBaseUrl(connection.baseUrl);
+  const apiFormat = normalizeCustomApiFormat(connection.apiFormat);
+  if (apiFormat === "gemini") return loadGeminiCatalog(origin, connection.apiKey);
+  const source = await readCustomApiCatalogDocument(connection);
   const routes: Record<string, CustomApiRoute> = {};
   const models: PublicModel[] = [];
   const usedIds = new Set<string>();
@@ -681,7 +711,7 @@ export function createSyntheticCustomModel(modelId: string, modality: ModelModal
   return publicModelSchema.parse({
     id: modelId,
     label: modelId,
-    description: "已从 API 拉取；使用当前模态的兼容调用协议",
+    description: "未读取到中转站的能力目录：只提交提示词，其余参数按兼容协议处理",
     modality,
     operation: modality === "text" ? "chat" : "generate",
     order: 0,

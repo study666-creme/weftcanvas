@@ -16,60 +16,115 @@ function nodeById(page: Page, id: string) {
   return page.locator(`.react-flow__node[data-id="${id}"]`);
 }
 
-/** 伙伴中心 x 与「节点右缘内侧停靠位」的偏差。 */
-async function perchOffset(page: Page, nodeId: string) {
-  const nodeBox = await nodeById(page, nodeId).boundingBox();
+const promptShell = (page: Page) => page.locator(".wc-node-prompt-shell");
+
+/** 她中心 x 与输入框右端停靠位的偏差。 */
+async function cornerOffset(page: Page) {
+  const shellBox = await promptShell(page).boundingBox();
   const box = await companion(page).boundingBox();
-  if (!nodeBox || !box) return Number.POSITIVE_INFINITY;
-  return Math.abs(box.x + box.width / 2 - (nodeBox.x + nodeBox.width - box.width * 0.18));
+  if (!shellBox || !box) return Number.POSITIVE_INFINITY;
+  return Math.abs(box.x + box.width / 2 - (shellBox.x + shellBox.width - shellBox.width * 0.06));
 }
 
-test("clicking a node perches the companion on its corner and switching glides her over", async ({
-  page,
-}) => {
+/**
+ * 用户 2026-10-15：「大肥鱼不准挂节点上，平时就在天上就行了，输入框点开的时候
+ * 是挂在输入框上不是挂节点上的」「挂输入框右上角就行」。
+ */
+test("selecting a node never perches her on it — the open input box does", async ({ page }) => {
   await seedStarterCanvas(page);
   await page.goto("/canvas");
   const image = nodeById(page, "starter-image");
-  const text = nodeById(page, "starter-text");
   await expect(image).toBeVisible();
   await expect(companion(page)).toBeVisible();
-  // 初始在默认位（顶部居中），不在任何节点上。
+  // 初始在默认位（天上、顶部居中），不在任何节点或面板上。
   await expect(companion(page)).not.toHaveClass(/is-on-node/);
+  await expect(companion(page)).not.toHaveClass(/is-docked/);
 
-  // 点图片节点 → 她坐到该节点右上缘。
+  // 选中节点 → 输入框打开 → 她趴到输入框右上角，而不是爬到这个节点上。
   await image.click();
-  await expect(companion(page)).toHaveClass(/is-on-node/);
-  await expect.poll(() => perchOffset(page, "starter-image"), { timeout: 3_000 }).toBeLessThan(8);
-  const nodeBox = await image.boundingBox();
-  const box = await companion(page).boundingBox();
-  // 顶边骑在节点上缘附近（露出约一半身高在上方）。
-  expect(box.y).toBeLessThan(nodeBox.y + 12);
-  expect(box.y).toBeGreaterThan(nodeBox.y - box.height);
+  await expect(promptShell(page)).toBeVisible();
+  await expect(companion(page)).not.toHaveClass(/is-on-node/);
+  await expect(companion(page)).toHaveClass(/is-docked/);
+  await expect.poll(() => cornerOffset(page), { timeout: 3_000 }).toBeLessThan(60);
 
-  // 点文本节点 → 滑动过去：先看到 is-moving，再确认她真的换到了新节点。
-  await text.click();
-  await expect(companion(page)).toHaveClass(/is-moving/);
-  await expect.poll(() => perchOffset(page, "starter-text"), { timeout: 3_000 }).toBeLessThan(8);
-  await expect.poll(() => perchOffset(page, "starter-image")).toBeGreaterThan(40);
-  // 滑动结束后 is-moving 撤下（跟随不再带过渡）。
-  await expect(companion(page)).not.toHaveClass(/is-moving/, { timeout: 3_000 });
+  // 她的身体骑在输入框上缘（下半身被面板盖住），不是浮在面板中间。
+  const shellBox = (await promptShell(page).boundingBox())!;
+  const box = (await companion(page).boundingBox())!;
+  expect(box.y).toBeLessThan(shellBox.y + shellBox.height * 0.5);
 });
 
-test("panning keeps her welded to the node while the glide class is off", async ({ page }) => {
+/**
+ * 用户 2026-10-15：「图一打开节点输入框后 agent 位置不对，我意思是自动挂在图二的
+ * 位置（输入框右上角），以前第一版就是这样」。
+ *
+ * 输入框翻到节点上方时，面板贴顶会把她需要的身位挤没，旧代码于是把她挂到面板**下沿**
+ * ——那正好压在节点和它的功能栏上。现在翻到上方时会多留 LEDGE_PERCH_ROOM 的上边距，
+ * 她永远在面板上沿探头。
+ */
+test("the flipped input box keeps room on its top edge for her", async ({ page }, testInfo) => {
   await seedStarterCanvas(page);
   await page.goto("/canvas");
   const image = nodeById(page, "starter-image");
   await expect(image).toBeVisible();
-  await image.click();
-  await expect(companion(page)).toHaveClass(/is-on-node/);
-  await expect.poll(() => perchOffset(page, "starter-image"), { timeout: 3_000 }).toBeLessThan(8);
+  await expect(companion(page)).toBeVisible();
 
-  // 平移画布：她跟着节点走，而不是留在原地。
-  await page.mouse.move(720, 500);
-  await page.mouse.down();
-  await page.mouse.move(560, 420, { steps: 8 });
-  await page.mouse.up();
-  await expect.poll(() => perchOffset(page, "starter-image"), { timeout: 3_000 }).toBeLessThan(8);
-  // 跟随期间不带滑动类（逐帧跟手，不糊）。
-  await expect(companion(page)).not.toHaveClass(/is-moving/);
+  // 视口压矮到放不下输入框：它会翻到节点上方，并被顶边夹住（用户截图的场景）。
+  await page.setViewportSize({ width: 1440, height: 560 });
+
+  await image.click();
+  const shell = promptShell(page);
+  await expect(shell).toBeVisible();
+  await expect(shell).toHaveAttribute("data-placement", "above");
+  await expect(companion(page)).toHaveClass(/is-docked/);
+
+  // 她会按 1Hz 跟一次面板（面板被视口变化挪过位置），所以轮询到"顶边跑到面板
+  // 顶边之上"为止，而不是拍一张就比。
+  await expect
+    .poll(
+      async () => {
+        const shellBox = await shell.boundingBox();
+        const box = await companion(page).boundingBox();
+        if (!shellBox || !box) return Number.NEGATIVE_INFINITY;
+        return Math.round(shellBox.y - box.y);
+      },
+      { timeout: 5_000 },
+    )
+    .toBeGreaterThan(6);
+
+  const shellBox = (await shell.boundingBox())!;
+  const box = (await companion(page).boundingBox())!;
+  // 面板顶边之上留着她的探身位（视口边距 16 + 身位 62）。
+  expect(shellBox.y).toBeGreaterThanOrEqual(78);
+  // 上半身在面板顶边之上、下半身收在面板后面——不是掉到面板下沿去。
+  expect(box.y).toBeLessThan(shellBox.y);
+  expect(box.y + box.height).toBeGreaterThan(shellBox.y);
+  expect(box.y + box.height).toBeLessThan(shellBox.y + shellBox.height * 0.6);
+  await page.screenshot({ path: testInfo.outputPath("companion-on-flipped-composer.png") });
+});
+
+test("closing the input box sends her back to the sky", async ({ page }) => {
+  await seedStarterCanvas(page);
+  await page.goto("/canvas");
+  const image = nodeById(page, "starter-image");
+  await expect(image).toBeVisible();
+
+  await image.click();
+  await expect(companion(page)).toHaveClass(/is-docked/);
+
+  // 点空白处取消选中 → 输入框关闭 → 她回默认位（天上、顶部居中）。
+  await page.mouse.click(40, 760);
+  await expect(promptShell(page)).toHaveCount(0);
+  await expect(companion(page)).not.toHaveClass(/is-docked/, { timeout: 3_000 });
+  const viewport = page.viewportSize()!;
+  await expect
+    .poll(
+      async () => {
+        const box = await companion(page).boundingBox();
+        return box
+          ? Math.abs(box.x + box.width / 2 - viewport.width / 2)
+          : Number.POSITIVE_INFINITY;
+      },
+      { timeout: 3_000 },
+    )
+    .toBeLessThan(80);
 });

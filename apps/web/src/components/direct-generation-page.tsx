@@ -15,6 +15,7 @@ import {
 
 import type { ThemeMode } from "../App";
 import { DIRECT_GENERATION_PROJECT_ID } from "../lib/direct-generation-history";
+import { HOSTED_WALLET_NOTICE } from "../lib/hosted-wallet-notice";
 import {
   clearDirectDraftSession,
   clearDirectReferenceSession,
@@ -134,13 +135,18 @@ export function DirectGenerationPage({
             className="wc-direct-page-action wc-direct-credits-action"
             aria-label={
               identitySession
-                ? `积分余额 ${creditsLabel ?? "--"}，点击前往充值`
-                : "登录后可充值积分"
+                ? // 内测期充值面板关掉了（见 hosted-wallet-notice）：别承诺"前往充值"。
+                  `积分余额 ${creditsLabel ?? "--"}，点击查看${
+                    HOSTED_WALLET_NOTICE ? "账户明细" : "充值"
+                  }`
+                : "登录后可查看积分"
             }
             title={
               identitySession
-                ? `积分余额 ${creditsLabel ?? "--"} · 点击前往充值`
-                : "登录后可充值积分"
+                ? `积分余额 ${creditsLabel ?? "--"} · 点击查看${
+                    HOSTED_WALLET_NOTICE ? "账户明细" : "充值"
+                  }`
+                : "登录后可查看积分"
             }
             onClick={openRecharge}
           >
@@ -182,6 +188,8 @@ export function DirectGenerationPage({
             className="wc-direct-page-action wc-entry-primary-action"
             href="/canvas"
             aria-label="打开画布"
+            // 教程第二步的锚点：它就是右上角这个「打开画布」（用户 2026-10-16）。
+            data-wc-tour="enter-canvas"
             onClick={leaveWorkbench}
           >
             <span>打开画布</span>

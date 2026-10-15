@@ -1,3 +1,4 @@
+import { skipOnboardingTour } from "./onboarding.fixture";
 import { expect, test } from "./zero-cost-test";
 const projectId = "media-dimensions-project";
 
@@ -119,6 +120,7 @@ test("known and unknown server media dimensions resize legacy image and video no
     { projectId, timestamp, videoSize: portraitVideo.length },
   );
 
+  await skipOnboardingTour(page);
   await page.goto("/");
   const imageNode = page.locator('.react-flow__node-weftcanvas[data-id="portrait-node"]');
   const videoNode = page.locator('.react-flow__node-weftcanvas[data-id="video-node"]');

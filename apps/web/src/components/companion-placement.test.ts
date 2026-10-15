@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { resolveCompanionPlacement, type Placement, type Rect } from "./companion-placement";
+import {
+  DOCK_RIGHT_CORNER_X,
+  resolveCompanionPlacement,
+  type Placement,
+  type Rect,
+} from "./companion-placement";
+import type { CompanionAnchor } from "../state/ui-preferences-store";
 
 const SIZE = { width: 80, height: 90 };
 const BOUNDS: Rect = { left: 0, top: 0, right: 1440, bottom: 900, width: 1440, height: 900 };
@@ -81,38 +87,52 @@ describe("resolveCompanionPlacement dock fallbacks", () => {
   });
 });
 
-describe("resolveCompanionPlacement node perching", () => {
-  function nodeRect(left: number, top: number, width: number, height: number) {
-    return fakeElement({ left, top, width, height, right: left + width, bottom: top + height });
-  }
-
-  it("sits on the top-right corner of the node", () => {
-    withDocument({ '.react-flow__node[data-id="node-1"]': nodeRect(900, 300, 340, 340) });
+describe("resolveCompanionPlacement input box corner", () => {
+  it("perches on the top-right corner of the open input box", () => {
+    // 输入框（wc-node-prompt-shell）打开时她趴到右上角：中心落在顶边右端，
+    // 身体骑在面板上缘之上，层级压到面板之下（下半身被面板盖住）。
+    withDocument({
+      ".wc-node-prompt-shell": fakeElement({ left: 100, top: 600, width: 1200, height: 300 }),
+    });
     const placement = resolveCompanionPlacement(
-      { kind: "node", nodeId: "node-1" },
+      { kind: "dock", dock: "node-prompt", x: DOCK_RIGHT_CORNER_X },
       SIZE,
       BOUNDS,
     ) as Placement;
-    expect(placement.onNode).toBe(true);
+    expect(placement.dock).toBe("node-prompt");
+    expect(placement.ledge?.y).toBe(600);
+    expect(placement.y).toBeLessThan(600);
+    // 右上角：中心贴在面板右侧 6% 一带，而不是趴在正中（600 附近）。
+    expect(placement.x).toBeGreaterThan(100 + 1200 * 0.9);
+  });
+
+  it("returns to the sky when the input box closes", () => {
+    // 输入框关掉后元素不在 DOM 里：解不出停靠点 → null，
+    // 她用 CSS 默认位（画布顶部居中）——她平时就该在天上待着。
+    withDocument({ ".wc-node-prompt-shell": null });
+    expect(
+      resolveCompanionPlacement(
+        { kind: "dock", dock: "node-prompt", x: DOCK_RIGHT_CORNER_X },
+        SIZE,
+        BOUNDS,
+      ),
+    ).toBeNull();
+  });
+
+  it("has no node-perching target left (she must never attach to a node)", () => {
+    // 用户：「大肥鱼不准挂节点上」。节点锚点已从 CompanionAnchor 里删掉，
+    // 这里锁住「画布节点不再是可停靠面」——节点就算在 DOM 里也不产生落点。
+    withDocument({
+      ".react-flow__node[data-id='node-1']": fakeElement({
+        left: 900,
+        top: 300,
+        width: 340,
+        height: 340,
+      }),
+    });
+    const anchor: CompanionAnchor = { kind: "free", x: 400, y: 300 };
+    const placement = resolveCompanionPlacement(anchor, SIZE, BOUNDS) as Placement;
     expect(placement.dock).toBeUndefined();
-    // 中心贴着节点右缘内侧，顶边骑在节点上缘上（露出约一半身高在上方）。
-    expect(placement.x).toBeCloseTo(900 + 340 - SIZE.width * 0.18, 1);
-    expect(placement.y).toBeCloseTo(300 - SIZE.height * 0.52, 1);
-  });
-
-  it("keeps her fully visible when the node hugs the viewport edges", () => {
-    withDocument({ '.react-flow__node[data-id="node-2"]': nodeRect(1300, 0, 200, 160) });
-    const placement = resolveCompanionPlacement(
-      { kind: "node", nodeId: "node-2" },
-      SIZE,
-      BOUNDS,
-    ) as Placement;
-    expect(placement.x + SIZE.width / 2).toBeLessThanOrEqual(BOUNDS.width + 6);
-    expect(placement.y).toBeGreaterThanOrEqual(4);
-  });
-
-  it("falls back to the default spot when the node is gone or off-screen", () => {
-    withDocument({ '.react-flow__node[data-id="node-3"]': null });
-    expect(resolveCompanionPlacement({ kind: "node", nodeId: "node-3" }, SIZE, BOUNDS)).toBeNull();
+    expect(placement.x).toBe(400);
   });
 });

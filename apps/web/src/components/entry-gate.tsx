@@ -502,7 +502,7 @@ export function EntryGate({
               <CircleUserRound aria-hidden="true" />
               <span>{identitySession?.user.displayName ?? "登录"}</span>
             </button>
-            <button type="button" onClick={onEnter}>
+            <button type="button" onClick={onEnter} data-wc-tour="enter-canvas">
               打开画布
               <ArrowRight aria-hidden="true" />
             </button>
@@ -566,7 +566,11 @@ export function EntryGate({
                 ))}
               </div>
 
-              <div className="wc-entry-composer wc-entry-composer--neutral" data-mode={mode}>
+              <div
+                className="wc-entry-composer wc-entry-composer--neutral"
+                data-mode={mode}
+                data-wc-tour="workbench"
+              >
                 <div className="wc-entry-composer-top">
                   <div className="wc-entry-mode-switch" role="tablist" aria-label="生成类型">
                     {MODES.map(({ value, label, icon: Icon }) => (

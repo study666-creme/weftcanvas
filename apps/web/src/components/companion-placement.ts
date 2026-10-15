@@ -37,12 +37,29 @@ export const DOCK_TARGETS: readonly DockTarget[] = [
  */
 export const PEEK_WALL_VISIBLE = 0.46;
 export const PEEK_LEDGE_HIDDEN = 0.34;
+/**
+ * 她那个按钮挂上面板时的实际身高：全身 sprite 按 68 宽、height = 68 * 1.3333 显示
+ * （与 agent-companion.tsx 的 WHALE_BODY_PX 一对；实测停靠态按钮 80x91）。
+ */
+const COMPANION_BODY_HEIGHT = 68 * 1.3333;
+/**
+ * 趴在横向面板上沿时，必须留在面板**顶边之上**的像素（= 露出身高的 66%）。
+ * 输入框翻到节点上方时要按这个值留出上边距：否则她只能翻到面板下沿去，而那正好
+ * 压在节点和它的功能栏上（用户：「打开节点输入框后 agent 位置不对，应该挂在输入框
+ * 右上角，以前第一版就是这样」）。
+ */
+export const LEDGE_PERCH_ROOM = Math.ceil(COMPANION_BODY_HEIGHT * (1 - PEEK_LEDGE_HIDDEN)) + 2;
 /** 探头时她的 z-index 压到面板之下多少，让面板真的画在她上面。 */
 export const DOCK_Z_STEP = 4;
 /** 松手时离默认位置多近算「放回原位」。 */
 export const RESET_RADIUS = 76;
 /** 默认停留位（画布顶部居中）的纵向偏移。 */
 export const DEFAULT_TOP = 26;
+/**
+ * 「右上角」的停靠比例：输入框打开时她趴到输入框顶边的右端。
+ * 取 normalizeCompanionAnchor 允许的最大比例，观感是抱着右上角而不是趴在正中。
+ */
+export const DOCK_RIGHT_CORNER_X = 0.94;
 
 export type Rect = {
   left: number;
@@ -68,8 +85,6 @@ export type Placement = {
   ledge?: { y: number };
   /** 面板贴顶、上方放不下时改为挂在其下沿（小手扒住底边，上半身藏到面板后）。 */
   hang?: boolean;
-  /** 坐在画布节点上缘角上（点击节点时的默认位）。 */
-  onNode?: boolean;
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -96,32 +111,6 @@ export function cssEscape(value: string): string {
   return typeof CSS !== "undefined" && typeof CSS.escape === "function"
     ? CSS.escape(value)
     : value.replace(/[^A-Za-z0-9_-]/g, "");
-}
-
-function nodeElement(nodeId: string): Element | null {
-  return document.querySelector(`.react-flow__node[data-id="${cssEscape(nodeId)}"]`);
-}
-
-/**
- * 坐在节点上缘的右角（用户要的观感：脑袋搭在节点右上角边沿上）。
- * nodeRect 是节点的视口矩形；返回相对定位父级的中心 x / 顶边 y。
- * 节点顶边贴出视口时往下兜底，保证她始终完整可见。
- */
-export function resolveNodePlacement(
-  nodeRect: Rect,
-  size: { width: number; height: number },
-  bounds: Rect,
-): Placement {
-  const left = nodeRect.left - bounds.left;
-  const top = nodeRect.top - bounds.top;
-  const halfWidth = size.width / 2;
-  const x = clamp(
-    left + nodeRect.width - size.width * 0.18,
-    halfWidth - 6,
-    bounds.width - halfWidth + 6,
-  );
-  const y = clamp(top - size.height * 0.52, 4, bounds.height - size.height - 4);
-  return { x, y, onNode: true };
 }
 
 /** 趴着时的层级：压到所趴面板之下，让面板把她下半身遮住。 */
@@ -199,15 +188,6 @@ export function resolveCompanionPlacement(
       x: clamp(anchor.x, halfWidth - 6, bounds.width - halfWidth + 6),
       y: clamp(anchor.y, 4, bounds.height - size.height - 4),
     };
-  }
-
-  if (anchor.kind === "node") {
-    // 节点不在 DOM 里（被删了 / 平移出视口被虚拟化掉）就回默认位，
-    // 别让她挂在最后一个已知坐标上凭空漂着。
-    const element = nodeElement(anchor.nodeId);
-    const rect = element ? toRect(element) : null;
-    if (!rect) return null;
-    return resolveNodePlacement(rect, size, bounds);
   }
 
   const element = dockElement(anchor.dock);

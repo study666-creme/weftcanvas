@@ -201,6 +201,11 @@ export function isUserFacingParameter(
   const name = parameter.name.trim().toLowerCase();
   if (TRANSPORT_FORMAT_PARAMETER_NAMES.has(name)) return false;
   if (TRANSPORT_FORMAT_NAME_PATTERN.test(name)) return false;
+  // 参考视频时长是「配套声明」，不是创作参数：客户端一律按素材实测时长提交，
+  // 让用户手填等于把计费口径交给用户（填 1 秒却传 15 秒视频，上游按声明少收）。
+  // 字面量与 lib/generation-inputs 的 REFERENCE_VIDEO_DURATIONS_PARAMETER 同名；
+  // 这里内联是为了避开 generation-config → generation-inputs → state 的导入环。
+  if (name === "referencevideodurations") return false;
   const label = (parameter.label ?? "").toLowerCase();
   if (TRANSPORT_FORMAT_LABEL_PATTERN.test(label)) return false;
   // 工作台需要精确的分辨率/尺寸控制，这里只保留传输格式的隐藏。

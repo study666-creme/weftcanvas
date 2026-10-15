@@ -61,6 +61,7 @@ import { useCursorInteractionStore } from "../state/cursor-interaction-store";
 import { useDirectorStageLaunchStore } from "../state/director-stage-launch-store";
 import { useGenerationStore } from "../state/generation-store";
 import { useIdentityStore } from "../state/identity-store";
+import { useOnboardingStore } from "../state/onboarding-store";
 import { startProjectAssetAutoCapture, useProjectAssetStore } from "../state/project-asset-store";
 import { useToastStore } from "../state/toast-store";
 import { useUiPreferencesStore } from "../state/ui-preferences-store";
@@ -1308,6 +1309,12 @@ export function CanvasWorkspace({
     toggleAgent();
   }, [closeResource, toggleAgent]);
 
+  // 重看新手教程：一律从首屏起步（用户：「画布引导先要引导用户去首屏，然后从
+  // 里面再去画布」）。教程浮层挂在 App 顶层，那边看到重看标记后会把路由切回首屏，
+  // 用户走完首屏那两步再由「进入画布」回到这里。
+  const replayTour = useOnboardingStore((state) => state.replay);
+  const handleStartTutorial = useCallback(() => replayTour(), [replayTour]);
+
   const handleToggleMiniMap = useCallback(() => {
     setMiniMapOpen((value) => !value);
   }, []);
@@ -1331,12 +1338,8 @@ export function CanvasWorkspace({
     setMenu(null);
     setPendingConnectionCreate(null);
   }, []);
-  // 点哪个节点，伙伴就默认坐到哪个节点上缘（已在该节点上则不重复写锚点）。
-  const handleNodeClick = useCallback((_event: ReactMouseEvent, node: WeftcanvasNode) => {
-    const current = useUiPreferencesStore.getState().companionAnchor;
-    if (current?.kind === "node" && current.nodeId === node.id) return;
-    useUiPreferencesStore.getState().setCompanionAnchor({ kind: "node", nodeId: node.id });
-  }, []);
+  // 点节点不再改伙伴的位置：她平常就在天上待着，不许挂到节点上
+  // （用户：「大肥鱼不准挂节点上」）。她只在输入框打开时趴到输入框右上角。
   const handleConfirmClear = useCallback(() => {
     clearCanvas();
     setClearConfirmOpen(false);
@@ -1494,7 +1497,6 @@ export function CanvasWorkspace({
               onMoveEnd={onMoveEnd}
               onNodeDragStart={handleNodeDragStart}
               onNodeDragStop={handleNodeDragStop}
-              onNodeClick={handleNodeClick}
               onSelectionDragStart={handleSelectionDragStart}
               onSelectionDragStop={handleSelectionDragStop}
               onPaneClick={handlePaneClick}
@@ -1648,7 +1650,11 @@ export function CanvasWorkspace({
           onClose={handleCloseActivity}
         />
       ) : null}
-      <CanvasShortcutsPanel open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+      <CanvasShortcutsPanel
+        open={shortcutsOpen}
+        onOpenChange={setShortcutsOpen}
+        onStartTutorial={handleStartTutorial}
+      />
       <CanvasClearDialog
         open={clearConfirmOpen}
         nodeCount={nodes.length}

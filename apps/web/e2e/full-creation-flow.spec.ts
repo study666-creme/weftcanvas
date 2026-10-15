@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { mockAuthenticatedBackgroundApis } from "./authenticated-background.fixture";
+import { skipOnboardingTour } from "./onboarding.fixture";
 
 type NetworkState = { unmocked: string[]; external: string[] };
 
@@ -461,6 +462,7 @@ test("登录后可连续生成图片、视频并完成积分充值", async ({ pa
 
   await page.goto("/canvas");
   await expect(page.locator("[data-save-state]")).toBeVisible();
+  await skipOnboardingTour(page);
   await page.goto("/");
 
   await page.locator(".wc-entry-account-action").click();

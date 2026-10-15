@@ -66,6 +66,7 @@ import { useDirectorStageLaunchStore } from "../state/director-stage-launch-stor
 import { useGenerationStore } from "../state/generation-store";
 import { useToastStore } from "../state/toast-store";
 import { useUiPreferencesStore } from "../state/ui-preferences-store";
+import { useUiShellStore } from "../state/ui-shell-store";
 import type { WeftcanvasNode as WeftcanvasNodeType } from "../types";
 import { NodeActionToolbar } from "./node-action-toolbar";
 import { PluginBodyBoundary } from "./plugin-body-boundary";
@@ -975,6 +976,9 @@ export const WeftcanvasNode = memo(function WeftcanvasNode({
     addConnectedNode,
   } = useCanvasStore.getState();
   const toolbarActive = useCanvasStore((state) => state.activeToolbarNodeId === id);
+  // 这个节点的生成输入框正摆在它上方（输入框自己上报）：功能栏让到节点下面去，
+  // 否则会被输入框整个盖住。别的节点选中时输入框不在本节点上，这里自然是 false。
+  const toolbarBelow = useUiShellStore((state) => state.promptAboveNodeId === id);
   const setActiveToolbarNodeId = useCanvasStore.getState().setActiveToolbarNodeId;
   const {
     overviewZoom,
@@ -1577,6 +1581,7 @@ export const WeftcanvasNode = memo(function WeftcanvasNode({
       {toolbarVisible ? (
         <NodeActionToolbar
           visible
+          placement={toolbarBelow ? "below" : "above"}
           kind={data.kind}
           hasMedia={Boolean(mediaUrl)}
           showGenerationAction={

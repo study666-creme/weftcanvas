@@ -20,7 +20,7 @@ export const ZoomControl = memo(function ZoomControl({
   const zoomProgress = ((zoom - MIN_CANVAS_ZOOM) / (MAX_CANVAS_ZOOM - MIN_CANVAS_ZOOM)) * 100;
 
   return (
-    <div className="wc-zoom-control" aria-label="缩放控制">
+    <div className="wc-zoom-control" aria-label="缩放控制" data-wc-tour="zoom">
       <button
         type="button"
         className={miniMapOpen ? "is-active" : ""}

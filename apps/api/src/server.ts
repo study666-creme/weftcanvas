@@ -83,10 +83,9 @@ const catalog = new WeftcanvasCatalogAdapter({
   // dev-test 模式没有默认端点：目录走纯快照模式或自托管端点。
   videoInventoryUrl: providerPlan.catalogVideoInventoryUrl,
   includeKnownModels: true,
-  // 站点策展层（计价/品牌化规则）由私有 overlay 提供；dev-test 无 overlay。
-  ...(providerPlan.weftcanvas
-    ? { overlay: providerPlan.weftcanvas.createCatalogOverlay(process.env) }
-    : {}),
+  // 站点策展层（计价/品牌化/上下架）由私有 overlay 提供：托管模式来自 provider 模块，
+  // dev-test 来自可选的 spi/site-overlay.ts（公开树没有，就没有策展）。
+  ...(providerPlan.catalogOverlay ? { overlay: providerPlan.catalogOverlay } : {}),
   overrides: modelOverrides,
   store,
   // 单次刷新的硬死线：卡死的刷新不再需要重启进程才能恢复。上游偏慢/偏快时

@@ -23,7 +23,11 @@ run through explicit BYOK (see below) or through the Canvas API when configured.
 - **BYOK (custom API):** Configuration → Custom API stores your own limited key
   in this browser's `localStorage` only. It never enters source, project JSON, or
   the Canvas API. Text, image, and video generation run directly from the
-  browser; results are not durable server-side jobs.
+  browser; results are not durable server-side jobs. Both the canvas node panel
+  and the `/generate` workbench list these models: on the workbench a custom
+  model runs without a quote, a sign-in, or credits, and results are kept in the
+  local media library for the session. Workbench reference materials still
+  upload through the hosted media service, so they require a signed-in account.
 - **Hosted:** when the Canvas API is configured, generation runs as durable
   server-side jobs (see [`../../docs/GENERATION-JOBS.md`](../../docs/GENERATION-JOBS.md)).
 

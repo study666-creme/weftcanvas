@@ -15,7 +15,6 @@ import { useUiPreferencesStore, type CompanionStyle } from "../state/ui-preferen
 import {
   DOCK_Z_STEP,
   clampPlacement,
-  cssEscape,
   findDockTargetAt,
   resolveCompanionPlacement,
   shouldResetToDefault,
@@ -212,46 +211,6 @@ export const AgentCompanion = memo(function AgentCompanion({
           ),
     );
   }, [anchor, dockTick, dragging, dragPlacement, measure]);
-
-  /**
-   * 坐在节点上时跟着节点走：平移/缩放/拖节点都会改节点的屏幕矩形。
-   * rAF 里只量一次 rect，签名没变就不 setState——静止时零渲染；
-   * 跟随写入不带过渡（moving 置 false），滑动只属于锚点切换那一下。
-   */
-  const nodeAnchorId = anchor?.kind === "node" ? anchor.nodeId : null;
-  useEffect(() => {
-    if (!nodeAnchorId || dragging) return;
-    let frame = 0;
-    const readSignature = () => {
-      const element = document.querySelector(
-        `.react-flow__node[data-id="${cssEscape(nodeAnchorId)}"]`,
-      );
-      if (!element) return "";
-      const rect = element.getBoundingClientRect();
-      return `${rect.left.toFixed(1)},${rect.top.toFixed(1)},${rect.width.toFixed(1)},${rect.height.toFixed(1)}`;
-    };
-    // 起始签名取当前节点位置：换锚点时她的滑动由 placement effect 负责，
-    // 跟随循环只对「启动之后发生的移动」反应，否则第一帧就会把滑动掐掉。
-    let last = readSignature();
-    const tick = () => {
-      frame = window.requestAnimationFrame(tick);
-      const measured = measure();
-      if (!measured || document.visibilityState !== "visible") return;
-      const signature = readSignature();
-      if (!signature || signature === last) return;
-      last = signature;
-      setMoving(false);
-      setPlacement(
-        resolveCompanionPlacement(
-          anchor,
-          { width: measured.width, height: measured.height },
-          measured.bounds,
-        ),
-      );
-    };
-    frame = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(frame);
-  }, [nodeAnchorId, dragging, anchor, measure]);
 
   /**
    * 「真的趴在面板上」要看**解出来的位置**，不能只看原始锚点：
@@ -451,7 +410,6 @@ export const AgentCompanion = memo(function AgentCompanion({
           docked && !peeking ? "is-docked" : "",
           peeking ? "is-peeking" : "",
           hanging ? "is-hanging" : "",
-          placement?.onNode ? "is-on-node" : "",
         ]
           .filter(Boolean)
           .join(" ")}

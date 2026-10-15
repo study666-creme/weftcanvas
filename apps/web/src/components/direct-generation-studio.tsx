@@ -9,6 +9,7 @@ import type {
   PublicModel,
   ReferenceImagePurpose,
 } from "@weftcanvas/contracts";
+import { GENERATION_JOB_SCHEMA_VERSION } from "@weftcanvas/contracts";
 import {
   AlertCircle,
   ArrowDownToLine,
@@ -95,6 +96,19 @@ import {
   referenceVideoDurationsFromMedia,
   referenceVideoDurationsParameter,
 } from "../lib/generation-inputs";
+import { isCustomModelKey } from "../lib/custom-api";
+import {
+  customGenerationArtifacts,
+  directGenerationParameters,
+  directGenerationReferences,
+} from "../lib/direct-custom-generation";
+import { beginBrowserGeneration, endBrowserGeneration } from "../lib/browser-generation-runtime";
+import {
+  getMergedModels,
+  runDetachedCustomGeneration,
+  useCustomApiStore,
+} from "../state/custom-api-store";
+import { enqueueGeneratedMedia } from "../state/local-output-store";
 import {
   initialDirectDraftSession,
   persistDirectDraft,
@@ -209,6 +223,9 @@ export function DirectGenerationStudio({
   const openAccount = useIdentityStore((state) => state.openDialog);
   const expireIdentity = useIdentityStore((state) => state.expire);
   const loadWalletSummary = useWalletStore((state) => state.loadSummary);
+  const customProfiles = useCustomApiStore((state) => state.profiles);
+  const hiddenCustomModelKeys = useCustomApiStore((state) => state.hiddenModelKeys);
+  const pullAllCustomProfiles = useCustomApiStore((state) => state.pullAllProfiles);
   const draft = drafts[modality];
   const catalogState =
     modality === "image" ? imageCatalog : modality === "video" ? videoCatalog : audioCatalog;
@@ -217,6 +234,7 @@ export function DirectGenerationStudio({
   // 保证同一事件里并发添加也能看到彼此占用的容量。
   const referencesRef = useRef<DirectReference[]>(draft.references);
   const [historyUserId, setHistoryUserId] = useState<string | null>(null);
+  const lastIdentityUserIdRef = useRef<string | null>(null);
   const [hiddenArtifactKeys, setHiddenArtifactKeys] = useState<Set<string>>(() => new Set());
   const [materialDropActive, setMaterialDropActive] = useState(false);
   const [materialInputFeedback, setMaterialInputFeedback] = useState<string | null>(null);
@@ -322,10 +340,25 @@ export function DirectGenerationStudio({
     void Promise.all([loadCatalog("image"), loadCatalog("video")]);
   }, [loadCatalog]);
 
-  const models = useMemo(() => {
-    return (catalogState.data?.models ?? []).filter((model) => model.modality === modality);
-  }, [catalogState.data?.models, modality]);
+  // 与画布节点面板同一判据：有自有 API 配置就后台保持目录新鲜，
+  // 工作台与画布看到的模型列表永远一致。
+  useEffect(() => {
+    if (customProfiles.length) void pullAllCustomProfiles();
+  }, [customProfiles.length, pullAllCustomProfiles]);
+
+  const models = useMemo(
+    () =>
+      getMergedModels(
+        catalogState.data?.models ?? [],
+        modality,
+        customProfiles,
+        hiddenCustomModelKeys,
+      ),
+    [catalogState.data?.models, modality, customProfiles, hiddenCustomModelKeys],
+  );
   const model = models.find((item) => item.id === draft.modelId) ?? null;
+  // 自有 API（BYOK）模型走浏览器直连：不报价、不登录、不扣积分。
+  const customSelected = model ? isCustomModelKey(model.id) : false;
   const imagePurposes = useMemo(() => (model ? getReferenceImagePurposes(model) : []), [model]);
 
   useEffect(() => {
@@ -529,6 +562,11 @@ export function DirectGenerationStudio({
   const quoteSequence = useRef(0);
   useEffect(() => {
     const sequence = ++quoteSequence.current;
+    if (customSelected) {
+      // 直连调用没有服务端报价：置 ready 让提交门放行，不消耗积分。
+      updateDraft(modality, { quote: null, quoteState: "ready", quoteError: null });
+      return;
+    }
     if (!model || !catalogState.data) {
       updateDraft(modality, { quote: null, quoteState: "idle", quoteError: null });
       return;
@@ -586,6 +624,7 @@ export function DirectGenerationStudio({
     return () => window.clearTimeout(timer);
   }, [
     catalogState.data,
+    customSelected,
     draft.maxOutputTokens,
     draft.parameters,
     draft.prompt,
@@ -629,7 +668,14 @@ export function DirectGenerationStudio({
       /* ignore */
     }
     if (!wants) return;
-    if (!model || !draft.quote || draft.quoteState !== "ready" || inputInvalid || locked) return;
+    if (
+      !model ||
+      draft.quoteState !== "ready" ||
+      (!customSelected && !draft.quote) ||
+      inputInvalid ||
+      locked
+    )
+      return;
     if (!draft.prompt.trim()) return;
     autoSubmittedRef.current = true;
     // Clean the flag from the URL so a manual refresh doesn't re-submit.
@@ -646,7 +692,7 @@ export function DirectGenerationStudio({
     }
     void submit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model, draft.quote, draft.quoteState, draft.prompt, inputInvalid, locked]);
+  }, [model, customSelected, draft.quote, draft.quoteState, draft.prompt, inputInvalid, locked]);
 
   const updateJob = useCallback(
     (target: DirectModality, job: PublicGenerationJob) => {
@@ -690,7 +736,12 @@ export function DirectGenerationStudio({
   );
 
   useEffect(() => {
+    // 只有「刚退出登录」才清空会话内容：游客的直连（BYOK）结果属于本次会话，
+    // 不能被一次身份状态刷新顺手清掉，也不能把上一位账号的结果留给下一位。
+    const previousUserId = lastIdentityUserIdRef.current;
+    lastIdentityUserIdRef.current = identityUserId;
     if (identityStatus !== "authenticated" || !identityUserId) {
+      if (!previousUserId) return;
       setHistoryUserId(null);
       setHiddenArtifactKeys(new Set());
       setDrafts((current) => ({
@@ -703,15 +754,22 @@ export function DirectGenerationStudio({
 
     let active = true;
     const stored = readDirectGenerationHistory(identityUserId);
+    // 直连（BYOK）任务不订阅服务端：终态结果可回显；刷新时仍在「运行」的
+    // 任务已随页面丢失，如实丢弃，绝不留下一个永远转圈的假任务。
+    const keepStored = (jobs: PublicGenerationJob[]) =>
+      jobs.filter((job) => !job.id.startsWith("browser:") || isTerminalJob(job));
+    const storedImage = keepStored(stored.image);
+    const storedVideo = keepStored(stored.video);
+    const storedAudio = keepStored(stored.audio);
     setHiddenArtifactKeys(readDirectGenerationHiddenArtifacts(identityUserId));
-    for (const job of [...stored.image, ...stored.video, ...stored.audio]) {
+    for (const job of [...storedImage, ...storedVideo, ...storedAudio]) {
       persistGeneratedJobArtifacts(job);
       watch(job.modality as DirectModality, job);
     }
     setDrafts((current) => ({
-      image: { ...current.image, jobs: stored.image },
-      video: { ...current.video, jobs: stored.video },
-      audio: { ...current.audio, jobs: stored.audio },
+      image: { ...current.image, jobs: storedImage },
+      video: { ...current.video, jobs: storedVideo },
+      audio: { ...current.audio, jobs: storedAudio },
     }));
     setHistoryUserId(identityUserId);
 
@@ -758,13 +816,13 @@ export function DirectGenerationStudio({
   }, [drafts.image.jobs, drafts.video.jobs, drafts.audio.jobs, historyUserId, identityUserId]);
 
   const removeGeneratedArtifact = (jobId: string, artifactId: string) => {
-    if (!identityUserId) return;
     const key = directGenerationArtifactKey(jobId, artifactId);
     setHiddenArtifactKeys((current) => {
       if (current.has(key)) return current;
       const next = new Set(current);
       next.add(key);
-      writeDirectGenerationHiddenArtifacts(identityUserId, next);
+      // 游客的直连结果也要能删：没有账号就没有可持久化的位置，只在本次会话生效。
+      if (identityUserId) writeDirectGenerationHiddenArtifacts(identityUserId, next);
       return next;
     });
   };
@@ -1226,8 +1284,122 @@ export function DirectGenerationStudio({
     });
   };
 
+  // 直连执行：结果以本地合成任务（`browser:` 前缀）呈现，与托管任务共用同一套
+  // 结果卡。直连结果已在本地媒体库，不回源缓存、不进服务端历史、不订阅轮询。
+  const submitCustom = async (target: PublicModel) => {
+    updateDraft(modality, {
+      submitting: true,
+      submitLabel: "正在直连生成",
+      submissionError: null,
+      quoteError: null,
+    });
+    const jobId = `browser:${crypto.randomUUID()}`;
+    const createdAt = new Date().toISOString();
+    // 参考视频时长按素材实测提交：H3 系要求它与参考视频成对出现，且上游按这些
+    // 秒数计费——提交前一律以实测值覆盖草稿里的任何手填/过期值。
+    const parameters = directGenerationParameters(
+      target,
+      draft.prompt,
+      draft.parameters,
+      videoDurations,
+    );
+    const quote: GenerationQuote = {
+      id: jobId,
+      modelId: target.id,
+      modelLabel: target.label,
+      modality,
+      quantity: 1,
+      normalizedParameters: {},
+      creditMicros: 0,
+      credits: "0",
+      yuanMicros: 0,
+      yuan: "0",
+      estimated: false,
+      pricingUnit: "request",
+      catalogVersion: "byok",
+      capabilityVersion: "byok",
+      pricingVersion: "byok",
+      expiresAt: new Date(Date.now() + 24 * 60 * 60_000).toISOString(),
+    };
+    const baseJob: PublicGenerationJob = {
+      schemaVersion: GENERATION_JOB_SCHEMA_VERSION,
+      version: 0,
+      id: jobId,
+      projectId: DIRECT_GENERATION_PROJECT_ID,
+      nodeId: DIRECT_GENERATION_NODE_IDS[modality],
+      modelId: target.id,
+      modelLabel: target.label,
+      modality,
+      status: "running",
+      progress: 2,
+      quote,
+      artifacts: [],
+      error: null,
+      createdAt,
+      updatedAt: createdAt,
+      startedAt: createdAt,
+      completedAt: null,
+      parameters,
+      inputs: directReferenceInputs(draft.references, target),
+    };
+    let version = 0;
+    const push = (patch: Partial<PublicGenerationJob>) => {
+      version += 1;
+      updateJob(modality, {
+        ...baseJob,
+        ...patch,
+        version,
+        updatedAt: new Date().toISOString(),
+      });
+    };
+    beginBrowserGeneration(jobId);
+    push({});
+    try {
+      const result = await runDetachedCustomGeneration({
+        modelKey: target.id,
+        modality,
+        body: draft.prompt,
+        parameters,
+        references: directGenerationReferences(draft.references, target),
+        onProgress: (progress) =>
+          push({ progress: Math.max(2, Math.min(99, Math.round(progress))) }),
+      });
+      const artifacts = customGenerationArtifacts(result);
+      push({
+        status: "completed",
+        progress: 100,
+        artifacts,
+        completedAt: new Date().toISOString(),
+      });
+      for (const media of result.media ?? [])
+        void enqueueGeneratedMedia({
+          outputKey: `${jobId}:${media.id}`,
+          createdAt: Date.now(),
+          media,
+        });
+    } catch (cause) {
+      push({
+        status: "failed",
+        progress: 0,
+        error: {
+          code: "BROWSER_GENERATION_FAILED",
+          message: cause instanceof Error ? cause.message : "直连生成没有完成",
+          retryable: true,
+        },
+        completedAt: new Date().toISOString(),
+      });
+    } finally {
+      endBrowserGeneration(jobId);
+    }
+  };
+
   const submit = async () => {
-    if (!model || !draft.quote || inputInvalid || locked) return;
+    if (!model || inputInvalid || locked) return;
+    if (customSelected) {
+      await submitCustom(model);
+      return;
+    }
+    if (!draft.quote) return;
     if (!(await requireAuthenticatedIdentity())) return;
     if (Date.parse(draft.quote.expiresAt) <= Date.now()) {
       updateDraft(modality, {
@@ -1342,6 +1514,7 @@ export function DirectGenerationStudio({
   const status = directStatus({
     draft,
     catalogStateStatus: catalogState.status,
+    customSelected,
     model,
     promptMissing,
     inputInvalid,
@@ -1390,6 +1563,8 @@ export function DirectGenerationStudio({
         <div className="wc-direct-studio-body">
           <form
             className="wc-direct-composer"
+            // 新手教程的「这里是生成工作台」锚点：与入口首屏那份同名，两边都算首屏。
+            data-wc-tour="workbench"
             onSubmit={(event) => {
               event.preventDefault();
               void submit();
@@ -1488,7 +1663,7 @@ export function DirectGenerationStudio({
               <CategorizedModelSelect
                 value={draft.modelId}
                 models={models}
-                disabled={locked || catalogState.status === "loading" || !models.length}
+                disabled={locked || !models.length}
                 onChange={chooseModel}
                 ariaLabel="模型"
               />
@@ -1786,23 +1961,35 @@ export function DirectGenerationStudio({
 
             <div className="wc-direct-submit-row">
               <div className="wc-direct-price" aria-live="polite">
-                <span>本次预计</span>
-                <strong>
-                  {draft.quote
-                    ? `${draft.quote.estimated ? "约 " : ""}${draft.quote.credits} 积分`
-                    : "--"}
-                </strong>
-                {draft.quote ? (
-                  <small>
-                    {draft.quote.yuan} 元 · {pricingUnitText(draft.quote.pricingUnit)}
-                  </small>
-                ) : null}
+                {customSelected ? (
+                  <>
+                    <span>自有 API 直连</span>
+                    <strong>不消耗积分</strong>
+                  </>
+                ) : (
+                  <>
+                    <span>本次预计</span>
+                    <strong>
+                      {draft.quote
+                        ? `${draft.quote.estimated ? "约 " : ""}${draft.quote.credits} 积分`
+                        : "--"}
+                    </strong>
+                    {draft.quote ? (
+                      <small>
+                        {draft.quote.yuan} 元 · {pricingUnitText(draft.quote.pricingUnit)}
+                      </small>
+                    ) : null}
+                  </>
+                )}
               </div>
               <button
                 className="wc-direct-submit"
                 type="submit"
                 disabled={
-                  !model || inputInvalid || !draft.quote || draft.quoteState !== "ready" || locked
+                  !model ||
+                  inputInvalid ||
+                  locked ||
+                  (!customSelected && (!draft.quote || draft.quoteState !== "ready"))
                 }
               >
                 {draft.submitting ? (
@@ -1880,21 +2067,6 @@ export function DirectGenerationStudio({
                           model: "Seedream 4.0 · 1:1",
                           prompt: "黑洞吸积盘，电影级科幻",
                         },
-                        {
-                          img: "wormhole",
-                          model: "Midjourney V7 · 21:9",
-                          prompt: "穿越虫洞的星舰长镜头",
-                        },
-                        {
-                          img: "docking",
-                          model: "FLUX.2 [pro] · 3:4",
-                          prompt: "空间站对接舱特写，金属质感",
-                        },
-                        {
-                          img: "ocean",
-                          model: "GPT Image 2.5 · 16:9",
-                          prompt: "极简产品海报，大量留白",
-                        },
                       ]
                     : [
                         {
@@ -1911,17 +2083,6 @@ export function DirectGenerationStudio({
                           img: "blackhole",
                           model: "Seedance 1.1 · 10 秒",
                           prompt: "黑洞潮汐撕裂，多镜头叙事",
-                        },
-                        { img: "wormhole", model: "Wan 2.5 · 5 秒", prompt: "虫洞坍缩，粒子飞散" },
-                        {
-                          img: "docking",
-                          model: "Sora 2 · 12 秒",
-                          prompt: "对接舱机械臂对接，一镜到底",
-                        },
-                        {
-                          img: "ocean",
-                          model: "Veo 3.1 · 6 秒",
-                          prompt: "日出海面光斑，无人机拉升",
                         },
                       ]
                   ).map((tile, index) => (
@@ -2722,6 +2883,9 @@ function isLocalDecodedUrl(url: string) {
 const generatedArtifactPersistence = new Map<string, Promise<void>>();
 
 function persistGeneratedJobArtifacts(job: PublicGenerationJob) {
+  // 直连（BYOK）结果由 executeCustomGeneration 直接写进本地媒体库，
+  // 没有服务端副本可回源；对它们做缓存只会产生无意义的 404。
+  if (job.id.startsWith("browser:")) return;
   if (job.status !== "completed") return;
   for (const artifact of job.artifacts) {
     if (artifact.kind === "text" || generatedArtifactPersistence.has(artifact.mediaId)) continue;
@@ -3032,6 +3196,7 @@ function jobStatusLabel(status: PublicGenerationJob["status"]) {
 function directStatus({
   draft,
   catalogStateStatus,
+  customSelected,
   model,
   promptMissing,
   inputInvalid,
@@ -3040,6 +3205,7 @@ function directStatus({
 }: {
   draft: DirectDraft;
   catalogStateStatus: "idle" | "loading" | "ready" | "error";
+  customSelected: boolean;
   model: PublicModel | null;
   promptMissing: boolean;
   inputInvalid: boolean;
@@ -3054,13 +3220,21 @@ function directStatus({
   if (activeJobs.length)
     return { tone: "running" as const, text: `${activeJobs.length} 个任务生成中` };
   if (draft.quoteError) return { tone: "error" as const, text: draft.quoteError };
-  if (catalogStateStatus === "error")
-    return { tone: "error" as const, text: "模型目录暂时无法读取" };
-  if (catalogStateStatus === "loading") return { tone: "loading" as const, text: "正在读取模型" };
+  // 直连模型不依赖托管目录：目录读不到也不该拦在门口。
+  if (!customSelected) {
+    if (catalogStateStatus === "error")
+      return { tone: "error" as const, text: "模型目录暂时无法读取" };
+    if (catalogStateStatus === "loading") return { tone: "loading" as const, text: "正在读取模型" };
+  }
   if (!model) return { tone: "idle" as const, text: "暂无可用模型" };
-  if (promptMissing) return { tone: "idle" as const, text: "写下提示词后确认价格" };
+  if (promptMissing)
+    return {
+      tone: "idle" as const,
+      text: customSelected ? "写下提示词后直接生成" : "写下提示词后确认价格",
+    };
   if (inputInvalid) return { tone: "error" as const, text: "请补齐必填参数" };
   if (draft.quoteState === "loading") return { tone: "loading" as const, text: "正在确认价格" };
+  if (customSelected) return { tone: "ready" as const, text: "直连就绪" };
   if (draft.quote) return { tone: "ready" as const, text: "价格已确认" };
   return { tone: "idle" as const, text: "准备开始" };
 }

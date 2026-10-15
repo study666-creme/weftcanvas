@@ -34,7 +34,10 @@ import {
 } from "../lib/prompt-references";
 import { collectUpstreamTextContent } from "../lib/generation-inputs";
 import { useCanvasStore } from "../state/canvas-store";
+import { useUiPreferencesStore, type CompanionAnchor } from "../state/ui-preferences-store";
+import { useUiShellStore } from "../state/ui-shell-store";
 import type { WeftcanvasEdge, WeftcanvasNode } from "../types";
+import { DOCK_RIGHT_CORNER_X } from "./companion-placement";
 import { NodeGenerationPanel } from "./node-generation-panel";
 
 const MAX_REFERENCE_NODES = 32;
@@ -92,7 +95,51 @@ export const NodePromptComposer = memo(function NodePromptComposer({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [mention, setMention] = useState<ActiveMention | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
-  useNodeOverlayPosition(nodeId, shellRef);
+  /**
+   * 输入框摆到节点上方时，节点功能栏让到下面去——用户：「输入框在上面的时候，
+   * 节点上方的功能栏会被挡住，此时应该功能栏到下面去」。方位由覆层布局算出来，
+   * 输入框是唯一知道结果的一方，所以由它上报给外壳 store，节点里的功能栏读同一份
+   * 状态。卸载时只清自己写的那一份。
+   */
+  const publishOverlayPlacement = useCallback(
+    (placement: "above" | "below") => {
+      useUiShellStore.getState().setPromptAboveNodeId(placement === "above" ? nodeId : null);
+    },
+    [nodeId],
+  );
+  useNodeOverlayPosition(nodeId, shellRef, publishOverlayPlacement);
+  useEffect(
+    () => () => {
+      const shell = useUiShellStore.getState();
+      if (shell.promptAboveNodeId === nodeId) shell.setPromptAboveNodeId(null);
+    },
+    [nodeId],
+  );
+
+  /**
+   * 输入框打开时，伙伴趴到它的右上角（用户：「输入框点开的时候是挂在输入框上」
+   * 「挂输入框右上角就行」）；输入框关掉后回到原来的位置——默认就是天上飘着，
+   * 她不再挂节点。
+   *
+   * 只接管「本来没有别的位置」的情况（默认位，或上一次的输入框位）：用户手动把
+   * 她拖到某个面板 / 某个自由位置时，这里不抢。卸载时也只清掉自己写的那一份。
+   */
+  useEffect(() => {
+    const isInputDock = (anchor: CompanionAnchor | null) =>
+      anchor?.kind === "dock" && anchor.dock === "node-prompt";
+    const store = useUiPreferencesStore.getState();
+    const before = store.companionAnchor;
+    if (before && !isInputDock(before)) return;
+    store.setCompanionAnchor({
+      kind: "dock",
+      dock: "node-prompt",
+      x: DOCK_RIGHT_CORNER_X,
+    });
+    return () => {
+      const current = useUiPreferencesStore.getState().companionAnchor;
+      if (isInputDock(current)) useUiPreferencesStore.getState().setCompanionAnchor(before);
+    };
+  }, []);
 
   const candidates = useMemo(
     () => collectMediaCandidates(nodeId, nodes, edges),

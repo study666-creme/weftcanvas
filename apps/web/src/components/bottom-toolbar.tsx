@@ -137,7 +137,7 @@ export const BottomToolbar = memo(function BottomToolbar({
 
   return (
     <>
-      <nav className="wc-create-rail" aria-label="创建工具">
+      <nav className="wc-create-rail" aria-label="创建工具" data-wc-tour="create-rail">
         <div className="wc-create-rail-plus-wrapper">
           <button
             type="button"

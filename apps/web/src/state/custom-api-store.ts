@@ -28,6 +28,7 @@ import {
   type CustomApiProtocolOverride,
   type CustomApiRoute,
   type CustomApiRouteParameter,
+  type CustomGenerationResult,
 } from "../lib/custom-api";
 import { resolveCanvasApiAccess } from "../lib/canvas-api-access";
 import { modelSupportsModality } from "../lib/custom-model-knowledge";
@@ -616,17 +617,21 @@ function createChoice(
   };
 }
 
-function runCustomGeneration(
-  state: CustomApiState,
-  input: {
-    nodeId: string;
-    model: PublicModel;
-    modality: ModelModality;
-    body: string;
-    parameters: Record<string, unknown>;
-    references: GenerationReferences;
-  },
-) {
+type ExecutableCustomChoice = {
+  choice: CustomApiModelChoice;
+  profile: CustomApiProfile;
+  route: CustomApiRoute;
+};
+
+/**
+ * 直连执行的共同入口校验：权益、模型来源、可见性、可执行协议与配置启用状态
+ * 必须全部通过。画布节点与工作台（/generate）共用这一份判据，避免两处漂移。
+ */
+function requireExecutableChoice(
+  state: Pick<CustomApiState, "profiles" | "hiddenModelKeys">,
+  modelKey: string,
+  modality: ModelModality,
+): ExecutableCustomChoice {
   const identityStatus = useIdentityStore.getState().status;
   const walletMembership = useWalletStore.getState().summary?.membership ?? null;
   const access = resolveCanvasApiAccess({
@@ -635,7 +640,7 @@ function runCustomGeneration(
   });
   if (!access.allowed)
     throw new CustomApiError("需要标准会员才能使用画布 API", "CANVAS_API_MEMBERSHIP_REQUIRED");
-  const choice = resolveCustomModelChoice(state, input.model.id, input.modality);
+  const choice = resolveCustomModelChoice(state, modelKey, modality);
   if (!choice)
     throw new CustomApiError(
       "所选模型来源已移除或当前不可用，请重新选择",
@@ -651,6 +656,52 @@ function runCustomGeneration(
   const profile = state.profiles.find((item) => item.id === choice.profileId);
   if (!profile?.enabled)
     throw new CustomApiError("所选 API 配置已停用，请重新选择", "API_PROFILE_DISABLED");
+  return { choice, profile, route: choice.route };
+}
+
+/**
+ * 不依赖画布节点的直连执行（工作台 /generate 用）：与节点路径同一入口校验、
+ * 同一输入准备与执行链，结果直接返回给调用方，由调用方负责展示与落盘。
+ * 失败以 CustomApiError 抛出，绝不伪造成功。
+ */
+export async function runDetachedCustomGeneration(input: {
+  modelKey: string;
+  modality: ModelModality;
+  body: string;
+  parameters: Record<string, unknown>;
+  references: GenerationReferences;
+  onProgress?: (progress: number) => void;
+}): Promise<CustomGenerationResult> {
+  const state = useCustomApiStore.getState();
+  const { choice, profile, route } = requireExecutableChoice(state, input.modelKey, input.modality);
+  const executionModel = { ...choice.model, id: choice.catalogModelId, label: choice.model.label };
+  const prepared = await prepareCustomGenerationInputs(
+    input.references,
+    publicReferenceKinds(route),
+  );
+  input.onProgress?.(6);
+  return executeCustomGeneration({
+    connection: profile.connection,
+    model: executionModel,
+    route,
+    parameters: composeModelParameters(executionModel, input.body, input.parameters),
+    inputs: prepared,
+    onProgress: input.onProgress,
+  });
+}
+
+function runCustomGeneration(
+  state: CustomApiState,
+  input: {
+    nodeId: string;
+    model: PublicModel;
+    modality: ModelModality;
+    body: string;
+    parameters: Record<string, unknown>;
+    references: GenerationReferences;
+  },
+) {
+  const { choice, profile } = requireExecutableChoice(state, input.model.id, input.modality);
   if (input.model.modality !== input.modality)
     throw new CustomApiError("所选模型类型与节点不一致", "MODEL_MODALITY_MISMATCH");
   const executionModel = { ...choice.model, id: choice.catalogModelId, label: input.model.label };

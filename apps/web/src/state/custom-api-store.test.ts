@@ -2,7 +2,26 @@ import type { ModelModality, PublicModel } from "@weftcanvas/contracts";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { CustomApiCatalog } from "../lib/custom-api";
+import type { GenerationReferences } from "../lib/generation-inputs";
 import type { CustomApiProfile } from "./custom-api-store";
+
+vi.mock("../lib/media-store", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/media-store")>();
+  return {
+    ...actual,
+    storeMedia: vi.fn(async (file: File, kind: "image" | "video" | "audio") => ({
+      id: `media-${kind}`,
+      name: file.name,
+      mimeType: file.type,
+      size: file.size,
+      source: "local" as const,
+      serverId: null,
+      width: null,
+      height: null,
+      durationMs: null,
+    })),
+  };
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -200,6 +219,106 @@ describe("channel sync diff", () => {
     });
   });
 });
+
+describe("detached BYOK execution (workbench)", () => {
+  it("runs a selected profile model through the browser connection", async () => {
+    vi.stubGlobal("localStorage", memoryStorage());
+    const module = await import("./custom-api-store");
+    const { customModelKey } = await import("../lib/custom-api");
+    const profileA = profile("detached", "直连 API", "vendor-image");
+    module.useCustomApiStore.setState({ profiles: [profileA], activeProfileId: "detached" });
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          created: 1,
+          data: [{ b64_json: Buffer.from("hello").toString("base64") }],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await module.runDetachedCustomGeneration({
+      modelKey: customModelKey("detached", "image", "vendor-image"),
+      modality: "image",
+      body: "一只猫",
+      parameters: {},
+      references: noReferences(),
+    });
+
+    expect(result.media?.[0]).toMatchObject({ id: "media-image", source: "local" });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe("https://detached.example/v1/images/generations");
+    expect((init as RequestInit).method).toBe("POST");
+    expect(JSON.parse(String((init as RequestInit).body))).toMatchObject({
+      model: "vendor-image",
+      prompt: "一只猫",
+    });
+  });
+
+  it("rejects removed, hidden, and disabled sources without touching the network", async () => {
+    vi.stubGlobal("localStorage", memoryStorage());
+    const module = await import("./custom-api-store");
+    const { customModelKey } = await import("../lib/custom-api");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const profileA = profile("detached", "直连 API", "vendor-image");
+    const key = customModelKey("detached", "image", "vendor-image");
+
+    await expect(
+      module.runDetachedCustomGeneration({
+        modelKey: key,
+        modality: "image",
+        body: "x",
+        parameters: {},
+        references: noReferences(),
+      }),
+    ).rejects.toThrow("来源已移除");
+
+    module.useCustomApiStore.setState({ profiles: [profileA], hiddenModelKeys: [key] });
+    await expect(
+      module.runDetachedCustomGeneration({
+        modelKey: key,
+        modality: "image",
+        body: "x",
+        parameters: {},
+        references: noReferences(),
+      }),
+    ).rejects.toThrow("停用");
+
+    // 停用的配置在选择解析阶段就被跳过：对用户统一表现为「来源已移除」。
+    module.useCustomApiStore.setState({
+      profiles: [{ ...profileA, enabled: false }],
+      hiddenModelKeys: [],
+    });
+    await expect(
+      module.runDetachedCustomGeneration({
+        modelKey: key,
+        modality: "image",
+        body: "x",
+        parameters: {},
+        references: noReferences(),
+      }),
+    ).rejects.toThrow("来源已移除");
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+function noReferences(): GenerationReferences {
+  return {
+    images: [],
+    styleImages: [],
+    elementImages: [],
+    videos: [],
+    audios: [],
+    connectedImages: [],
+    unassignedImages: [],
+    imagePurposes: [],
+    overflow: [],
+    aggregateOverflow: null,
+  };
+}
 
 function profile(
   id: string,

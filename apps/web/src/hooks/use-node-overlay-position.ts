@@ -1,6 +1,10 @@
 import { useStoreApi } from "@xyflow/react";
 import { useCallback, useLayoutEffect, useRef, type RefObject } from "react";
 
+// 覆层上沿停留着画布伙伴（whale girl）：翻到节点上方时必须给她留出身位，
+// 否则她会被挤到覆层下沿去。常量与倾身几何一起放在 companion-placement。
+import { LEDGE_PERCH_ROOM } from "../components/companion-placement";
+
 const VIEWPORT_MARGIN = 16;
 const NODE_GAP = 14;
 const FLOATING_CONTROL_GAP = 20;
@@ -33,8 +37,19 @@ type FlowNodeRect = {
 
 type OverlayPlacement = "below" | "above";
 
-export function useNodeOverlayPosition(nodeId: string, overlayRef: RefObject<HTMLElement | null>) {
+export function useNodeOverlayPosition(
+  nodeId: string,
+  overlayRef: RefObject<HTMLElement | null>,
+  /**
+   * 每次重算落点后上报真实方位。输入框在上方时会压住节点功能栏，功能栏要靠
+   * 这个信号把自己让到节点下面（见 ui-shell-store 的 promptAboveNodeId）。
+   * 用 ref 转存，避免调用方每次渲染换一个新函数就把整个布局 effect 重挂一遍。
+   */
+  onPlacement?: (placement: OverlayPlacement) => void,
+) {
   const flowStore = useStoreApi();
+  const onPlacementRef = useRef(onPlacement);
+  onPlacementRef.current = onPlacement;
   const measuredOverlayWidthRef = useRef<number | null>(null);
   const lastNodeFlowRectRef = useRef<FlowNodeRect | null>(null);
   const shellOffsetRef = useRef<{ left: number; top: number } | null>(null);
@@ -133,10 +148,13 @@ export function useNodeOverlayPosition(nodeId: string, overlayRef: RefObject<HTM
           nodeTop: nodeRect.top,
           viewportHeight: window.innerHeight,
           overlayHeight: measuredOverlayExtent(overlay),
+          // 翻到上方时给趴在她上沿的伙伴留身位，见 LEDGE_PERCH_ROOM。
+          topReserve: LEDGE_PERCH_ROOM,
         })
       : fitOverlayVerticalPosition({ nodeBottom: nodeRect.bottom });
     lastPlacementRef.current = vertical.placement;
     lastOverlayHeightRef.current = overlay.getBoundingClientRect().height || null;
+    onPlacementRef.current?.(vertical.placement);
 
     const leftValue = `${Math.round(left)}px`;
     const topValue = `${vertical.top}px`;
@@ -184,7 +202,9 @@ export function useNodeOverlayPosition(nodeId: string, overlayRef: RefObject<HTM
     const overlayHeight = lastOverlayHeightRef.current;
     const topValue =
       lastPlacementRef.current === "above" && overlayHeight != null
-        ? `${Math.round(Math.max(VIEWPORT_MARGIN, nodeTop - overlayHeight - NODE_GAP))}px`
+        ? `${Math.round(
+            Math.max(VIEWPORT_MARGIN + LEDGE_PERCH_ROOM, nodeTop - overlayHeight - NODE_GAP),
+          )}px`
         : `${Math.round(nodeBottom + NODE_GAP)}px`;
     if (overlay.style.getPropertyValue("--wc-node-overlay-x") !== leftValue) {
       overlay.style.setProperty("--wc-node-overlay-x", leftValue);
@@ -307,6 +327,7 @@ export function fitGenerationOverlayVerticalPosition({
   overlayHeight,
   margin = VIEWPORT_MARGIN,
   gap = NODE_GAP,
+  topReserve = 0,
 }: {
   nodeBottom: number;
   nodeTop: number;
@@ -314,12 +335,14 @@ export function fitGenerationOverlayVerticalPosition({
   overlayHeight: number;
   margin?: number;
   gap?: number;
+  /** 翻到节点上方时额外留出的上边距（趴在覆层上沿的伙伴的身位）。 */
+  topReserve?: number;
 }) {
   const belowTop = nodeBottom + gap;
   if (belowTop + overlayHeight <= viewportHeight - margin) {
     return { top: Math.round(belowTop), placement: "below" as const };
   }
-  const aboveTop = Math.max(margin, nodeTop - overlayHeight - gap);
+  const aboveTop = Math.max(margin + topReserve, nodeTop - overlayHeight - gap);
   return { top: Math.round(aboveTop), placement: "above" as const };
 }
 
