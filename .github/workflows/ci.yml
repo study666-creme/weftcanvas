@@ -113,6 +113,6 @@ jobs:
         with:
           fetch-depth: 0
       # 公共仓库免费；组织账号需要在仓库 secrets 里提供 GITLEAKS_LICENSE。
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
