@@ -33,32 +33,32 @@
 
 白天（石墨）与黑夜（墨黑）两套配色，同一份画布：
 
-| 石墨 · 白天                                    | 墨黑 · 黑夜                                   |
-| ---------------------------------------------- | --------------------------------------------- |
-| ![石墨画布](docs/screenshots/canvas-light.png) | ![墨黑画布](docs/screenshots/canvas-dark.png) |
+| 石墨 · 白天                                       | 墨黑 · 黑夜                                      |
+| ------------------------------------------------- | ------------------------------------------------ |
+| ![石墨画布](docs/screenshots/canvas-light-v2.png) | ![墨黑画布](docs/screenshots/canvas-dark-v2.png) |
 
 **节点生成面板**——选中节点即开，模型、参数、价格一目了然；角落里的蓝发少女（白色是头饰）
 是可拖拽的 Agent 伙伴，平时待在画布上方的默认位，输入框打开时她趴到输入框的右上角：
 
-![节点生成面板](docs/screenshots/generation-panel.png)
+![节点生成面板](docs/screenshots/generation-panel-v2.png)
 
 **模型选择器**——按厂商/系列分类，每个模型带简介与服务端聚合的真实成功率（能量条）：
 
-![模型选择器](docs/screenshots/model-picker.png)
+![模型选择器](docs/screenshots/model-picker-v2.png)
 
 **BYOK 外接 API**——填自己的 OpenAI 兼容或 Gemini 原生端点，请求由浏览器直发、Key 只落本机；
 支持多份配置、拉取上游模型目录：
 
-![BYOK 外接 API 配置](docs/screenshots/byok-settings.png)
+![BYOK 外接 API 配置](docs/screenshots/byok-settings-v2.png)
 
 **外观与样式**——节点/界面风格、配色（石墨 / 墨黑 / 纯黑）、背景（网格 / 点阵 / 星空 / 水面）、
 生成特效、默认画幅，逐项可换：
 
-![外观与样式设置](docs/screenshots/appearance-styles.png)
+![外观与样式设置](docs/screenshots/appearance-styles-v2.png)
 
 **资产库**——本地素材、提示词、分类管理，拖进画布即用：
 
-![资产库](docs/screenshots/asset-library.png)
+![资产库](docs/screenshots/asset-library-v2.png)
 
 **3D 导演台**——Three.js 预演空间：摆人物道具、定机位、逐镜头截图回画布：
 
