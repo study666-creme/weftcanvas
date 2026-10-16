@@ -323,10 +323,17 @@ export function OnboardingTour({
               跳过
             </button>
           )}
-          <button type="button" className="wc-tour-next" onClick={runPrimary}>
-            {primaryLabel}
-            <ArrowRight aria-hidden="true" />
-          </button>
+          {advanceOn && !isLast ? (
+            // 动手类步骤不给"下一步"：先把动作做出来，教程自己往前走。
+            <button type="button" className="wc-tour-next" disabled title={step.advanceHint}>
+              {step.advanceHint ?? "做一次就继续"}
+            </button>
+          ) : (
+            <button type="button" className="wc-tour-next" onClick={runPrimary}>
+              {primaryLabel}
+              <ArrowRight aria-hidden="true" />
+            </button>
+          )}
         </footer>
       </aside>
     </>,

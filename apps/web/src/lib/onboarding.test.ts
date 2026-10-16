@@ -39,7 +39,7 @@ describe("新手教程步骤表", () => {
       "ctrl-zoom",
     ]);
     const pan = ONBOARDING_STEPS.find((step) => step.id === "space-pan")!;
-    expect(pan.keys).toContain("Space");
+    expect(pan.keys).toContain("空格键");
     const zoom = ONBOARDING_STEPS.find((step) => step.id === "ctrl-zoom")!;
     expect(zoom.keys).toContain("Ctrl / ⌘");
     expect(ONBOARDING_STEPS.find((step) => step.id === "create-node")!.advanceOn).toBe(

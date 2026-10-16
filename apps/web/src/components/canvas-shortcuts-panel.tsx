@@ -6,7 +6,7 @@ const shortcutGroups = [
   {
     title: "画布导航",
     items: [
-      { keys: ["Space"], label: "按住平移画布" },
+      { keys: ["空格键"], label: "按住平移画布" },
       { keys: ["滚轮"], label: "上下移动画布" },
       { keys: ["Ctrl", "滚轮"], label: "缩放画布" },
       { keys: ["双击空白"], label: "创建节点" },

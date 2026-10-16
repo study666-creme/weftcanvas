@@ -41,6 +41,8 @@ export type OnboardingStep = {
   action?: "enter-canvas" | "goto-workbench";
   /** 做出动作即自动前进。 */
   advanceOn?: OnboardingAdvance;
+  /** 动手类步骤底部提示（该步不给"下一步"按钮）。 */
+  advanceHint?: string;
 };
 
 export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
@@ -88,6 +90,7 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     title: "创建第一个节点",
     body: "在画布空白处双击，或者点上面这个「+」选一种节点类型。节点就是画布上的一件素材或一段文字。",
     advanceOn: "node-created",
+    advanceHint: "创建一个节点后自动继续",
   },
   {
     id: "space-pan",
@@ -97,8 +100,9 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     placement: "center",
     title: "按住空格拖动画面",
     body: "按住空格键不放，再用鼠标拖动，就能平移整块画布；松开空格即恢复正常操作。",
-    keys: ["Space", "拖动"],
+    keys: ["空格键", "拖动"],
     advanceOn: "space-drag",
+    advanceHint: "拖一次后自动继续",
   },
   {
     id: "ctrl-zoom",
@@ -110,6 +114,7 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     body: "按住 Ctrl（Mac 上是 ⌘）滚动滚轮即可放大缩小；左下角这条缩放条也能直接拖。",
     keys: ["Ctrl / ⌘", "滚轮"],
     advanceOn: "wheel-zoom",
+    advanceHint: "缩放一次后自动继续",
   },
 ];
 

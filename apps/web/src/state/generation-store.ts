@@ -372,6 +372,9 @@ function readStoredCatalogs(): Record<ModelModality, CatalogState> {
       const parsed = publicModelCatalogSchema.safeParse(entry.data);
       if (!parsed.success || parsed.data.models.some((model) => model.modality !== modality))
         continue;
+      // 空目录不当缓存用：站点先把模型全下架、之后又放开时，浏览器里那份"0 个模型"
+      // 会被当成新鲜数据一直用下去（模型选择器永远是空的）。丢掉它，让这次启动去重拉。
+      if (!parsed.data.models.length) continue;
       catalogs[modality] = {
         status: "ready",
         data: parsed.data,

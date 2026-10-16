@@ -190,6 +190,20 @@
   background: color-mix(in srgb, var(--wc-tour-accent) 20%, transparent);
 }
 
+/* 动手类步骤（创建节点 / 空格拖动 / Ctrl 缩放）不给"下一步"：没做动作就翻页，
+   下一步会落在没有参照物的空画布上（用户：「按住空格键拖动前应该要让用户创建一个
+   节点，否则看不出来拖动，没参照物」）。按钮变成一句提示，做完自动前进。 */
+.wc-tour-next[disabled] {
+  cursor: default;
+  color: var(--wc-text-tertiary);
+  border-color: color-mix(in srgb, var(--wc-border-strong) 70%, transparent);
+  background: none;
+}
+
+.wc-tour-next[disabled]:hover {
+  background: none;
+}
+
 .wc-tour-next svg {
   width: 13px;
   height: 13px;

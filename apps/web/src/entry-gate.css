@@ -3684,7 +3684,10 @@
   position: relative;
   display: grid;
   min-width: 0;
-  min-height: 56px;
+  /* 一行三列比原来的两列两行矮了一行，工作台整页跟着短了（用户：「画布工作台页面
+     太短了，搞成以前一样长就行了」）。把这一行的格子撑到两行版块的高度，页面总长
+     回到原样，卡片仍是一行三列。 */
+  min-height: 118px;
   padding: 11px 16px;
   grid-template-columns: 22px minmax(0, 1fr) 17px;
   align-items: center;
