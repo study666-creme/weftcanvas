@@ -19,6 +19,31 @@ mode the runtime forwards any syntactically valid model id; Canvas API remains
 the authority because it only offers ids present in the published platform model
 catalog, and merges that catalog's text models into the Agent model picker.
 
+## Execution permission and skills
+
+Both arrive on the run request (`apps/agent/src/request.ts`) and are frozen by
+Canvas API before the run starts, so changing a setting never rewrites a run
+already in flight.
+
+- `executionPermission` picks the action boundary and is injected as a rule in
+  the system prompt: `read_only` (analyse only, no actions at all),
+  `request_approval` (the default; canvas writes become a confirmation card) and
+  `auto` (canvas structure writes go straight to `direct`). Generation stays out
+  of every tier — choosing a model and spending credits is the creator's call,
+  so the Agent only ever suggests it.
+- `skills` carries the skills the creator enabled for this run (at most four,
+  `packages/contracts/src/skill.ts`). Their text is injected as one more system
+  message and is explicitly framed as a task playbook that neither overrides the
+  system rules nor widens the action or tool surface. We import them only from
+  the creator (single `SKILL.md` files): the public skill ecosystem measurably
+  contains malicious packages, so nothing is installed automatically and no
+  scripts are ever executed.
+
+The prompt also instructs the Agent to deliver creative output (story, settings,
+storyboard, shot prompts) **as canvas text nodes** through `canvas_add_node`
+instead of pasting a long document into the chat, so the creator gets something
+they can immediately see, wire up and generate from.
+
 ## Local connectors
 
 Two machine-local connections live in this process and are toggled from the

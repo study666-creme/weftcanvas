@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { canvasNodeKindSchema } from "./canvas.js";
+import { agentSkillLimits } from "./skill.js";
 
 export const AGENT_SCHEMA_VERSION = 1 as const;
 /** 单条消息正文上限：只防极端内存问题，不限制模型能输出多长的剧本。 */
@@ -301,6 +302,29 @@ export const agentExecutionModes = ["none", "direct", "proposal"] as const;
 export const agentExecutionModeSchema = z.enum(agentExecutionModes);
 export type AgentExecutionMode = z.infer<typeof agentExecutionModeSchema>;
 
+/**
+ * 执行权限档：用户自己的设置，决定 Agent 能不能直接改画布。
+ * - `read_only`：只分析与建议，写类动作一律不下发；
+ * - `request_approval`（默认）：写画布前先给一张提案卡，用户确认后才落地；
+ * - `auto`：已授权的画布操作直接落地（生成类动作仍单独审批——模型与积分是创作者的
+ *   决定，不该被"全权"顺手带过）。
+ */
+export const agentExecutionPermissions = ["read_only", "request_approval", "auto"] as const;
+export const agentExecutionPermissionSchema = z.enum(agentExecutionPermissions);
+export type AgentExecutionPermission = z.infer<typeof agentExecutionPermissionSchema>;
+
+export const agentExecutionPermissionLabels: Record<AgentExecutionPermission, string> = {
+  read_only: "只读",
+  request_approval: "请求审批",
+  auto: "自动执行",
+};
+
+export const agentExecutionPermissionHints: Record<AgentExecutionPermission, string> = {
+  read_only: "只分析和建议，不动画布",
+  request_approval: "写画布前先确认",
+  auto: "直接落地已授权的画布操作",
+};
+
 export const agentProposalStatuses = ["pending", "confirmed", "dismissed"] as const;
 export const agentProposalStatusSchema = z.enum(agentProposalStatuses);
 export type AgentProposalStatus = z.infer<typeof agentProposalStatusSchema>;
@@ -403,6 +427,10 @@ export const agentRunSchema = z.object({
   status: agentRunStatusSchema,
   actions: z.array(agentActionSchema).max(32).default([]),
   executionMode: agentExecutionModeSchema.default("none"),
+  /** 本轮生效的执行权限档（用户设置的值随运行一起冻结）。 */
+  executionPermission: agentExecutionPermissionSchema.default("request_approval"),
+  /** 本轮启用的技能 id（正文不落记录，只留清单供界面显示）。 */
+  skillIds: z.array(z.string().uuid()).max(agentSkillLimits.enabledPerRun).default([]),
   proposal: agentProposalSchema.nullable().default(null),
   proposalStatus: agentProposalStatusSchema.nullable().default(null),
   contextRevision: agentContextRevisionSchema,
@@ -544,6 +572,13 @@ export const agentMessageCreateRequestSchema = z
     modelId: agentModelIdSchema.optional(),
     /** 思考强度档位，取值必须来自所选模型的 thinking.levels。 */
     reasoningEffort: z.string().trim().min(1).max(24).optional(),
+    /**
+     * 本轮执行权限档；缺省按"请求审批"。服务端会把它冻结进运行记录，
+     * 之后再改设置也不会改变已发出的这一轮。
+     */
+    executionPermission: agentExecutionPermissionSchema.optional(),
+    /** 本轮启用的技能 id（最多 4 个；服务端只接受本人已导入的技能）。 */
+    skillIds: z.array(z.string().uuid()).max(agentSkillLimits.enabledPerRun).optional(),
     canvasContext: agentCanvasContextSchema,
   })
   .strict();

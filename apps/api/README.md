@@ -51,27 +51,33 @@ proxies that path to the API during local development.
 
 ## Routes
 
-| Method | Path                                 | Purpose                                                                                                                                    |
-| ------ | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `GET`  | `/api/health`                        | Process health without a catalog fetch                                                                                                     |
-| `POST` | `/api/v1/auth/register`              | Register through the configured identity provider                                                                                          |
-| `POST` | `/api/v1/auth/login`                 | Verify credentials and issue a new session                                                                                                 |
-| `GET`  | `/api/v1/auth/session`               | Read the current session or return `data: null`                                                                                            |
-| `POST` | `/api/v1/auth/logout`                | Revoke the current session and clear its cookie                                                                                            |
-| `POST` | `/api/v1/media/uploads`              | Create an owner-scoped, idempotent upload intent                                                                                           |
-| `PUT`  | `/api/v1/media/:id/content`          | Stream exact upload bytes and validate the result                                                                                          |
-| `POST` | `/api/v1/media/:id/complete`         | Validate and publish a completed direct upload                                                                                             |
-| `GET`  | `/api/v1/media/:id`                  | Read private media metadata and processing status                                                                                          |
-| `GET`  | `/api/v1/media/:id/content`          | Read private media bytes with single-range support                                                                                         |
-| `GET`  | `/api/v1/provider-media/:id/content` | HMAC-signed, short-lived model reference delivery                                                                                          |
-| `GET`  | `/api/v1/model-catalog`              | Validated public catalog; optional `modality` query                                                                                        |
-| `GET`  | `/api/v1/model-catalog/version`      | Catalog, capability, and pricing versions                                                                                                  |
-| `POST` | `/api/v1/generation-quotes`          | Parameter validation and fixed-precision advisory quote                                                                                    |
-| `POST` | `/api/v1/generation-jobs`            | Revalidate, reserve, and create an authenticated task                                                                                      |
-| `GET`  | `/api/v1/generation-jobs`            | List owner tasks; optional `projectId` and bounded `limit`                                                                                 |
-| `GET`  | `/api/v1/generation-jobs/:id`        | Read one owner-scoped task snapshot                                                                                                        |
-| `GET`  | `/api/v1/generation-jobs/reconcile`  | Read-only resolution of one durable request by `?key=` idempotency identity; `404` on miss; never submits, mutates, or contacts a provider |
-| `GET`  | `/api/v1/generation-jobs/:id/events` | Versioned SSE snapshots with reconnect support                                                                                             |
+| Method   | Path                                 | Purpose                                                                                                                                    |
+| -------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET`    | `/api/health`                        | Process health without a catalog fetch                                                                                                     |
+| `POST`   | `/api/v1/auth/register`              | Register through the configured identity provider                                                                                          |
+| `POST`   | `/api/v1/auth/login`                 | Verify credentials and issue a new session                                                                                                 |
+| `GET`    | `/api/v1/auth/session`               | Read the current session or return `data: null`                                                                                            |
+| `POST`   | `/api/v1/auth/logout`                | Revoke the current session and clear its cookie                                                                                            |
+| `POST`   | `/api/v1/media/uploads`              | Create an owner-scoped, idempotent upload intent                                                                                           |
+| `PUT`    | `/api/v1/media/:id/content`          | Stream exact upload bytes and validate the result                                                                                          |
+| `POST`   | `/api/v1/media/:id/complete`         | Validate and publish a completed direct upload                                                                                             |
+| `GET`    | `/api/v1/media/:id`                  | Read private media metadata and processing status                                                                                          |
+| `GET`    | `/api/v1/media/:id/content`          | Read private media bytes with single-range support                                                                                         |
+| `GET`    | `/api/v1/provider-media/:id/content` | HMAC-signed, short-lived model reference delivery                                                                                          |
+| `GET`    | `/api/v1/model-catalog`              | Validated public catalog; optional `modality` query                                                                                        |
+| `GET`    | `/api/v1/model-catalog/version`      | Catalog, capability, and pricing versions                                                                                                  |
+| `POST`   | `/api/v1/generation-quotes`          | Parameter validation and fixed-precision advisory quote                                                                                    |
+| `POST`   | `/api/v1/generation-jobs`            | Revalidate, reserve, and create an authenticated task                                                                                      |
+| `GET`    | `/api/v1/generation-jobs`            | List owner tasks; optional `projectId` and bounded `limit`                                                                                 |
+| `GET`    | `/api/v1/generation-jobs/:id`        | Read one owner-scoped task snapshot                                                                                                        |
+| `GET`    | `/api/v1/generation-jobs/reconcile`  | Read-only resolution of one durable request by `?key=` idempotency identity; `404` on miss; never submits, mutates, or contacts a provider |
+| `GET`    | `/api/v1/generation-jobs/:id/events` | Versioned SSE snapshots with reconnect support                                                                                             |
+| `GET`    | `/api/v1/canvas-import/providers`    | Which third-party canvas sources are configured (`libtv` needs the server token)                                                           |
+| `POST`   | `/api/v1/canvas-import/preview`      | Read a LibTV / TapNow / UpDream canvas into nodes, edges, and skip reasons                                                                 |
+| `GET`    | `/api/v1/canvas-import/asset`        | Same-origin proxy for one imported asset; allowlisted host, per-hop guard, type and size caps                                              |
+| `GET`    | `/api/v1/agent/skills`               | List the caller's imported Agent skills (summaries only; never bodies)                                                                     |
+| `POST`   | `/api/v1/agent/skills`               | Import one `SKILL.md` as a single file (no archives, no scripts); `201` on success                                                         |
+| `DELETE` | `/api/v1/agent/skills/:skillId`      | Delete one of the caller's skills                                                                                                          |
 
 Catalog responses support `ETag`. Quote and identity responses use
 `Cache-Control: no-store` where applicable. Credential endpoints accept JSON
@@ -155,20 +161,22 @@ four submissions or four charges.
 
 ## Environment
 
-| Variable                     | Default                                                                                   | Meaning                                                               |
-| ---------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `PORT`                       | `8787`                                                                                    | API listen port                                                       |
-| `WEFTCANVAS_CATALOG_URL`     | `https://your-gateway.example.com/api/model-catalog`（托管部署由私有 overlay 提供默认值） | Server-side public catalog source                                     |
-| `CATALOG_SNAPSHOT_PATH`      | `.data/model-catalog.json`                                                                | Last-known-good server snapshot                                       |
-| `DATABASE_URL`               | none                                                                                      | PostgreSQL connection used by identity, media, wallets, and jobs      |
-| `APP_ORIGINS`                | none                                                                                      | Comma-separated exact browser origins accepted for account writes     |
-| `SESSION_COOKIE_SECURE`      | production: `true`                                                                        | Require HTTPS for the identity cookie                                 |
-| `SESSION_COOKIE_NAME`        | secure: `__Host-weftcanvas_session`                                                       | Identity cookie name                                                  |
-| `SESSION_TTL_SECONDS`        | `2592000`                                                                                 | Absolute session lifetime; accepted range is 1 hour to 90 days        |
-| `REGISTRATION_CREDIT_MICROS` | `0`                                                                                       | Optional initial wallet credit in integer microcredits                |
-| `MEDIA_STORAGE_DRIVER`       | `filesystem`                                                                              | `filesystem` for local/single-host use or `s3` for online deployments |
-| `MEDIA_STORAGE_PATH`         | `.data/media-objects`                                                                     | Filesystem object root when the filesystem driver is selected         |
-| `MEDIA_SIGNING_SECRET`       | none                                                                                      | At least 32 random bytes for short-lived provider media URLs          |
+| Variable                     | Default                                                                                   | Meaning                                                                                 |
+| ---------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `PORT`                       | `8787`                                                                                    | API listen port                                                                         |
+| `WEFTCANVAS_CATALOG_URL`     | `https://your-gateway.example.com/api/model-catalog`（托管部署由私有 overlay 提供默认值） | Server-side public catalog source                                                       |
+| `CATALOG_SNAPSHOT_PATH`      | `.data/model-catalog.json`                                                                | Last-known-good server snapshot                                                         |
+| `DATABASE_URL`               | none                                                                                      | PostgreSQL connection used by identity, media, wallets, and jobs                        |
+| `APP_ORIGINS`                | none                                                                                      | Comma-separated exact browser origins accepted for account writes                       |
+| `SESSION_COOKIE_SECURE`      | production: `true`                                                                        | Require HTTPS for the identity cookie                                                   |
+| `SESSION_COOKIE_NAME`        | secure: `__Host-weftcanvas_session`                                                       | Identity cookie name                                                                    |
+| `SESSION_TTL_SECONDS`        | `2592000`                                                                                 | Absolute session lifetime; accepted range is 1 hour to 90 days                          |
+| `REGISTRATION_CREDIT_MICROS` | `0`                                                                                       | Optional initial wallet credit in integer microcredits                                  |
+| `MEDIA_STORAGE_DRIVER`       | `filesystem`                                                                              | `filesystem` for local/single-host use or `s3` for online deployments                   |
+| `MEDIA_STORAGE_PATH`         | `.data/media-objects`                                                                     | Filesystem object root when the filesystem driver is selected                           |
+| `MEDIA_SIGNING_SECRET`       | none                                                                                      | At least 32 random bytes for short-lived provider media URLs                            |
+| `LIBTV_CANVAS_TOKEN`         | none                                                                                      | LibTV canvas token for third-party import; unset means LibTV reports unavailable        |
+| `SKILLS_PATH`                | `.data/skills`                                                                            | Owner-scoped Agent skill files (one directory per skill, user-imported `SKILL.md` only) |
 
 Generation API controls default to three active tasks per account, ten submit
 attempts per minute, 100 per UTC day, 180 status reads per minute, 30 SSE starts

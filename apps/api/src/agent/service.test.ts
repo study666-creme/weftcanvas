@@ -355,3 +355,136 @@ describe("AgentService credit billing", () => {
     expect(refund.mock.calls[0][0].refId).toBe(secondCharge);
   });
 });
+
+describe("AgentService execution permission", () => {
+  /** 执行器回一条"建一个文本节点"的 direct 结果，用来观察权限档怎么落地。 */
+  function permissionHarness() {
+    const calls: Array<{ executionPermission: string; skills: unknown[] }> = [];
+    const executor: AgentExecutor = {
+      getModels: async () => runtimeCatalog,
+      execute: async (request) => {
+        calls.push({
+          executionPermission: request.executionPermission,
+          skills: request.skills,
+        });
+        return {
+          content: "已写好这一集的开场。",
+          actions: [
+            {
+              type: "canvas_add_node" as const,
+              clientId: "story-1",
+              kind: "text" as const,
+              body: "第一场：雨夜，医院走廊。",
+            },
+          ],
+          executionMode: "direct" as const,
+          proposal: null,
+        };
+      },
+    };
+    const service = new AgentService(new MemoryAgentStore(), {
+      executor,
+      skills: {
+        read: async (_ownerId, id) =>
+          id !== skillId
+            ? null
+            : {
+                id,
+                name: "分镜脚本编写",
+                description: "把故事拆成可拍的分镜",
+                body: "1. 先确定每场的功能。",
+                size: 20,
+                hash: "hash",
+                createdAt: "2026-10-16T12:00:00.000Z",
+                updatedAt: "2026-10-16T12:00:00.000Z",
+              },
+      },
+    });
+    return { service, calls };
+  }
+
+  const skillId = "33333333-3333-4333-8333-333333333333";
+
+  async function runOnce(service: AgentService, body: Record<string, unknown>, key: string) {
+    const conversation = await service.createConversation(OWNER_ID, { projectId: PROJECT_ID });
+    await service.submitMessage(
+      OWNER_ID,
+      conversation.id,
+      { ...submitFixture(key), ...body },
+      undefined,
+    );
+    // 运行是异步推进的（读运行记录 / 读技能都有各自的 await），等状态落到终态再断言。
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      const detail = await service.getDetail(OWNER_ID, conversation.id);
+      const status = detail.latestRun?.status;
+      if (status && status !== "queued" && status !== "running") return detail;
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    }
+    return service.getDetail(OWNER_ID, conversation.id);
+  }
+
+  it("默认请求审批：写节点转成待确认提案", async () => {
+    const { service } = permissionHarness();
+    const detail = await runOnce(service, {}, "key-perm-default");
+    expect(detail.latestRun?.executionPermission).toBe("request_approval");
+    expect(detail.latestRun?.executionMode).toBe("proposal");
+    expect(detail.latestRun?.proposalStatus).toBe("pending");
+  });
+
+  it("自动执行：同一批动作直接落地", async () => {
+    const { service } = permissionHarness();
+    const detail = await runOnce(service, { executionPermission: "auto" }, "key-perm-auto");
+    expect(detail.latestRun?.executionMode).toBe("direct");
+    expect(detail.latestRun?.proposal).toBeNull();
+    expect(detail.latestRun?.actions).toHaveLength(1);
+  });
+
+  it("只读：动作一个都不下发", async () => {
+    const { service, calls } = permissionHarness();
+    const detail = await runOnce(
+      service,
+      { executionPermission: "read_only" },
+      "key-perm-readonly",
+    );
+    expect(calls[0]?.executionPermission).toBe("read_only");
+    expect(detail.latestRun?.executionMode).toBe("none");
+    expect(detail.latestRun?.actions).toEqual([]);
+    // 正文照常返回：只读是"不改画布"，不是"不回答"。
+    // 两条消息可能落在同一毫秒里，所以按角色找而不是按下标。
+    expect(
+      detail.messages.some(
+        (message) => message.role === "assistant" && message.content.includes("开场"),
+      ),
+    ).toBe(true);
+  });
+
+  it("本轮启用的技能随运行冻结，正文读出来交给运行时", async () => {
+    const { service, calls } = permissionHarness();
+    const detail = await runOnce(service, { skillIds: [skillId] }, "key-skill-1");
+    expect(detail.latestRun?.skillIds).toEqual([skillId]);
+    expect(calls[0]?.skills).toEqual([
+      {
+        id: skillId,
+        name: "分镜脚本编写",
+        description: "把故事拆成可拍的分镜",
+        body: "1. 先确定每场的功能。",
+      },
+    ]);
+  });
+
+  it("技能库没配置或技能读不到时，如实当没启用，不编造内容", async () => {
+    const withoutStore = permissionHarness().service;
+    const detail = await runOnce(withoutStore, { skillIds: [skillId] }, "key-skill-2");
+    expect(detail.latestRun?.skillIds).toEqual([skillId]);
+
+    const { service, calls } = permissionHarness();
+    const missing = await runOnce(
+      service,
+      { skillIds: ["44444444-4444-4444-8444-444444444444"] },
+      "key-skill-3",
+    );
+    // 读不到的技能既不下发也不记进本轮清单：界面上不会出现"已启用但其实没生效"。
+    expect(missing.latestRun?.skillIds).toEqual([]);
+    expect(calls[0]?.skills).toEqual([]);
+  });
+});

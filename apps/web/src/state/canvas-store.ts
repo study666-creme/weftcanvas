@@ -118,6 +118,21 @@ type CanvasState = {
   applyAgentActions: (actions: AgentAction[]) => AgentCanvasActionResult;
   addNode: (kind: CanvasNodeKind, position: XYPosition) => string;
   addImportedNodes: (items: CanvasInsertInput[]) => string[];
+  /**
+   * 整块插入（第三方画布导入）：一次落节点与连线，id 由本 store 分配，
+   * 连线用插入顺序的下标引用新节点。与 addImportedNodes 的差别只有一个——
+   * 它顺带把连线也建出来，且整块进同一条撤销记录。
+   */
+  addImportedGraph: (
+    nodes: Array<{
+      kind: CanvasNodeKind;
+      position: XYPosition;
+      data?: Partial<CanvasNodeData>;
+      width?: number;
+      height?: number;
+    }>,
+    edges: Array<{ sourceIndex: number; targetIndex: number }>,
+  ) => string[];
   addCapturedImages: (items: CapturedImageInput[], sourceNodeId?: string | null) => string[];
   addConnectedNode: (
     anchorId: string,
@@ -1108,6 +1123,39 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     });
     void useMembershipTaskStore.getState().recordNodeCreated();
     return inserted.map((node) => node.id);
+  },
+  addImportedGraph: (nodes, edges) => {
+    if (!nodes.length) return [];
+    const state = get();
+    const before = cloneGraph(state.nodes, state.edges, state.groups);
+    const defaultNodeAspectRatio = currentDefaultNodeAspectRatio();
+    // 导入的节点带着来源画布的尺寸：先按来源尺寸建卡，再补媒体尺寸兜底，
+    // 这样对方画布的相对大小关系能保留下来。
+    const created = nodes.map((item) => {
+      const node = createCanvasNode(item.kind, item.position, item.data, defaultNodeAspectRatio);
+      if (item.width && item.height) {
+        node.width = item.width;
+        node.height = item.height;
+      }
+      return node.data.media ? resizeNodeForMedia(node, node.data.media) : node;
+    });
+    const createdEdges: WeftcanvasEdge[] = [];
+    for (const edge of edges) {
+      const source = created[edge.sourceIndex];
+      const target = created[edge.targetIndex];
+      if (!source || !target || source.id === target.id) continue;
+      if (isDuplicateConnection([...state.edges, ...createdEdges], source.id, target.id)) continue;
+      createdEdges.push(createCanvasEdge(source.id, target.id));
+    }
+    set({
+      nodes: [...state.nodes.map((node) => ({ ...node, selected: false })), ...created],
+      edges: [...state.edges.map((edge) => ({ ...edge, selected: false })), ...createdEdges],
+      past: pushPast(state, before),
+      future: [],
+      saveState: "saving",
+    });
+    void useMembershipTaskStore.getState().recordNodeCreated();
+    return created.map((node) => node.id);
   },
   addCapturedImages: (items, sourceNodeId = null) => {
     if (!items.length) return [];

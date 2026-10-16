@@ -1,5 +1,7 @@
 import { Boxes, Clock4, Coins, Keyboard, Menu, Moon, PanelsTopLeft, Sun } from "lucide-react";
-import { memo, useEffect, type RefObject } from "react";
+import { memo, useEffect, useState, type RefObject } from "react";
+
+import type { CanvasImportProvider } from "@weftcanvas/contracts";
 
 import type { ThemeMode } from "../App";
 import { useCanvasStore } from "../state/canvas-store";
@@ -11,6 +13,7 @@ import {
 import { useProjectAssetStore } from "../state/project-asset-store";
 import { useProjectLibraryStore } from "../state/project-library-store";
 import { useWalletStore } from "../state/wallet-store";
+import { CanvasImportDialog, CanvasImportMenu } from "./third-party-canvas-import";
 import { TopBarSettings } from "./top-bar-settings";
 
 type TopBarProps = {
@@ -67,6 +70,8 @@ export const TopBar = memo(function TopBar({
   const activeMembershipTier = membership?.active ? (membership.tier?.toLowerCase() ?? null) : null;
   const claimableTaskCount = countClaimableMembershipTasks(membershipTasks);
   const isAuthenticated = identityStatus === "authenticated";
+  // 导入第三方画布：来源选择与对话框都在顶栏这一层，导入过程本身由画布 store 负责。
+  const [importProvider, setImportProvider] = useState<CanvasImportProvider | null>(null);
 
   // 顶栏 mount 时若需要预拉取任务列表（用于角标），但不在每次渲染都打——保持轻量
   useEffect(() => {
@@ -145,6 +150,8 @@ export const TopBar = memo(function TopBar({
             </span>
           ) : null}
         </button>
+        {/* 项目级动作：导入第三方画布（LibTV / TapNow / UpDream）——选来源后弹对话框 */}
+        <CanvasImportMenu onOpen={setImportProvider} />
       </div>
 
       <div className="wc-topbar-actions">
@@ -238,6 +245,13 @@ export const TopBar = memo(function TopBar({
           </button>
         ) : null}
       </div>
+      {importProvider ? (
+        <CanvasImportDialog
+          key={importProvider}
+          provider={importProvider}
+          onClose={() => setImportProvider(null)}
+        />
+      ) : null}
     </header>
   );
 });

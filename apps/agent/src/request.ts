@@ -1,11 +1,16 @@
 import {
   agentCanvasContextSchema,
   agentConversationSchema,
+  agentExecutionPermissionSchema,
   agentMessageSchema,
   agentModelIdSchema,
+  agentSkillRunContextSchema,
+  agentSkillLimits,
   type AgentCanvasContext,
   type AgentConversation,
+  type AgentExecutionPermission,
   type AgentMessage,
+  type AgentSkillRunContext,
 } from "@weftcanvas/contracts";
 import { z } from "zod";
 
@@ -15,6 +20,10 @@ export const agentExecutionRequestSchema = z
   .object({
     modelId: agentModelIdSchema,
     reasoningEffort: z.string().trim().min(1).max(24).optional(),
+    /** 用户设置的本轮执行权限档；缺省按最保守的"请求审批"。 */
+    executionPermission: agentExecutionPermissionSchema.default("request_approval"),
+    /** 本轮启用的技能（API 侧已校验归属并裁剪过长度）。 */
+    skills: z.array(agentSkillRunContextSchema).max(agentSkillLimits.enabledPerRun).default([]),
     conversation: agentConversationSchema,
     messages: z.array(agentMessageSchema).min(1).max(500),
     canvasContext: agentCanvasContextSchema,
@@ -65,6 +74,8 @@ export const agentExecutionRequestSchema = z
 export type AgentExecutionRequest = {
   modelId: string;
   reasoningEffort?: string;
+  executionPermission: AgentExecutionPermission;
+  skills: AgentSkillRunContext[];
   conversation: AgentConversation;
   messages: AgentMessage[];
   canvasContext: AgentCanvasContext;

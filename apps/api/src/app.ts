@@ -19,6 +19,10 @@ import {
   canvasControlPendingResponseSchema,
   canvasControlReceiptRequestSchema,
   canvasControlReceiptResponseSchema,
+  canvasImportPreviewResponseSchema,
+  canvasImportProviderSchema,
+  canvasImportProvidersResponseSchema,
+  canvasImportRequestSchema,
   connectorClientListResponseSchema,
   connectorPairingResponseSchema,
   agentConnectorIds,
@@ -32,6 +36,10 @@ import {
   agentConversationListResponseSchema,
   agentConversationResponseSchema,
   agentModelCatalogResponseSchema,
+  agentSkillDeleteResponseSchema,
+  agentSkillImportRequestSchema,
+  agentSkillListResponseSchema,
+  agentSkillResponseSchema,
   apiErrorSchema,
   generationJobEventSchema,
   generationJobListResponseSchema,
@@ -56,6 +64,7 @@ import {
   mediaUploadIntentSchema,
   mediaUploadIntentResponseSchema,
   mediaUploadRequestSchema,
+  type MediaKind,
   membershipTaskActionResponseSchema,
   membershipTaskCenterResponseSchema,
   membershipTaskKeySchema,
@@ -125,6 +134,15 @@ import type { CloudResourceService } from "./media/cloud-resource-service.js";
 import type { MediaMultipartService } from "./media/multipart-service.js";
 import { SignedMediaAccess } from "./media/signed-access.js";
 import { isBlockedTargetUrl } from "./identity/safe-host.js";
+import {
+  canvasImportProviderStatus,
+  loadCanvasImportPreview,
+  type CanvasImportConfig,
+} from "./canvas-import/service.js";
+import { AgentSkillStoreError, type AgentSkillStore } from "./skills/store.js";
+import { CanvasImportError } from "./canvas-import/adapt.js";
+import { isAllowedMediaHost } from "./canvas-import/reference.js";
+import { guardedFetch } from "./outbound/guarded-fetch.js";
 import { CloudProjectService, CloudProjectServiceError } from "./project/service.js";
 import {
   CollaborationServiceError,
@@ -250,6 +268,16 @@ type ApiDependencies = {
     globalReadsPerMinute?: number;
     now?: () => number;
   };
+  /**
+   * 第三方画布导入（LibTV / TapNow / UpDream）的来源配置。缺省时 LibTV 如实报
+   * 不可用，TapNow/UpDream 是公开分享链接、不需要密钥。
+   */
+  canvasImport?: CanvasImportConfig;
+  /**
+   * 用户自导入 Agent 技能的文件存储。缺省时 /api/v1/agent/skills 整个面 404
+   *（与 announcements / modelOverrides 同款）；注入后只服务调用者本人。
+   */
+  agentSkills?: AgentSkillStore;
   catalog: Pick<WeftcanvasCatalogAdapter, "getCatalog">;
   /** 账号侧内容库（收藏卡片/社区）的路由挂载器：私有 overlay 提供；开源构建缺省不挂载。 */
   registerAccountRoutes?: AccountRouteRegistrar;
@@ -326,6 +354,14 @@ const MUSIC_PAGE_MAX_BYTES = 512 * 1024;
 const MUSIC_STREAM_MAX_BYTES = 100 * 1024 * 1024;
 const MUSIC_COVER_MAX_BYTES = 10 * 1024 * 1024;
 const MUSIC_AUDIO_URL_PATTERN = /\.(mp3|flac|wav|wave|ogg|oga|m4a|aac|opus|weba)$/i;
+// 第三方画布素材代拉上限：与媒体层的同类上限一致（图片 25MB / 视频 512MB /
+// 音频 100MB），浏览器本地媒体库的上限也取同一组数字，避免"服务端放行、前端
+// 落库时才失败"的错位。
+const MEDIA_PROXY_MAX_BYTES: Record<MediaKind, number> = {
+  image: 25 * 1024 * 1024,
+  video: 512 * 1024 * 1024,
+  audio: 100 * 1024 * 1024,
+};
 const MUSIC_FETCH_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
@@ -644,6 +680,161 @@ export function createApiApp(dependencies: ApiDependencies) {
     } finally {
       clearTimeout(timer);
     }
+  });
+
+  // —— 第三方画布导入（LibTV / TapNow / UpDream）—————————————————————————
+  // 与音乐链接同一套约定：对方画布由服务端读取，素材由浏览器经同源代理路径拉
+  // 进本地媒体库，节点里不落任何第三方媒体直链。素材代拉复用音乐那套逐跳
+  // SSRF 守卫，另加一层按来源核验的域名白名单。
+  app.get("/api/v1/canvas-import/providers", async (context) => {
+    const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
+    if (session instanceof Response) return session;
+    context.header("Cache-Control", "no-store");
+    return context.json(
+      canvasImportProvidersResponseSchema.parse({
+        ok: true,
+        data: { providers: canvasImportProviderStatus(dependencies.canvasImport ?? {}) },
+      }),
+    );
+  });
+
+  app.post("/api/v1/canvas-import/preview", async (context) => {
+    const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
+    if (session instanceof Response) return session;
+    const body = await readJsonBody(context);
+    if (body instanceof Response) return body;
+    const parsed = canvasImportRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return errorResponse(context, 422, "INVALID_CANVAS_IMPORT", "请填写要导入的第三方画布链接");
+    }
+    try {
+      const data = await loadCanvasImportPreview(parsed.data, dependencies.canvasImport ?? {});
+      context.header("Cache-Control", "no-store");
+      return context.json(canvasImportPreviewResponseSchema.parse({ ok: true, data }));
+    } catch (error) {
+      if (error instanceof CanvasImportError)
+        return errorResponse(context, error.status, error.code, error.message);
+      return errorResponse(context, 503, "IMPORT_SOURCE_UNAVAILABLE", "暂时读不到这个第三方画布");
+    }
+  });
+
+  // 素材代拉：白名单域名 + 逐跳 SSRF 守卫 + 声明类型门槛 + 按类型的大小上限，
+  // 响应只回必要头。Range 透传，视频拖动进度条依赖 206。
+  app.get("/api/v1/canvas-import/asset", async (context) => {
+    const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
+    if (session instanceof Response) return session;
+    const input = z
+      .object({ p: canvasImportProviderSchema, u: z.string().url().max(4_096) })
+      .parse(context.req.query());
+    let target: URL;
+    try {
+      target = new URL(input.u);
+    } catch {
+      return errorResponse(context, 400, "IMPORT_ASSET_INVALID", "素材地址不合法");
+    }
+    if (target.protocol !== "https:" || target.username || target.password) {
+      return errorResponse(context, 400, "IMPORT_ASSET_BLOCKED", "素材地址不受支持");
+    }
+    if (!isAllowedMediaHost(input.p, target.hostname)) {
+      return errorResponse(context, 400, "IMPORT_ASSET_BLOCKED", "这个素材不在允许代拉的域名里");
+    }
+    const range = context.req.header("range");
+    const controller = new AbortController();
+    const connectTimer = setTimeout(() => controller.abort(), MUSIC_RESOLVE_TIMEOUT_MS);
+    let upstream: Response;
+    try {
+      upstream = await guardedFetch(input.u, {
+        accept: "image/avif,image/webp,image/png,image/jpeg,image/*,video/*,audio/*,*/*;q=0.5",
+        signal: controller.signal,
+        range,
+        userAgent: MUSIC_FETCH_UA,
+        maxRedirects: MEDIA_PROXY_MAX_REDIRECT_HOPS,
+        // 白名单按跳校验：对方 CDN 302 到别家主机同样要拦下来。
+        allowHost: (hostname) => isAllowedMediaHost(input.p, hostname),
+        fetch: dependencies.canvasImport?.fetch,
+        fail: (failure) =>
+          failure === "blocked" || failure === "host-not-allowed"
+            ? new CanvasImportError(400, "IMPORT_ASSET_BLOCKED", "该素材地址不可用")
+            : new CanvasImportError(503, "IMPORT_ASSET_FAILED", "这个素材暂时拉不到"),
+      });
+    } catch (error) {
+      if (error instanceof CanvasImportError)
+        return errorResponse(context, error.status, error.code, error.message);
+      if (error instanceof Error && error.name === "AbortError") {
+        return errorResponse(context, 503, "IMPORT_ASSET_TIMEOUT", "素材源连接超时");
+      }
+      return errorResponse(context, 503, "IMPORT_ASSET_FAILED", "这个素材暂时拉不到");
+    } finally {
+      clearTimeout(connectTimer);
+    }
+    if (!upstream.ok && upstream.status !== 206) {
+      await upstream.body?.cancel().catch(() => undefined);
+      return errorResponse(context, 503, "IMPORT_ASSET_UNAVAILABLE", "素材源没有返回内容");
+    }
+    const contentType =
+      (upstream.headers.get("content-type") || "").split(";")[0]?.trim().toLowerCase() ?? "";
+    const mediaKind = contentType.startsWith("image/")
+      ? "image"
+      : contentType.startsWith("video/")
+        ? "video"
+        : contentType.startsWith("audio/")
+          ? "audio"
+          : "";
+    if (!mediaKind) {
+      await upstream.body?.cancel().catch(() => undefined);
+      return errorResponse(
+        context,
+        415,
+        "IMPORT_ASSET_UNSUPPORTED",
+        "这个素材不是图片、视频或音频",
+      );
+    }
+    const maxBytes = MEDIA_PROXY_MAX_BYTES[mediaKind];
+    const contentLength = Number(upstream.headers.get("content-length") || 0);
+    if (contentLength > maxBytes) {
+      await upstream.body?.cancel().catch(() => undefined);
+      return errorResponse(
+        context,
+        413,
+        "IMPORT_ASSET_TOO_LARGE",
+        "这个素材超出了可导入的大小上限",
+      );
+    }
+    if (!upstream.body) {
+      return errorResponse(context, 503, "IMPORT_ASSET_FAILED", "这个素材暂时拉不到");
+    }
+    const headers = new Headers();
+    headers.set("Content-Type", contentType);
+    headers.set("Cache-Control", "private, max-age=300");
+    headers.set("X-Content-Type-Options", "nosniff");
+    if (contentLength) headers.set("Content-Length", String(contentLength));
+    const contentRange = upstream.headers.get("content-range");
+    if (contentRange) headers.set("Content-Range", contentRange);
+    headers.set("Accept-Ranges", upstream.headers.get("accept-ranges") || "bytes");
+
+    // 边下边限流：即使上游没给 Content-Length 也不会拉爆内存。
+    const reader = upstream.body.getReader();
+    let totalBytes = 0;
+    const body = new ReadableStream<Uint8Array>({
+      async pull(streamController) {
+        const { done, value } = await reader.read();
+        if (done) {
+          streamController.close();
+          return;
+        }
+        totalBytes += value.length;
+        if (totalBytes > maxBytes) {
+          await reader.cancel().catch(() => undefined);
+          streamController.error(new Error("IMPORT_ASSET_TOO_LARGE"));
+          return;
+        }
+        streamController.enqueue(value);
+      },
+      async cancel() {
+        await reader.cancel().catch(() => undefined);
+      },
+    });
+    return new Response(body, { status: upstream.status === 206 ? 206 : 200, headers });
   });
 
   app.get("/api/v1/model-catalog", async (context) => {
@@ -1642,6 +1833,78 @@ export function createApiApp(dependencies: ApiDependencies) {
     }
     refreshIdentityCookie(context, identityCookie, result);
     return context.json(walletRedeemResponseSchema.parse({ ok: true, data: result.data }));
+  });
+
+  // —— 用户自导入的 Agent 技能 ——————————————————————————————————————————
+  // 只有本会话拥有者能看到、导入、删除自己的技能：技能正文会直接进模型上下文，
+  // 这里不做任何跨账号读取。存储未注入时整个面 404（与公告/模型覆盖同款）。
+  app.get("/api/v1/agent/skills", async (context) => {
+    if (!dependencies.agentSkills) return context.notFound();
+    const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
+    if (session instanceof Response) return session;
+    const skills = await dependencies.agentSkills.list(session.user.id);
+    context.header("Cache-Control", "no-store");
+    return context.json(agentSkillListResponseSchema.parse({ ok: true, data: skills }));
+  });
+
+  app.post("/api/v1/agent/skills", async (context) => {
+    if (!dependencies.agentSkills) return context.notFound();
+    if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点导入 Agent 技能",
+      );
+    }
+    const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
+    if (session instanceof Response) return session;
+    const body = await readJsonBody(context);
+    if (body instanceof Response) return body;
+    const parsed = agentSkillImportRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return errorResponse(context, 422, "INVALID_SKILL", "技能内容格式不正确");
+    }
+    try {
+      const skill = await dependencies.agentSkills.save(session.user.id, parsed.data.content);
+      context.header("Cache-Control", "no-store");
+      return context.json(agentSkillResponseSchema.parse({ ok: true, data: skill }), 201);
+    } catch (error) {
+      if (error instanceof AgentSkillStoreError) {
+        const status = error.code === "SKILL_LIMIT_EXCEEDED" ? 409 : 422;
+        return errorResponse(context, status, error.code, error.message);
+      }
+      throw error;
+    }
+  });
+
+  app.delete("/api/v1/agent/skills/:skillId", async (context) => {
+    if (!dependencies.agentSkills) return context.notFound();
+    if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
+      return errorResponse(
+        context,
+        403,
+        "CROSS_SITE_REQUEST_REJECTED",
+        "无法从其他站点删除 Agent 技能",
+      );
+    }
+    const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
+    if (session instanceof Response) return session;
+    const deleted = await dependencies.agentSkills.remove(
+      session.user.id,
+      context.req.param("skillId"),
+    );
+    if (!deleted) {
+      context.header("Cache-Control", "no-store");
+      return errorResponse(context, 404, "SKILL_NOT_FOUND", "没有找到这个技能");
+    }
+    context.header("Cache-Control", "no-store");
+    return context.json(
+      agentSkillDeleteResponseSchema.parse({
+        ok: true,
+        data: { id: context.req.param("skillId"), deleted: true },
+      }),
+    );
   });
 
   app.get("/api/v1/agent/models", async (context) => {
@@ -2932,42 +3195,31 @@ function detectMusicSource(url: URL): MusicLinkSource {
 }
 
 /**
- * 手动跟随重定向的守卫式抓取：每一跳重新过 SSRF 守卫（redirect:"follow"
- * 只校验初始 URL，302 到 169.254.169.254 的绕过就发生在这）。
+ * 音乐链接代拉：守卫逻辑在 `outbound/guarded-fetch.ts`（第三方画布素材代拉共用
+ * 同一套逐跳校验），这里只负责把失败原因翻成音乐自己的错误码与文案。
  */
 async function musicGuardedFetch(
   url: string,
   init: { accept: string; signal: AbortSignal; range?: string },
 ) {
-  let current = url;
-  for (let hop = 0; hop <= MEDIA_PROXY_MAX_REDIRECT_HOPS; hop += 1) {
-    const blocked = await isBlockedTargetUrl(current);
-    if (blocked) throw new MusicProxyError(400, "MUSIC_URL_BLOCKED", "该链接不可用");
-    const attempt = await fetch(current, {
-      headers: {
-        Accept: init.accept,
-        "User-Agent": MUSIC_FETCH_UA,
-        ...(init.range ? { Range: init.range } : {}),
-      },
-      redirect: "manual",
-      signal: init.signal,
-    });
-    if (![301, 302, 303, 307, 308].includes(attempt.status)) return attempt;
-    await attempt.body?.cancel().catch(() => undefined);
-    const location = attempt.headers.get("location");
-    if (!location) throw new MusicProxyError(503, "MUSIC_FETCH_FAILED", "链接没有返回内容");
-    let next: URL;
-    try {
-      next = new URL(location, current);
-    } catch {
-      throw new MusicProxyError(400, "MUSIC_URL_BLOCKED", "重定向目标不合法");
-    }
-    if (next.protocol !== "http:" && next.protocol !== "https:") {
-      throw new MusicProxyError(400, "MUSIC_URL_BLOCKED", "重定向协议不允许");
-    }
-    current = next.toString();
-  }
-  throw new MusicProxyError(503, "MUSIC_FETCH_FAILED", "重定向次数过多");
+  return guardedFetch(url, {
+    accept: init.accept,
+    signal: init.signal,
+    range: init.range,
+    userAgent: MUSIC_FETCH_UA,
+    maxRedirects: MEDIA_PROXY_MAX_REDIRECT_HOPS,
+    fail: (failure) => {
+      if (failure === "missing-location")
+        return new MusicProxyError(503, "MUSIC_FETCH_FAILED", "链接没有返回内容");
+      if (failure === "invalid-redirect")
+        return new MusicProxyError(400, "MUSIC_URL_BLOCKED", "重定向目标不合法");
+      if (failure === "redirect-protocol")
+        return new MusicProxyError(400, "MUSIC_URL_BLOCKED", "重定向协议不允许");
+      if (failure === "too-many-redirects")
+        return new MusicProxyError(503, "MUSIC_FETCH_FAILED", "重定向次数过多");
+      return new MusicProxyError(400, "MUSIC_URL_BLOCKED", "该链接不可用");
+    },
+  });
 }
 
 /** 音频魔数（WAV/FLAC/MP3/AAC/Ogg/MP4-M4A）；MP4 容器音频视频共用，由声明类型把关。 */

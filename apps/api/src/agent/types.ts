@@ -4,6 +4,7 @@ import type {
   AgentConversation,
   AgentConversationDetail,
   AgentExecutionMode,
+  AgentExecutionPermission,
   AgentExecutionReceipt,
   AgentMessage,
   AgentModelCatalog,
@@ -11,6 +12,8 @@ import type {
   AgentProposalDraft,
   AgentRun,
   AgentRunError,
+  AgentSkill,
+  AgentSkillRunContext,
 } from "@weftcanvas/contracts";
 
 export type AgentConversationRecord = AgentConversation & {
@@ -73,6 +76,10 @@ export type AgentExecutionRequest = {
   modelId: string;
   /** 思考强度档位，透传给运行时的 OpenAI 兼容请求。 */
   reasoningEffort?: string;
+  /** 本轮执行权限档（已随运行冻结）。 */
+  executionPermission: AgentExecutionPermission;
+  /** 本轮启用的技能（正文由 API 侧从技能库读出并裁剪）。 */
+  skills: AgentSkillRunContext[];
   conversation: AgentConversation;
   messages: AgentMessage[];
   canvasContext: AgentCanvasContext;
@@ -80,6 +87,14 @@ export type AgentExecutionRequest = {
   ownerId?: string;
   remoteConnectors?: { blender: boolean };
 };
+
+/**
+ * Agent 只读技能库的最小面：技能存储由 `apps/api/src/skills` 提供，
+ * 这里只声明服务层需要的那一个方法（子集接口，避免把存储实现耦合进 Agent）。
+ */
+export interface AgentSkillReader {
+  read(ownerId: string, id: string): Promise<AgentSkill | null>;
+}
 
 export interface AgentExecutor {
   getModels(): Promise<AgentModelCatalog>;

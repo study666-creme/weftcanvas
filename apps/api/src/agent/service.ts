@@ -16,16 +16,19 @@ import {
   agentProposalSchema,
   agentRunSchema,
   agentThinkingSchema,
+  agentSkillLimits,
   type AgentAction,
   type AgentExecutionMode,
+  type AgentExecutionPermission,
   type AgentModelCatalog,
   type AgentProposalDraft,
   type AgentRunError,
+  type AgentSkillRunContext,
 } from "@weftcanvas/contracts";
 import { z } from "zod";
 
 import type { AgentConnectorId } from "@weftcanvas/contracts";
-import type { AgentExecutor, AgentStore } from "./types.js";
+import type { AgentExecutor, AgentSkillReader, AgentStore } from "./types.js";
 
 const MAX_AGENT_MODELS = 64;
 const projectIdSchema = z.string().trim().min(1).max(128);
@@ -120,6 +123,8 @@ type AgentServiceOptions = {
   };
   /** Agent 每轮固定计费依赖；缺省时不扣费（测试/本地）。 */
   billing?: AgentBilling;
+  /** 技能库只读面；未配置时本轮启用的技能会被忽略（不伪造内容）。 */
+  skills?: AgentSkillReader;
 };
 
 export class AgentService {
@@ -129,6 +134,7 @@ export class AgentService {
   private readonly textModels?: AgentServiceOptions["textModels"];
   private readonly connectorClients?: AgentServiceOptions["connectorClients"];
   private readonly billing?: AgentBilling;
+  private readonly skills?: AgentSkillReader;
   private readonly activeRuns = new Map<string, AbortController>();
 
   constructor(
@@ -141,6 +147,38 @@ export class AgentService {
     this.textModels = options.textModels;
     this.connectorClients = options.connectorClients;
     this.billing = options.billing;
+    this.skills = options.skills;
+  }
+
+  /**
+   * 读出本轮启用的技能正文。技能是用户自己导入的工作流说明，正文直接进上下文，
+   * 所以这里收两道上限：条数（契约的 enabledPerRun）与合计字符数；读不到的
+   * 技能（已删除/存储不可用）直接跳过，绝不编造内容顶上。
+   */
+  private async loadSkillContext(
+    ownerId: string,
+    skillIds: readonly string[],
+  ): Promise<AgentSkillRunContext[]> {
+    if (!this.skills || !skillIds.length) return [];
+    const unique = [...new Set(skillIds)].slice(0, agentSkillLimits.enabledPerRun);
+    const loaded = await Promise.all(
+      unique.map((id) => this.skills!.read(ownerId, id).catch(() => null)),
+    );
+    const contexts: AgentSkillRunContext[] = [];
+    let budget = agentSkillLimits.promptCharsPerRun;
+    for (const skill of loaded) {
+      if (!skill || budget <= 0) continue;
+      const body = skill.body.slice(0, Math.min(budget, 8_000));
+      if (!body.trim()) continue;
+      budget -= body.length;
+      contexts.push({
+        id: skill.id,
+        name: skill.name,
+        description: skill.description,
+        body,
+      });
+    }
+    return contexts;
   }
 
   private remoteBlenderOnline(ownerId: string) {
@@ -268,6 +306,9 @@ export class AgentService {
     }
     const modelId = await this.resolveModelId(input.modelId);
     const reasoningEffort = await this.resolveReasoningEffort(modelId, input.reasoningEffort);
+    // 执行权限档随运行冻结：这一轮发出后再改设置，不会改变已经排队的这一轮。
+    const executionPermission = input.executionPermission ?? "request_approval";
+    const skills = await this.loadSkillContext(ownerId, input.skillIds ?? []);
 
     // 先确定 runId，再以 agent-run:<runId> 作为幂等 refId 预扣本轮积分；
     // 扣费失败（余额不足）时不落任何消息/任务，直接抛出。
@@ -295,6 +336,8 @@ export class AgentService {
         status: "queued",
         actions: [],
         executionMode: "none",
+        executionPermission,
+        skillIds: skills.map((skill) => skill.id),
         proposal: null,
         proposalStatus: null,
         contextRevision: input.canvasContext.contextRevision,
@@ -438,10 +481,16 @@ export class AgentService {
       const detail = await this.store.getDetail(ownerId, conversationId);
       if (!detail) return;
       if (controller.signal.aborted) return;
+      // 权限档与技能清单以运行记录为准（提交时已冻结），技能正文此刻从库里现读。
+      const frozen = await this.store.getRun(ownerId, runId);
+      const executionPermission = frozen?.executionPermission ?? "request_approval";
+      const skills = await this.loadSkillContext(ownerId, frozen?.skillIds ?? []);
       const result = await this.executor!.execute(
         {
           modelId,
           ...(reasoningEffort ? { reasoningEffort } : {}),
+          executionPermission,
+          skills,
           conversation: detail.conversation,
           messages: detail.messages,
           canvasContext: await this.runContext(ownerId, runId),
@@ -461,7 +510,7 @@ export class AgentService {
         content,
         createdAt: this.timestamp(),
       });
-      const execution = normalizeExecutionResult(result, this.createId);
+      const execution = normalizeExecutionResult(result, this.createId, executionPermission);
       await this.store.completeRun(ownerId, runId, message, execution, this.timestamp());
     } catch (cause) {
       if (!controller.signal.aborted) {
@@ -553,6 +602,15 @@ export class AgentService {
   }
 }
 
+/**
+ * 执行权限档决定动作怎么落地：
+ * - 只读：动作一个都不留（模型仍可在 content 里解释它想做什么）；
+ * - 自动执行：画布写入类动作也允许 direct，直接落地；
+ * - 请求审批（默认）：只有无破坏性的低风险动作 direct，其余转成待确认提案。
+ *
+ * 生成类动作不在本仓库的动作集里（Agent 不触发生成），所以"自动执行"放开的只是
+ * 画布结构写入；模型与积分始终由创作者自己决定。
+ */
 function normalizeExecutionResult(
   result: {
     actions: AgentAction[];
@@ -560,12 +618,18 @@ function normalizeExecutionResult(
     proposal?: AgentProposalDraft | null;
   },
   createId: () => string,
+  permission: AgentExecutionPermission = "request_approval",
 ) {
   const actions = result.actions;
   if (!actions.length) {
     return { actions, executionMode: "none" as const, proposal: null, proposalStatus: null };
   }
-  if (result.executionMode === "direct" && actions.every(isDirectAction)) {
+  if (permission === "read_only") {
+    return { actions: [], executionMode: "none" as const, proposal: null, proposalStatus: null };
+  }
+  const allowedDirect = (action: AgentAction) =>
+    permission === "auto" ? isAutoDirectAction(action) : isDirectAction(action);
+  if (result.executionMode === "direct" && actions.every(allowedDirect)) {
     return { actions, executionMode: "direct" as const, proposal: null, proposalStatus: null };
   }
   const draft = result.proposal ?? {
@@ -616,6 +680,18 @@ function isDirectAction(action: AgentAction) {
     action.type === "ui_close_panel" ||
     action.type === "ui_set_theme" ||
     action.type === "ui_set_color_scheme"
+  );
+}
+
+/**
+ * 自动执行档下允许 direct 的动作：在上面那组低风险动作之外，再加上画布结构写入
+ * （建节点、改正文、建组/解组已在其中）。不做删除：动作集里本来就没有删除动作。
+ */
+function isAutoDirectAction(action: AgentAction) {
+  return (
+    isDirectAction(action) ||
+    action.type === "canvas_add_node" ||
+    action.type === "canvas_update_node"
   );
 }
 

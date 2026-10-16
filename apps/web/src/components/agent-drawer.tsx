@@ -7,6 +7,7 @@ import {
   CircleAlert,
   CircleStop,
   Copy,
+  Download,
   FilePlus2,
   History,
   Maximize2,
@@ -24,10 +25,16 @@ import type {
   AgentConversation,
   AgentCreativeGuidance,
   AgentCreativeMode,
+  AgentExecutionPermission,
   AgentMessage as AgentMessageData,
   AgentRun,
 } from "@weftcanvas/contracts";
-import { MAX_AGENT_MESSAGE_CHARS } from "@weftcanvas/contracts";
+import {
+  agentExecutionPermissionHints,
+  agentExecutionPermissionLabels,
+  agentExecutionPermissions,
+  MAX_AGENT_MESSAGE_CHARS,
+} from "@weftcanvas/contracts";
 import {
   memo,
   useEffect,
@@ -45,15 +52,17 @@ import {
   readProfessionalBaselineStatus,
   writeAgentCreativeGuidance,
 } from "../lib/agent-creative-guidance";
+import { downloadAgentConversationExport } from "../lib/agent-conversation-export";
 import { nodeCreationDimensions } from "../lib/node-factory";
 import { readCurrentAgentCanvasContext } from "../lib/current-canvas-context";
 import { useAgentStore } from "../state/agent-store";
 import { useCanvasStore } from "../state/canvas-store";
 import { useUiPreferencesStore } from "../state/ui-preferences-store";
 import { useIdentityStore } from "../state/identity-store";
-import { useToastStore } from "../state/toast-store";
+import { useToastStore, type ToastTone } from "../state/toast-store";
 import { AgentConnectorsPanel } from "./agent-connectors-panel";
 import { AgentModelSelect } from "./agent-model-select";
+import { AgentSkillsMenu } from "./agent-skills-menu";
 import { CanvasSelect } from "./canvas-select";
 import { companionStyleLabel, nextCompanionStyle } from "./agent-companion";
 
@@ -71,6 +80,14 @@ const CREATIVE_MODE_OPTIONS: Array<{
     title: "先确定画面比例、画风与目标时长基线，再按专业阶段推进创作",
   },
 ];
+
+/** 执行权限档：标签与提示语都来自 contracts，避免界面与协议各自为政。 */
+const EXECUTION_PERMISSION_OPTIONS = agentExecutionPermissions.map((value) => ({
+  value,
+  label: agentExecutionPermissionLabels[value],
+  title: agentExecutionPermissionHints[value],
+  detail: agentExecutionPermissionHints[value],
+}));
 
 type BaselineField = keyof Pick<
   AgentCreativeGuidance["baseline"],
@@ -133,6 +150,42 @@ function thinkingLevelLabel(level: string) {
   return AGENT_THINKING_LABELS[level] ?? level;
 }
 
+/** 把一段内容落成画布上的文本节点（放在当前视口中心）；阅读浮层与消息工具共用这一条路径。返回是否创建成功。 */
+function createTextNodeFromContent(
+  body: string,
+  showToast: (message: string, tone: ToastTone) => void,
+) {
+  const text = body.trim();
+  if (!text) {
+    showToast("内容为空，无法创建节点", "error");
+    return false;
+  }
+  try {
+    const state = useCanvasStore.getState();
+    const shell = document.querySelector<HTMLElement>(".wc-flow-shell");
+    const rect = shell?.getBoundingClientRect();
+    const viewport = state.viewport;
+    const screenX = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
+    const screenY = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
+    const flowX = (screenX - (rect?.left ?? 0) - viewport.x) / (viewport.zoom || 1);
+    const flowY = (screenY - (rect?.top ?? 0) - viewport.y) / (viewport.zoom || 1);
+    const dimensions = nodeCreationDimensions(
+      "text",
+      useUiPreferencesStore.getState().defaultNodeAspectRatio,
+    );
+    const id = state.addNode("text", {
+      x: flowX - dimensions.width / 2,
+      y: flowY - dimensions.height / 2,
+    });
+    state.updateNodeData(id, { body: text }, false);
+    showToast("已创建文本节点", "success");
+    return true;
+  } catch (cause) {
+    showToast(cause instanceof Error ? cause.message : "创建文本节点失败", "error");
+    return false;
+  }
+}
+
 export const AgentDrawer = memo(function AgentDrawer() {
   const open = useAgentStore((state) => state.open);
   const close = useAgentStore((state) => state.close);
@@ -149,6 +202,9 @@ export const AgentDrawer = memo(function AgentDrawer() {
   const setReasoningEffort = useAgentStore((state) => state.setReasoningEffort);
   const load = useAgentStore((state) => state.load);
   const loadModels = useAgentStore((state) => state.loadModels);
+  const loadSkills = useAgentStore((state) => state.loadSkills);
+  const executionPermission = useAgentStore((state) => state.executionPermission);
+  const setExecutionPermission = useAgentStore((state) => state.setExecutionPermission);
   const setSelectedModelId = useAgentStore((state) => state.setSelectedModelId);
   const reset = useAgentStore((state) => state.reset);
   const createConversation = useAgentStore((state) => state.createConversation);
@@ -236,9 +292,9 @@ export const AgentDrawer = memo(function AgentDrawer() {
     previousIdentityMode.current = identityMode;
     if (identityChanged) reset();
     if (open && identityStatus === "authenticated") {
-      void Promise.all([load(projectId, identityChanged), loadModels(true)]);
+      void Promise.all([load(projectId, identityChanged), loadModels(true), loadSkills()]);
     }
-  }, [identityMode, identityStatus, load, loadModels, open, projectId, reset]);
+  }, [identityMode, identityStatus, load, loadModels, loadSkills, open, projectId, reset]);
 
   useEffect(() => {
     const nextGuidance = readAgentCreativeGuidance(projectId);
@@ -419,34 +475,7 @@ export const AgentDrawer = memo(function AgentDrawer() {
 
   /** 把这条内容变成画布上的文本节点（放在当前视口中心）。 */
   const createTextNodeFromMessage = (body: string) => {
-    const text = body.trim();
-    if (!text) {
-      showToast("内容为空，无法创建节点", "error");
-      return;
-    }
-    try {
-      const state = useCanvasStore.getState();
-      const shell = document.querySelector<HTMLElement>(".wc-flow-shell");
-      const rect = shell?.getBoundingClientRect();
-      const viewport = state.viewport;
-      const screenX = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
-      const screenY = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
-      const flowX = (screenX - (rect?.left ?? 0) - viewport.x) / (viewport.zoom || 1);
-      const flowY = (screenY - (rect?.top ?? 0) - viewport.y) / (viewport.zoom || 1);
-      const dimensions = nodeCreationDimensions(
-        "text",
-        useUiPreferencesStore.getState().defaultNodeAspectRatio,
-      );
-      const id = state.addNode("text", {
-        x: flowX - dimensions.width / 2,
-        y: flowY - dimensions.height / 2,
-      });
-      state.updateNodeData(id, { body: text }, false);
-      showToast("已创建文本节点", "success");
-      setReaderMessage(null);
-    } catch (cause) {
-      showToast(cause instanceof Error ? cause.message : "创建文本节点失败", "error");
-    }
+    if (createTextNodeFromContent(body, showToast)) setReaderMessage(null);
   };
 
   const submit = async () => {
@@ -612,6 +641,24 @@ export const AgentDrawer = memo(function AgentDrawer() {
               <Plug aria-hidden="true" />
             </button>
           ) : null}
+          {isAuthenticated && detail ? (
+            <button
+              type="button"
+              className="wc-agent-header-button"
+              aria-label="导出当前对话"
+              title="导出当前对话为 JSON（已脱敏）"
+              onClick={() => {
+                try {
+                  downloadAgentConversationExport(detail);
+                  showToast("已导出当前对话", "success");
+                } catch {
+                  showToast("导出失败，请稍后再试", "error");
+                }
+              }}
+            >
+              <Download aria-hidden="true" />
+            </button>
+          ) : null}
           <button
             type="button"
             className="wc-agent-header-button"
@@ -681,6 +728,7 @@ export const AgentDrawer = memo(function AgentDrawer() {
                     setReaderMessage(target);
                     setReaderDraft(target.content);
                   }}
+                  onCreate={(content) => createTextNodeFromMessage(content)}
                 />
               ))}
               {activeBaselineStep ? (
@@ -801,6 +849,19 @@ export const AgentDrawer = memo(function AgentDrawer() {
             onKeyDown={onComposerKeyDown}
           />
           <div className="wc-agent-composer-footer">
+            <div className="wc-agent-composer-extra">
+              <CanvasSelect
+                className="wc-agent-permission-select"
+                ariaLabel="执行权限"
+                value={executionPermission}
+                options={EXECUTION_PERMISSION_OPTIONS}
+                onChange={(next) => setExecutionPermission(next as AgentExecutionPermission)}
+                disabled={busy}
+                variant="compact"
+                menuMinWidth={200}
+              />
+              <AgentSkillsMenu disabled={busy} />
+            </div>
             <CanvasSelect
               className="wc-agent-mode-select wc-agent-mode-select--footer"
               ariaLabel="创作协作模式"
@@ -1124,10 +1185,12 @@ const AgentMessageItem = memo(function AgentMessageItem({
   message,
   onOpen,
   onCopy,
+  onCreate,
 }: {
   message: AgentMessageData;
   onOpen: (message: AgentMessageData) => void;
   onCopy: (content: string) => void;
+  onCreate: (content: string) => void;
 }) {
   const time = formatMessageTime(message.createdAt);
   const sender = message.role === "assistant" ? "Agent" : "你";
@@ -1161,6 +1224,15 @@ const AgentMessageItem = memo(function AgentMessageItem({
             onClick={() => onCopy(message.content)}
           >
             <Copy aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="wc-agent-message-tool"
+            aria-label={`创建节点（这条${sender}消息）`}
+            title="创建节点"
+            onClick={() => onCreate(message.content)}
+          >
+            <FilePlus2 aria-hidden="true" />
           </button>
           <button
             type="button"

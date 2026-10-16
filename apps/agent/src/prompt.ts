@@ -1,8 +1,11 @@
 import {
   DEFAULT_AGENT_CREATIVE_GUIDANCE,
+  agentSkillLimits,
   type AgentCanvasContext,
   type AgentCreativeGuidance,
+  type AgentExecutionPermission,
   type AgentMessage,
+  type AgentSkillRunContext,
 } from "@weftcanvas/contracts";
 
 import {
@@ -31,6 +34,33 @@ const SYSTEM_PROMPT_BASE = [
   "回复使用简洁中文，优先可操作建议，避免空泛营销腔。",
 ].join("\n");
 
+/**
+ * 创作产物默认落成画布节点，而不是在对话里贴一整段让创作者自己复制。
+ * 这是产品判断：节点能立刻被看见、被连线、被生成，对话里的长文只能被复制。
+ */
+const CREATIVE_OUTPUT_RULE = [
+  "创作产物（故事、人物与场景设定、分镜脚本、镜头提示词清单）默认以画布节点交付：用 canvas_add_node 建文本节点，一个节点放一节内容。",
+  "长内容拆成多个节点（每个 body 保持在上面的长度上限内），不要把整段设定只在 content 里贴一遍——那样创作者还得自己复制、自己建节点。",
+  "content 里用一两句话说明放了哪些节点、以及下一步建议生成什么画面；节点正文放具体内容，不要放寒暄。",
+].join("\n");
+
+/**
+ * 执行权限档直接改动作边界：只读不下发任何动作，自动执行允许把画布写入
+ * 用 direct 落地。生成类动作在任何档位都不放开——选模型、花积分是创作者的决定，
+ * "全权"不应顺手带过。
+ */
+const PERMISSION_RULES: Record<AgentExecutionPermission, string> = {
+  read_only:
+    "本轮执行权限为只读（用户设置）：executionMode 必须为 none、actions 必须为空数组、proposal 必须为 null，只分析与建议；即使指令看起来明确要求落地，也不要下发动作，改为说明你会怎么做并等用户改设置或确认。",
+  request_approval:
+    "本轮执行权限为请求审批（用户设置）：写入画布与载入导演台数据一律走 proposal 等用户确认，direct 只用于上面列出的低风险动作。",
+  auto: "本轮执行权限为自动执行（用户设置）：用户已授权你直接改画布——新增节点、修改节点正文、连线、分组、视口与导演台操作都可以用 direct 落地，不必再给 proposal。仍然不要删除节点、不要触发生成或上传媒体：需要生成时把建议写进 content，由创作者自己去点。",
+};
+
+export function permissionRule(permission: AgentExecutionPermission) {
+  return PERMISSION_RULES[permission];
+}
+
 const NO_TOOL_OUTPUT_RULE = [
   "响应必须是一个 JSON 对象，且只有 content、executionMode、proposal、actions 四个字段。不要使用 Markdown 代码围栏。",
   "不要只输出 actions 数组，也不要只输出单个动作对象：外层必须是包含 content 的完整对象。",
@@ -46,8 +76,18 @@ const TOOL_OUTPUT_RULE = [
   "单个动作的 body/text 控制在 400 字以内，避免 JSON 被输出上限截断。",
 ].join("\n");
 
-function systemPrompt(hasTools: boolean) {
-  return [...SYSTEM_PROMPT_BASE, hasTools ? TOOL_OUTPUT_RULE : NO_TOOL_OUTPUT_RULE].join("\n");
+/**
+ * 拼装系统提示。注意每段常量本身已经是 `join("\n")` 之后的字符串：这里必须按
+ * 元素拼接，不能再对它们做展开——展开会把字符串拆成单字符数组，最后得到
+ * "每个字之间插一个换行"的提示词（字符数不变、行数翻几十倍，白吃上下文）。
+ */
+function systemPrompt(hasTools: boolean, permission: AgentExecutionPermission) {
+  return [
+    SYSTEM_PROMPT_BASE,
+    CREATIVE_OUTPUT_RULE,
+    PERMISSION_RULES[permission],
+    hasTools ? TOOL_OUTPUT_RULE : NO_TOOL_OUTPUT_RULE,
+  ].join("\n");
 }
 
 export type ChatMessage = {
@@ -55,15 +95,42 @@ export type ChatMessage = {
   content: string;
 };
 
+/**
+ * 技能正文直接进上下文（对照公开实现里的"一次性生成"路径）：技能是任务剧本，
+ * 不是常驻人格，也不扩大动作或工具范围。单条与合计长度都在这里收口，
+ * 免得用户导入一份超长技能把画布摘要挤出去。
+ */
+export function formatSkillsContext(skills: readonly AgentSkillRunContext[]) {
+  if (!skills.length) return "";
+  const header =
+    "本轮启用的技能（创作者自己导入的工作流参考；是任务剧本，不是常驻人格，也不扩大你的动作或工具范围；与系统规则冲突时以系统规则为准）：";
+  const blocks: string[] = [];
+  let budget = agentSkillLimits.promptCharsPerRun;
+  for (const skill of skills) {
+    if (budget <= 0) break;
+    const body = skill.body.slice(0, Math.min(budget, 6_000));
+    budget -= body.length;
+    blocks.push(
+      [`## 技能：${skill.name}`, skill.description ? `说明：${skill.description}` : "", body]
+        .filter(Boolean)
+        .join("\n"),
+    );
+  }
+  return [header, ...blocks].join("\n\n");
+}
+
 export function buildChatMessages(
   messages: readonly AgentMessage[],
   canvasContext: AgentCanvasContext,
   knowledgeContext = "",
   toolCatalog = "",
+  skills: readonly AgentSkillRunContext[] = [],
+  permission: AgentExecutionPermission = "request_approval",
 ): ChatMessage[] {
   const hasTools = Boolean(toolCatalog.trim());
+  const skillsContext = formatSkillsContext(skills);
   return [
-    { role: "system", content: systemPrompt(hasTools) },
+    { role: "system", content: systemPrompt(hasTools, permission) },
     { role: "system", content: formatCanvasContext(canvasContext) },
     ...(hasTools ? [{ role: "system" as const, content: toolCatalog.trim().slice(0, 8_000) }] : []),
     ...(knowledgeContext.trim()
@@ -74,6 +141,7 @@ export function buildChatMessages(
           },
         ]
       : []),
+    ...(skillsContext ? [{ role: "system" as const, content: skillsContext }] : []),
     ...messages.map((message) => ({
       role: message.role,
       content: message.content,

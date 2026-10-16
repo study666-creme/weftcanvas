@@ -1,11 +1,15 @@
 import {
+  agentExecutionPermissionSchema,
   agentModelCatalogSchema,
   agentModelIdSchema,
+  agentSkillLimits,
   type AgentCanvasContext,
   type AgentConversation,
   type AgentConversationDetail,
+  type AgentExecutionPermission,
   type AgentExecutionReceiptCreateRequest,
   type AgentModelCatalog,
+  type AgentSkillSummary,
 } from "@weftcanvas/contracts";
 import { create } from "zustand";
 
@@ -15,10 +19,13 @@ import {
   confirmAgentProposal,
   createAgentConversation,
   createRequestKey,
+  deleteAgentSkill,
   dismissAgentProposal,
   fetchAgentConversation,
   fetchAgentModels,
+  importAgentSkill,
   listAgentConversations,
+  listAgentSkills,
   recordAgentExecutionReceipt,
   submitAgentMessage,
 } from "../lib/api-client";
@@ -26,8 +33,12 @@ import { useIdentityStore } from "./identity-store";
 
 type AgentUiStatus = "idle" | "loading" | "sending" | "ready" | "error";
 type AgentModelStatus = "idle" | "loading" | "ready" | "error";
+type AgentSkillsStatus = "idle" | "loading" | "ready" | "error";
 
 const MODEL_STORAGE_KEY = "weftcanvas:agent-model:v1";
+const SKILLS_STORAGE_KEY = "weftcanvas:agent-skills:v1";
+const PERMISSION_STORAGE_KEY = "weftcanvas:agent-permission:v1";
+const DEFAULT_EXECUTION_PERMISSION: AgentExecutionPermission = "request_approval";
 const MODEL_REFRESH_INTERVAL_MS = 60_000;
 const MODEL_MAX_STALE_MS = 7 * 24 * 60 * 60_000;
 
@@ -47,6 +58,14 @@ type AgentState = {
   selectedModelId: string | null;
   /** 思考强度档位；null 表示当前模型不支持调节。 */
   reasoningEffort: string | null;
+  /** 本账号导入的技能清单；null 表示还没有拉取过（打开技能面板时才加载）。 */
+  skills: AgentSkillSummary[] | null;
+  skillsStatus: AgentSkillsStatus;
+  skillsError: string | null;
+  /** 下一轮启用的技能 id，按启用顺序保存，上限 enabledPerRun。 */
+  selectedSkillIds: string[];
+  /** 执行权限档：决定 Agent 能不能直接改画布。 */
+  executionPermission: AgentExecutionPermission;
   toggle: () => void;
   close: () => void;
   reset: () => void;
@@ -54,6 +73,11 @@ type AgentState = {
   loadModels: (force?: boolean) => Promise<void>;
   setSelectedModelId: (modelId: string) => void;
   setReasoningEffort: (effort: string | null) => void;
+  loadSkills: () => Promise<void>;
+  importSkill: (content: string) => Promise<AgentSkillSummary>;
+  removeSkill: (skillId: string) => Promise<void>;
+  toggleSkill: (skillId: string) => void;
+  setExecutionPermission: (permission: AgentExecutionPermission) => void;
   createConversation: (projectId: string) => Promise<string | null>;
   selectConversation: (conversationId: string) => Promise<void>;
   send: (projectId: string, content: string, context: AgentCanvasContext) => Promise<boolean>;
@@ -70,8 +94,11 @@ type AgentState = {
 let loadVersion = 0;
 let modelLoadVersion = 0;
 let modelRequest: Promise<void> | null = null;
+let skillsRequest: Promise<void> | null = null;
 let pollTimer: number | null = null;
 const storedModelState = readStoredModelState();
+const storedSkillIds = readStoredSkillIds();
+const storedExecutionPermission = readStoredExecutionPermission();
 
 export const useAgentStore = create<AgentState>((set, get) => ({
   open: false,
@@ -88,6 +115,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   modelError: null,
   selectedModelId: storedModelState.modelId,
   reasoningEffort: defaultThinkingFor(storedModelState.models, storedModelState.modelId),
+  skills: null,
+  skillsStatus: "idle",
+  skillsError: null,
+  selectedSkillIds: storedSkillIds,
+  executionPermission: storedExecutionPermission,
 
   toggle: () => set((state) => ({ open: !state.open })),
   close: () => set({ open: false }),
@@ -96,6 +128,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     loadVersion += 1;
     modelLoadVersion += 1;
     modelRequest = null;
+    skillsRequest = null;
     const stored = readStoredModelState();
     set({
       projectId: null,
@@ -111,6 +144,12 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       modelError: null,
       selectedModelId: stored.modelId,
       reasoningEffort: defaultThinkingFor(stored.models, stored.modelId),
+      // 技能属于账号：换账号后重新拉取；本地启用清单保留，等列表回来后按 id 剪枝。
+      skills: null,
+      skillsStatus: "idle",
+      skillsError: null,
+      selectedSkillIds: readStoredSkillIds(),
+      executionPermission: readStoredExecutionPermission(),
     });
   },
 
@@ -227,6 +266,91 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     set({ reasoningEffort: effort });
   },
 
+  // 技能清单是懒加载：只在第一次打开技能面板时拉一次，之后靠 loadSkills 的
+  // 幂等短路复用；导入/删除后由调用方显式重取。
+  loadSkills: async () => {
+    const state = get();
+    if (state.skills !== null && state.skillsStatus !== "error") return;
+    if (skillsRequest) return skillsRequest;
+    set({ skillsStatus: "loading", skillsError: null });
+    const request = (async () => {
+      try {
+        const skills = await listAgentSkills();
+        const known = new Set(skills.map((skill) => skill.id));
+        // 服务端已经不存在的技能不能继续启用：导入前遗留的 id 在这里被剪掉。
+        const selectedSkillIds = get().selectedSkillIds.filter((id) => known.has(id));
+        writeStoredSkillIds(selectedSkillIds);
+        set({ skills, skillsStatus: "ready", skillsError: null, selectedSkillIds });
+      } catch (cause) {
+        if (cause instanceof CanvasApiError && cause.status === 401)
+          useIdentityStore.getState().expire();
+        // 部署没有技能库（404）不算错误：技能面整体不存在，面板按"未启用"如实说明。
+        const unavailable = cause instanceof CanvasApiError && cause.status === 404;
+        set({
+          skills: unavailable ? [] : get().skills,
+          skillsStatus: unavailable ? "ready" : "error",
+          skillsError: unavailable ? "当前部署没有启用技能库" : publicSkillsError(cause),
+        });
+      }
+    })();
+    skillsRequest = request;
+    try {
+      await request;
+    } finally {
+      if (skillsRequest === request) skillsRequest = null;
+    }
+  },
+
+  importSkill: async (content) => {
+    set({ skillsError: null });
+    try {
+      const skill = await importAgentSkill({ content });
+      set((state) => ({
+        skills: [skill, ...(state.skills ?? []).filter((item) => item.id !== skill.id)],
+        skillsStatus: "ready",
+        skillsError: null,
+      }));
+      return skill;
+    } catch (cause) {
+      if (cause instanceof CanvasApiError && cause.status === 401)
+        useIdentityStore.getState().expire();
+      set({ skillsError: publicSkillsError(cause) });
+      throw cause;
+    }
+  },
+
+  removeSkill: async (skillId) => {
+    const removed = await deleteAgentSkill(skillId);
+    const known = new Set(get().selectedSkillIds.filter((id) => id !== removed.id));
+    writeStoredSkillIds([...known]);
+    set((state) => ({
+      skills: (state.skills ?? []).filter((skill) => skill.id !== removed.id),
+      selectedSkillIds: [...known],
+      skillsError: null,
+    }));
+  },
+
+  toggleSkill: (skillId) => {
+    const state = get();
+    if (state.selectedSkillIds.includes(skillId)) {
+      const next = state.selectedSkillIds.filter((id) => id !== skillId);
+      writeStoredSkillIds(next);
+      set({ selectedSkillIds: next });
+      return;
+    }
+    if (state.selectedSkillIds.length >= agentSkillLimits.enabledPerRun) return;
+    const next = [...state.selectedSkillIds, skillId].slice(0, agentSkillLimits.enabledPerRun);
+    writeStoredSkillIds(next);
+    set({ selectedSkillIds: next });
+  },
+
+  setExecutionPermission: (permission) => {
+    const parsed = agentExecutionPermissionSchema.safeParse(permission);
+    if (!parsed.success) return;
+    writeStoredExecutionPermission(parsed.data);
+    set({ executionPermission: parsed.data });
+  },
+
   createConversation: async (projectId) => {
     set({ status: "loading", error: null });
     try {
@@ -283,11 +407,17 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     if (!conversationId) return false;
     set({ status: "sending", error: null });
     try {
+      // 只带上仍然存在的技能 id：删除后的遗留 id 不该发给服务端。
+      const enabledSkillIds = modelState.selectedSkillIds
+        .filter((id) => !modelState.skills || modelState.skills.some((skill) => skill.id === id))
+        .slice(0, agentSkillLimits.enabledPerRun);
       const detail = await submitAgentMessage(conversationId, {
         content: trimmed,
         idempotencyKey: createRequestKey("agent"),
         modelId: selectedModelId,
         ...(modelState.reasoningEffort ? { reasoningEffort: modelState.reasoningEffort } : {}),
+        executionPermission: modelState.executionPermission,
+        ...(enabledSkillIds.length ? { skillIds: enabledSkillIds } : {}),
         canvasContext: context,
       });
       set((state) => ({
@@ -413,6 +543,57 @@ function handleError(cause: unknown, set: typeof useAgentStore.setState) {
 
 function publicModelError(cause: unknown) {
   return cause instanceof CanvasApiError ? cause.message : "Agent 模型列表没有加载完成";
+}
+
+function publicSkillsError(cause: unknown) {
+  return cause instanceof CanvasApiError ? cause.message : "技能没有加载完成";
+}
+
+/** 本地启用清单：只留去重后的合法字符串，并在这里就按上限截断。 */
+function readStoredSkillIds(): string[] {
+  try {
+    if (typeof localStorage === "undefined") return [];
+    const raw = JSON.parse(localStorage.getItem(SKILLS_STORAGE_KEY) || "[]") as unknown;
+    if (!Array.isArray(raw)) return [];
+    const ids = raw.filter(
+      (item): item is string => typeof item === "string" && item.trim().length > 0,
+    );
+    return [...new Set(ids)].slice(0, agentSkillLimits.enabledPerRun);
+  } catch {
+    return [];
+  }
+}
+
+function writeStoredSkillIds(ids: string[]) {
+  try {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(SKILLS_STORAGE_KEY, JSON.stringify(ids));
+    }
+  } catch {
+    // 存储不可用时当前会话的启用清单仍然有效。
+  }
+}
+
+function readStoredExecutionPermission(): AgentExecutionPermission {
+  try {
+    if (typeof localStorage === "undefined") return DEFAULT_EXECUTION_PERMISSION;
+    const parsed = agentExecutionPermissionSchema.safeParse(
+      localStorage.getItem(PERMISSION_STORAGE_KEY),
+    );
+    return parsed.success ? parsed.data : DEFAULT_EXECUTION_PERMISSION;
+  } catch {
+    return DEFAULT_EXECUTION_PERMISSION;
+  }
+}
+
+function writeStoredExecutionPermission(permission: AgentExecutionPermission) {
+  try {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(PERMISSION_STORAGE_KEY, permission);
+    }
+  } catch {
+    // 存储不可用时当前会话的权限档仍然有效。
+  }
 }
 
 function readStoredModelState(): {

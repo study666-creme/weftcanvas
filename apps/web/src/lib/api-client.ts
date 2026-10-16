@@ -5,6 +5,9 @@ import {
   agentConversationListResponseSchema,
   agentConversationResponseSchema,
   agentModelCatalogResponseSchema,
+  agentSkillDeleteResponseSchema,
+  agentSkillListResponseSchema,
+  agentSkillResponseSchema,
   apiErrorSchema,
   canvasControlPendingResponseSchema,
   canvasControlReceiptResponseSchema,
@@ -21,6 +24,11 @@ import {
   cloudProjectResponseSchema,
   cloudResourceCleanupResponseSchema,
   cloudResourceListResponseSchema,
+  canvasImportPreviewResponseSchema,
+  canvasImportProvidersResponseSchema,
+  type CanvasImportRequest,
+  type CanvasImportPreviewResponse,
+  type CanvasImportProvidersResponse,
   generationJobEventSchema,
   generationJobListResponseSchema,
   generationJobResponseSchema,
@@ -55,6 +63,7 @@ import {
   type AgentConversationCreateRequest,
   type AgentExecutionReceiptCreateRequest,
   type AgentProposalConfirmRequest,
+  type AgentSkillImportRequest,
   type CanvasControlReceiptRequest,
   type CloudProjectCreateRequest,
   type CloudProjectInvitation,
@@ -451,6 +460,31 @@ export async function recordAgentExecutionReceipt(
   return response.data;
 }
 
+/** 用户自导入的 Agent 技能清单（不带正文）。部署没有技能库时整个面 404。 */
+export async function listAgentSkills() {
+  const response = await request("/api/v1/agent/skills", agentSkillListResponseSchema);
+  return response.data;
+}
+
+/** 导入一份 SKILL.md：422/409 携带可展示的错误信息（INVALID_SKILL / SKILL_LIMIT_EXCEEDED）。 */
+export async function importAgentSkill(value: AgentSkillImportRequest) {
+  const response = await request(
+    "/api/v1/agent/skills",
+    agentSkillResponseSchema,
+    jsonRequest("POST", value),
+  );
+  return response.data;
+}
+
+export async function deleteAgentSkill(skillId: string) {
+  const response = await request(
+    `/api/v1/agent/skills/${encodeURIComponent(skillId)}`,
+    agentSkillDeleteResponseSchema,
+    { method: "DELETE" },
+  );
+  return response.data;
+}
+
 /** 本机连接（Codex / Blender）状态与开关。 */
 export async function fetchAgentConnectors(force = false) {
   const path = force
@@ -709,6 +743,25 @@ export function resolveMusicLink(url: string) {
   return request<MusicLinkResolveResponse>(
     `/api/v1/music/resolve?url=${encodeURIComponent(url)}`,
     musicLinkResolveResponseSchema,
+  );
+}
+
+/**
+ * 第三方画布导入：先问来源可用性（LibTV 需要服务端令牌，缺令牌时前端直接说明），
+ * 再读一次预览。两步都不在服务端留下状态，素材由画布自己经代理路径取回。
+ */
+export function requestCanvasImportProviders() {
+  return request<CanvasImportProvidersResponse>(
+    "/api/v1/canvas-import/providers",
+    canvasImportProvidersResponseSchema,
+  );
+}
+
+export function requestCanvasImportPreview(input: CanvasImportRequest) {
+  return request<CanvasImportPreviewResponse>(
+    "/api/v1/canvas-import/preview",
+    canvasImportPreviewResponseSchema,
+    jsonRequest("POST", input),
   );
 }
 

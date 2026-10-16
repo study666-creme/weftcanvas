@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { canvasImportProviderSchema } from "./canvas-import.js";
 import { generationJobStatusSchema } from "./generation-job.js";
 
 export const CANVAS_SCHEMA_VERSION = 1 as const;
@@ -177,6 +178,24 @@ export const canvasMusicDataSchema = z.object({
 });
 export type CanvasMusicData = z.infer<typeof canvasMusicDataSchema>;
 
+/**
+ * 第三方画布导入来源（LibTV / TapNow / UpDream）。只记录身份，不记录直链：
+ * 素材已经落进本地媒体库，这里留着是为了让创作者看得出节点从哪来、同一次导入
+ * 可以整体识别（batchId），以及重复导入时能认出同一个来源节点（nodeKey）。
+ */
+export const canvasNodeImportedFromSchema = z.object({
+  provider: canvasImportProviderSchema,
+  /** 来源画布标识（LibTV UUID / TapNow 分享 ID / UpDream 口令）。 */
+  sourceId: z.string().min(1).max(192),
+  sourceName: z.string().max(200).default(""),
+  nodeKey: z.string().min(1).max(192),
+  batchId: z.string().min(1).max(128),
+  /** 对方自己的节点类型（如 material-style、agent），仅供排查。 */
+  sourceType: z.string().max(64).default(""),
+  importedAt: z.number().int().nonnegative(),
+});
+export type CanvasNodeImportedFrom = z.infer<typeof canvasNodeImportedFromSchema>;
+
 export const canvasGroupFrameSchema = z.object({
   x: z.number(),
   y: z.number(),
@@ -214,6 +233,11 @@ export const canvasNodeDataSchema = z.object({
   config: canvasNodeConfigSchema,
   edit: canvasEditDataSchema.nullable().default(null),
   music: canvasMusicDataSchema.nullable().default(null),
+  /**
+   * 第三方画布导入来源；普通节点没有这一段。可选字段：旧项目与测试夹具无需改写
+   * （与 uploading 同一处理），读取方一律按 `?? null` 处理。
+   */
+  importedFrom: canvasNodeImportedFromSchema.nullable().optional(),
   generation: canvasNodeGenerationSchema,
   createdAt: z.number().int().nonnegative(),
   updatedAt: z.number().int().nonnegative(),

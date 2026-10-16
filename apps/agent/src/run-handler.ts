@@ -73,6 +73,8 @@ export class AgentRunHandler {
         request.canvasContext,
         knowledgeContext,
         toolCatalog,
+        request.skills,
+        request.executionPermission,
       );
       let output = parseAgentModelOutput("");
 

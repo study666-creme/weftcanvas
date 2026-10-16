@@ -14160,3 +14160,840 @@ body.is-canvas-connection-dragging .wc-node-config-shell {
   width: 14px;
   height: 14px;
 }
+
+/* —— 第三方画布导入（顶栏入口 + 菜单 + 对话框）———————————————
+   与「工作资产库」入口同一套 chrome 语言：项目区里的小药丸键，不抢视线。 */
+.wc-canvas-import {
+  position: relative;
+}
+
+.wc-canvas-import-trigger {
+  display: flex;
+  align-items: center;
+  /* 项目区是 flex 行：标签不能被挤到换行或被裁掉（窗口收窄时尤其明显）。 */
+  flex: 0 0 auto;
+  gap: 5px;
+  height: 30px;
+  margin-left: 2px;
+  padding: 0 9px;
+  border: 0;
+  border-left: 1px solid var(--wc-border);
+  border-radius: 0 6px 6px 0;
+  color: var(--wc-text-tertiary);
+  background: transparent;
+  font-size: 10.5px;
+  font-weight: 540;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 130ms ease,
+    background-color 130ms ease,
+    transform 90ms ease;
+}
+
+.wc-canvas-import-trigger:hover {
+  color: var(--wc-text);
+  background: color-mix(in srgb, var(--wc-surface-strong) 72%, transparent);
+}
+
+.wc-canvas-import-trigger:active {
+  transform: scale(0.97);
+}
+
+.wc-canvas-import-trigger.is-open {
+  color: var(--wc-text);
+  background: color-mix(in srgb, var(--wc-accent) 14%, transparent);
+}
+
+.wc-canvas-import-trigger svg {
+  width: 14px;
+  height: 14px;
+}
+
+.wc-canvas-import-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 120;
+  display: flex;
+  min-width: 196px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px;
+  border: 1px solid var(--wc-border-strong);
+  border-radius: 9px;
+  background: var(--wc-surface-raised);
+  box-shadow: var(--wc-shadow-float);
+}
+
+.wc-canvas-import-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--wc-text-secondary);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 540;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.wc-canvas-import-option:hover:not(:disabled) {
+  color: var(--wc-text);
+  background: var(--wc-surface-strong);
+}
+
+.wc-canvas-import-option:disabled {
+  color: var(--wc-text-tertiary);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.wc-canvas-import-option svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.wc-canvas-import-option-note {
+  margin-left: auto;
+  color: var(--wc-text-tertiary);
+  font-size: 10.5px;
+}
+
+.wc-canvas-import-dialog {
+  width: min(460px, calc(100vw - 48px));
+}
+
+.wc-canvas-import-dialog-mark {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  margin-right: 9px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--wc-accent) 30%, var(--wc-border));
+  border-radius: 7px;
+  color: color-mix(in srgb, var(--wc-accent) 80%, var(--wc-text-secondary));
+  background: color-mix(in srgb, var(--wc-accent) 12%, transparent);
+}
+
+.wc-canvas-import-dialog-mark svg {
+  width: 15px;
+  height: 15px;
+}
+
+.wc-canvas-import-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+}
+
+.wc-canvas-import-body label {
+  color: var(--wc-text-secondary);
+  font-size: 12px;
+  font-weight: 560;
+}
+
+.wc-canvas-import-body input {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--wc-border-strong);
+  border-radius: 7px;
+  color: var(--wc-text);
+  background: var(--wc-surface-muted);
+  font-size: 12.5px;
+}
+
+.wc-canvas-import-body input:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--wc-accent) 55%, var(--wc-border-strong));
+}
+
+.wc-canvas-import-error,
+.wc-canvas-import-status,
+.wc-canvas-import-summary-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.wc-canvas-import-error {
+  color: color-mix(in srgb, var(--wc-danger) 82%, var(--wc-text));
+}
+
+.wc-canvas-import-status {
+  align-items: center;
+  color: var(--wc-text-tertiary);
+}
+
+.wc-canvas-import-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 11px 12px;
+  border: 1px solid var(--wc-border);
+  border-radius: 8px;
+  background: var(--wc-surface-muted);
+}
+
+.wc-canvas-import-summary-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.wc-canvas-import-summary-head strong {
+  color: var(--wc-text);
+  font-size: 13px;
+}
+
+.wc-canvas-import-summary-head span {
+  color: var(--wc-text-tertiary);
+  font-size: 11.5px;
+}
+
+.wc-canvas-import-summary-note {
+  margin: 0;
+  color: var(--wc-text-tertiary);
+  font-size: 11.5px;
+  line-height: 1.65;
+}
+
+.wc-canvas-import-summary-warn {
+  color: var(--wc-text-secondary);
+}
+
+.wc-canvas-import-error svg,
+.wc-canvas-import-status svg,
+.wc-canvas-import-summary-warn svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  margin-top: 2px;
+}
+
+.wc-canvas-import-status svg {
+  margin-top: 0;
+}
+
+.wc-canvas-import-status svg.is-spinning {
+  animation: wc-canvas-import-spin 900ms linear infinite;
+}
+
+@keyframes wc-canvas-import-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wc-canvas-import-status svg.is-spinning {
+    animation: none;
+  }
+}
+
+.wc-project-delete-dialog.wc-canvas-import-dialog footer button.is-primary {
+  border-color: color-mix(in srgb, var(--wc-accent) 55%, var(--wc-border-strong));
+  color: var(--wc-on-accent);
+  background: color-mix(in srgb, var(--wc-accent) 62%, #17201d);
+}
+
+.wc-project-delete-dialog.wc-canvas-import-dialog footer button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* —— Agent 技能（技能触发键 + 面板 + 导入对话框）———————————————
+   面板 portal 到 body（抽屉 overflow: hidden 会裁掉绝对定位的子层），材质与
+   对话记录菜单同款：实底描边卡片、同一套圆角与阴影，两种配色都靠 token 走。
+   输入区一行装不下第三个小键，所以权限档与技能放进独立的 extra 行。 */
+.wc-agent-composer-extra {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--wc-border) 70%, transparent);
+}
+
+.wc-agent-drawer--refined .wc-agent-permission-select .wc-canvas-select-trigger {
+  height: 26px;
+  min-height: 26px;
+  padding: 0 7px;
+  gap: 5px;
+  border: 1px solid color-mix(in srgb, var(--wc-border-strong) 68%, var(--wc-border));
+  border-radius: 6px;
+  color: var(--wc-text-secondary);
+  background: color-mix(in srgb, var(--wc-surface-raised) 70%, transparent);
+  font-size: 11px;
+  font-weight: 620;
+  white-space: nowrap;
+}
+
+.wc-agent-drawer--refined
+  .wc-agent-permission-select
+  .wc-canvas-select-trigger:hover:not(:disabled),
+.wc-agent-drawer--refined
+  .wc-agent-permission-select
+  .wc-canvas-select-trigger[aria-expanded="true"] {
+  color: var(--wc-text);
+  border-color: color-mix(in srgb, var(--wc-accent) 40%, var(--wc-border-strong));
+}
+
+.wc-agent-permission-select .wc-canvas-select-option-wrap small {
+  color: var(--wc-text-tertiary);
+  font-size: 10.5px;
+}
+
+.wc-agent-skills {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+.wc-agent-skills-trigger {
+  display: inline-flex;
+  height: 26px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--wc-border-strong) 68%, var(--wc-border));
+  border-radius: 6px;
+  color: var(--wc-text-secondary);
+  background: color-mix(in srgb, var(--wc-surface-raised) 70%, transparent);
+  font-size: 11px;
+  font-weight: 620;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.wc-agent-skills-trigger:hover:not(:disabled),
+.wc-agent-skills-trigger[aria-expanded="true"] {
+  color: var(--wc-text);
+  border-color: color-mix(in srgb, var(--wc-accent) 40%, var(--wc-border-strong));
+  background: color-mix(in srgb, var(--wc-surface-raised) 88%, transparent);
+}
+
+.wc-agent-skills-trigger:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.wc-agent-skills-trigger svg {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  color: var(--wc-text-secondary);
+}
+
+.wc-agent-skills-trigger[aria-expanded="true"] svg,
+.wc-agent-skills-trigger:hover:not(:disabled) svg {
+  color: var(--wc-accent);
+}
+
+.wc-agent-skills[data-enabled="true"] .wc-agent-skills-trigger {
+  color: var(--wc-text);
+  border-color: color-mix(in srgb, var(--wc-accent) 32%, var(--wc-border-strong));
+}
+
+.wc-agent-skills-menu {
+  position: fixed;
+  z-index: 5000;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--wc-text) 12%, transparent);
+  border-radius: 10px;
+  color: var(--wc-text);
+  background: var(--wc-surface-raised);
+  box-shadow: var(--wc-shadow-float);
+  animation: wc-agent-thread-in 150ms cubic-bezier(0.2, 0.78, 0.24, 1) both;
+}
+
+.wc-agent-skills-list {
+  min-height: 0;
+  padding: 6px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--wc-text-tertiary) 38%, transparent) transparent;
+}
+
+.wc-agent-skills-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 7px;
+}
+
+.wc-agent-skills-row:hover {
+  background: color-mix(in srgb, var(--wc-text) 5%, transparent);
+}
+
+.wc-agent-skills-row-main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 6px 7px 4px;
+  cursor: pointer;
+}
+
+.wc-agent-skills-row-main input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin: 2px 0 0;
+  accent-color: var(--wc-accent);
+  cursor: pointer;
+}
+
+.wc-agent-skills-row-main input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.wc-agent-skills-row[data-enabled="true"] .wc-agent-skills-row-copy strong {
+  color: var(--wc-text);
+}
+
+.wc-agent-skills-row-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wc-agent-skills-row-copy strong {
+  overflow: hidden;
+  color: var(--wc-text-secondary);
+  font-size: 12px;
+  font-weight: 640;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wc-agent-skills-row-copy small {
+  overflow: hidden;
+  color: var(--wc-text-tertiary);
+  font-size: 10.5px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wc-agent-skills-remove {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  color: var(--wc-text-tertiary);
+  background: transparent;
+  cursor: pointer;
+}
+
+.wc-agent-skills-remove:hover {
+  color: var(--wc-danger);
+  background: color-mix(in srgb, var(--wc-danger) 10%, transparent);
+}
+
+.wc-agent-skills-remove svg {
+  width: 13px;
+  height: 13px;
+}
+
+.wc-agent-skills-confirm {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+}
+
+.wc-agent-skills-confirm button {
+  display: inline-flex;
+  height: 22px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 7px;
+  border: 1px solid var(--wc-border);
+  border-radius: 5px;
+  color: var(--wc-text-secondary);
+  background: transparent;
+  font-size: 10.5px;
+  font-weight: 620;
+  cursor: pointer;
+}
+
+.wc-agent-skills-confirm button:hover:not(:disabled) {
+  color: var(--wc-text);
+  border-color: var(--wc-border-strong);
+}
+
+.wc-agent-skills-confirm button.is-danger {
+  color: var(--wc-danger);
+  border-color: color-mix(in srgb, var(--wc-danger) 40%, var(--wc-border));
+}
+
+.wc-agent-skills-confirm button.is-danger:hover:not(:disabled) {
+  color: var(--wc-on-accent);
+  background: color-mix(in srgb, var(--wc-danger) 78%, #17201d);
+}
+
+.wc-agent-skills-confirm button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.wc-agent-skills-confirm svg {
+  width: 11px;
+  height: 11px;
+}
+
+.wc-agent-skills-confirm svg.is-spinning,
+.wc-agent-skills-empty svg.is-spinning {
+  animation: wc-agent-skills-spin 900ms linear infinite;
+}
+
+@keyframes wc-agent-skills-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wc-agent-skills-confirm svg.is-spinning,
+  .wc-agent-skills-empty svg.is-spinning {
+    animation: none;
+  }
+}
+
+.wc-agent-skills-empty {
+  display: grid;
+  gap: 6px;
+  padding: 14px 10px;
+  color: var(--wc-text-tertiary);
+  font-size: 11.5px;
+  line-height: 1.6;
+  text-align: left;
+}
+
+.wc-agent-skills-empty.is-error {
+  color: var(--wc-danger);
+}
+
+.wc-agent-skills-empty button {
+  width: fit-content;
+  padding: 3px 10px;
+  border: 1px solid var(--wc-border);
+  border-radius: 5px;
+  color: var(--wc-text-secondary);
+  background: transparent;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.wc-agent-skills-empty button:hover {
+  color: var(--wc-text);
+  border-color: var(--wc-border-strong);
+}
+
+.wc-agent-skills-error {
+  margin: 0 6px 6px;
+  padding: 6px 9px;
+  border-radius: 6px;
+  color: var(--wc-danger);
+  background: color-mix(in srgb, var(--wc-danger-soft) 55%, transparent);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.wc-agent-skills-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-top: 1px solid color-mix(in srgb, var(--wc-text) 8%, transparent);
+  background: color-mix(in srgb, var(--wc-surface-muted) 55%, var(--wc-surface-raised));
+}
+
+.wc-agent-skills-hint {
+  color: var(--wc-text-tertiary);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wc-agent-skills-import {
+  display: inline-flex;
+  height: 26px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--wc-accent) 34%, var(--wc-border-strong));
+  border-radius: 6px;
+  color: var(--wc-text);
+  background: color-mix(in srgb, var(--wc-accent-soft) 60%, transparent);
+  font-size: 11px;
+  font-weight: 640;
+  cursor: pointer;
+}
+
+.wc-agent-skills-import:hover {
+  border-color: color-mix(in srgb, var(--wc-accent) 55%, var(--wc-border-strong));
+  background: var(--wc-accent-soft);
+}
+
+.wc-agent-skills-import svg {
+  width: 12px;
+  height: 12px;
+  color: var(--wc-accent);
+}
+
+/* 导入对话框：与全文阅读层同一套遮罩/卡片语言，高度按内容收。 */
+.wc-agent-skills-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 310;
+  display: grid;
+  place-items: center;
+  padding: 4vh 4vw;
+  background: rgb(0 0 0 / 62%);
+}
+
+.wc-agent-skills-dialog {
+  display: grid;
+  width: min(620px, 100%);
+  max-height: min(84vh, 720px);
+  grid-template-rows: 48px minmax(0, 1fr) 56px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--wc-text) 12%, transparent);
+  border-radius: 12px;
+  color: var(--wc-text);
+  background: var(--wc-surface-raised);
+  box-shadow: 0 30px 90px rgb(0 0 0 / 55%);
+}
+
+.wc-agent-skills-dialog header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--wc-text) 8%, transparent);
+}
+
+.wc-agent-skills-dialog header strong {
+  font-size: 13.5px;
+  font-weight: 660;
+}
+
+.wc-agent-skills-dialog header span {
+  color: var(--wc-text-tertiary);
+  font-size: 11px;
+}
+
+.wc-agent-skills-dialog header > button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  margin-left: auto;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  color: var(--wc-text-tertiary);
+  background: transparent;
+  cursor: pointer;
+}
+
+.wc-agent-skills-dialog header > button:hover {
+  color: var(--wc-text);
+  background: var(--wc-surface-strong);
+}
+
+.wc-agent-skills-dialog header > button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.wc-agent-skills-body {
+  display: grid;
+  min-height: 0;
+  gap: 10px;
+  padding: 12px 16px;
+  overflow-y: auto;
+}
+
+.wc-agent-skills-body textarea {
+  width: 100%;
+  min-height: 168px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--wc-border-strong) 72%, var(--wc-border));
+  border-radius: 8px;
+  outline: 0;
+  color: var(--wc-text);
+  background: color-mix(in srgb, var(--wc-surface-muted) 45%, var(--wc-surface-raised));
+  font-size: 12.5px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.wc-agent-skills-body textarea:focus {
+  border-color: color-mix(in srgb, var(--wc-accent) 40%, var(--wc-border-strong));
+}
+
+.wc-agent-skills-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--wc-text-tertiary);
+  font-size: 11px;
+}
+
+.wc-agent-skills-file label {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--wc-border);
+  border-radius: 6px;
+  color: var(--wc-text-secondary);
+  font-size: 11.5px;
+  font-weight: 620;
+  cursor: pointer;
+}
+
+.wc-agent-skills-file label:hover {
+  color: var(--wc-text);
+  border-color: var(--wc-border-strong);
+}
+
+.wc-agent-skills-file label svg {
+  width: 13px;
+  height: 13px;
+}
+
+.wc-agent-skills-file label input[type="file"] {
+  display: none;
+}
+
+.wc-agent-skills-preview {
+  display: grid;
+  gap: 3px;
+  padding: 9px 11px;
+  border: 1px solid color-mix(in srgb, var(--wc-border) 80%, transparent);
+  border-radius: 8px;
+  color: var(--wc-text-tertiary);
+  background: color-mix(in srgb, var(--wc-surface-muted) 40%, transparent);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.wc-agent-skills-preview[data-status="error"] {
+  color: var(--wc-danger);
+}
+
+.wc-agent-skills-preview[data-status="ok"] strong {
+  color: var(--wc-text);
+  font-size: 12.5px;
+  font-weight: 660;
+}
+
+.wc-agent-skills-preview[data-status="ok"] small {
+  overflow: hidden;
+  color: var(--wc-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wc-agent-skills-preview[data-status="ok"] em {
+  color: var(--wc-text-tertiary);
+  font-size: 10.5px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.wc-agent-skills-dialog footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 16px;
+  border-top: 1px solid color-mix(in srgb, var(--wc-text) 8%, transparent);
+}
+
+.wc-agent-skills-dialog footer button {
+  display: inline-flex;
+  height: 32px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  border: 1px solid var(--wc-border);
+  border-radius: 7px;
+  color: var(--wc-text-secondary);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 620;
+  cursor: pointer;
+}
+
+.wc-agent-skills-dialog footer button:hover:not(:disabled) {
+  color: var(--wc-text);
+  border-color: var(--wc-border-strong);
+  background: var(--wc-surface-muted);
+}
+
+.wc-agent-skills-dialog footer button.is-primary {
+  border-color: color-mix(in srgb, var(--wc-accent) 60%, var(--wc-border-strong));
+  color: var(--wc-on-accent);
+  background: color-mix(in srgb, var(--wc-accent) 62%, #17201d);
+}
+
+.wc-agent-skills-dialog footer button.is-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--wc-accent) 74%, #17201d);
+}
+
+.wc-agent-skills-dialog footer button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.wc-agent-skills-dialog footer button svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* extra 行横跨整个输入区底栏（grid-column: 1 / -1），其余四个控件保持原有的
+   四列网格落到第二行；输入区的 46px 底栏轨道改为按内容撑开。 */
+.wc-agent-composer-extra {
+  grid-column: 1 / -1;
+}
+
+.wc-agent-drawer--refined .wc-agent-composer {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+@media (max-width: 720px) {
+  .wc-agent-composer-extra {
+    flex-wrap: wrap;
+  }
+}

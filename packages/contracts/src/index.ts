@@ -2,6 +2,7 @@ export * from "./agent.js";
 export * from "./announcements.js";
 export * from "./audio-protocol.js";
 export * from "./canvas.js";
+export * from "./canvas-import.js";
 export * from "./cloud-project.js";
 export * from "./connectors.js";
 export * from "./custom-api.js";
@@ -13,6 +14,7 @@ export * from "./media.js";
 export * from "./membership-task.js";
 export * from "./model-catalog.js";
 export * from "./music.js";
+export * from "./skill.js";
 export * from "./video-protocol.js";
 export * from "./wallet.js";
 

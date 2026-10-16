@@ -16,6 +16,7 @@ import { buildAgentTextModels, createStationTextPricingLookup } from "./agent/te
 import { WeftcanvasCatalogAdapter } from "./catalog/adapter.js";
 import { JsonModelOverrideStore } from "./catalog/overrides.js";
 import { JsonAnnouncementStore } from "./announcements/store.js";
+import { FileAgentSkillStore } from "./skills/store.js";
 import { toPublicCatalogView } from "./catalog/public-view.js";
 import { GenerationQuoteService } from "./catalog/quote.js";
 import {
@@ -83,6 +84,10 @@ const modelOverrides = new JsonModelOverrideStore(
 const announcements = new JsonAnnouncementStore(
   resolve(process.env.ANNOUNCEMENTS_PATH || ".data/announcements.json"),
 );
+// 用户自导入的 Agent 技能：文件存储，一个 owner 一个目录、一个技能一个目录。
+const agentSkills = new FileAgentSkillStore({
+  directory: process.env.SKILLS_PATH || ".data/skills",
+});
 const catalog = new WeftcanvasCatalogAdapter({
   sourceUrl,
   // 视频准入以**执行器目录**为准（托管模式下由私有 provider 提供端点）。
@@ -259,6 +264,8 @@ const agentBilling: AgentBilling | undefined = hostedAccount
 const agentOptionsWithConnectors = {
   ...agentOptions,
   connectorClients: externalConnectors,
+  // 技能是用户自己导入的：匿名访客的 owner 名下不会有技能，读不到就当没启用。
+  skills: agentSkills,
   ...(agentBilling ? { billing: agentBilling } : {}),
 };
 const agent = pool
@@ -407,6 +414,13 @@ const app = createApiApp({
   },
   catalog,
   registerAccountRoutes: providerServices.registerAccountRoutes,
+  // 第三方画布导入：LibTV 需要一把服务端画布令牌（浏览器永远拿不到它）；
+  // TapNow/UpDream 走公开分享链接，不需要密钥。
+  canvasImport: {
+    ...(process.env.LIBTV_CANVAS_TOKEN?.trim()
+      ? { libtvToken: process.env.LIBTV_CANVAS_TOKEN.trim() }
+      : {}),
+  },
   quotes,
   ...(process.env.MODEL_OVERRIDES_ADMIN_SECRET?.trim()
     ? {
@@ -425,6 +439,8 @@ const app = createApiApp({
   // 站点公告：公开读永远可用；写入面跟随运营密钥（缺省已回落到模型密钥）。
   announcements,
   ...(opsAdminSecret ? { announcementsAdminSecret: opsAdminSecret } : {}),
+  // 用户自导入的技能：只服务登录会话本人。
+  agentSkills,
   multipartMedia,
   projects: cloudProjects,
   collaboration,
