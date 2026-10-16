@@ -324,11 +324,9 @@ pnpm 11.7.0）执行；物化后在开源树复验（见 §3.2）。
 
 ## 5. 后续维护建议（按优先级）
 
-1. **首次切分 `apps/api/src/app.ts`（最大收益、风险可控）**：先把音乐代拉块
-   （`MusicProxyError` + `normalizeMusicInputUrl` + `detectMusicSource` +
-   `musicGuardedFetch` + `probeMusicAudio`，约 250 行、与外部零共享）整体搬
-   到 `apps/api/src/media/music-proxy.ts`，公开接口不变，跑全量 api 测试后独立
-   提交。此后再按域拆"资产清理 / 运营 / 连接器"三个目录，一次一片。
+1. ~~首次切分 `apps/api/src/app.ts`~~ **已于 2026-10-17 执行（见 §7）**：
+   首批五个域已拆出（music / canvas-import / 账号 / HTTP 共享层），app.ts
+   4575 → 3230 行（-29.4%）。**剩余域的继续拆分清单与顺序**见 §7.4。
 2. **浏览器实测后收紧 CSP**：用 Playwright 实录 MediaPipe 人脸/分割、Three.js
    导演台、BYOK 直连、Worker 创建（`worker-src 'self' blob:'）四条链路，再给
 Pages `_headers`与`docker/nginx.conf`同时加`script-src 'self'`与`worker-src`——两处必须同批改（本报告 §2.5 已把两处钉成同构）。
@@ -379,3 +377,53 @@ Pages `_headers`与`docker/nginx.conf`同时加`script-src 'self'`与`worker-src
   项目引用改写；不存在 → 按原 ID 写入。项目恢复永远生成新副本，不覆盖现有项目。
 - 云端素材（source=server）不在备份里，恢复后按"部分恢复"如实提示，节点上
   的 serverId 引用原样保留（服务端素材仍在则可继续访问）。
+
+## 7. 重构批次记录（2026-10-17，巨型模块拆分第一批）
+
+按 §12 原则执行：一次一个可验证的逻辑范围、纯代码搬移、每步全量测试、
+公开接口不变（跨模块导入路径全部保持原样）。
+
+### 7.1 已拆出（6 个提交，app.ts 4575 → 3230 行，-29.4%）
+
+| 提交      | 内容                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ff2aac4` | music 域实现 → `apps/api/src/media/music-proxy.ts`（约 340 行：MusicProxyError、归一/来源、守卫代拉、魔数嗅探、页面解析、resolveMusicLink、全部 MUSIC_* 常量）；`http/errors.ts`（ApiErrorStatus + errorResponse）；顺带删掉 app.ts 里与 guarded-fetch 导出重复的本地 MEDIA_PROXY_MAX_REDIRECT_HOPS                                                                                                                                           |
+| `3f0e2a2` | `http/rate-limit.ts`（AnonymousAgentGuard / SensitiveActionGuard / 两个 429 响应 / positiveLimit，限速器选项在本模块声明为结构类型避免反向依赖）；`http/json-body.ts`（readJsonBody 1MB 双闸门）；`identity/http-session.ts`（会话 Cookie 读写、令牌轮换、requireIdentitySession/authenticateIdentity、identityUnavailable）；app.ts 继续 re-export requireIdentitySession / refreshIdentityCookie（weftcanvas-routes 的 ../app.js 导入不变） |
+| `a46ac0e` | music 三条路由成域 → `media/music-routes.ts`（registerMusicRoutes(app, deps)；解析/流式代拉/封面）                                                                                                                                                                                                                                                                                                                                            |
+| `08c839d` | canvas-import 三条路由成域 → `canvas-import/routes.ts`（providers/preview/asset + MEDIA_PROXY_MAX_BYTES 随域搬入）                                                                                                                                                                                                                                                                                                                            |
+| `fa6092f` | 账号域 14 条路由成域 → `identity/account-routes.ts`（auth 四条 + 钱包七条 + 会员三条，随域搬走 identityCapabilities / walletUnavailable / identityRequestErrorResponse；isTrustedBrowserRequest 46 处使用的跨站门 → `http/browser-request.ts`；optionalQueryInteger → http/errors.ts）                                                                                                                                                        |
+
+### 7.2 验证
+
+每步：`pnpm --filter @weftcanvas/canvas-api typecheck` 通过 + 全量 602 单测 +
+14 脚本测试通过。提交后全仓：typecheck 8 包通过；contracts 77 / agent 89 /
+worker 16 / web 947 全过。
+
+### 7.3 顺带发现并记录的既有 flake（未在本批修复）
+
+`prompt-hub-service.test.ts` 在全量并行下偶发 unhandled
+`ENOENT ... weftcanvas-hosted-image-<uuid>.tmp`（hosted-image 暂存临时文件的
+打开竞态；与 reboot 后台重试/幂等路径相关）。单跑 8/8 全过、CI 曾两轮全绿；
+它会让 `pnpm test` 的链式执行在 api 处随机中止。**未删除、未跳过**；已把
+机制候选（暂存 finally-unlink 与惰性打开的窗口 / 幂等路径不消费 source 流）
+记录在此，修复属于 prompt-hub 暂存加固，建议单独做。
+
+### 7.4 剩余拆分清单（按此顺序继续，每域独立提交 + 全量 api 测试）
+
+1. `catalog + admin`（model-catalog / model-overrides / announcements / ops，
+   约 200 行）：需要把 createApiApp 里 env 派生的 MODEL_OVERRIDES_FRAME_ANCESTORS、
+   requireAnnouncementAdmin / requireOpsAdmin 闭包、CANVAS_OPS_ADMIN_PAGE 与
+   modelOverrideAdminRows / withModelHealth 一起随域搬走。
+2. `generation`（quotes / jobs / events SSE / reconcile，约 240 行）：依赖
+   generationGuard、generationEventId、unwrapGenerationResult、hosted 观测。
+3. `cloud-projects + invitations`（约 280 行）：依赖 resolveProjectMediaAccess
+   / resolveMediaQuotaBytes / scopeMediaUploadIntent / mediaProjectUrl（随域
+   搬入 media/access.ts）。
+4. `agent`（约 680 行，最大）：skills / models / conversations / runs /
+   connectors / canvas-control / external；依赖 anonymousAgentGuard、
+   resolveAgentAccess、connectorUnavailable。
+5. `media`（约 630 行）：uploads / multipart / cleanup / content / provider-reference。
+6. web 侧（`custom-api.ts` 3162 行的协议适配段、`canvas-store.ts` 2414 行、
+   `node-generation-panel.tsx` 2446 行）：先拆纯函数 helpers（请求装配段），
+   组件级拆分放最后。`direct-generation-studio.tsx` 有另一会话的未提交在制品，
+   等它落地后再动。

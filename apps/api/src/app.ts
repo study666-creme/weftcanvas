@@ -19,10 +19,6 @@ import {
   canvasControlPendingResponseSchema,
   canvasControlReceiptRequestSchema,
   canvasControlReceiptResponseSchema,
-  canvasImportPreviewResponseSchema,
-  canvasImportProviderSchema,
-  canvasImportProvidersResponseSchema,
-  canvasImportRequestSchema,
   connectorClientListResponseSchema,
   connectorPairingResponseSchema,
   agentConnectorIds,
@@ -40,16 +36,11 @@ import {
   agentSkillImportRequestSchema,
   agentSkillListResponseSchema,
   agentSkillResponseSchema,
-  apiErrorSchema,
   generationJobEventSchema,
   generationJobListResponseSchema,
   generationJobReconcileQuerySchema,
   generationJobResponseSchema,
   generationQuoteResponseSchema,
-  identityLogoutResponseSchema,
-  identityRegistrationResponseSchema,
-  identitySessionResponseSchema,
-  identitySessionStateResponseSchema,
   mediaResponseSchema,
   mediaKindSchema,
   MEDIA_MULTIPART_THRESHOLD,
@@ -64,33 +55,18 @@ import {
   mediaUploadIntentSchema,
   mediaUploadIntentResponseSchema,
   mediaUploadRequestSchema,
-  type MediaKind,
-  membershipTaskActionResponseSchema,
-  membershipTaskCenterResponseSchema,
-  membershipTaskKeySchema,
-  musicLinkResolveResponseSchema,
   providerMediaReferenceRequestSchema,
   providerMediaReferenceResponseSchema,
   modelCatalogResponseSchema,
   modelModalitySchema,
-  walletCheckoutRequestSchema,
-  walletCheckoutResponseSchema,
-  walletLedgerResponseSchema,
-  walletOrderResponseSchema,
-  walletProductsResponseSchema,
-  walletRedeemRequestSchema,
-  walletRedeemResponseSchema,
-  walletResponseSchema,
   type GenerationJobStatus,
   type MediaUploadIntent,
-  type MusicLinkResolveData,
-  type MusicLinkSource,
   type PublicGenerationJob,
   type PublicModel,
   type PublicModelCatalog,
 } from "@weftcanvas/contracts";
 import { type Context, Hono } from "hono";
-import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { getCookie } from "hono/cookie";
 import { streamSSE } from "hono/streaming";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { Readable } from "node:stream";
@@ -120,12 +96,7 @@ import { CANVAS_OPS_ADMIN_PAGE } from "./ops/admin-page.js";
 import { ADMIN_THEME_BOOT_JS, ADMIN_THEME_CSS } from "./ops/admin-theme.js";
 import type { CanvasOpsService } from "./ops/service.js";
 import type { ApiReadinessProbe } from "./database/readiness.js";
-import {
-  IdentityProviderError,
-  type IdentityProvider,
-  type IdentityRegistrationResult,
-  type IssuedIdentitySession,
-} from "./identity/provider.js";
+import { IdentityProviderError, type IdentityProvider } from "./identity/provider.js";
 import { GenerationApiGuard, GenerationApiLimitError } from "./generation/api-rate-limit.js";
 import { GenerationJobServiceError } from "./generation/service.js";
 import type { HostedGenerationResult } from "./generation/hosted-result.js";
@@ -133,21 +104,33 @@ import { MediaService, MediaServiceError } from "./media/service.js";
 import type { CloudResourceService } from "./media/cloud-resource-service.js";
 import type { MediaMultipartService } from "./media/multipart-service.js";
 import { SignedMediaAccess } from "./media/signed-access.js";
-import { isBlockedTargetUrl } from "./identity/safe-host.js";
 import {
   clientIdentifierFromRequest,
   DEFAULT_TRUSTED_PROXY_SPEC,
   TrustedProxyList,
 } from "./identity/client-address.js";
-import {
-  canvasImportProviderStatus,
-  loadCanvasImportPreview,
-  type CanvasImportConfig,
-} from "./canvas-import/service.js";
+import { type CanvasImportConfig } from "./canvas-import/service.js";
 import { AgentSkillStoreError, type AgentSkillStore } from "./skills/store.js";
-import { CanvasImportError } from "./canvas-import/adapt.js";
-import { isAllowedMediaHost } from "./canvas-import/reference.js";
-import { guardedFetch } from "./outbound/guarded-fetch.js";
+import { optionalQueryInteger, type ApiErrorStatus, errorResponse } from "./http/errors.js";
+import { registerMusicRoutes } from "./media/music-routes.js";
+import { registerCanvasImportRoutes } from "./canvas-import/routes.js";
+import { readJsonBody } from "./http/json-body.js";
+import { isTrustedBrowserRequest } from "./http/browser-request.js";
+import { registerAccountDomainRoutes } from "./identity/account-routes.js";
+import {
+  AnonymousAgentGuard,
+  SensitiveActionGuard,
+  anonymousAgentRateLimited,
+} from "./http/rate-limit.js";
+import {
+  authenticateIdentity,
+  clearIdentityCookie,
+  identityUnavailable,
+  refreshIdentityCookie,
+  refreshIdentityCookieFromError,
+  requireIdentitySession,
+  setIdentityCookie,
+} from "./identity/http-session.js";
 import { CloudProjectService, CloudProjectServiceError } from "./project/service.js";
 import {
   CollaborationServiceError,
@@ -357,25 +340,6 @@ const DEFAULT_ANONYMOUS_AGENT_COOKIE = {
   name: "weftcanvas_agent_guest",
   secure: false,
 } as const;
-const MEDIA_PROXY_MAX_REDIRECT_HOPS = 5;
-// 音乐链接代拉：流式播放不能整段限时（一首歌 3-5 分钟），超时只管连接与取头；
-// 大小上限与本地上传音频一致（100MB）。
-const MUSIC_RESOLVE_TIMEOUT_MS = 15_000;
-const MUSIC_COVER_TIMEOUT_MS = 30_000;
-const MUSIC_PAGE_MAX_BYTES = 512 * 1024;
-const MUSIC_STREAM_MAX_BYTES = 100 * 1024 * 1024;
-const MUSIC_COVER_MAX_BYTES = 10 * 1024 * 1024;
-const MUSIC_AUDIO_URL_PATTERN = /\.(mp3|flac|wav|wave|ogg|oga|m4a|aac|opus|weba)$/i;
-// 第三方画布素材代拉上限：与媒体层的同类上限一致（图片 25MB / 视频 512MB /
-// 音频 100MB），浏览器本地媒体库的上限也取同一组数字，避免"服务端放行、前端
-// 落库时才失败"的错位。
-const MEDIA_PROXY_MAX_BYTES: Record<MediaKind, number> = {
-  image: 25 * 1024 * 1024,
-  video: 512 * 1024 * 1024,
-  audio: 100 * 1024 * 1024,
-};
-const MUSIC_FETCH_UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
 export function createApiApp(dependencies: ApiDependencies) {
   const app = new Hono();
@@ -445,6 +409,22 @@ export function createApiApp(dependencies: ApiDependencies) {
     context.header("Cache-Control", "private, no-store");
   });
 
+  registerMusicRoutes(app, { identity: dependencies.identity, identityCookie });
+  registerAccountDomainRoutes(app, {
+    identity: dependencies.identity,
+    wallet: dependencies.wallet,
+    membershipTasks: dependencies.membershipTasks,
+    allowedOrigins: dependencies.allowedOrigins,
+    identityCookie,
+    sensitiveActionGuard,
+    clientIdentifier,
+  });
+  registerCanvasImportRoutes(app, {
+    identity: dependencies.identity,
+    identityCookie,
+    canvasImport: dependencies.canvasImport,
+  });
+
   app.get("/api/health", async (context) => {
     context.header("Cache-Control", "no-store");
     // 目录新鲜度决定「能不能报价、能不能提交」：一旦过期或报价不可用，前端会直接
@@ -492,372 +472,6 @@ export function createApiApp(dependencies: ApiDependencies) {
   // 音乐平台没有对个人开放的歌曲/歌单 API，媒体域也不开 CORS：链接解析与
   // 音频代拉全部收在服务端，重定向逐跳重新过 SSRF 守卫；浏览器只接触
   // 同源代理路径，节点里不落任何第三方媒体直链。
-  app.get("/api/v1/music/resolve", async (context) => {
-    const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
-    if (session instanceof Response) return session;
-    const input = z.object({ url: z.string().trim().min(1).max(2_048) }).parse(context.req.query());
-    let target: URL;
-    try {
-      target = normalizeMusicInputUrl(input.url);
-    } catch {
-      return errorResponse(
-        context,
-        400,
-        "INVALID_MUSIC_URL",
-        "链接格式不对，请粘贴完整的网页或音频地址",
-      );
-    }
-    const blocked = await isBlockedTargetUrl(target.toString());
-    if (blocked) return errorResponse(context, 400, "MUSIC_URL_BLOCKED", "该链接不可用");
-    const source = detectMusicSource(target);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), MUSIC_RESOLVE_TIMEOUT_MS);
-    try {
-      const data = await resolveMusicLink({ target, source, signal: controller.signal });
-      return context.json(musicLinkResolveResponseSchema.parse({ ok: true, data }));
-    } catch (error) {
-      if (error instanceof MusicProxyError)
-        return errorResponse(context, error.status, error.code, error.message);
-      if (error instanceof Error && error.name === "AbortError") {
-        return errorResponse(context, 503, "MUSIC_RESOLVE_TIMEOUT", "链接解析超时，请稍后再试");
-      }
-      return errorResponse(context, 503, "MUSIC_RESOLVE_FAILED", "暂时无法读取这个链接");
-    } finally {
-      clearTimeout(timer);
-    }
-  });
-
-  // 音频流代理：逐跳 SSRF 守卫 + 内容类型门槛 + 非分片请求做音频魔数嗅探；
-  // Range 透传（<audio> 的拖动进度条依赖 206），响应头只保留必要字段。
-  app.get("/api/v1/music/stream", async (context) => {
-    const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
-    if (session instanceof Response) return session;
-    const input = z.object({ u: z.string().url().max(2_048) }).parse(context.req.query());
-    const range = context.req.header("range");
-    // 连接/取头限时；头回来即解除（流式播放不能整段限时），客户端断开由
-    // 流包装的 cancel() 传播给上游，不悬挂连接。
-    const controller = new AbortController();
-    const connectTimer = setTimeout(() => controller.abort(), MUSIC_RESOLVE_TIMEOUT_MS);
-    let upstream: Response;
-    try {
-      upstream = await musicGuardedFetch(input.u, {
-        accept: "audio/*,*/*;q=0.5",
-        signal: controller.signal,
-        range,
-      });
-    } catch (error) {
-      if (error instanceof MusicProxyError)
-        return errorResponse(context, error.status, error.code, error.message);
-      if (error instanceof Error && error.name === "AbortError") {
-        return errorResponse(context, 503, "MUSIC_STREAM_TIMEOUT", "音频源连接超时");
-      }
-      return errorResponse(context, 503, "MUSIC_STREAM_FAILED", "音频暂时无法读取");
-    } finally {
-      clearTimeout(connectTimer);
-    }
-    if (!upstream.ok && upstream.status !== 206) {
-      await upstream.body?.cancel().catch(() => undefined);
-      return errorResponse(context, 503, "MUSIC_STREAM_UNAVAILABLE", "音频源没有返回内容");
-    }
-    const declaredType =
-      (upstream.headers.get("content-type") || "").split(";")[0]?.trim().toLowerCase() ?? "";
-    let audioExtension = false;
-    try {
-      audioExtension = MUSIC_AUDIO_URL_PATTERN.test(new URL(input.u).pathname);
-    } catch {
-      audioExtension = false;
-    }
-    const declaredAudio =
-      declaredType.startsWith("audio/") ||
-      declaredType === "application/ogg" ||
-      (declaredType === "application/octet-stream" && audioExtension);
-    if (!declaredAudio) {
-      await upstream.body?.cancel().catch(() => undefined);
-      return errorResponse(context, 415, "MUSIC_NOT_AUDIO", "这个地址不是音频内容");
-    }
-    const contentLength = Number(upstream.headers.get("content-length") || 0);
-    if (contentLength > MUSIC_STREAM_MAX_BYTES) {
-      await upstream.body?.cancel().catch(() => undefined);
-      return errorResponse(context, 413, "MUSIC_TOO_LARGE", "音频文件过大");
-    }
-    if (!upstream.body)
-      return errorResponse(context, 503, "MUSIC_STREAM_FAILED", "音频暂时无法读取");
-
-    const headers = new Headers();
-    headers.set("Content-Type", declaredType || "audio/mpeg");
-    headers.set("Cache-Control", "private, max-age=300");
-    headers.set("X-Content-Type-Options", "nosniff");
-    headers.set("Accept-Ranges", upstream.headers.get("accept-ranges") || "none");
-    for (const header of ["content-length", "content-range"]) {
-      const value = upstream.headers.get(header);
-      if (value) headers.set(header, value);
-    }
-
-    if (upstream.status === 200 && !range) {
-      // 全量响应：先嗅探前 768 字节确认真的是音频，再把已读字节拼回流前面。
-      const reader = upstream.body.getReader();
-      const head: Uint8Array[] = [];
-      let headBytes = 0;
-      while (headBytes < 768) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        head.push(value);
-        headBytes += value.length;
-      }
-      if (!sniffAudioBytes(concatBytes(head))) {
-        await reader.cancel().catch(() => undefined);
-        return errorResponse(context, 415, "MUSIC_NOT_AUDIO", "这个地址不是可播放的音频");
-      }
-      let totalBytes = headBytes;
-      const body = new ReadableStream<Uint8Array>({
-        start(streamController) {
-          for (const chunk of head) streamController.enqueue(chunk);
-        },
-        async pull(streamController) {
-          const { done, value } = await reader.read();
-          if (done) {
-            streamController.close();
-            return;
-          }
-          totalBytes += value.length;
-          if (totalBytes > MUSIC_STREAM_MAX_BYTES) {
-            await reader.cancel().catch(() => undefined);
-            streamController.error(new Error("MUSIC_TOO_LARGE"));
-            return;
-          }
-          streamController.enqueue(value);
-        },
-        async cancel() {
-          await reader.cancel().catch(() => undefined);
-        },
-      });
-      return new Response(body, { status: 200, headers });
-    }
-
-    // Range 请求（或上游分片响应）：透传字节，counting 包装防止无上限拉取。
-    const reader = upstream.body.getReader();
-    let totalBytes = 0;
-    const body = new ReadableStream<Uint8Array>({
-      async pull(streamController) {
-        const { done, value } = await reader.read();
-        if (done) {
-          streamController.close();
-          return;
-        }
-        totalBytes += value.length;
-        if (totalBytes > MUSIC_STREAM_MAX_BYTES) {
-          await reader.cancel().catch(() => undefined);
-          streamController.error(new Error("MUSIC_TOO_LARGE"));
-          return;
-        }
-        streamController.enqueue(value);
-      },
-      async cancel() {
-        await reader.cancel().catch(() => undefined);
-      },
-    });
-    return new Response(body, { status: upstream.status, headers });
-  });
-
-  // 封面代理：与音频同一套守卫，仅允许图片内容类型，供外链卡片展示。
-  app.get("/api/v1/music/cover", async (context) => {
-    const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
-    if (session instanceof Response) return session;
-    const input = z.object({ u: z.string().url().max(2_048) }).parse(context.req.query());
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), MUSIC_COVER_TIMEOUT_MS);
-    try {
-      const upstream = await musicGuardedFetch(input.u, {
-        accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
-        signal: controller.signal,
-      });
-      if (!upstream.ok) {
-        await upstream.body?.cancel().catch(() => undefined);
-        return errorResponse(context, 503, "MUSIC_COVER_UNAVAILABLE", "封面暂时无法读取");
-      }
-      const contentType =
-        (upstream.headers.get("content-type") || "").split(";")[0]?.trim().toLowerCase() ?? "";
-      if (!contentType.startsWith("image/") && contentType !== "application/octet-stream") {
-        await upstream.body?.cancel().catch(() => undefined);
-        return errorResponse(context, 415, "MUSIC_NOT_IMAGE", "封面地址不是图片内容");
-      }
-      const contentLength = Number(upstream.headers.get("content-length") || 0);
-      if (contentLength > MUSIC_COVER_MAX_BYTES) {
-        await upstream.body?.cancel().catch(() => undefined);
-        return errorResponse(context, 413, "MUSIC_COVER_TOO_LARGE", "封面图片过大");
-      }
-      const headers = new Headers();
-      headers.set("Content-Type", contentType || "image/jpeg");
-      headers.set("Cache-Control", "private, max-age=3600");
-      headers.set("X-Content-Type-Options", "nosniff");
-      if (contentLength) headers.set("Content-Length", String(contentLength));
-      return new Response(upstream.body, { status: 200, headers });
-    } catch (error) {
-      if (error instanceof MusicProxyError)
-        return errorResponse(context, error.status, error.code, error.message);
-      if (error instanceof Error && error.name === "AbortError") {
-        return errorResponse(context, 503, "MUSIC_COVER_TIMEOUT", "封面下载超时");
-      }
-      return errorResponse(context, 503, "MUSIC_COVER_FAILED", "封面暂时无法读取");
-    } finally {
-      clearTimeout(timer);
-    }
-  });
-
-  // —— 第三方画布导入（LibTV / TapNow / UpDream）—————————————————————————
-  // 与音乐链接同一套约定：对方画布由服务端读取，素材由浏览器经同源代理路径拉
-  // 进本地媒体库，节点里不落任何第三方媒体直链。素材代拉复用音乐那套逐跳
-  // SSRF 守卫，另加一层按来源核验的域名白名单。
-  app.get("/api/v1/canvas-import/providers", async (context) => {
-    const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
-    if (session instanceof Response) return session;
-    context.header("Cache-Control", "no-store");
-    return context.json(
-      canvasImportProvidersResponseSchema.parse({
-        ok: true,
-        data: { providers: canvasImportProviderStatus(dependencies.canvasImport ?? {}) },
-      }),
-    );
-  });
-
-  app.post("/api/v1/canvas-import/preview", async (context) => {
-    const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
-    if (session instanceof Response) return session;
-    const body = await readJsonBody(context);
-    if (body instanceof Response) return body;
-    const parsed = canvasImportRequestSchema.safeParse(body);
-    if (!parsed.success) {
-      return errorResponse(context, 422, "INVALID_CANVAS_IMPORT", "请填写要导入的第三方画布链接");
-    }
-    try {
-      const data = await loadCanvasImportPreview(parsed.data, dependencies.canvasImport ?? {});
-      context.header("Cache-Control", "no-store");
-      return context.json(canvasImportPreviewResponseSchema.parse({ ok: true, data }));
-    } catch (error) {
-      if (error instanceof CanvasImportError)
-        return errorResponse(context, error.status, error.code, error.message);
-      return errorResponse(context, 503, "IMPORT_SOURCE_UNAVAILABLE", "暂时读不到这个第三方画布");
-    }
-  });
-
-  // 素材代拉：白名单域名 + 逐跳 SSRF 守卫 + 声明类型门槛 + 按类型的大小上限，
-  // 响应只回必要头。Range 透传，视频拖动进度条依赖 206。
-  app.get("/api/v1/canvas-import/asset", async (context) => {
-    const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
-    if (session instanceof Response) return session;
-    const input = z
-      .object({ p: canvasImportProviderSchema, u: z.string().url().max(4_096) })
-      .parse(context.req.query());
-    let target: URL;
-    try {
-      target = new URL(input.u);
-    } catch {
-      return errorResponse(context, 400, "IMPORT_ASSET_INVALID", "素材地址不合法");
-    }
-    if (target.protocol !== "https:" || target.username || target.password) {
-      return errorResponse(context, 400, "IMPORT_ASSET_BLOCKED", "素材地址不受支持");
-    }
-    if (!isAllowedMediaHost(input.p, target.hostname)) {
-      return errorResponse(context, 400, "IMPORT_ASSET_BLOCKED", "这个素材不在允许代拉的域名里");
-    }
-    const range = context.req.header("range");
-    const controller = new AbortController();
-    const connectTimer = setTimeout(() => controller.abort(), MUSIC_RESOLVE_TIMEOUT_MS);
-    let upstream: Response;
-    try {
-      upstream = await guardedFetch(input.u, {
-        accept: "image/avif,image/webp,image/png,image/jpeg,image/*,video/*,audio/*,*/*;q=0.5",
-        signal: controller.signal,
-        range,
-        userAgent: MUSIC_FETCH_UA,
-        maxRedirects: MEDIA_PROXY_MAX_REDIRECT_HOPS,
-        // 白名单按跳校验：对方 CDN 302 到别家主机同样要拦下来。
-        allowHost: (hostname) => isAllowedMediaHost(input.p, hostname),
-        fetch: dependencies.canvasImport?.fetch,
-        fail: (failure) =>
-          failure === "blocked" || failure === "host-not-allowed"
-            ? new CanvasImportError(400, "IMPORT_ASSET_BLOCKED", "该素材地址不可用")
-            : new CanvasImportError(503, "IMPORT_ASSET_FAILED", "这个素材暂时拉不到"),
-      });
-    } catch (error) {
-      if (error instanceof CanvasImportError)
-        return errorResponse(context, error.status, error.code, error.message);
-      if (error instanceof Error && error.name === "AbortError") {
-        return errorResponse(context, 503, "IMPORT_ASSET_TIMEOUT", "素材源连接超时");
-      }
-      return errorResponse(context, 503, "IMPORT_ASSET_FAILED", "这个素材暂时拉不到");
-    } finally {
-      clearTimeout(connectTimer);
-    }
-    if (!upstream.ok && upstream.status !== 206) {
-      await upstream.body?.cancel().catch(() => undefined);
-      return errorResponse(context, 503, "IMPORT_ASSET_UNAVAILABLE", "素材源没有返回内容");
-    }
-    const contentType =
-      (upstream.headers.get("content-type") || "").split(";")[0]?.trim().toLowerCase() ?? "";
-    const mediaKind = contentType.startsWith("image/")
-      ? "image"
-      : contentType.startsWith("video/")
-        ? "video"
-        : contentType.startsWith("audio/")
-          ? "audio"
-          : "";
-    if (!mediaKind) {
-      await upstream.body?.cancel().catch(() => undefined);
-      return errorResponse(
-        context,
-        415,
-        "IMPORT_ASSET_UNSUPPORTED",
-        "这个素材不是图片、视频或音频",
-      );
-    }
-    const maxBytes = MEDIA_PROXY_MAX_BYTES[mediaKind];
-    const contentLength = Number(upstream.headers.get("content-length") || 0);
-    if (contentLength > maxBytes) {
-      await upstream.body?.cancel().catch(() => undefined);
-      return errorResponse(
-        context,
-        413,
-        "IMPORT_ASSET_TOO_LARGE",
-        "这个素材超出了可导入的大小上限",
-      );
-    }
-    if (!upstream.body) {
-      return errorResponse(context, 503, "IMPORT_ASSET_FAILED", "这个素材暂时拉不到");
-    }
-    const headers = new Headers();
-    headers.set("Content-Type", contentType);
-    headers.set("Cache-Control", "private, max-age=300");
-    headers.set("X-Content-Type-Options", "nosniff");
-    if (contentLength) headers.set("Content-Length", String(contentLength));
-    const contentRange = upstream.headers.get("content-range");
-    if (contentRange) headers.set("Content-Range", contentRange);
-    headers.set("Accept-Ranges", upstream.headers.get("accept-ranges") || "bytes");
-
-    // 边下边限流：即使上游没给 Content-Length 也不会拉爆内存。
-    const reader = upstream.body.getReader();
-    let totalBytes = 0;
-    const body = new ReadableStream<Uint8Array>({
-      async pull(streamController) {
-        const { done, value } = await reader.read();
-        if (done) {
-          streamController.close();
-          return;
-        }
-        totalBytes += value.length;
-        if (totalBytes > maxBytes) {
-          await reader.cancel().catch(() => undefined);
-          streamController.error(new Error("IMPORT_ASSET_TOO_LARGE"));
-          return;
-        }
-        streamController.enqueue(value);
-      },
-      async cancel() {
-        await reader.cancel().catch(() => undefined);
-      },
-    });
-    return new Response(body, { status: upstream.status === 206 ? 206 : 200, headers });
-  });
 
   app.get("/api/v1/model-catalog", async (context) => {
     const forceRefresh = context.req.query("refresh") === "1";
@@ -1288,236 +902,6 @@ export function createApiApp(dependencies: ApiDependencies) {
     });
   });
 
-  app.post("/api/v1/auth/register", async (context) => {
-    if (!dependencies.identity) return identityUnavailable(context);
-    if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(
-        context,
-        403,
-        "CROSS_SITE_REQUEST_REJECTED",
-        "无法从其他站点提交账号请求",
-      );
-    }
-    const registerLimited = sensitiveActionGuard.consume(
-      `register:${clientIdentifier(context)}`,
-      10,
-      60 * 60_000,
-    );
-    if (registerLimited) return rateLimitedResponse(context, registerLimited);
-    const body = await readJsonBody(context);
-    if (body instanceof Response) return body;
-    let result: IdentityRegistrationResult;
-    try {
-      result = await dependencies.identity.register(body);
-    } catch (error) {
-      const rejected = identityRequestErrorResponse(context, "register", error);
-      if (rejected) return rejected;
-      throw error;
-    }
-    if (result.status === "authenticated") {
-      setIdentityCookie(context, identityCookie, result.session);
-      return context.json(
-        identityRegistrationResponseSchema.parse({
-          ok: true,
-          status: "authenticated",
-          data: publicIssuedSession(result.session),
-          capabilities: identityCapabilities(dependencies.identity),
-        }),
-        201,
-      );
-    }
-    return context.json(
-      identityRegistrationResponseSchema.parse({
-        ok: true,
-        status: "verification_required",
-        data: { email: result.email },
-        capabilities: identityCapabilities(dependencies.identity),
-      }),
-      201,
-    );
-  });
-
-  app.post("/api/v1/auth/login", async (context) => {
-    if (!dependencies.identity) return identityUnavailable(context);
-    if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(
-        context,
-        403,
-        "CROSS_SITE_REQUEST_REJECTED",
-        "无法从其他站点提交登录请求",
-      );
-    }
-    const body = await readJsonBody(context);
-    if (body instanceof Response) return body;
-    // 登录撞库面：按 IP+邮箱 每 10 次/分钟，另按邮箱 30 次/5 分钟（防换 IP 打同一账号）。
-    const loginEmail =
-      typeof body === "object" &&
-      body !== null &&
-      typeof (body as { email?: unknown }).email === "string"
-        ? (body as { email: string }).email.trim().toLowerCase()
-        : "";
-    const loginLimited =
-      sensitiveActionGuard.consume(
-        `login:${clientIdentifier(context)}:${loginEmail}`,
-        10,
-        60_000,
-      ) ?? sensitiveActionGuard.consume(`login-email:${loginEmail}`, 30, 5 * 60_000);
-    if (loginLimited) return rateLimitedResponse(context, loginLimited);
-    let issued: IssuedIdentitySession;
-    try {
-      issued = await dependencies.identity.login(body);
-    } catch (error) {
-      const rejected = identityRequestErrorResponse(context, "login", error);
-      if (rejected) return rejected;
-      throw error;
-    }
-    setIdentityCookie(context, identityCookie, issued);
-    return context.json(
-      identitySessionResponseSchema.parse({
-        ok: true,
-        data: publicIssuedSession(issued),
-        capabilities: identityCapabilities(dependencies.identity),
-      }),
-    );
-  });
-
-  app.get("/api/v1/auth/session", async (context) => {
-    if (!dependencies.identity) {
-      return context.json(
-        identitySessionStateResponseSchema.parse({
-          ok: true,
-          data: null,
-          capabilities: identityCapabilities(undefined),
-        }),
-      );
-    }
-    const session = await authenticateIdentity(context, dependencies.identity, identityCookie);
-    return context.json(
-      identitySessionStateResponseSchema.parse({
-        ok: true,
-        data: session,
-        capabilities: identityCapabilities(dependencies.identity),
-      }),
-    );
-  });
-
-  app.post("/api/v1/auth/logout", async (context) => {
-    if (!dependencies.identity) return identityUnavailable(context);
-    if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(
-        context,
-        403,
-        "CROSS_SITE_REQUEST_REJECTED",
-        "无法从其他站点提交退出请求",
-      );
-    }
-    try {
-      await dependencies.identity.logout(getCookie(context, identityCookie.name));
-    } finally {
-      // Never leave a locally valid cookie behind when upstream revocation fails.
-      clearIdentityCookie(context, identityCookie);
-    }
-    return context.json(identityLogoutResponseSchema.parse({ ok: true }));
-  });
-
-  app.get("/api/v1/wallet", async (context) => {
-    if (!dependencies.wallet) return walletUnavailable(context);
-    const result = await dependencies.wallet.getSummary(getCookie(context, identityCookie.name));
-    refreshIdentityCookie(context, identityCookie, result);
-    return context.json(walletResponseSchema.parse({ ok: true, data: result.data }));
-  });
-
-  app.get("/api/v1/wallet/ledger", async (context) => {
-    if (!dependencies.wallet) return walletUnavailable(context);
-    const limit = optionalQueryInteger(context, context.req.query("limit"), 20);
-    if (limit instanceof Response) return limit;
-    if (limit < 1 || limit > 50)
-      return errorResponse(context, 400, "INVALID_LIMIT", "积分流水数量范围不正确");
-    const result = await dependencies.wallet.getLedger(
-      getCookie(context, identityCookie.name),
-      limit,
-    );
-    refreshIdentityCookie(context, identityCookie, result);
-    return context.json(
-      walletLedgerResponseSchema.parse({ ok: true, data: { items: result.data } }),
-    );
-  });
-
-  app.get("/api/v1/wallet/products", async (context) => {
-    if (!dependencies.wallet) return walletUnavailable(context);
-    const result = await dependencies.wallet.getProducts(getCookie(context, identityCookie.name));
-    refreshIdentityCookie(context, identityCookie, result);
-    return context.json(
-      walletProductsResponseSchema.parse({
-        ok: true,
-        data: result.data.products,
-        customCreditTopUp: result.data.customCreditTopUp,
-      }),
-    );
-  });
-
-  app.get("/api/v1/membership/tasks", async (context) => {
-    if (!dependencies.membershipTasks) return walletUnavailable(context);
-    const result = await dependencies.membershipTasks.getMembershipTasks(
-      getCookie(context, identityCookie.name),
-    );
-    refreshIdentityCookie(context, identityCookie, result);
-    context.header("Cache-Control", "private, no-store");
-    return context.json(membershipTaskCenterResponseSchema.parse({ ok: true, data: result.data }));
-  });
-
-  app.post("/api/v1/membership/tasks/canvas-create-node", async (context) => {
-    if (!dependencies.membershipTasks) return walletUnavailable(context);
-    if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(
-        context,
-        403,
-        "CROSS_SITE_REQUEST_REJECTED",
-        "无法从其他站点提交画布任务",
-      );
-    }
-    // 事件没有服务端完成条件校验，只能靠限速挡住脚本化刷进度。
-    const eventLimited = sensitiveActionGuard.consume(
-      `canvas-node-event:${clientIdentifier(context)}`,
-      20,
-      60_000,
-    );
-    if (eventLimited) return rateLimitedResponse(context, eventLimited);
-    const result = await dependencies.membershipTasks.recordCanvasNodeCreated(
-      getCookie(context, identityCookie.name),
-    );
-    refreshIdentityCookie(context, identityCookie, result);
-    context.header("Cache-Control", "private, no-store");
-    return context.json(membershipTaskActionResponseSchema.parse({ ok: true, data: result.data }));
-  });
-
-  app.post("/api/v1/membership/tasks/:taskKey/claim", async (context) => {
-    if (!dependencies.membershipTasks) return walletUnavailable(context);
-    if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(
-        context,
-        403,
-        "CROSS_SITE_REQUEST_REJECTED",
-        "无法从其他站点领取任务奖励",
-      );
-    }
-    const taskKey = membershipTaskKeySchema.parse(context.req.param("taskKey"));
-    // taskKey 本身是个可枚举空间：按 IP+key 限速，压住批量试探。
-    const claimLimited = sensitiveActionGuard.consume(
-      `task-claim:${clientIdentifier(context)}:${taskKey.toLowerCase()}`,
-      10,
-      60_000,
-    );
-    if (claimLimited) return rateLimitedResponse(context, claimLimited);
-    const result = await dependencies.membershipTasks.claimMembershipTask(
-      getCookie(context, identityCookie.name),
-      taskKey,
-    );
-    refreshIdentityCookie(context, identityCookie, result);
-    context.header("Cache-Control", "private, no-store");
-    return context.json(membershipTaskActionResponseSchema.parse({ ok: true, data: result.data }));
-  });
-
   app.get("/api/v1/cloud-projects", async (context) => {
     if (!dependencies.projects) return cloudProjectsUnavailable(context);
     const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
@@ -1793,68 +1177,6 @@ export function createApiApp(dependencies: ApiDependencies) {
       context.req.param("invitationId"),
     );
     return context.json(cloudProjectDeleteResponseSchema.parse(result.data));
-  });
-
-  app.post("/api/v1/wallet/checkout", async (context) => {
-    if (!dependencies.wallet) return walletUnavailable(context);
-    if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(
-        context,
-        403,
-        "CROSS_SITE_REQUEST_REJECTED",
-        "无法从其他站点创建充值订单",
-      );
-    }
-    const body = await readJsonBody(context);
-    if (body instanceof Response) return body;
-    const input = walletCheckoutRequestSchema.parse(body);
-    const result = await dependencies.wallet.createCheckout(
-      getCookie(context, identityCookie.name),
-      input,
-    );
-    refreshIdentityCookie(context, identityCookie, result);
-    return context.json(walletCheckoutResponseSchema.parse({ ok: true, data: result.data }), 201);
-  });
-
-  app.get("/api/v1/wallet/orders/:orderNo", async (context) => {
-    if (!dependencies.wallet) return walletUnavailable(context);
-    const result = await dependencies.wallet.getOrder(
-      getCookie(context, identityCookie.name),
-      context.req.param("orderNo"),
-    );
-    refreshIdentityCookie(context, identityCookie, result);
-    return context.json(walletOrderResponseSchema.parse({ ok: true, data: result.data }));
-  });
-
-  app.post("/api/v1/wallet/redeem", async (context) => {
-    if (!dependencies.wallet) return walletUnavailable(context);
-    if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(context, 403, "CROSS_SITE_REQUEST_REJECTED", "无法从其他站点兑换激活码");
-    }
-    // 兑换码是低熵 secret：按 IP 限速，降低暴力枚举的速度。
-    const redeemLimited = sensitiveActionGuard.consume(
-      `redeem:${clientIdentifier(context)}`,
-      10,
-      60_000,
-    );
-    if (redeemLimited) return rateLimitedResponse(context, redeemLimited);
-    const body = await readJsonBody(context);
-    if (body instanceof Response) return body;
-    const input = walletRedeemRequestSchema.parse(body);
-    let result;
-    try {
-      result = await dependencies.wallet.redeem(getCookie(context, identityCookie.name), input);
-    } catch (error) {
-      // 上游会区分"不存在 / 已使用 / 已过期"，原样回显等于给攻击者一个枚举
-      // oracle；除会话失效（401，走全局处理清 Cookie）外统一成同一句话。
-      if (error instanceof WalletProviderError && error.status !== 401) {
-        const status = error.status === 429 ? 429 : 400;
-        return errorResponse(context, status, "REDEEM_FAILED", "兑换码无效或已使用");
-      }
-      throw error;
-    }
-    refreshIdentityCookie(context, identityCookie, result);
-    return context.json(walletRedeemResponseSchema.parse({ ok: true, data: result.data }));
   });
 
   // —— 用户自导入的 Agent 技能 ——————————————————————————————————————————
@@ -3179,328 +2501,6 @@ export function createApiApp(dependencies: ApiDependencies) {
   return app;
 }
 
-type ApiErrorStatus = 400 | 401 | 402 | 403 | 404 | 409 | 413 | 415 | 416 | 422 | 429 | 500 | 503;
-
-function errorResponse(context: Context, status: ApiErrorStatus, code: string, message: string) {
-  return context.json(apiErrorSchema.parse({ ok: false, error: { code, message } }), status);
-}
-
-// —— 音乐链接助手 ————————————————————————————————————————————————
-
-class MusicProxyError extends Error {
-  constructor(
-    readonly status: ApiErrorStatus,
-    readonly code: string,
-    message: string,
-  ) {
-    super(message);
-    this.name = "MusicProxyError";
-  }
-}
-
-/** 用户粘贴的链接允许省略协议；仅接受 http/https。 */
-function normalizeMusicInputUrl(value: string): URL {
-  const trimmed = value.trim();
-  const candidate = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`;
-  const url = new URL(candidate);
-  if (url.protocol !== "http:" && url.protocol !== "https:")
-    throw new Error("protocol not allowed");
-  return url;
-}
-
-function detectMusicSource(url: URL): MusicLinkSource {
-  const host = url.hostname.toLowerCase();
-  if (host === "music.163.com" || host.endsWith(".music.163.com")) return "netease";
-  if (host === "qq.com" || host.endsWith(".qq.com")) return "qq";
-  if (host === "qishui.douyin.com" || host.endsWith(".qishui.douyin.com")) return "qishui";
-  return "link";
-}
-
-/**
- * 音乐链接代拉：守卫逻辑在 `outbound/guarded-fetch.ts`（第三方画布素材代拉共用
- * 同一套逐跳校验），这里只负责把失败原因翻成音乐自己的错误码与文案。
- */
-async function musicGuardedFetch(
-  url: string,
-  init: { accept: string; signal: AbortSignal; range?: string },
-) {
-  return guardedFetch(url, {
-    accept: init.accept,
-    signal: init.signal,
-    range: init.range,
-    userAgent: MUSIC_FETCH_UA,
-    maxRedirects: MEDIA_PROXY_MAX_REDIRECT_HOPS,
-    fail: (failure) => {
-      if (failure === "missing-location")
-        return new MusicProxyError(503, "MUSIC_FETCH_FAILED", "链接没有返回内容");
-      if (failure === "invalid-redirect")
-        return new MusicProxyError(400, "MUSIC_URL_BLOCKED", "重定向目标不合法");
-      if (failure === "redirect-protocol")
-        return new MusicProxyError(400, "MUSIC_URL_BLOCKED", "重定向协议不允许");
-      if (failure === "too-many-redirects")
-        return new MusicProxyError(503, "MUSIC_FETCH_FAILED", "重定向次数过多");
-      return new MusicProxyError(400, "MUSIC_URL_BLOCKED", "该链接不可用");
-    },
-  });
-}
-
-/** 音频魔数（WAV/FLAC/MP3/AAC/Ogg/MP4-M4A）；MP4 容器音频视频共用，由声明类型把关。 */
-function sniffAudioBytes(bytes: Uint8Array): boolean {
-  if (bytes.length < 12) return false;
-  const asciiAt = (offset: number, length: number) =>
-    String.fromCharCode(...bytes.slice(offset, offset + length));
-  if (asciiAt(0, 4) === "RIFF" && asciiAt(8, 4) === "WAVE") return true;
-  if (asciiAt(0, 4) === "fLaC") return true;
-  if (asciiAt(0, 3) === "ID3") return true;
-  const b0 = bytes[0] ?? 0;
-  const b1 = bytes[1] ?? 0;
-  if (b0 === 0xff && (b1 & 0xe0) === 0xe0) return true; // MP3 帧同步
-  if (b0 === 0xff && (b1 & 0xf6) === 0xf0) return true; // ADTS AAC
-  if (asciiAt(0, 4) === "OggS") return true;
-  if (asciiAt(4, 4) === "ftyp") return true;
-  return false;
-}
-
-function concatBytes(chunks: Uint8Array[]): Uint8Array {
-  const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-  const out = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    out.set(chunk, offset);
-    offset += chunk.length;
-  }
-  return out;
-}
-
-/**
- * 音频直链探测：Range 取头部小段，声明类型 + 魔数双重确认后立即断开，
- * 不为探测拉完整文件。过小文件（平台的“版权保护”提示音等占位）判不可用。
- */
-async function probeMusicAudio(url: string, signal: AbortSignal) {
-  const response = await musicGuardedFetch(url, {
-    accept: "audio/*,*/*;q=0.5",
-    signal,
-    range: "bytes=0-1023",
-  });
-  if (!response.ok && response.status !== 206) return false;
-  const declaredType =
-    (response.headers.get("content-type") || "").split(";")[0]?.trim().toLowerCase() ?? "";
-  let audioExtension = false;
-  try {
-    audioExtension = MUSIC_AUDIO_URL_PATTERN.test(new URL(url).pathname);
-  } catch {
-    audioExtension = false;
-  }
-  const declaredAudio =
-    declaredType.startsWith("audio/") ||
-    declaredType === "application/ogg" ||
-    (declaredType === "application/octet-stream" && audioExtension);
-  if (!declaredAudio) {
-    await response.body?.cancel().catch(() => undefined);
-    return false;
-  }
-  let head = new Uint8Array();
-  const reader = response.body?.getReader();
-  if (reader) {
-    try {
-      const { value } = await reader.read();
-      if (value) head = value;
-    } catch {
-      head = new Uint8Array();
-    }
-    await reader.cancel().catch(() => undefined);
-  }
-  if (head.length && !sniffAudioBytes(head)) return false;
-  // 占位提示音检查看的是完整文件大小：Range 响应的 Content-Length 是分片
-  // 大小（如 1024），完整大小在 Content-Range 的 “/total” 里。
-  const contentRangeTotal = Number(response.headers.get("content-range")?.split("/")[1] || 0);
-  const fullLength =
-    contentRangeTotal > 0 ? contentRangeTotal : Number(response.headers.get("content-length") || 0);
-  if (fullLength > 0 && fullLength < 8_192) return false;
-  return true;
-}
-
-function neteaseSongId(url: URL): string | null {
-  if (!/\/song/.test(url.pathname)) return null;
-  const fromQuery = url.searchParams.get("id");
-  if (fromQuery && /^\d+$/.test(fromQuery)) return fromQuery;
-  return url.pathname.match(/\/song\/(\d+)/)?.[1] ?? null;
-}
-
-function decodeHtmlEntities(value: string) {
-  return value
-    .replace(/&#x([0-9a-f]+);/gi, (_match, hex: string) =>
-      String.fromCodePoint(Number.parseInt(hex, 16)),
-    )
-    .replace(/&#(\d+);/g, (_match, dec: string) => String.fromCodePoint(Number.parseInt(dec, 10)))
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&(?:apos|#39);/g, "'");
-}
-
-function readMetaTag(html: string, key: string): string {
-  for (const tag of html.match(/<meta\b[^>]*>/gi) ?? []) {
-    const property = tag
-      .match(/\b(?:property|name|itemprop)=["']([^"']*)["']/i)?.[1]
-      ?.toLowerCase();
-    if (property !== key.toLowerCase()) continue;
-    const content = tag.match(/\bcontent=["']([^"']*)["']/i)?.[1] ?? "";
-    if (content.trim()) return decodeHtmlEntities(content).trim();
-  }
-  return "";
-}
-
-// 平台页标题的尾部后缀（「- 单曲 - 网易云音乐」「- QQ音乐-千万正版…」等）。
-const MUSIC_TITLE_TAIL_PATTERN =
-  /^(单曲|歌曲|专辑|歌单|电台|主播|声音|网易云音乐|qq音乐|汽水音乐|抖音|音乐|高品?质|无损|hi-?res|flac|mp3|.*千万正版音乐.*|.*海量无损曲库.*|.*音乐平台.*|.*music.*)$/i;
-
-/** 从分享页 HTML 提取标题/歌手/封面；各平台 og 标签或 <title> 尽力而为。 */
-function parseMusicPageMeta(html: string): { title: string; artist: string; cover: string | null } {
-  const rawTitle =
-    readMetaTag(html, "og:title") ||
-    readMetaTag(html, "title") ||
-    decodeHtmlEntities(html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1] ?? "").trim();
-  const cover = readMetaTag(html, "og:image") || readMetaTag(html, "twitter:image") || null;
-  let artist = readMetaTag(html, "og:music:artist") || readMetaTag(html, "author");
-  const parts = rawTitle
-    .split(/\s+[-–—]\s+/)
-    .map((part) => part.trim())
-    .filter(Boolean);
-  while (parts.length > 1 && MUSIC_TITLE_TAIL_PATTERN.test(parts[parts.length - 1] ?? ""))
-    parts.pop();
-  let title = parts[0] ?? "";
-  if (!artist && parts.length >= 2) artist = parts[1] ?? "";
-  return {
-    title: title.slice(0, 200),
-    artist: artist.slice(0, 200),
-    cover: cover ? cover.slice(0, 2_048) : null,
-  };
-}
-
-async function fetchMusicPageMeta(url: string, signal: AbortSignal) {
-  const response = await musicGuardedFetch(url, {
-    accept: "text/html,application/xhtml+xml",
-    signal,
-  });
-  if (!response.ok) return null;
-  const reader = response.body?.getReader();
-  if (!reader) return null;
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  while (total < MUSIC_PAGE_MAX_BYTES) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    total += value.length;
-  }
-  await reader.cancel().catch(() => undefined);
-  const html = new TextDecoder("utf-8", { fatal: false }).decode(concatBytes(chunks));
-  return parseMusicPageMeta(html);
-}
-
-function musicProxyPaths(streamUrl: string | null, coverUrl: string | null) {
-  return {
-    streamPath: streamUrl ? `/api/v1/music/stream?u=${encodeURIComponent(streamUrl)}` : null,
-    coverPath: coverUrl ? `/api/v1/music/cover?u=${encodeURIComponent(coverUrl)}` : null,
-  };
-}
-
-function musicResolveData(input: {
-  source: MusicLinkSource;
-  kind: "audio" | "link";
-  title: string;
-  artist: string;
-  pageUrl: string;
-  streamUrl: string | null;
-  coverUrl: string | null;
-}): MusicLinkResolveData {
-  return {
-    source: input.source,
-    kind: input.kind,
-    title: input.title.slice(0, 200),
-    artist: input.artist.slice(0, 200),
-    pageUrl: input.pageUrl.slice(0, 2_048),
-    streamUrl: input.streamUrl,
-    coverUrl: input.coverUrl,
-    ...musicProxyPaths(input.streamUrl, input.coverUrl),
-  };
-}
-
-async function resolveMusicLink(input: {
-  target: URL;
-  source: MusicLinkSource;
-  signal: AbortSignal;
-}): Promise<MusicLinkResolveData> {
-  const pageUrl = input.target.toString().slice(0, 2_048);
-  if (input.source === "netease") {
-    const songId = neteaseSongId(input.target);
-    if (songId) {
-      const streamUrl = `https://music.163.com/song/media/outer/url?id=${songId}.mp3`;
-      const playable = await probeMusicAudio(streamUrl, input.signal).catch(() => false);
-      if (playable) {
-        const meta = await fetchMusicPageMeta(pageUrl, input.signal).catch(() => null);
-        return musicResolveData({
-          source: "netease",
-          kind: "audio",
-          title: meta?.title || `网易云音乐歌曲 ${songId}`,
-          artist: meta?.artist ?? "",
-          pageUrl,
-          streamUrl,
-          coverUrl: meta?.cover ?? null,
-        });
-      }
-    }
-    const meta = await fetchMusicPageMeta(pageUrl, input.signal).catch(() => null);
-    return musicResolveData({
-      source: "netease",
-      kind: "link",
-      title: meta?.title || "",
-      artist: meta?.artist ?? "",
-      pageUrl,
-      streamUrl: null,
-      coverUrl: meta?.cover ?? null,
-    });
-  }
-  if (input.source === "qq" || input.source === "qishui") {
-    // 平台播放链接有签名防盗链/DRM，只做外链卡片（元信息 + 跳转）。
-    const meta = await fetchMusicPageMeta(pageUrl, input.signal).catch(() => null);
-    return musicResolveData({
-      source: input.source,
-      kind: "link",
-      title: meta?.title || "",
-      artist: meta?.artist ?? "",
-      pageUrl,
-      streamUrl: null,
-      coverUrl: meta?.cover ?? null,
-    });
-  }
-  const probe = await probeMusicAudio(pageUrl, input.signal).catch(() => false);
-  if (probe) {
-    const fileName = decodeURIComponent(input.target.pathname.split("/").pop() || "").trim();
-    return musicResolveData({
-      source: "direct",
-      kind: "audio",
-      title: fileName || "音频直链",
-      artist: "",
-      pageUrl,
-      streamUrl: pageUrl,
-      coverUrl: null,
-    });
-  }
-  const meta = await fetchMusicPageMeta(pageUrl, input.signal).catch(() => null);
-  return musicResolveData({
-    source: "link",
-    kind: "link",
-    title: meta?.title || input.target.hostname,
-    artist: meta?.artist ?? "",
-    pageUrl,
-    streamUrl: null,
-    coverUrl: meta?.cover ?? null,
-  });
-}
-
 function generationErrorStatus(code: string): ApiErrorStatus {
   if (code === "UNAUTHENTICATED") return 401;
   if (code === "GENERATION_RATE_LIMITED") return 429;
@@ -3521,44 +2521,12 @@ function generationErrorStatus(code: string): ApiErrorStatus {
   return 422;
 }
 
-function identityUnavailable(context: Context) {
-  return errorResponse(context, 503, "IDENTITY_UNAVAILABLE", "账号服务暂未配置");
-}
-
 /**
  * 登录/注册入参由 contracts 的 schema 把关（邮箱必须是邮箱格式、注册密码至少 10 位）。
  * 让 ZodError 落到全局分支只会得到「请求参数不完整或格式不正确」，用户无从知道该改哪一项：
  * 真实反馈里有人把手机号填进邮箱框，然后在登录与注册之间反复重试。这里按字段给出可执行提示。
  * 只认凭据字段；其余（例如上游返回体形状不符）仍交给全局分支，不误报成用户输入问题。
  */
-function identityRequestErrorResponse(
-  context: Context,
-  mode: "login" | "register",
-  error: unknown,
-): Response | null {
-  if (!(error instanceof ZodError)) return null;
-  const field = error.issues[0]?.path[0];
-  if (field === "email") {
-    return errorResponse(
-      context,
-      400,
-      "INVALID_REQUEST",
-      "邮箱地址格式不正确，请填写完整邮箱（例如 name@example.com）",
-    );
-  }
-  if (field === "password") {
-    return errorResponse(
-      context,
-      400,
-      "INVALID_REQUEST",
-      mode === "register" ? "密码需为 10-128 位" : "请输入密码",
-    );
-  }
-  if (field === "displayName") {
-    return errorResponse(context, 400, "INVALID_REQUEST", "昵称需为 1-48 个字符");
-  }
-  return null;
-}
 
 function agentUnavailable(context: Context) {
   return errorResponse(context, 503, "AGENT_UNAVAILABLE", "Agent 服务暂未配置");
@@ -3718,22 +2686,8 @@ function generationUnavailable(context: Context, message?: string) {
   return errorResponse(context, 503, "GENERATION_UNAVAILABLE", message || "生成服务暂未配置");
 }
 
-function walletUnavailable(context: Context) {
-  return errorResponse(context, 503, "WALLET_UNAVAILABLE", "积分服务暂未配置");
-}
-
 function setCloudProjectEtag(context: Context, projectId: string, revision: number) {
   context.header("ETag", `\"${projectId}:${revision}\"`);
-}
-
-function optionalQueryInteger(context: Context, value: string | undefined, fallback: number) {
-  if (value === undefined) return fallback;
-  if (!/^\d+$/.test(value))
-    return errorResponse(context, 400, "INVALID_LIMIT", "任务数量范围不正确");
-  const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed))
-    return errorResponse(context, 400, "INVALID_LIMIT", "任务数量范围不正确");
-  return parsed;
 }
 
 function optionalProjectOwnerId(value: string | undefined) {
@@ -3786,140 +2740,6 @@ async function resolveAgentAccess(
   return errorResponse(context, 401, "UNAUTHENTICATED", "请先登录");
 }
 
-function anonymousAgentRateLimited(context: Context, retryAfterSeconds: number) {
-  context.header("Retry-After", String(retryAfterSeconds));
-  return errorResponse(context, 429, "AGENT_RATE_LIMITED", "Agent 请求过于频繁，请稍后再试");
-}
-
-class AnonymousAgentGuard {
-  private readonly now: () => number;
-  private readonly conversationsPerMinute: number;
-  private readonly submissionsPerMinute: number;
-  private readonly submissionsPerDay: number;
-  private readonly readsPerMinute: number;
-  private readonly globalConversationsPerMinute: number;
-  private readonly globalSubmissionsPerMinute: number;
-  private readonly globalSubmissionsPerDay: number;
-  private readonly globalReadsPerMinute: number;
-  private readonly buckets = new Map<
-    string,
-    { startedAt: number; count: number; durationMs: number }
-  >();
-
-  constructor(
-    options: ApiDependencies["anonymousAgentLimits"] = {
-      conversationsPerMinute: 8,
-      submissionsPerMinute: 6,
-      submissionsPerDay: 60,
-    },
-  ) {
-    this.now = options?.now ?? Date.now;
-    this.conversationsPerMinute = positiveLimit(options?.conversationsPerMinute, 8);
-    this.submissionsPerMinute = positiveLimit(options?.submissionsPerMinute, 6);
-    this.submissionsPerDay = positiveLimit(options?.submissionsPerDay, 60);
-    this.readsPerMinute = positiveLimit(options?.readsPerMinute, 120);
-    this.globalConversationsPerMinute = positiveLimit(options?.globalConversationsPerMinute, 120);
-    this.globalSubmissionsPerMinute = positiveLimit(options?.globalSubmissionsPerMinute, 60);
-    this.globalSubmissionsPerDay = positiveLimit(options?.globalSubmissionsPerDay, 2_000);
-    this.globalReadsPerMinute = positiveLimit(options?.globalReadsPerMinute, 10_000);
-  }
-
-  consumeConversation(ownerId: string) {
-    return (
-      this.consume("global:conversation-minute", this.globalConversationsPerMinute, 60_000) ??
-      this.consume(`${ownerId}:conversation`, this.conversationsPerMinute, 60_000)
-    );
-  }
-
-  consumeSubmission(ownerId: string) {
-    return (
-      this.consume("global:submit-minute", this.globalSubmissionsPerMinute, 60_000) ??
-      this.consume("global:submit-day", this.globalSubmissionsPerDay, 24 * 60 * 60_000) ??
-      this.consume(`${ownerId}:submit-minute`, this.submissionsPerMinute, 60_000) ??
-      this.consume(`${ownerId}:submit-day`, this.submissionsPerDay, 24 * 60 * 60_000)
-    );
-  }
-
-  consumeRead(ownerId: string) {
-    return (
-      this.consume("global:read-minute", this.globalReadsPerMinute, 60_000) ??
-      this.consume(`${ownerId}:read-minute`, this.readsPerMinute, 60_000)
-    );
-  }
-
-  private consume(key: string, limit: number, durationMs: number) {
-    const now = this.now();
-    const bucket = this.buckets.get(key);
-    if (!bucket || bucket.durationMs !== durationMs || now - bucket.startedAt >= durationMs) {
-      this.buckets.set(key, { startedAt: now, count: 1, durationMs });
-      this.prune(now);
-      return null;
-    }
-    if (bucket.count >= limit)
-      return Math.max(1, Math.ceil((durationMs - (now - bucket.startedAt)) / 1_000));
-    bucket.count += 1;
-    return null;
-  }
-
-  private prune(now: number) {
-    if (this.buckets.size < 2_000) return;
-    for (const [key, bucket] of this.buckets) {
-      if (now - bucket.startedAt >= bucket.durationMs) this.buckets.delete(key);
-    }
-    while (this.buckets.size > 4_000) {
-      const oldestKey = this.buckets.keys().next().value as string | undefined;
-      if (!oldestKey) break;
-      this.buckets.delete(oldestKey);
-    }
-  }
-}
-
-function positiveLimit(value: number | undefined, fallback: number) {
-  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : fallback;
-}
-
-/**
- * 敏感接口的固定窗口限速（登录 / 注册 / 兑换 / 会员任务）。
- * 单实例进程内计数：systemd 单机部署有效；多实例部署下每个实例各自计数，
- * 需要跨实例一致时应换成 PostgresFixedWindowRateLimiter。
- */
-class SensitiveActionGuard {
-  private readonly buckets = new Map<
-    string,
-    { startedAt: number; count: number; durationMs: number }
-  >();
-
-  constructor(private readonly now: () => number = Date.now) {}
-
-  /** 返回 null 表示放行，返回数字表示还需等待的秒数。 */
-  consume(key: string, limit: number, durationMs: number): number | null {
-    const now = this.now();
-    const bucket = this.buckets.get(key);
-    if (!bucket || bucket.durationMs !== durationMs || now - bucket.startedAt >= durationMs) {
-      this.buckets.set(key, { startedAt: now, count: 1, durationMs });
-      this.prune(now);
-      return null;
-    }
-    if (bucket.count >= limit) {
-      return Math.max(1, Math.ceil((durationMs - (now - bucket.startedAt)) / 1_000));
-    }
-    bucket.count += 1;
-    return null;
-  }
-
-  private prune(now: number) {
-    if (this.buckets.size < 2_000) return;
-    for (const [key, bucket] of this.buckets) {
-      if (now - bucket.startedAt >= bucket.durationMs) this.buckets.delete(key);
-    }
-    while (this.buckets.size > 4_000) {
-      const oldestKey = this.buckets.keys().next().value as string | undefined;
-      if (!oldestKey) break;
-      this.buckets.delete(oldestKey);
-    }
-  }
-}
-
 /** 取客户端标识：按部署的代理链依次看 CF / XFF / X-Real-IP，全部缺失时回落 anonymous。 */
 /** socket 上的直连对端地址；没有 socket 的运行环境（测试直调 app.request）返回 undefined。 */
 function remoteAddressOf(context: Context): string | undefined {
@@ -3928,141 +2748,8 @@ function remoteAddressOf(context: Context): string | undefined {
   return env?.incoming?.socket?.remoteAddress;
 }
 
-function rateLimitedResponse(context: Context, retryAfterSeconds: number) {
-  context.header("Retry-After", String(retryAfterSeconds));
-  return errorResponse(context, 429, "RATE_LIMITED", "操作太频繁了，请稍后再试");
-}
-
-export async function requireIdentitySession(
-  context: Context,
-  identity: IdentityProvider | undefined,
-  cookie: NonNullable<ApiDependencies["identityCookie"]>,
-) {
-  if (!identity) return identityUnavailable(context);
-  const session = await authenticateIdentity(context, identity, cookie);
-  if (session) return session;
-  return errorResponse(context, 401, "UNAUTHENTICATED", "请先登录");
-}
-
-async function authenticateIdentity(
-  context: Context,
-  identity: IdentityProvider,
-  cookie: NonNullable<ApiDependencies["identityCookie"]>,
-) {
-  const token = getCookie(context, cookie.name);
-  const session = await identity.authenticate(token);
-  if (!session) {
-    if (token) clearIdentityCookie(context, cookie);
-    return null;
-  }
-  if (session.refreshedToken) {
-    setIdentityCookie(context, cookie, { ...session, token: session.refreshedToken });
-  }
-  const { refreshedToken: _refreshedToken, ...publicSession } = session;
-  return publicSession;
-}
-
-async function readJsonBody(context: Context) {
-  const contentType = context.req.header("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase();
-  if (contentType !== "application/json") {
-    return errorResponse(context, 415, "JSON_REQUIRED", "请求必须使用 JSON 格式");
-  }
-  const contentEncoding = context.req.header("Content-Encoding")?.trim().toLowerCase();
-  if (contentEncoding && contentEncoding !== "identity") {
-    return errorResponse(context, 415, "CONTENT_ENCODING_UNAVAILABLE", "请求内容不能使用压缩编码");
-  }
-  const declaredLength = context.req.header("Content-Length");
-  if (declaredLength !== undefined) {
-    if (!/^\d+$/.test(declaredLength))
-      return errorResponse(context, 400, "CONTENT_LENGTH_INVALID", "请求大小信息无效");
-    const parsed = Number(declaredLength);
-    if (!Number.isSafeInteger(parsed))
-      return errorResponse(context, 400, "CONTENT_LENGTH_INVALID", "请求大小信息无效");
-    if (parsed > 1024 * 1024) return errorResponse(context, 413, "JSON_TOO_LARGE", "请求内容过大");
-  }
-  const body = context.req.raw.body;
-  if (!body) return errorResponse(context, 400, "INVALID_JSON", "请求内容格式不正确");
-  const reader = body.getReader();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      size += value.byteLength;
-      if (size > 1024 * 1024) {
-        await reader.cancel().catch(() => undefined);
-        return errorResponse(context, 413, "JSON_TOO_LARGE", "请求内容过大");
-      }
-      chunks.push(value);
-    }
-    const bytes = Buffer.concat(
-      chunks.map((chunk) => Buffer.from(chunk)),
-      size,
-    );
-    const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-    return JSON.parse(text) as unknown;
-  } catch {
-    return errorResponse(context, 400, "INVALID_JSON", "请求内容格式不正确");
-  }
-}
-
-function publicIssuedSession({ token: _token, ...session }: IssuedIdentitySession) {
-  return session;
-}
-
 function isGenerationObservationTerminal(status: GenerationJobStatus) {
   return status === "completed" || status === "failed" || status === "submission_unknown";
-}
-
-function setIdentityCookie(
-  context: Context,
-  cookie: NonNullable<ApiDependencies["identityCookie"]>,
-  issued: Pick<IssuedIdentitySession, "token" | "expiresAt">,
-) {
-  const expires = new Date(issued.expiresAt);
-  const maxAge = Math.max(0, Math.floor((expires.getTime() - Date.now()) / 1_000));
-  setCookie(context, cookie.name, issued.token, {
-    httpOnly: true,
-    secure: cookie.secure,
-    sameSite: "Strict",
-    path: "/",
-    expires,
-    maxAge,
-    priority: "High",
-  });
-}
-
-export function refreshIdentityCookie(
-  context: Context,
-  cookie: NonNullable<ApiDependencies["identityCookie"]>,
-  result: { refreshedToken?: string; expiresAt?: string },
-) {
-  if (!result.refreshedToken || !result.expiresAt) return;
-  setIdentityCookie(context, cookie, {
-    token: result.refreshedToken,
-    expiresAt: result.expiresAt,
-  });
-}
-
-function refreshIdentityCookieFromError(
-  context: Context,
-  cookie: NonNullable<ApiDependencies["identityCookie"]>,
-  error: unknown,
-) {
-  if (!error || typeof error !== "object" || Array.isArray(error)) return;
-  const value = error as {
-    refreshedToken?: unknown;
-    expiresAt?: unknown;
-    status?: unknown;
-    code?: unknown;
-  };
-  if (value.status === 401 || value.code === "UNAUTHENTICATED") return;
-  if (typeof value.refreshedToken !== "string" || typeof value.expiresAt !== "string") return;
-  refreshIdentityCookie(context, cookie, {
-    refreshedToken: value.refreshedToken,
-    expiresAt: value.expiresAt,
-  });
 }
 
 function hostedGenerationError(
@@ -4477,40 +3164,6 @@ function hostedMediaResponse(upstream: Response) {
   return new Response(upstream.body, { status: upstream.status, headers });
 }
 
-function identityCapabilities(identity: IdentityProvider | undefined) {
-  return (
-    identity?.capabilities ?? {
-      available: false,
-      registration: "disabled" as const,
-      registrationUrl: null,
-      passwordResetUrl: null,
-    }
-  );
-}
-
-function clearIdentityCookie(
-  context: Context,
-  cookie: NonNullable<ApiDependencies["identityCookie"]>,
-) {
-  deleteCookie(context, cookie.name, {
-    secure: cookie.secure,
-    sameSite: "Strict",
-    path: "/",
-  });
-}
-
-function isTrustedBrowserRequest(request: Request, allowedOrigins: readonly string[] = []) {
-  if (request.headers.get("Sec-Fetch-Site")?.toLowerCase() === "cross-site") return false;
-  const origin = request.headers.get("Origin");
-  if (!origin) return true;
-  if (allowedOrigins.includes(origin)) return true;
-  try {
-    return origin === new URL(request.url).origin;
-  } catch {
-    return false;
-  }
-}
-
 function readContentLength(value: string | undefined) {
   if (value === undefined) return null;
   if (!/^\d+$/.test(value))
@@ -4572,3 +3225,6 @@ function downloadContentDisposition(name: string) {
   if (fallback === value) return `attachment; filename="${fallback}"`;
   return `attachment; filename="${fallback || "download"}"; filename*=UTF-8''${encodeURIComponent(value)}`;
 }
+
+// 既有导入路径保持不变：身份会话的 HTTP 门仍然从 app.ts 可用。
+export { refreshIdentityCookie, requireIdentitySession } from "./identity/http-session.js";
