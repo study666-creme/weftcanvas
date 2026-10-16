@@ -88,9 +88,7 @@ test("full backup exports media bytes and restores into an isolated storage", as
   await expect(page.locator(".react-flow__node-weftcanvas img").first()).toBeVisible();
 });
 
-test("a corrupted media file is reported as a partial restore and never overwrites the project", async ({
-  page,
-}) => {
+test(`a corrupted media payload is reported as a partial restore`, async ({ page }) => {
   await seedBackupProject(page);
   await page.goto("/canvas");
   await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
@@ -101,36 +99,65 @@ test("a corrupted media file is reported as a partial restore and never overwrit
   const backup = await download;
   const bytes = await readStreamBytes(await backup.createReadStream());
 
-  // 破坏 ZIP：翻转正文中段的一个字节（中央目录结尾 22 字节不动，避免变成"不是 ZIP"）。
+  // 只破坏**媒体字节**（PNG 魔数 89 50 4E 47 起始的那段）：ZIP 结构与清单保持
+  // 完整，坏的是内容 → 稳定走"单个素材校验失败 → 部分恢复"这条路。翻转随机
+  // 位置会落到 deflate 流上，结果取决于字节运气（有时解出坏 JSON、有时直接
+  // 报错），那样断言的是运气不是行为——CI 首跑就是这么挂的。
   const corrupted = Buffer.from(bytes);
-  const flipAt = Math.max(0, Math.floor(corrupted.length / 2));
-  corrupted[flipAt] = corrupted[flipAt]! ^ 0xff;
+  const mediaAt = corrupted.indexOf(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  expect(mediaAt).toBeGreaterThan(-1);
+  corrupted[mediaAt + 4] = corrupted[mediaAt + 4]! ^ 0xff;
 
+  await clearBrowserStorage(page);
+  await page.goto("/canvas");
+  await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
+  await importBackupFile(page, "corrupted.weftcanvas-backup.zip", corrupted);
+
+  // 明确报出"部分恢复 + 损坏跳过"，绝不静默成功。
+  const toast = page.getByText(/已恢复/).first();
+  await expect(toast).toBeVisible({ timeout: 20_000 });
+  await expect(toast).toContainText("跳过");
+  await expect(toast).toContainText("部分恢复");
+  await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(4);
+});
+
+test(`a structurally broken archive is rejected without touching the library`, async ({ page }) => {
+  await seedBackupProject(page);
+  await page.goto("/canvas");
+  await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
+
+  const download = page.waitForEvent("download");
+  await openProjectSidebar(page);
+  await page.getByRole("button", { name: "完整备份" }).click();
+  const backup = await download;
+  const bytes = await readStreamBytes(await backup.createReadStream());
+
+  // 截断掉中央目录：结构层面就不成立 → 整包拒绝。
+  const truncated = bytes.subarray(0, Math.floor(bytes.length * 0.6));
+
+  // 不清空浏览器存储：既有的"备份实验"必须原样还在，不被失败导入破坏。
+  await importBackupFile(page, "truncated.weftcanvas-backup.zip", truncated);
+  const toast = page.getByText(/无法|不受支持|无效|缺少/).first();
+  await expect(toast).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/已恢复/)).toHaveCount(0);
+  await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(4);
+});
+
+async function clearBrowserStorage(page: Page) {
   await page.evaluate(async () => {
     localStorage.clear();
     sessionStorage.clear();
     await indexedDB.deleteDatabase("weftcanvas-media");
     await indexedDB.deleteDatabase("weftcanvas-assets");
   });
-  await page.goto("/canvas");
-  await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
+}
 
+async function importBackupFile(page: Page, name: string, buffer: Buffer) {
   await openProjectSidebar(page);
   const chooser = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "导入", exact: true }).click();
-  (await chooser).setFiles({
-    name: "corrupted.weftcanvas-backup.zip",
-    mimeType: "application/zip",
-    buffer: corrupted,
-  });
-
-  // 要么整包被拒（CRC/结构错误），要么恢复出项目并如实报告跳过——
-  // 绝不允许静默成功：用户必须在提示里看到"无法/不受支持/损坏/已恢复"之一。
-  const toast = page.getByText(/已恢复|无法|不受支持|损坏/).first();
-  await expect(toast).toBeVisible({ timeout: 20_000 });
-
-  // 校验失败不破坏现有存储：画布仍在、（若恢复出了项目）节点没有指向坏媒体。
-});
+  (await chooser).setFiles({ name, mimeType: "application/zip", buffer });
+}
 
 async function readStreamBytes(stream: NodeJS.ReadableStream): Promise<Buffer> {
   const chunks: Buffer[] = [];
@@ -139,6 +166,9 @@ async function readStreamBytes(stream: NodeJS.ReadableStream): Promise<Buffer> {
 }
 
 async function openProjectSidebar(page: Page) {
+  // 幂等：导出之后侧栏往往还开着（开关按钮是 toggle），重复打开会把它关上。
+  const importButton = page.getByRole("button", { name: "导入", exact: true });
+  if (await importButton.isVisible().catch(() => false)) return;
   const toggle = page.locator('[aria-label*="项目"], [title*="项目"]').first();
   if (await toggle.isVisible().catch(() => false)) {
     await toggle.click();
@@ -148,7 +178,6 @@ async function openProjectSidebar(page: Page) {
   await page.getByText("项目", { exact: true }).first().click();
 }
 
-/** 造一个带本地图/视频/音频媒体 + 文字节点 + 连线 + 分组的画布。 */
 async function seedBackupProject(page: Page) {
   await page.addInitScript(() => {
     localStorage.clear();

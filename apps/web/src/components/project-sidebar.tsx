@@ -172,7 +172,7 @@ export const ProjectSidebar = memo(function ProjectSidebar() {
       return;
     }
     importProject(result.project);
-    const restoredCount = result.reusedMediaIds.length + result.remappedMediaIds.length;
+    const restoredCount = result.manifest.media.length - result.skipped.length;
     const parts = [
       `已恢复「${result.manifest.summary.name}」：节点 ${result.manifest.summary.nodeCount}、媒体 ${restoredCount}`,
     ];

@@ -218,17 +218,22 @@
 
 ### 2.7 备份恢复端到端验收（对应修复计划的"必须通过的恢复实验"）
 
-`apps/web/e2e/project-backup.spec.ts`（`7cd49bf`）：
+`apps/web/e2e/project-backup.spec.ts`（`7cd49bf`，坏包用例后续在
+`7870e02` 重写为确定性路径——CI 首跑曾因随机翻转字节落在 deflate 流上而
+对不同树呈现不同失败形态，断言的是运气不是行为）：
 
 1. 造含**文字/图片/视频/音频**节点、3 条连线、1 个分组的画布 → 点「完整备份」
    下载 ZIP → **清空 localStorage / sessionStorage / IndexedDB**（隔离环境）→
    导入 ZIP → 节点数（4）/连线数（3）/分组（1）/媒体引用全部恢复；图片节点
    渲染出 `<img>`（字节来自 IndexedDB）；**刷新页面后一切仍在**。
-2. 翻转 ZIP 正文中段一个字节 → 要么整包拒绝、要么恢复并如实报告跳过——
-   绝不静默成功，不破坏已有存储。
+2. 只破坏媒体字节（PNG 魔数处翻转一位；ZIP 结构与清单完好）→ 恢复继续、
+   坏素材**明确报出"跳过 + 部分恢复"**，画布照常恢复。
+3. 截断中央目录 → 整包拒绝（明确错误文案），**不清空存储的前提下**既有项目
+   原样保留——失败导入不破坏任何已有数据。
 
-本机实测：2 条全过（18.3s）；相邻回归（project-persistence + custom-api
-12 条）全过。
+本机实测：3 条全过（20.2s）；相邻回归（project-persistence 5 条、custom-api 7 条）
+全过。顺带修掉恢复提示里"媒体 N"的计数口径（应为 清单媒体数 − 跳过数，而非
+复用+重映射数——跳过的媒体也曾在清单里）。
 
 ### 2.8 CI 覆盖（P1）
 
@@ -263,7 +268,7 @@ pnpm 11.7.0）执行；物化后在开源树复验（见 §3.2）。
 | `pnpm typecheck`（8 包）                                                                                           | **通过**（apps/api、apps/web、apps/worker 等全部 Done）                                                                                                      |
 | `pnpm test`（全仓单测，末次全量回归）                                                                              | **通过**：contracts 77 / split-list 2 / agent 89 / api 602（627 中 25 条 PG 集成按门控跳过，另见下行）/ worker 16 / web 947；另 api `test:scripts` 14 条全过 |
 | `CANVAS_TEST_DATABASE_URL=… pnpm --filter @weftcanvas/canvas-api test:postgres`                                    | **25 通过**（Docker postgres:16-alpine，6 文件，6.8s）                                                                                                       |
-| `pnpm --filter @weftcanvas/canvas-web exec playwright test e2e/project-backup.spec.ts`                             | **2 通过**（18.3s）                                                                                                                                          |
+| `pnpm --filter @weftcanvas/canvas-web exec playwright test e2e/project-backup.spec.ts`                             | **3 通过**（20.2s，重写坏包用例后；首版 2 条 18.3s）                                                                                                         |
 | `pnpm --filter @weftcanvas/canvas-web exec playwright test e2e/project-persistence.spec.ts e2e/custom-api.spec.ts` | **12 通过**（56.7s）                                                                                                                                         |
 | `CANVAS_TEST_PUBLIC_NETWORK=1`（guarded-transport 公网正例，经受控传输访问 `https://example.com`）                 | **1 通过**（返回 200）                                                                                                                                       |
 | `docker run python:3.12-slim python3 apps/agent/blender/bridge_auth_test.py`                                       | **11 通过**（0.36s；公开树同款 0.13s）——桥接认证回归的本地实跑证据，两棵树各跑一次                                                                           |
