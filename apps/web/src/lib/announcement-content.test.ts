@@ -87,15 +87,24 @@ describe("announcement body parsing", () => {
 
 describe("announcement time formatting", () => {
   const now = new Date("2026-10-16T12:00:00+08:00");
+  /** 绝对时间按浏览器本地时区渲染；断言也跟着本地时区算，别把时区写死
+   *  （CI 跑在 UTC、开发机在 UTC+8，写死只会两边只对一边）。 */
+  const localStamp = (iso: string) => {
+    const date = new Date(iso);
+    const pad = (value: number) => String(value).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
 
   it("uses the same relative-plus-absolute shape as the reference design", () => {
     expect(formatAnnouncementTime("2026-10-06T15:10:00+08:00", now)).toBe(
-      "1 周前 2026-10-06 15:10",
+      `1 周前 ${localStamp("2026-10-06T15:10:00+08:00")}`,
     );
     expect(formatAnnouncementTime("2026-10-16T11:58:00+08:00", now)).toBe(
-      "2 分钟前 2026-10-16 11:58",
+      `2 分钟前 ${localStamp("2026-10-16T11:58:00+08:00")}`,
     );
-    expect(formatAnnouncementTime("2026-10-16T11:59:40+08:00", now)).toBe("刚刚 2026-10-16 11:59");
+    expect(formatAnnouncementTime("2026-10-16T11:59:40+08:00", now)).toBe(
+      `刚刚 ${localStamp("2026-10-16T11:59:40+08:00")}`,
+    );
   });
 
   it("renders nothing for an unusable timestamp", () => {
