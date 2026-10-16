@@ -4,6 +4,17 @@ import net from "node:net";
 const DNS_CACHE_TTL_MS = 5 * 60 * 1000;
 const DNS_CACHE = new Map<string, { allowed: boolean; expiry: number }>();
 
+/** `a00:1` 形式的最后 32 位（v4-mapped / NAT64 的十六进制写法）还原成点分 IPv4。 */
+function embeddedIpv4FromHex(groups: string): string | null {
+  const parts = groups.split(":");
+  if (parts.length !== 2) return null;
+  const high = Number.parseInt(parts[0] ?? "", 16);
+  const low = Number.parseInt(parts[1] ?? "", 16);
+  if (!Number.isInteger(high) || !Number.isInteger(low)) return null;
+  if (high < 0 || high > 0xffff || low < 0 || low > 0xffff) return null;
+  return [high >> 8, high & 0xff, low >> 8, low & 0xff].join(".");
+}
+
 export function isPrivateIp(ip: string): boolean {
   if (net.isIPv4(ip)) {
     const parts = ip.split(".").map(Number);
@@ -31,7 +42,28 @@ export function isPrivateIp(ip: string): boolean {
       lower.startsWith("feb")
     )
       return true;
-    if (lower.startsWith("::ffff:")) return isPrivateIp(lower.slice(7));
+    if (lower.startsWith("::ffff:")) {
+      const tail = lower.slice(7);
+      if (net.isIPv4(tail)) return isPrivateIp(tail);
+      // ::ffff:a00:1 这类十六进制写法同样内嵌 IPv4，不能只认点分形式。
+      const embedded = embeddedIpv4FromHex(tail);
+      if (embedded) return isPrivateIp(embedded);
+      return true;
+    }
+    // 6to4（2002::/16）与 NAT64（64:ff9b::/96）把 IPv4 藏在里面，可能借道访问内网。
+    if (lower.startsWith("2002:")) {
+      const groups = lower.split(":");
+      const embedded = embeddedIpv4FromHex(`${groups[1] ?? ""}:${groups[2] ?? ""}`);
+      if (embedded) return isPrivateIp(embedded);
+      return true;
+    }
+    if (lower.startsWith("64:ff9b:")) {
+      const tail = lower.slice(8).replace(/^:+/, "");
+      if (net.isIPv4(tail)) return isPrivateIp(tail);
+      const embedded = embeddedIpv4FromHex(tail);
+      if (embedded) return isPrivateIp(embedded);
+      return true;
+    }
     if (lower.startsWith("::")) return true;
     return false;
   }
@@ -41,6 +73,11 @@ export function isPrivateIp(ip: string): boolean {
 /**
  * SSRF guard for server-side fetches of user-supplied URLs. Returns a
  * human-readable block reason, or null when the target is safe to fetch.
+ *
+ * 这一层只做 URL 层面的判断（协议、主机名、以及"域名解析到内网"的预检）。
+ * **真正兜底的是传输层**：`outbound/guarded-transport.ts` 让实际建连的地址必然
+ * 经过同一套内网过滤，因为本函数的解析与 fetch 的解析是两次独立解析，单独依赖它
+ * 会留下 DNS rebinding 窗口（解析答公网、连接答内网）。
  */
 export async function isBlockedTargetUrl(value: string): Promise<string | null> {
   let url: URL;
@@ -51,7 +88,9 @@ export async function isBlockedTargetUrl(value: string): Promise<string | null> 
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") return "仅支持 http/https 协议";
 
-  const hostname = url.hostname.toLowerCase();
+  // WHATWG URL 的 IPv6 主机名带方括号（`[::1]`），net.isIP 不认，必须先去括号，
+  // 否则内网 IPv6 字面量会掉进"域名解析失败"的兜底分支而不是按地址判定。
+  const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (!hostname) return "目标地址缺少主机名";
   if (hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local")) {
     return "禁止访问本地主机名";

@@ -15,6 +15,26 @@ concurrency:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    # PostgreSQL 集成测试此前在 CI 里静默跳过（CANVAS_TEST_DATABASE_URL 未设置，
+    # describe.skipIf 直接跳过 25 条）。这里起一个一次性实例，把
+    # identity / generation / media / 限流 / 对账的库层回归真正跑起来。
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: canvas
+          POSTGRES_PASSWORD: ci-only-database-password
+          POSTGRES_DB: canvas_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U canvas -d canvas_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      # 库名必须含 test（集成测试自带保险，见各 *.integration.test.ts 顶部）。
+      CANVAS_TEST_DATABASE_URL: postgresql://canvas:ci-only-database-password@127.0.0.1:5432/canvas_test?sslmode=disable
     steps:
       - uses: actions/checkout@v4
 
@@ -31,11 +51,23 @@ jobs:
       - run: pnpm format:check
       - run: pnpm typecheck
       - run: pnpm test
+      # 库层集成测试单独跑（单 worker，串行迁移 —— 见 api 的 test:postgres）。
+      - name: PostgreSQL integration tests
+        run: pnpm --filter @weftcanvas/canvas-api test:postgres
+      # 本机 Blender 桥接的认证回归：不需要 Blender，用 bpy 替身直接打 TCP 端口
+      # （无令牌/错令牌要在进入执行队列前被拒绝；非回环绑定必须拒绝）。
+      - name: Blender bridge auth regression
+        run: python3 apps/agent/blender/bridge_auth_test.py
       - run: pnpm build
 
       - run: pnpm --filter @weftcanvas/canvas-web exec playwright install --with-deps chromium
       - name: Browser smoke (local fixtures, no paid calls)
-        run: pnpm --filter @weftcanvas/canvas-web exec playwright test e2e/custom-api.spec.ts e2e/project-persistence.spec.ts e2e/plugin-split-list.spec.ts
+        run: >-
+          pnpm --filter @weftcanvas/canvas-web exec playwright test
+          e2e/custom-api.spec.ts
+          e2e/project-persistence.spec.ts
+          e2e/project-backup.spec.ts
+          e2e/plugin-split-list.spec.ts
       - name: Browser diagnostics
         if: failure()
         uses: actions/upload-artifact@v4

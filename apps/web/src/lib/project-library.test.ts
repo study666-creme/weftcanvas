@@ -17,6 +17,7 @@ import {
   removeProject,
   setActiveProject,
   uniqueProjectName,
+  utf8ByteLength,
   writeProject,
 } from "./project-library";
 
@@ -403,3 +404,41 @@ function node(
     },
   };
 }
+
+describe("project import byte limits (UTF-8, not UTF-16)", () => {
+  it("counts UTF-8 bytes exactly, including CJK, emoji and lone surrogates", () => {
+    expect(utf8ByteLength("")).toBe(0);
+    expect(utf8ByteLength("abc")).toBe(3);
+    expect(utf8ByteLength("纬线")).toBe(6); // 每个汉字 3 字节
+    expect(utf8ByteLength("🎨")).toBe(4); // 代理对是一个 4 字节字符
+    expect(utf8ByteLength("纬线🎨")).toBe(10);
+    // 与 TextEncoder 的输出保持一致（包括落单代理按 3 字节的 WTF-8 行为）。
+    for (const sample of ["", "abc", "纬线", "🎨", "a\uD800b", "a\uDC00b", "混合mixed内容"]) {
+      expect(utf8ByteLength(sample)).toBe(new TextEncoder().encode(sample).byteLength);
+    }
+  });
+
+  it("rejects a CJK file that is oversized in bytes but small in UTF-16 length", () => {
+    // 2,000,001 个汉字：UTF-16 长度约 2M（旧判定放行），UTF-8 字节约 6M（超限）。
+    const maxBytes = 4 * 1024 * 1024;
+    const cjkHeavy = `{"schemaVersion":1,"id":"p","name":"${"纬".repeat(2_000_001)}"}`;
+    expect(cjkHeavy.length).toBeLessThan(maxBytes);
+    expect(utf8ByteLength(cjkHeavy)).toBeGreaterThan(maxBytes);
+    const outcome = parseProjectImportText(cjkHeavy);
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) expect(outcome.reason).toBe("too-large");
+  });
+
+  it("keeps a legitimate ASCII project under the byte limit importable", () => {
+    const exported = JSON.stringify(richProject());
+    expect(utf8ByteLength(exported)).toBeLessThan(PROJECT_IMPORT_MAX_BYTES);
+    expect(parseProjectImportText(exported).ok).toBe(true);
+  });
+
+  it("honours a custom byte budget", () => {
+    const exported = JSON.stringify(richProject());
+    const budget = utf8ByteLength(exported);
+    expect(parseProjectImportText(exported, budget + 1).ok).toBe(true);
+    expect(parseProjectImportText(exported, Math.max(1, budget - 1)).ok).toBe(false);
+  });
+});

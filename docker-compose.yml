@@ -36,6 +36,9 @@ services:
       CANVAS_OPS_ADMIN_SECRET: ${CANVAS_OPS_ADMIN_SECRET:-}
       MEDIA_SIGNING_SECRET: ${MEDIA_SIGNING_SECRET:-}
       MEDIA_PUBLIC_BASE_URL: ${MEDIA_PUBLIC_BASE_URL:-}
+      # 限流只信"来自可信代理的转发头"。Compose 默认地址池在 172.16/12；
+      # 自定义了 docker 地址池（如 192.168/16、10/8）就在 .env 里对应改。
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-172.16.0.0/12}
     volumes:
       - canvas-data:/repo/.data
     healthcheck:

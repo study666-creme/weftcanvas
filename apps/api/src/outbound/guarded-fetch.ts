@@ -1,8 +1,16 @@
+import { fetch as undiciFetch, type Dispatcher } from "undici";
+
 import { isBlockedTargetUrl } from "../identity/safe-host.js";
+import { guardedDispatcher } from "./guarded-transport.js";
 
 /**
  * 手动跟随重定向的守卫式抓取：每一跳重新过 SSRF 守卫与协议检查。
  * `redirect:"follow"` 只校验初始 URL，302 到 169.254.169.254 的绕过就发生在这。
+ *
+ * 两层缺一不可：
+ * 1. URL 层（`isBlockedTargetUrl`）拦协议、主机名与"解析到内网"的目标；
+ * 2. 传输层（`guardedDispatcher`）让**实际建连的地址**必然经过同一套内网过滤，
+ *    堵住"校验一次、连接另解析一次"的 DNS rebinding 窗口（见 guarded-transport.ts）。
  *
  * 调用方（音乐代拉、第三方画布素材代拉）各自把失败原因翻成自己的错误类型与文案，
  * 这里只负责"每一跳都重新校验"这一条不变量。
@@ -25,6 +33,8 @@ export type GuardedFetchOptions = {
   userAgent: string;
   maxRedirects?: number;
   fetch?: typeof globalThis.fetch;
+  /** 受控传输层；缺省用进程共享的 guardedDispatcher（测试可注入以复现 rebinding）。 */
+  dispatcher?: Dispatcher;
   /**
    * 额外的按跳主机校验（例如"只允许对方 CDN 的域名"）。缺省只做 SSRF 守卫：
    * 首跳由调用方自己校验过了，但重定向会换主机，所以有域名白名单的调用方必须
@@ -35,7 +45,6 @@ export type GuardedFetchOptions = {
 };
 
 export async function guardedFetch(url: string, options: GuardedFetchOptions): Promise<Response> {
-  const doFetch = options.fetch ?? globalThis.fetch;
   const maxRedirects = options.maxRedirects ?? MEDIA_PROXY_MAX_REDIRECT_HOPS;
   let current = url;
   for (let hop = 0; hop <= maxRedirects; hop += 1) {
@@ -44,18 +53,24 @@ export async function guardedFetch(url: string, options: GuardedFetchOptions): P
     if (options.allowHost && !options.allowHost(new URL(current).hostname)) {
       throw options.fail("host-not-allowed");
     }
-    const attempt = await doFetch(current, {
+    const init = {
       headers: {
         Accept: options.accept,
         "User-Agent": options.userAgent,
         ...(options.range ? { Range: options.range } : {}),
       },
-      redirect: "manual",
+      redirect: "manual" as const,
       signal: options.signal,
-    });
-    if (![301, 302, 303, 307, 308].includes(attempt.status)) return attempt;
-    await attempt.body?.cancel().catch(() => undefined);
-    const location = attempt.headers.get("location");
+      dispatcher: options.dispatcher ?? guardedDispatcher(),
+    };
+    // 真实链路走 undici（响应类型与 DOM 的 Response 结构等价，这里只做一次显式转换）；
+    // 注入的 fetch 多半是测试替身，dispatcher 字段对它们无害。
+    const doFetch = options.fetch ?? (undiciFetch as unknown as typeof globalThis.fetch);
+    const attempt = await doFetch(current, init as unknown as RequestInit);
+    const response = attempt as unknown as Response;
+    if (![301, 302, 303, 307, 308].includes(response.status)) return response;
+    await response.body?.cancel().catch(() => undefined);
+    const location = response.headers.get("location");
     if (!location) throw options.fail("missing-location");
     let next: URL;
     try {

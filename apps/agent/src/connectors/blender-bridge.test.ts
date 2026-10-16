@@ -1,10 +1,20 @@
 import { createServer, type Server } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { BlenderBridgeClient } from "./blender-bridge.js";
+import {
+  BRIDGE_TOKEN_ENV,
+  BRIDGE_TOKEN_FILE_ENV,
+  BlenderBridgeClient,
+  resolveBridgeToken,
+} from "./blender-bridge.js";
 import { parseEndpoint, probeBlenderEndpoint } from "./probe.js";
 
 const servers: Server[] = [];
+const TEST_TOKEN = () => "test-token-0123456789abcdef0123456789abcdef";
+
+function client(address: string, timeoutMs = 5_000) {
+  return new BlenderBridgeClient(address, timeoutMs, TEST_TOKEN);
+}
 
 function listen(handler: (line: string) => string): Promise<{ server: Server; port: number }> {
   return new Promise((resolve) => {
@@ -45,23 +55,43 @@ describe("parseEndpoint", () => {
   });
 });
 
+describe("resolveBridgeToken", () => {
+  it("prefers the explicit env token over the token file", () => {
+    expect(
+      resolveBridgeToken({ [BRIDGE_TOKEN_ENV]: "  env-token  ", [BRIDGE_TOKEN_FILE_ENV]: "" }),
+    ).toBe("env-token");
+  });
+
+  it("returns null when neither env nor file carries a token", () => {
+    expect(resolveBridgeToken({ [BRIDGE_TOKEN_FILE_ENV]: "/nonexistent/token/file" })).toBeNull();
+  });
+});
+
 describe("BlenderBridgeClient", () => {
-  it("sends one JSON line and reads the result", async () => {
+  it("sends the access token with every request line", async () => {
+    let seenToken: unknown;
     const { port } = await listen((line) => {
-      const request = JSON.parse(line) as { id: string; method: string; params: { code: string } };
+      const request = JSON.parse(line) as {
+        id: string;
+        method: string;
+        params: { code: string };
+        token?: unknown;
+      };
       expect(request.method).toBe("run_python");
+      seenToken = request.token;
       return JSON.stringify({
         id: request.id,
         ok: true,
         result: { stdout: "hello\n", value: { objects: 3 } },
       });
     });
-    const client = new BlenderBridgeClient(`127.0.0.1:${port}`, 5_000);
-    await expect(client.runPython("print('hello')")).resolves.toEqual({
+    const bridge = client(`127.0.0.1:${port}`);
+    await expect(bridge.runPython("print('hello')")).resolves.toEqual({
       ok: true,
       stdout: "hello\n",
       value: { objects: 3 },
     });
+    expect(seenToken).toBe("test-token-0123456789abcdef0123456789abcdef");
   });
 
   it("surfaces a Blender-side error", async () => {
@@ -73,23 +103,44 @@ describe("BlenderBridgeClient", () => {
         error: "NameError: name 'bpyy' is not defined",
       });
     });
-    const client = new BlenderBridgeClient(`127.0.0.1:${port}`, 5_000);
-    await expect(client.runPython("bpyy")).resolves.toEqual({
+    await expect(client(`127.0.0.1:${port}`).runPython("bpyy")).resolves.toEqual({
       ok: false,
       error: "NameError: name 'bpyy' is not defined",
     });
   });
 
+  it("surfaces a bridge-side auth rejection verbatim", async () => {
+    const { port } = await listen((line) => {
+      const request = JSON.parse(line) as { id: string };
+      return JSON.stringify({
+        id: request.id,
+        ok: false,
+        error: "认证失败：访问令牌缺失或不正确。请重启 Blender 桥接或重新一键配置。",
+      });
+    });
+    const result = await client(`127.0.0.1:${port}`).runPython("print(1)");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("认证失败");
+  });
+
+  it("reports a clear error when the token cannot be resolved", async () => {
+    const bridge = new BlenderBridgeClient("127.0.0.1:1", 1_000, () => null);
+    const result = await bridge.runPython("print(1)");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("找不到 Blender 桥接访问令牌");
+  });
+
   it("reports a clear error when nothing is listening", async () => {
-    const client = new BlenderBridgeClient("127.0.0.1:1", 1_000);
-    const result = await client.runPython("print(1)");
+    const result = await client("127.0.0.1:1", 1_000).runPython("print(1)");
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain("Blender 桥接没有在监听");
   });
 
   it("rejects empty code without opening a connection", async () => {
-    const client = new BlenderBridgeClient("127.0.0.1:1", 1_000);
-    await expect(client.runPython("   ")).resolves.toEqual({ ok: false, error: "Python 代码为空" });
+    await expect(client("127.0.0.1:1", 1_000).runPython("   ")).resolves.toEqual({
+      ok: false,
+      error: "Python 代码为空",
+    });
   });
 });
 

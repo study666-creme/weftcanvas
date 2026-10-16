@@ -135,6 +135,11 @@ import type { MediaMultipartService } from "./media/multipart-service.js";
 import { SignedMediaAccess } from "./media/signed-access.js";
 import { isBlockedTargetUrl } from "./identity/safe-host.js";
 import {
+  clientIdentifierFromRequest,
+  DEFAULT_TRUSTED_PROXY_SPEC,
+  TrustedProxyList,
+} from "./identity/client-address.js";
+import {
   canvasImportProviderStatus,
   loadCanvasImportPreview,
   type CanvasImportConfig,
@@ -288,6 +293,13 @@ type ApiDependencies = {
     secure: boolean;
   };
   allowedOrigins?: readonly string[];
+  /**
+   * 可信代理列表（IP / CIDR，逗号或空格分隔；`loopback` 表示回环）。
+   * 只有直连对端落在这个列表里时，限流才会读 `X-Forwarded-For` / `CF-Connecting-IP`；
+   * 直连访问一律用 socket 上的真实对端地址。缺省只信回环（同机反向代理）；
+   * 容器内或 Cloudflare 前置部署按部署形态显式配置。
+   */
+  trustedProxySpec?: string;
   media?: MediaService;
   cloudResources?: CloudResourceService;
   /** 模型成功率聚合（来自真实生成任务）；缺省则目录不带 health。 */
@@ -371,6 +383,16 @@ export function createApiApp(dependencies: ApiDependencies) {
   const anonymousAgentCookie = dependencies.anonymousAgentCookie ?? DEFAULT_ANONYMOUS_AGENT_COOKIE;
   const anonymousAgentGuard = new AnonymousAgentGuard(dependencies.anonymousAgentLimits);
   const sensitiveActionGuard = new SensitiveActionGuard();
+  const trustedProxies = new TrustedProxyList(
+    dependencies.trustedProxySpec?.trim() || DEFAULT_TRUSTED_PROXY_SPEC,
+  );
+  // 限流用的客户端标识：仅当直连对端本身是可信代理时才读转发头。
+  const clientIdentifier = (context: Context) =>
+    clientIdentifierFromRequest({
+      remoteAddress: remoteAddressOf(context),
+      headers: context.req.raw.headers,
+      trusted: trustedProxies,
+    });
 
   // 运营控制台会把模型覆盖管理页嵌进 iframe。一刀切 X-Frame-Options: DENY 会让
   // 那个页渲染空白且无报错，所以这一条路径豁免，并改用 CSP frame-ancestors 钉死：
@@ -3899,12 +3921,11 @@ class SensitiveActionGuard {
 }
 
 /** 取客户端标识：按部署的代理链依次看 CF / XFF / X-Real-IP，全部缺失时回落 anonymous。 */
-function clientIdentifier(context: Context) {
-  const cf = context.req.header("cf-connecting-ip")?.trim();
-  if (cf) return cf;
-  const forwarded = context.req.header("x-forwarded-for")?.split(",")[0]?.trim();
-  if (forwarded) return forwarded;
-  return context.req.header("x-real-ip")?.trim() || "anonymous";
+/** socket 上的直连对端地址；没有 socket 的运行环境（测试直调 app.request）返回 undefined。 */
+function remoteAddressOf(context: Context): string | undefined {
+  const env = context.env as unknown as
+    { incoming?: { socket?: { remoteAddress?: string } } } | undefined;
+  return env?.incoming?.socket?.remoteAddress;
 }
 
 function rateLimitedResponse(context: Context, retryAfterSeconds: number) {

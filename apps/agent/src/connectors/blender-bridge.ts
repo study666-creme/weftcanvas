@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { connect } from "node:net";
 
 import { connectorHostRejectionReason } from "@weftcanvas/contracts";
@@ -18,14 +21,37 @@ type BridgeResponse = {
 const MAX_PYTHON_CHARS = 200_000;
 const DEFAULT_TIMEOUT_MS = 120_000;
 
+/** 与桥接（apps/agent/blender/weftcanvas_bridge.py）同一套令牌来源：env 直配或用户主目录令牌文件。 */
+export const BRIDGE_TOKEN_ENV = "WEFTCANVAS_BRIDGE_TOKEN";
+export const BRIDGE_TOKEN_FILE_ENV = "WEFTCANVAS_BRIDGE_TOKEN_FILE";
+
+export function defaultBridgeTokenFile(): string {
+  return join(homedir(), ".weftcanvas-bridge", "token");
+}
+
+/** 解析本机桥接访问令牌；找不到时返回 null（由调用方给出可操作的错误文案）。 */
+export function resolveBridgeToken(env: NodeJS.ProcessEnv = process.env): string | null {
+  const explicit = env[BRIDGE_TOKEN_ENV]?.trim();
+  if (explicit) return explicit;
+  const file = env[BRIDGE_TOKEN_FILE_ENV]?.trim() || defaultBridgeTokenFile();
+  try {
+    const value = readFileSync(file, "utf8").trim();
+    return value || null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Blender 桥接客户端：一行 JSON 请求、一行 JSON 响应。
- * 协议实现见 apps/agent/blender/weftcanvas_bridge.py。
+ * 协议实现见 apps/agent/blender/weftcanvas_bridge.py。本机模式的端口要求访问令牌，
+ * 令牌来源见 resolveBridgeToken——每次调用都重新解析，桥接轮换令牌后无需重启 Agent。
  */
 export class BlenderBridgeClient {
   constructor(
     private readonly address: string,
     private readonly timeoutMs = DEFAULT_TIMEOUT_MS,
+    private readonly tokenProvider: () => string | null = () => resolveBridgeToken(),
   ) {}
 
   async runPython(code: string, signal?: AbortSignal): Promise<BlenderRunResult> {
@@ -49,6 +75,14 @@ export class BlenderBridgeClient {
     const hostRejection = connectorHostRejectionReason(this.address);
     if (hostRejection) return { ok: false, error: `Blender 桥接地址不合法：${hostRejection}` };
     if (signal?.aborted) return { ok: false, error: "已取消" };
+    const token = this.tokenProvider();
+    if (!token) {
+      return {
+        ok: false,
+        error:
+          "找不到 Blender 桥接访问令牌：请先在 Blender 里启动桥接（它会在用户主目录生成令牌），或用 WEFTCANVAS_BRIDGE_TOKEN 指定",
+      };
+    }
 
     return new Promise<BlenderRunResult>((resolve) => {
       const id = randomUUID();
@@ -73,7 +107,7 @@ export class BlenderBridgeClient {
 
       socket.setEncoding("utf8");
       socket.on("connect", () => {
-        socket.write(`${JSON.stringify({ id, method, params })}\n`);
+        socket.write(`${JSON.stringify({ id, method, params, token })}\n`);
       });
       socket.on("data", (chunk: string) => {
         buffer += chunk;

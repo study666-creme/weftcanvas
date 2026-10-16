@@ -18,8 +18,31 @@ const PROJECT_KEY_PREFIX = "weftcanvas:project-data:v1:";
  * Imported project files are bounded before parsing. Ordinary authored
  * projects stay far below this ceiling, and the guard keeps oversized or
  * malformed payloads from being fully parsed or written into the library.
+ * 限制按 UTF-8 字节计：JS 字符串长度（UTF-16 码元数）会把中文/emoji 文件
+ * 低估 2-4 倍，导入前请优先用 File.size 判断（那是真实字节数）。
  */
 export const PROJECT_IMPORT_MAX_BYTES = 4 * 1024 * 1024;
+
+/** 字符串的 UTF-8 字节数，避免为限流判断整串复制成 Buffer。 */
+export function utf8ByteLength(text: string): number {
+  let bytes = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index);
+    if (code < 0x80) bytes += 1;
+    else if (code < 0x800) bytes += 2;
+    else if (code >= 0xd800 && code <= 0xdbff && index + 1 < text.length) {
+      // 代理对：合起来是一个 4 字节的 astral 字符（emoji、生僻字）。
+      const next = text.charCodeAt(index + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        bytes += 4;
+        index += 1;
+        continue;
+      }
+      bytes += 3; // 落单的高代理按 WTF-8 处理，宁可高估不放过
+    } else bytes += 3;
+  }
+  return bytes;
+}
 
 export type ProjectImportOutcome =
   { ok: true; project: CanvasProject } | { ok: false; reason: "too-large" | "parse" | "invalid" };
@@ -28,7 +51,8 @@ export function parseProjectImportText(
   text: string,
   maxBytes = PROJECT_IMPORT_MAX_BYTES,
 ): ProjectImportOutcome {
-  if (typeof text !== "string" || text.length > maxBytes) return { ok: false, reason: "too-large" };
+  if (typeof text !== "string" || utf8ByteLength(text) > maxBytes)
+    return { ok: false, reason: "too-large" };
   let value: unknown;
   try {
     value = JSON.parse(text);

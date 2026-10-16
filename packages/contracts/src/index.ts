@@ -13,6 +13,7 @@ export * from "./image-protocol.js";
 export * from "./media.js";
 export * from "./membership-task.js";
 export * from "./model-catalog.js";
+export * from "./project-backup.js";
 export * from "./music.js";
 export * from "./skill.js";
 export * from "./video-protocol.js";

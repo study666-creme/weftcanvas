@@ -19,6 +19,8 @@ commercial release.
 | Vitest                     | Unit tests                                                | MIT              |
 | Playwright                 | Browser verification                                      | Apache-2.0       |
 | Three.js / `@types/three`  | On-demand 3D director-stage runtime and type declarations | MIT              |
+| fflate                     | 流式 ZIP 读写（完整项目备份/恢复，web 端）                | MIT              |
+| undici                     | 受控出网 HTTP 传输（API SSRF 防线的 dispatcher）          | MIT              |
 
 No source from these packages is copied into product modules. Their normal
 package distributions and required license notices remain intact.

@@ -68,6 +68,49 @@ export async function storeMedia(
 }
 
 /**
+ * 完整备份恢复用的内容校验（与用户上传同一条防线）：魔数/解码/SVG 拒绝一样
+ *不少——备份可能来自任何机器，导入路径不能比上传弱。返回可直接落库的规范化字段。
+ */
+export async function validateBackupMediaBlob(blob: Blob, declared: CanvasMedia) {
+  const kind = mediaKind(declared.mimeType);
+  if (!kind) throw new Error(`不支持的媒体类型：${declared.mimeType}`);
+  if (kind === "image") {
+    const validated = await validateImageBlob(blob);
+    return {
+      blob: validated.blob,
+      mimeType: validated.mimeType,
+      size: validated.blob.size,
+      width: validated.width,
+      height: validated.height,
+      durationMs: null,
+    };
+  }
+  const validated = await validateMediaBlob(blob, kind);
+  return {
+    blob: validated.blob,
+    mimeType: validated.mimeType,
+    size: validated.blob.size,
+    width: validated.width ?? null,
+    height: validated.height ?? null,
+    durationMs: validated.durationMs ?? null,
+  };
+}
+
+/**
+ * 完整备份恢复：按备份里的原 ID 写回本地库。调用方（lib/project-backup）
+ * 负责 ID 冲突决策——这里只保证单条记录合法，不做覆盖判断；大小同样受
+ * localMediaMaxBytes 约束。
+ */
+export async function writeRestoredMediaRecord(
+  record: CanvasMedia & { blob: Blob; storedAt?: number },
+) {
+  const kind = mediaKind(record.mimeType);
+  if (!kind) throw new Error(`不支持的媒体类型：${record.mimeType}`);
+  assertLocalMediaSize(record.blob.size, kind);
+  await writeStoredMedia({ ...record, storedAt: record.storedAt ?? Date.now() });
+}
+
+/**
  * 服务端兜底上传：本地媒体库（IndexedDB）不可用时（配额已满/站点数据被禁用/库损坏），
  * 画布上传降级为直传服务端，节点以 source:"server" 渲染，与生成产物入画布的路径一致。
  * 文件本身的问题（内容非法、解码失败、SVG）会在前置校验中原样抛出，调用方据此报真实原因。

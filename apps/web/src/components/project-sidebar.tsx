@@ -9,6 +9,7 @@ import {
   House,
   LoaderCircle,
   MoreHorizontal,
+  Package,
   Pencil,
   Plus,
   Search,
@@ -26,7 +27,9 @@ import {
   type CloudSyncStatus,
 } from "../state/cloud-project-store";
 import { useIdentityStore } from "../state/identity-store";
-import { parseProjectImportText } from "../lib/project-library";
+import { parseProjectImportText, PROJECT_IMPORT_MAX_BYTES } from "../lib/project-library";
+import { exportProjectBackup, importProjectBackup } from "../lib/project-backup";
+import { readMedia, validateBackupMediaBlob, writeRestoredMediaRecord } from "../lib/media-store";
 import { useProjectLibraryStore } from "../state/project-library-store";
 import { useToastStore } from "../state/toast-store";
 
@@ -131,9 +134,70 @@ export const ProjectSidebar = memo(function ProjectSidebar() {
     showToast("项目文件已导出", "success");
   };
 
+  const exportBackup = async () => {
+    const project = persistCurrent();
+    if (!project) return;
+    showToast("正在打包完整备份（含本地媒体）…", "info");
+    const result = await exportProjectBackup(project);
+    if (!result.ok) {
+      showToast(result.error, "error");
+      return;
+    }
+    const url = URL.createObjectURL(result.blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${project.name || "纬线"}.weftcanvas-backup.zip`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    const external = result.manifest.externalMedia.length;
+    const media = result.manifest.media.length;
+    showToast(
+      external
+        ? `已导出：画布 + ${media} 个本地媒体；${external} 个云端素材不在备份里`
+        : `已导出完整备份：画布 + ${media} 个本地媒体`,
+      external ? "info" : "success",
+    );
+  };
+
+  /** 完整备份恢复：媒体按原 ID 落库，项目按新副本导入（永不覆盖已有项目）。 */
+  const restoreBackup = async (file: File) => {
+    showToast("正在恢复完整备份…", "info");
+    const result = await importProjectBackup(file, {
+      readMedia,
+      writeMedia: writeRestoredMediaRecord,
+      validateBlob: validateBackupMediaBlob,
+    });
+    if (!result.ok) {
+      showToast(result.error, "error");
+      return;
+    }
+    importProject(result.project);
+    const restoredCount = result.reusedMediaIds.length + result.remappedMediaIds.length;
+    const parts = [
+      `已恢复「${result.manifest.summary.name}」：节点 ${result.manifest.summary.nodeCount}、媒体 ${restoredCount}`,
+    ];
+    if (result.skipped.length) parts.push(`${result.skipped.length} 个媒体损坏已跳过`);
+    if (result.externalMedia.length)
+      parts.push(`${result.externalMedia.length} 个云端素材需要重新拉取`);
+    showToast(
+      `${parts.join(" · ")}${result.complete ? "（完整恢复）" : "（部分恢复）"}`,
+      result.complete ? "success" : "info",
+    );
+  };
+
   const importFile = async (file?: File) => {
     if (!file) return;
     try {
+      // 完整备份（ZIP）走媒体恢复管线；JSON 仍是纯画布文件的老路径。
+      if (/\.zip$/i.test(file.name) || file.type === "application/zip") {
+        await restoreBackup(file);
+        return;
+      }
+      // File.size 是真实字节数：超大文件在读成文本之前就拦掉，别先吃掉内存。
+      if (file.size > PROJECT_IMPORT_MAX_BYTES) {
+        showToast("项目文件过大，无法导入", "error");
+        return;
+      }
       const outcome = parseProjectImportText(await file.text());
       if (!outcome.ok) {
         showToast(
@@ -419,7 +483,7 @@ export const ProjectSidebar = memo(function ProjectSidebar() {
             ref={importInput}
             type="file"
             hidden
-            accept="application/json,.json,.weftcanvas"
+            accept="application/json,.json,.weftcanvas,application/zip,.zip"
             onChange={(event) => void importFile(event.target.files?.[0])}
           />
           <button type="button" onClick={() => importInput.current?.click()}>
@@ -429,6 +493,14 @@ export const ProjectSidebar = memo(function ProjectSidebar() {
           <button type="button" onClick={exportCurrent}>
             <Download aria-hidden="true" />
             导出当前
+          </button>
+          <button
+            type="button"
+            onClick={() => void exportBackup()}
+            title="含本地媒体的完整备份（ZIP）"
+          >
+            <Package aria-hidden="true" />
+            完整备份
           </button>
         </footer>
       </aside>

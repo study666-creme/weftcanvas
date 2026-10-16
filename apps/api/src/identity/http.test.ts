@@ -148,7 +148,100 @@ describe("identity HTTP API", () => {
   });
 });
 
-function createApp(identity?: IdentityService) {
+describe("client identity and sensitive-action rate limiting", () => {
+  const env = (remoteAddress: string) => ({ incoming: { socket: { remoteAddress } } });
+  const CREDENTIALS = { email: "creator@example.com", password: "private-password" };
+
+  async function registerCreator(app: ReturnType<typeof createApp>, remoteAddress: string) {
+    const response = await app.request(
+      "http://localhost/api/v1/auth/register",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "http://localhost" },
+        body: JSON.stringify({ ...CREDENTIALS, displayName: "创作者" }),
+      },
+      env(remoteAddress),
+    );
+    expect(response.status).toBe(201);
+  }
+
+  const loginOnce = (
+    app: ReturnType<typeof createApp>,
+    headers: Record<string, string>,
+    remoteAddress: string,
+  ) =>
+    app.request(
+      "http://localhost/api/v1/auth/login",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: "http://localhost",
+          ...headers,
+        },
+        body: JSON.stringify(CREDENTIALS),
+      },
+      env(remoteAddress),
+    );
+
+  it("spoofed forwarded headers from an untrusted peer cannot reset the login bucket", async () => {
+    const app = createApp(createIdentity());
+    await registerCreator(app, "203.0.113.9");
+    const statuses: number[] = [];
+    for (let index = 0; index < 11; index += 1) {
+      const response = await loginOnce(
+        app,
+        {
+          // 直连对端是 203.0.113.9（公网、非可信代理）：这些头都必须被忽略。
+          "cf-connecting-ip": `203.0.113.${index}`,
+          "x-forwarded-for": `198.51.100.${index}`,
+          "x-real-ip": `192.0.2.${index}`,
+        },
+        "203.0.113.9",
+      );
+      statuses.push(response.status);
+    }
+    // 前 10 次正常登录，第 11 次落在同一个桶里——伪造头没能造出新桶。
+    expect(statuses.slice(0, 10)).toEqual(Array.from({ length: 10 }, () => 200));
+    expect(statuses[10]).toBe(429);
+  });
+
+  it("honors the forwarded client address only when the peer is a trusted proxy", async () => {
+    const app = createApp(createIdentity(), { trustedProxySpec: "127.0.0.1/8" });
+    await registerCreator(app, "127.0.0.1");
+    // 同一个可信代理转发、客户端 IP 各不相同 → 各自独立的桶。
+    for (let index = 0; index < 11; index += 1) {
+      const response = await loginOnce(
+        app,
+        { "x-forwarded-for": `198.51.100.${index}, 127.0.0.1` },
+        "127.0.0.1",
+      );
+      expect(response.status).toBe(200);
+    }
+    // 换成同一个客户端 IP → 第 11 次被限流。
+    let eleventh = 0;
+    for (let index = 0; index < 11; index += 1) {
+      const response = await loginOnce(
+        app,
+        { "x-forwarded-for": "198.51.100.77, 127.0.0.1" },
+        "127.0.0.1",
+      );
+      eleventh = response.status;
+    }
+    expect(eleventh).toBe(429);
+  });
+
+  it("keeps direct-connection clients in distinct buckets by their own address", async () => {
+    const app = createApp(createIdentity());
+    await registerCreator(app, "203.0.113.9");
+    for (let index = 0; index < 11; index += 1) {
+      const response = await loginOnce(app, {}, `203.0.113.${index}`);
+      expect(response.status).toBe(200);
+    }
+  });
+});
+
+function createApp(identity?: IdentityService, options: { trustedProxySpec?: string } = {}) {
   return createApiApp({
     catalog: {
       getCatalog: async () => {
@@ -161,6 +254,7 @@ function createApp(identity?: IdentityService) {
       },
     },
     identity,
+    trustedProxySpec: options.trustedProxySpec,
   });
 }
 

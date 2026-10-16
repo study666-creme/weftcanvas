@@ -5,21 +5,32 @@
 - **远程模式（默认，给托管站点用户）**：插件主动连到画布服务端，用画布面板里生成的
   「配对令牌」鉴权，轮询领取任务（执行 Python）并回传结果。用户机器不需要暴露任何端口，
   服务端也不需要（也不该）装 Blender。令牌存在 Blender 用户偏好里，不会随 .blend 文件外传。
-- **本机模式（开发/自托管）**：在本机 127.0.0.1 起一个 TCP 端口，由同机的 Agent 运行时直连。
+- **本机模式（开发/自托管）**：在本机回环地址起一个 TCP 端口，由同机的 Agent 运行时直连。
+  端口对执行接口做了两道限制：**只允许绑定回环地址**（127.0.0.1 / ::1 / localhost），
+  且每个请求都必须带上访问令牌；没有令牌或令牌不对的请求在进入执行队列之前就被拒绝。
 
 协议：
   · 远程：POST {server}/api/external/v1/connectors/poll   （Bearer 配对令牌）
           POST {server}/api/external/v1/connectors/results
-  · 本机：一行一个 JSON，见 WeftcanvasBridgeServer。
+  · 本机：一行一个 JSON，见 WeftcanvasBridgeServer。请求形状
+          {"id": "...", "method": "run_python", "params": {...}, "token": "<访问令牌>"}
 
-run_python 会在 Blender 主线程执行任意 Python，两种模式都等同于把 Blender 交给已配对的一方控制；
-因此配对令牌等同于本机代码执行权限，不要分享，怀疑泄露就在画布面板里重新配对。
+**安全边界**：run_python 会在 Blender 主线程执行任意 Python，等同于把 Blender 所在的那台机器
+交给能通过鉴权的一方控制——两种模式的令牌都等同于本机代码执行权限，不要分享；
+怀疑泄露就重新生成（本机模式在面板里点「重新生成令牌」，远程模式在画布面板里重新配对）。
+
+本机模式的访问令牌不落在 .blend、不进日志、不进 Git：它由桥接生成在用户主目录的令牌文件里
+（默认 `~/.weftcanvas-bridge/token`，POSIX 下权限 0600，可用 WEFTCANVAS_BRIDGE_TOKEN_FILE 改路径，
+或用 WEFTCANVAS_BRIDGE_TOKEN 直接指定）；同机的 Agent 运行时读同一个文件，因此不需要任何手工配对。
 """
 
 import contextlib
+import hmac
 import io
 import json
+import os
 import queue
+import secrets
 import socket
 import threading
 import traceback
@@ -39,6 +50,18 @@ bl_info = {
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 9876
 
+# 本机模式的访问令牌（远端 Agent 运行时读同一个来源，无需手工配对）。
+TOKEN_ENV = "WEFTCANVAS_BRIDGE_TOKEN"
+TOKEN_FILE_ENV = "WEFTCANVAS_BRIDGE_TOKEN_FILE"
+DEFAULT_TOKEN_FILE = os.path.join(os.path.expanduser("~"), ".weftcanvas-bridge", "token")
+# 令牌的随机字节数；token_urlsafe(32) 得到 43 个 URL 安全字符。
+TOKEN_BYTES = 32
+MIN_TOKEN_CHARS = 32
+# 本机模式只允许回环地址：这个端口能执行任意 Python，绑到非回环地址就是对外放了一个
+# 远程代码执行入口。要跨机使用请走远程模式（连接画布）。
+LOOPBACK_HOSTS = ("127.0.0.1", "::1", "localhost")
+LOOPBACK_PREFIXES = ("127.",)
+
 _TASK_QUEUE: "queue.Queue" = queue.Queue()
 _STDOUT_BUFFER = io.StringIO()
 _MAX_REQUEST_BYTES = 4 * 1024 * 1024
@@ -46,6 +69,86 @@ _MAX_REQUEST_BYTES = 4 * 1024 * 1024
 _REGISTERED = False
 _SERVER = None
 _STATUS = "未启动"
+_TOKEN = None  # 本机模式的当前访问令牌，见 _ensure_token()
+
+
+def token_file_path():
+    """令牌文件路径：可用 WEFTCANVAS_BRIDGE_TOKEN_FILE 覆盖，默认在用户主目录下。"""
+    override = os.environ.get(TOKEN_FILE_ENV, "").strip()
+    return override or DEFAULT_TOKEN_FILE
+
+
+def _write_token_file(path, token):
+    directory = os.path.dirname(path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+        with contextlib.suppress(OSError):
+            os.chmod(directory, 0o700)
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(token)
+    except Exception:
+        with contextlib.suppress(OSError):
+            os.close(descriptor)
+        raise
+    with contextlib.suppress(OSError):
+        os.chmod(path, 0o600)
+
+
+def load_or_create_token(path=None):
+    """读令牌文件；缺失或明显不合格时生成新的强随机令牌并落盘。"""
+    target = path or token_file_path()
+    try:
+        with open(target, encoding="utf-8") as handle:
+            existing = handle.read().strip()
+    except OSError:
+        existing = ""
+    if len(existing) >= MIN_TOKEN_CHARS:
+        return existing
+    token = secrets.token_urlsafe(TOKEN_BYTES)
+    _write_token_file(target, token)
+    return token
+
+
+def rotate_token(path=None):
+    """重新生成令牌：旧令牌立即失效，同机 Agent 会从同一个文件读到新的。"""
+    global _TOKEN
+    token = secrets.token_urlsafe(TOKEN_BYTES)
+    _write_token_file(path or token_file_path(), token)
+    _TOKEN = token
+    return token
+
+
+def _ensure_token():
+    """准备本机模式令牌。写不出文件时宁可起不来，也不能开一个无认证的执行端口。"""
+    global _TOKEN
+    if _TOKEN:
+        return _TOKEN
+    from_env = os.environ.get(TOKEN_ENV, "").strip()
+    if from_env:
+        _TOKEN = from_env
+        return _TOKEN
+    _TOKEN = load_or_create_token()
+    return _TOKEN
+
+
+def _token_matches(supplied):
+    current = _TOKEN
+    if not current or not isinstance(supplied, str) or not supplied:
+        return False
+    # 常量时间比较：类型/编码差异也必须先归一成 bytes，否则 compare_digest 会抛异常。
+    try:
+        return hmac.compare_digest(supplied.encode("utf-8"), current.encode("utf-8"))
+    except (TypeError, UnicodeError):
+        return False
+
+
+def _host_is_loopback(host):
+    value = (host or "").strip().lower()
+    if value in LOOPBACK_HOSTS:
+        return True
+    return value.startswith(LOOPBACK_PREFIXES)
 
 
 def _execute(code):
@@ -209,6 +312,23 @@ class WeftcanvasBridgeServer(threading.Thread):
                 connection.sendall((json.dumps({"ok": False, "error": "请求不是合法 JSON"}) + "\n").encode("utf-8"))
                 connection.close()
             return
+        # 鉴权在入队之前：未通过令牌校验的请求永远不会到达 _handle_request/_execute。
+        if not isinstance(payload, dict) or not _token_matches(payload.get("token")):
+            with contextlib.suppress(OSError):
+                connection.sendall(
+                    (
+                        json.dumps(
+                            {
+                                "ok": False,
+                                "error": "认证失败：访问令牌缺失或不正确。请重启 Blender 桥接或重新一键配置。",
+                            },
+                            ensure_ascii=False,
+                        )
+                        + "\n"
+                    ).encode("utf-8")
+                )
+                connection.close()
+            return
         _TASK_QUEUE.put((connection, payload, payload.get("id")))
 
     def start_pump(self):
@@ -242,12 +362,21 @@ def _port():
 
 
 def start_bridge(host=None, port=None):
-    """启动桥接。返回 (是否已启动, 说明)。已在运行时视为成功。"""
+    """启动本机监听。返回 (是否已启动, 说明)。已在运行时视为成功。"""
     global _SERVER, _STATUS
+    target_host = (host or _host()).strip()
+    # 地址校验先于「已在运行」判断：绑错地址永远要被明确拒绝，而不是被静默忽略。
+    if not _host_is_loopback(target_host):
+        _STATUS = "拒绝启动：本机模式只允许回环地址（127.0.0.1 / ::1），当前地址是 %s；跨机使用请改用远程模式" % target_host
+        return False, _STATUS
     if _SERVER is not None and _SERVER.is_alive():
         return True, "桥接已在运行 %s:%s" % (_SERVER.host, _SERVER.port)
-    target_host = host or _host()
     target_port = int(port or _port())
+    try:
+        _ensure_token()
+    except Exception as error:  # noqa: BLE001 - 起不来必须说清原因，不能开无认证端口
+        _STATUS = "启动失败：无法准备访问令牌（%s）" % error
+        return False, _STATUS
     server = WeftcanvasBridgeServer(host=target_host, port=target_port)
     try:
         server.start()
@@ -447,6 +576,21 @@ class WEFTCANVAS_OT_stop_bridge(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class WEFTCANVAS_OT_rotate_token(bpy.types.Operator):
+    bl_idname = "weftcanvas.rotate_token"
+    bl_label = "重新生成访问令牌"
+    bl_description = "旧令牌立即失效；同机的 Agent 运行时从同一个令牌文件自动读到新的"
+
+    def execute(self, context):
+        try:
+            rotate_token()
+        except OSError as error:
+            self.report({"ERROR"}, "无法写入令牌文件：%s" % error)
+            return {"CANCELLED"}
+        self.report({"INFO"}, "已重新生成访问令牌")
+        return {"FINISHED"}
+
+
 class WEFTCANVAS_OT_start_remote(bpy.types.Operator):
     bl_idname = "weftcanvas.start_remote"
     bl_label = "连接画布"
@@ -521,11 +665,23 @@ class WEFTCANVAS_PT_bridge_panel(bpy.types.Panel):
             column = layout.column(align=True)
             column.prop(context.scene, "weftcanvas_bridge_host", text="地址")
             column.prop(context.scene, "weftcanvas_bridge_port", text="端口")
+            if _TOKEN:
+                layout.label(text="访问令牌已就绪（%s）" % token_file_path(), icon="LOCKED")
+            else:
+                layout.label(text="启动时会在 %s 生成访问令牌" % token_file_path(), icon="INFO")
+            layout.operator("weftcanvas.rotate_token", icon="FILE_REFRESH")
 
         layout.prop(context.scene, "weftcanvas_bridge_auto_start", text="随 Blender 自动启动")
 
 
-_CLASSES = (WEFTCANVAS_OT_start_bridge, WEFTCANVAS_OT_stop_bridge, WEFTCANVAS_OT_start_remote, WEFTCANVAS_OT_stop_remote, WEFTCANVAS_PT_bridge_panel)
+_CLASSES = (
+    WEFTCANVAS_OT_start_bridge,
+    WEFTCANVAS_OT_stop_bridge,
+    WEFTCANVAS_OT_rotate_token,
+    WEFTCANVAS_OT_start_remote,
+    WEFTCANVAS_OT_stop_remote,
+    WEFTCANVAS_PT_bridge_panel,
+)
 
 
 def register():

@@ -494,6 +494,7 @@ const app = createApiApp({
   },
   identityCookie: { name: cookieName, secure: secureCookie },
   allowedOrigins: readAllowedOrigins(process.env.APP_ORIGINS),
+  trustedProxySpec: process.env.TRUSTED_PROXY_CIDRS,
 });
 
 const server = serve({ fetch: app.fetch, port, hostname }, (info) => {

@@ -90,8 +90,15 @@ Agent 对话 → API → apps/agent /internal/v1/runs
   断开的连接不会变成模型眼里的"可用能力"。
 - 工具调用走 `toolCalls` 字段，最多两轮；工具结果回灌给模型后由模型给出最终回复。
   有 `toolCalls` 时不允许同时有画布 `actions`，避免同一轮既有落盘又有本机副作用。
-- Blender 桥接只监听回环地址，`run_python` 会在 Blender 主线程执行任意 Python。
-  这等同于把 Blender 交给本机进程控制，不要把地址改成对外地址。
+- Blender 桥接本机模式**只允许绑定回环地址**（127.0.0.1 / ::1 / localhost；面板里填
+  其它地址会被明确拒绝启动，跨机使用请改用远程模式），且**每个请求都必须带访问令牌**：
+  `run_python` 会在 Blender 主线程执行任意 Python，等同于把 Blender 交给能通过鉴权的
+  一方控制。没有令牌或令牌不对的请求在进入执行队列之前就被拒绝（常量时间比较）。
+  令牌由桥接生成在用户主目录的 `~/.weftcanvas-bridge/token`（0600；可用
+  `WEFTCANVAS_BRIDGE_TOKEN_FILE` 改路径，或用 `WEFTCANVAS_BRIDGE_TOKEN` 直接指定），同机的
+  Agent 运行时读同一个来源，因此一键连接仍然不需要用户手工配对；面板里的
+  「重新生成令牌」让旧令牌立即失效。令牌不进 .blend、不进日志、不进 Git。
+  认证回归测试在 `apps/agent/blender/bridge_auth_test.py`（开源 CI 里用 python3 跑）。
 
 ## 接入步骤（普通用户只需要点一个按钮）
 

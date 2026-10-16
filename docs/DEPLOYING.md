@@ -35,6 +35,28 @@ For a public domain, use HTTPS and proxy `/api/` and `/admin/` through `web`.
 The production API requires secure session cookies; local loopback is the
 development access path. Browser BYOK does not require login.
 
+### Trusted proxies (rate-limit identity)
+
+Login, registration, redemption and membership claims are rate limited per
+client. The API only reads `X-Forwarded-For` / `CF-Connecting-IP` when the
+**direct peer itself is a trusted proxy**; a direct connection is always
+identified by its own socket address, so a client cannot dodge a limit by
+inventing a new address in a header.
+
+`TRUSTED_PROXY_CIDRS` (IP / CIDR list, comma or space separated, `loopback`
+for 127.0.0.0/8 + ::1) configures that list. Defaults:
+
+- Compose sets `172.16.0.0/12`, matching Docker's default address pools,
+  because the only hop in front of the API is the bundled nginx container.
+- Running the API directly trusts `loopback` only.
+- Behind Cloudflare or another proxy, list that proxy's published ranges and
+  keep everything else out.
+
+If you change Docker's address pools, or put another proxy in front, set this
+explicitly — otherwise every user shares the proxy's own bucket (limits fire
+early), or a spoofed header is ignored (limits apply per proxy). Unsupported
+entries are ignored rather than trusted.
+
 ## Services and persistence
 
 | Service    | Role                                             | Persistent state                      |
