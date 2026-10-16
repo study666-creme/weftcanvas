@@ -40,7 +40,7 @@ jobs:
 
       # 版本由 package.json 的 packageManager 固定（pnpm@11.7.0）；这里不能再写
       # version，否则 pnpm/action-setup v4 会因"指定了多个版本"直接失败。
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v4
         with:
