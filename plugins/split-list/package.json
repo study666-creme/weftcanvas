@@ -17,13 +17,13 @@
   },
   "dependencies": {
     "@weftcanvas/plugin-sdk": "workspace:*",
-    "lucide-react": "^1.24.0"
+    "lucide-react": "^1.56.0"
   },
   "devDependencies": {
-    "@types/react": "^19.2.17",
-    "react": "^19.2.7",
+    "@types/react": "^19.3.0",
+    "react": "^19.3.0",
     "typescript": "^7.0.2",
-    "vite": "^8.1.4",
+    "vite": "^8.3.4",
     "vitest": "^4.1.10"
   }
 }
