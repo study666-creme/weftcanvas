@@ -1619,7 +1619,7 @@ export function CanvasWorkspace({
         <Suspense
           fallback={
             <div className="wc-resource-drawer-loading" role="status">
-              正在打开卡片与资产…
+              正在打开资产库…
             </div>
           }
         >

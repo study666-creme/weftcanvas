@@ -13,8 +13,9 @@
  *   - 手感对齐画布：hover/按压 100-160ms、按压只染不闪白、聚焦环只在键盘
  *     导航出现（`:focus-visible`）、`prefers-reduced-motion` 下关过渡。
  *
- * 约束（与页面注释一致）：CSS 只用自定义属性与基础 flex，不用 `:has`、
- * 容器查询等新特性；脚本 ES5，用 XMLHttpRequest。
+ * 约束（与页面注释一致）：CSS 只用浏览器广泛支持的写法（自定义属性、flex、
+ * calc、`:focus-visible`），不用 `:has`、容器查询、`color-mix` 这类新特性；
+ * 脚本 ES5，请求走 XMLHttpRequest。
  */
 
 /** 画布后台配色 token + 基础组件样式。两页共用，保证两个后台表面观感一致。 */

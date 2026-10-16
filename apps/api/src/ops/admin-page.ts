@@ -4,15 +4,16 @@ import { ADMIN_THEME_BOOT_JS, ADMIN_THEME_CSS } from "./admin-theme.js";
  * 画布运营后台：概览 + 用户 + 任务 + 模型运营四页合一的控制台。
  *
  * - 模型页与「画布模型上架与定价」页同源同接口（GET/PUT /api/v1/admin/model-overrides），
- *   上下架、排序、零售价（固定/分档/token 双费率）、稳定/特惠分区、显示名与简介
- *   覆盖都在这里完成；概览走 /api/v1/admin/ops/overview，用户页走
- *   /api/v1/admin/ops/users，任务页走 /api/v1/admin/ops/jobs。
- *   两把密钥共用一个输入框：请求同时带 x-canvas-ops-secret 与
- *   x-model-overrides-secret（server 侧 ops 缺省回落到模型密钥，一把通两页）。
+ *   上下架、自定义价（固定/分档/token 双费率）、稳定/特惠分区、显示名与简介覆盖
+ *   都在这里完成（上游价只读展示，排序字段不在这个界面上改）；概览走
+ *   /api/v1/admin/ops/overview，用户页走 /api/v1/admin/ops/users，任务页走
+ *   /api/v1/admin/ops/jobs。两把密钥共用一个输入框：请求同时带 x-canvas-ops-secret
+ *   与 x-model-overrides-secret（server 侧 ops 缺省回落到模型密钥，一把通两页）。
  * - 观感与画布同源：颜色/字体/几何全部走 admin-theme 的石墨 token（亮色石墨、
  *   暗色墨黑），顶栏吸顶、描边撑层级、方形徽标、零字距。
- * - 兼容性：脚本 ES5 + XMLHttpRequest，CSS 只用自定义属性与基础 flex；
- *   窄屏卡片换行、表格横向滚动。
+ * - 兼容性：脚本 ES5 + XMLHttpRequest，CSS 不用 `:has`/容器查询这类新特性
+ *   （自定义属性、flex、calc、`:focus-visible` 可用）；窄屏卡片换行、长表在
+ *   面板内滚动。
  */
 export const CANVAS_OPS_ADMIN_PAGE = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -79,7 +80,7 @@ ${ADMIN_THEME_CSS}
     </div>
     <div class="wc-tablewrap"><table class="wc-table">
       <thead><tr>
-        <th>用户</th><th>状态</th><th title="可用余额（1 元 = 100 积分）">积分</th><th>云项目</th><th>素材</th>
+        <th>用户</th><th>状态</th><th title="可用余额（画布积分，换算率取自目录）">积分</th><th>云项目</th><th>素材</th>
         <th>任务</th><th>任务 · 24h</th><th>最近登录</th><th>注册</th>
       </tr></thead>
       <tbody id="userRows"><tr><td colspan="9" class="wc-empty">点「加载」拉取用户列表</td></tr></tbody>

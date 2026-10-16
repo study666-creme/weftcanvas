@@ -27,7 +27,7 @@ export type OpsUserRow = {
   status: "active" | "disabled";
   createdAt: string;
   lastLoginAt: string | null;
-  /** 可用余额（画布积分）；1 元 = 100 积分，库里存 micros。 */
+  /** 可用余额（画布积分），库里存 micros；元→积分的换算率由目录的 credits_per_yuan 决定。 */
   credits: number;
   /** 云项目数。 */
   projects: number;

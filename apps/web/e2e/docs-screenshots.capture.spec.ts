@@ -392,9 +392,8 @@ test.describe("docs screenshot capture", () => {
   }
 
   /**
-   * 运营后台截图：页面本体来自 API（`/admin/ops`，见文件头的 import），
-   * 四个接口全部 mock——虚构的目录、用户与任务，不出现任何真实账号、
-   * 上游模型名或错误码。
+   * 运营后台截图：页面本体来自 API（`/admin/ops`，见文件头的 import），四个接口
+   * 全部 mock，目录、账号与任务都是虚构的（`example.com`、文档用模型名）。
    */
   async function seedOpsConsole(page: Page, theme: "light" | "dark") {
     await page.addInitScript((value) => {
