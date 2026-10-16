@@ -26,22 +26,22 @@
     "test:postgres": "vitest run --maxWorkers=1 src/generation/api-rate-limit.integration.test.ts src/generation/postgres-store.integration.test.ts src/generation/reconciliation.integration.test.ts src/generation/work-queue.integration.test.ts src/identity/postgres-store.integration.test.ts src/media/postgres-store.integration.test.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1086.0",
-    "@aws-sdk/s3-request-presigner": "^3.1086.0",
-    "@hono/node-server": "2.0.11",
+    "@aws-sdk/client-s3": "^3.1150.0",
+    "@aws-sdk/s3-request-presigner": "^3.1150.0",
+    "@hono/node-server": "2.1.5",
     "@weftcanvas/contracts": "workspace:*",
-    "@smithy/node-http-handler": "^4.9.4",
-    "hono": "4.12.30",
-    "mediainfo.js": "0.3.7",
-    "pg": "8.22.0",
-    "sharp": "0.35.3",
+    "@smithy/node-http-handler": "^4.12.1",
+    "hono": "4.13.13",
+    "mediainfo.js": "0.3.8",
+    "pg": "8.23.1",
+    "sharp": "0.35.5",
     "undici": "^8.12.2",
-    "zod": "^4.4.3"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
-    "@types/pg": "8.20.0",
-    "tsx": "4.23.1",
+    "@types/pg": "8.23.1",
+    "tsx": "4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
   }
