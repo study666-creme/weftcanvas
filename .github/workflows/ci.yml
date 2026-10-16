@@ -18,6 +18,10 @@ jobs:
     # PostgreSQL 集成测试此前在 CI 里静默跳过（CANVAS_TEST_DATABASE_URL 未设置，
     # describe.skipIf 直接跳过 25 条）。这里起一个一次性实例，把
     # identity / generation / media / 限流 / 对账的库层回归真正跑起来。
+    # 注意：URL 只在下面的 test:postgres 步骤注入——那里的 --maxWorkers=1 串行
+    # 跑迁移。放到作业级会让 pnpm test 以默认并行度跑集成文件，多个文件同时
+    # 抢迁移锁（"Another Canvas migration process already holds the migration
+    # lock"）——首版 CI 就是这样失败的，别改回去。
     services:
       postgres:
         image: postgres:16-alpine
@@ -32,9 +36,6 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 12
-    env:
-      # 库名必须含 test（集成测试自带保险，见各 *.integration.test.ts 顶部）。
-      CANVAS_TEST_DATABASE_URL: postgresql://canvas:ci-only-database-password@127.0.0.1:5432/canvas_test?sslmode=disable
     steps:
       - uses: actions/checkout@v4
 
@@ -51,9 +52,11 @@ jobs:
       - run: pnpm format:check
       - run: pnpm typecheck
       - run: pnpm test
-      # 库层集成测试单独跑（单 worker，串行迁移 —— 见 api 的 test:postgres）。
+      # 库名必须含 test（集成测试自带保险）。串行（--maxWorkers=1）跑迁移。
       - name: PostgreSQL integration tests
         run: pnpm --filter @weftcanvas/canvas-api test:postgres
+        env:
+          CANVAS_TEST_DATABASE_URL: postgresql://canvas:ci-only-database-password@127.0.0.1:5432/canvas_test?sslmode=disable
       # 本机 Blender 桥接的认证回归：不需要 Blender，用 bpy 替身直接打 TCP 端口
       # （无令牌/错令牌要在进入执行队列前被拒绝；非回环绑定必须拒绝）。
       - name: Blender bridge auth regression

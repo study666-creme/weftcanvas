@@ -240,6 +240,13 @@
   self-host 容器栈；全量 e2e 仍走本地/发布前批次（成本与稳定折中维持原判）。
   另：Blender 认证回归（python3）在 quality 作业里跑（§2.1）。
 - **本机验证**：Docker `postgres:16-alpine` 上 6 文件 25 用例全过（6.8s）。
+- **CI 首跑失败的教训（已修复）**：首版把 `CANVAS_TEST_DATABASE_URL` 放在
+  作业级——`pnpm test` 于是以默认并行度跑集成文件，多个文件同时抢迁移锁
+  （`Another Canvas migration process already holds the migration lock`），
+  quality 作业失败（本机已复现：3 个套件稳定挂同一错误）。修复为把 URL 收敛
+  到 `test:postgres` **步骤级**：`pnpm test` 恢复按门控跳过、专用步骤串行跑
+  25 条。此事故正是"集成测试串行化"（`--maxWorkers=1`）存在的原因，已在
+  ci.yml 注释里写明防止回退。
 
 ## 3. 测试报告
 
