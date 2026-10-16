@@ -37,7 +37,7 @@ jobs:
           --health-timeout 3s
           --health-retries 12
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # 版本由 package.json 的 packageManager 固定（pnpm@11.7.0）；这里不能再写
       # version，否则 pnpm/action-setup v4 会因"指定了多个版本"直接失败。
@@ -87,7 +87,7 @@ jobs:
       IDENTITY_SESSION_SECRET: ci-only-session-secret-at-least-thirty-two-bytes
       MODEL_OVERRIDES_ADMIN_SECRET: ci-only-admin-secret
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build and start isolated self-host stack
         run: docker compose --project-name weftcanvas-ci up --build -d --wait --wait-timeout 180
       - name: Check API and operator proxy
@@ -112,7 +112,7 @@ jobs:
   secrets:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       # 公共仓库免费；组织账号需要在仓库 secrets 里提供 GITLEAKS_LICENSE。
