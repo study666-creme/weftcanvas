@@ -1,4 +1,5 @@
 export * from "./agent.js";
+export * from "./announcements.js";
 export * from "./audio-protocol.js";
 export * from "./canvas.js";
 export * from "./cloud-project.js";

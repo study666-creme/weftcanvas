@@ -1,14 +1,16 @@
 import { ADMIN_THEME_BOOT_JS, ADMIN_THEME_CSS } from "./admin-theme.js";
 
 /**
- * 画布运营后台：概览 + 用户 + 任务 + 模型运营四页合一的控制台。
+ * 画布运营后台：概览 + 用户 + 任务 + 模型运营 + 公告五页合一的控制台。
  *
  * - 模型页与「画布模型上架与定价」页同源同接口（GET/PUT /api/v1/admin/model-overrides），
  *   上下架、自定义价（固定/分档/token 双费率）、稳定/特惠分区、显示名与简介覆盖
  *   都在这里完成（上游价只读展示，排序字段不在这个界面上改）；概览走
  *   /api/v1/admin/ops/overview，用户页走 /api/v1/admin/ops/users，任务页走
- *   /api/v1/admin/ops/jobs。两把密钥共用一个输入框：请求同时带 x-canvas-ops-secret
- *   与 x-model-overrides-secret（server 侧 ops 缺省回落到模型密钥，一把通两页）。
+ *   /api/v1/admin/ops/jobs，公告页走 /api/v1/admin/announcements（整集合 GET/PUT，
+ *   画布前端走公开的 /api/v1/announcements）。两把密钥共用一个输入框：请求同时带
+ *   x-canvas-ops-secret 与 x-model-overrides-secret（server 侧 ops 与公告缺省都
+ *   回落到模型密钥，一把通三页）。
  * - 观感与画布同源：颜色/字体/几何全部走 admin-theme 的石墨 token（亮色石墨、
  *   暗色墨黑），顶栏吸顶、描边撑层级、方形徽标、零字距。
  * - 兼容性：脚本 ES5 + XMLHttpRequest，CSS 不用 `:has`/容器查询这类新特性
@@ -34,6 +36,23 @@ ${ADMIN_THEME_CSS}
 .wc-user-cell .wc-sub { display: block; }
 /* 徽标默认跟在文字后（margin-left 6px）；单独占格的列要贴齐表头。 */
 .wc-table td.wc-badge-cell .wc-badge { margin-left: 0; }
+/* 公告：一条一张卡（标题/开关一行、时间一行、正文一段），窄屏整列堆叠。 */
+.wc-notice-list { display: flex; flex-direction: column; gap: 10px; }
+.wc-notice-card {
+  background: var(--wc-surface-raised);
+  border: 1px solid var(--wc-border);
+  border-radius: var(--wc-radius);
+  padding: 10px 12px 12px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.wc-notice-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.wc-notice-head input[data-field=title] { flex: 1; min-width: 200px; }
+.wc-notice-head label { color: var(--wc-text-tertiary); font-size: 12px; display: flex; gap: 4px; align-items: center; }
+.wc-notice-times { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.wc-notice-times label { color: var(--wc-text-tertiary); font-size: 12px; display: flex; gap: 6px; align-items: center; }
+.wc-notice-card textarea { width: 100%; resize: vertical; font-size: 12px; line-height: 1.6; padding: 6px 8px; }
+.wc-notice-head .wc-tail { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+#noticeHint { max-width: 760px; }
 </style>
 <script>${ADMIN_THEME_BOOT_JS}</script>
 </head>
@@ -42,7 +61,7 @@ ${ADMIN_THEME_CSS}
   <div class="wc-topbar-inner">
     <div class="wc-brand">
       <h1>画布运营后台</h1>
-      <span class="wc-sub">概览 · 用户 · 任务 · 模型运营</span>
+      <span class="wc-sub">概览 · 用户 · 任务 · 模型运营 · 公告</span>
     </div>
     <div class="wc-topbar-actions">
       <input id="secret" type="password" placeholder="运营密钥" autocomplete="off">
@@ -61,6 +80,7 @@ ${ADMIN_THEME_CSS}
     <button id="tab-users" class="wc-tab" type="button">用户</button>
     <button id="tab-jobs" class="wc-tab" type="button">任务</button>
     <button id="tab-models" class="wc-tab" type="button">模型运营</button>
+    <button id="tab-notices" class="wc-tab" type="button">公告</button>
   </nav>
 
   <section id="page-overview">
@@ -124,14 +144,31 @@ ${ADMIN_THEME_CSS}
       <tbody id="modelRows"><tr><td colspan="8" class="wc-empty">点「加载」拉取模型目录</td></tr></tbody>
     </table></div>
   </section>
+
+  <section id="page-notices" hidden>
+    <div class="wc-filters">
+      <span class="wc-hint" id="noticeHint">
+        公告会以弹窗形式发给画布访客：<b>启用</b>且到点、未过期的条目才会出现，
+        画布端按「置顶 → 发布时间」排序。发布时间晚于现在 = 定时公告；
+        正文支持：空行分段、<b>**加粗**</b>、[文字](链接)、独立成行的 ![说明](图片地址)。
+      </span>
+      <span class="wc-tail">
+        <span id="noticeMsg" class="wc-sub"></span>
+        <button id="noticeAdd" class="wc-btn" type="button">新增公告</button>
+        <button id="noticeSave" class="wc-btn wc-btn-primary" type="button">保存公告</button>
+      </span>
+    </div>
+    <div id="noticeList" class="wc-notice-list"></div>
+  </section>
 </main>
 <script>
 (function () {
   var SECRET_KEY = "canvas_ops_admin_secret_v1";
-  var TABS = ["overview", "users", "jobs", "models"];
+  var TABS = ["overview", "users", "jobs", "models", "notices"];
   var state = {
     tab: "overview", filter: "failed", loaded: false,
     overview: null, models: null, overrides: null, users: null, userQuery: "",
+    notices: null,
   };
   function $(id) { return document.getElementById(id); }
   function secret() { return $("secret").value.replace(/^\\s+|\\s+$/g, ""); }
@@ -393,6 +430,136 @@ ${ADMIN_THEME_CSS}
     });
   }
 
+  /* ---------- 公告 ---------- */
+  /** ISO ↔ datetime-local 的本地时间互转；空串 = 没填。 */
+  function toLocalInput(value) {
+    if (!value) return "";
+    var d = new Date(value);
+    if (isNaN(d.getTime())) return "";
+    var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate())
+      + "T" + pad(d.getHours()) + ":" + pad(d.getMinutes());
+  }
+  function toIso(value) {
+    if (!value) return null;
+    var t = new Date(value).getTime();
+    return isNaN(t) ? null : new Date(t).toISOString();
+  }
+  function newNoticeId() {
+    return "notice-" + Date.now().toString(36) + "-" + Math.floor(Math.random() * 1679616).toString(36);
+  }
+  /** 与画布端读取时同一套可见性规则，直接标在卡片上（省得猜"为什么没弹"）。 */
+  function noticeStatus(item) {
+    if (!item.enabled) return '<span class="wc-badge off">已停用</span>';
+    var now = Date.now();
+    if (item.expiresAt && Date.parse(item.expiresAt) <= now) return '<span class="wc-badge off">已过期</span>';
+    if (Date.parse(item.publishedAt) > now) return '<span class="wc-badge info">定时 · 到点显示</span>';
+    return '<span class="wc-badge on">展示中</span>';
+  }
+  function renderNotices() {
+    if (!state.notices) { $("noticeList").innerHTML = '<div class="wc-empty">点「加载」拉取公告</div>'; return; }
+    if (!state.notices.length) {
+      $("noticeList").innerHTML = '<div class="wc-empty">还没有公告；点「新增公告」写第一条</div>';
+      return;
+    }
+    $("noticeList").innerHTML = state.notices.map(function (n, index) {
+      return '<div class="wc-notice-card" data-index="' + index + '">'
+        + '<div class="wc-notice-head">'
+        + '<input class="wc-cell-input" data-field="title" type="text" maxlength="120" placeholder="标题（必填）" value="' + esc(n.title) + '">'
+        + '<select class="wc-cell-input" data-field="level" title="重要通知会在画布端带徽标">'
+        + '<option value="info"' + (n.level !== "important" ? " selected" : "") + ">普通</option>"
+        + '<option value="important"' + (n.level === "important" ? " selected" : "") + ">重要通知</option></select>"
+        + '<label><input type="checkbox" data-field="pinned"' + (n.pinned ? " checked" : "") + "> 置顶</label>"
+        + '<label><input type="checkbox" data-field="enabled"' + (n.enabled ? " checked" : "") + "> 启用</label>"
+        + noticeStatus(n)
+        + '<span class="wc-tail"><button class="wc-btn" data-action="remove" type="button">删除</button></span>'
+        + "</div>"
+        + '<div class="wc-notice-times">'
+        + '<label>发布时间 <input class="wc-cell-input" data-field="publishedAt" type="datetime-local" value="' + toLocalInput(n.publishedAt) + '"></label>'
+        + '<label>过期时间（留空 = 长期）<input class="wc-cell-input" data-field="expiresAt" type="datetime-local" value="' + toLocalInput(n.expiresAt) + '"></label>'
+        + "</div>"
+        + '<textarea class="wc-cell-input" data-field="body" rows="5" maxlength="4000" placeholder="正文（必填）">' + esc(n.body) + "</textarea>"
+        + "</div>";
+    }).join("");
+  }
+  /** 从卡片读回集合并校验；任何一条不合格就整体不保存，提示到具体那一条。 */
+  function collectNotices() {
+    var cards = $("noticeList").querySelectorAll(".wc-notice-card");
+    var items = [];
+    for (var i = 0; i < cards.length; i++) {
+      var card = cards[i];
+      var existing = state.notices ? state.notices[Number(card.getAttribute("data-index"))] : null;
+      var title = card.querySelector("[data-field=title]").value.replace(/^\\s+|\\s+$/g, "");
+      var body = card.querySelector("[data-field=body]").value.replace(/^\\s+$/g, "");
+      if (!title) return { error: "第 " + (i + 1) + " 条：标题不能为空" };
+      if (!body) return { error: "第 " + (i + 1) + " 条：正文不能为空" };
+      var publishedAt = toIso(card.querySelector("[data-field=publishedAt]").value);
+      if (!publishedAt) return { error: "第 " + (i + 1) + " 条：发布时间格式不正确" };
+      var expiresRaw = card.querySelector("[data-field=expiresAt]").value;
+      var expiresAt = toIso(expiresRaw);
+      if (expiresRaw && !expiresAt) return { error: "第 " + (i + 1) + " 条：过期时间格式不正确" };
+      if (expiresAt && Date.parse(expiresAt) <= Date.parse(publishedAt))
+        return { error: "第 " + (i + 1) + " 条：过期时间要晚于发布时间" };
+      items.push({
+        id: existing && existing.id ? existing.id : newNoticeId(),
+        title: title,
+        body: body,
+        level: card.querySelector("[data-field=level]").value === "important" ? "important" : "info",
+        pinned: card.querySelector("[data-field=pinned]").checked,
+        enabled: card.querySelector("[data-field=enabled]").checked,
+        publishedAt: publishedAt,
+        expiresAt: expiresAt,
+      });
+    }
+    return { items: items };
+  }
+  function saveNotices() {
+    var collected = collectNotices();
+    if (collected.error) { $("noticeMsg").textContent = collected.error; $("noticeMsg").className = "wc-sub wc-bad"; return; }
+    $("noticeSave").disabled = true;
+    $("noticeMsg").textContent = "保存中…"; $("noticeMsg").className = "wc-sub";
+    api("PUT", "/api/v1/admin/announcements", { items: collected.items }, function (data) {
+      state.notices = data.items;
+      $("noticeSave").disabled = false;
+      $("noticeMsg").textContent = "已保存，画布端下一次打开即生效";
+      $("noticeMsg").className = "wc-sub wc-ok";
+      renderNotices();
+    }, function (e) {
+      $("noticeSave").disabled = false;
+      $("noticeMsg").textContent = "保存失败：" + e; $("noticeMsg").className = "wc-sub wc-bad";
+    });
+  }
+  function loadNotices() {
+    api("GET", "/api/v1/admin/announcements", null, function (data) {
+      state.notices = data.items;
+      renderNotices();
+    }, function (e) {
+      $("noticeList").innerHTML = '<div class="wc-empty">公告加载失败：' + esc(e) + "</div>";
+    });
+  }
+  function addNotice() {
+    if (!state.notices) state.notices = [];
+    state.notices.push({
+      id: "", title: "", body: "", level: "info", pinned: false, enabled: true,
+      publishedAt: new Date().toISOString(), expiresAt: null,
+    });
+    renderNotices();
+  }
+  $("noticeList").onclick = function (event) {
+    var button = event.target;
+    if (!button || button.getAttribute("data-action") !== "remove") return;
+    var card = button;
+    while (card && card.className !== "wc-notice-card") card = card.parentNode;
+    if (!card || !state.notices) return;
+    var index = Number(card.getAttribute("data-index"));
+    var removed = state.notices.splice(index, 1)[0];
+    renderNotices();
+    $("noticeMsg").textContent = "已删除「" + (removed && removed.title ? removed.title : "未命名") + "」，点「保存公告」生效";
+    $("noticeMsg").className = "wc-sub";
+  };
+  $("noticeAdd").onclick = addNotice;
+  $("noticeSave").onclick = saveNotices;
+
   /* ---------- 分区与加载 ---------- */
   function showTab(t) {
     state.tab = t;
@@ -409,6 +576,7 @@ ${ADMIN_THEME_CSS}
     $("load").textContent = "刷新";
     loadOverview();
     loadJobs();
+    loadNotices();
     state.users = null;
     if (state.tab === "users") loadUsers();
     api("GET", "/api/v1/admin/model-overrides", null, function (data) {
@@ -425,6 +593,7 @@ ${ADMIN_THEME_CSS}
   $("tab-users").onclick = function () { showTab("users"); };
   $("tab-jobs").onclick = function () { showTab("jobs"); };
   $("tab-models").onclick = function () { showTab("models"); };
+  $("tab-notices").onclick = function () { showTab("notices"); };
   $("userSearch").onclick = loadUsers;
   $("userQuery").onkeydown = function (event) { if (event.keyCode === 13) loadUsers(); };
   $("save").onclick = saveModels;

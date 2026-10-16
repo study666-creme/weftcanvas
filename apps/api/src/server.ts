@@ -15,6 +15,7 @@ import { AgentService, type AgentBilling } from "./agent/service.js";
 import { buildAgentTextModels, createStationTextPricingLookup } from "./agent/text-models.js";
 import { WeftcanvasCatalogAdapter } from "./catalog/adapter.js";
 import { JsonModelOverrideStore } from "./catalog/overrides.js";
+import { JsonAnnouncementStore } from "./announcements/store.js";
 import { toPublicCatalogView } from "./catalog/public-view.js";
 import { GenerationQuoteService } from "./catalog/quote.js";
 import {
@@ -76,6 +77,11 @@ const store = pool
   : fileCatalogStore;
 const modelOverrides = new JsonModelOverrideStore(
   resolve(process.env.MODEL_OVERRIDES_PATH || ".data/model-overrides.json"),
+);
+// 站点公告：运营后台写入、画布前端公开读取的文件存储；与模型覆盖同款，
+// 没配密钥时管理面 404（公告照常为空，不影响画布）。
+const announcements = new JsonAnnouncementStore(
+  resolve(process.env.ANNOUNCEMENTS_PATH || ".data/announcements.json"),
 );
 const catalog = new WeftcanvasCatalogAdapter({
   sourceUrl,
@@ -416,6 +422,9 @@ const app = createApiApp({
   ...(modelHealthProvider ? { modelHealth: modelHealthProvider } : {}),
   ...(opsService ? { ops: opsService } : {}),
   ...(opsService && opsAdminSecret ? { opsAdminSecret } : {}),
+  // 站点公告：公开读永远可用；写入面跟随运营密钥（缺省已回落到模型密钥）。
+  announcements,
+  ...(opsAdminSecret ? { announcementsAdminSecret: opsAdminSecret } : {}),
   multipartMedia,
   projects: cloudProjects,
   collaboration,

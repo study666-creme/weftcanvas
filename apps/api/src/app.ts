@@ -1,4 +1,5 @@
 import {
+  announcementListResponseSchema,
   cloudProjectDeleteResponseSchema,
   cloudProjectPrincipalIdSchema,
   cloudProjectInvitationListResponseSchema,
@@ -97,6 +98,12 @@ import {
   type ModelOverrideStore,
   type ModelOverrides,
 } from "./catalog/overrides.js";
+import {
+  EMPTY_ANNOUNCEMENTS,
+  announcementCollectionSchema,
+  publicAnnouncements,
+  type AnnouncementStore,
+} from "./announcements/store.js";
 import { toPublicCatalogView } from "./catalog/public-view.js";
 import { GenerationQuoteService, QuoteValidationError } from "./catalog/quote.js";
 import type { ModelHealth, ModelHealthProvider } from "./catalog/model-health.js";
@@ -297,6 +304,12 @@ type ApiDependencies = {
    */
   modelOverrides?: ModelOverrideStore;
   modelOverridesAdminSecret?: string;
+  /**
+   * 站点公告存储（文件优先）。公开读接口匿名可用；写入走运营密钥，
+   * 缺省沿用后台那把（`announcementsAdminSecret`），没配就没有管理面。
+   */
+  announcements?: AnnouncementStore;
+  announcementsAdminSecret?: string;
 };
 
 const DEFAULT_IDENTITY_COOKIE = { name: "weftcanvas_session", secure: false } as const;
@@ -743,6 +756,46 @@ export function createApiApp(dependencies: ApiDependencies) {
     context.header("Cache-Control", "no-store");
     context.header("X-Robots-Tag", "noindex, nofollow");
     return context.body(MODEL_OVERRIDES_ADMIN_PAGE);
+  });
+
+  // 站点公告：运营在后台维护，画布前端匿名读取。启用 / 定时发布 / 过期都在
+  // 读取时现算，保存即生效，不需要定时任务；写用运营密钥（与后台同一把，
+  // 缺省已回落到模型密钥），没配密钥时管理面整体 404。
+  const requireAnnouncementAdmin = (context: {
+    req: { header(name: string): string | undefined };
+  }) =>
+    Boolean(dependencies.announcements && dependencies.announcementsAdminSecret) &&
+    context.req.header("x-canvas-ops-secret") === dependencies.announcementsAdminSecret;
+
+  app.get("/api/v1/announcements", async (context) => {
+    const collection = dependencies.announcements
+      ? await dependencies.announcements.load()
+      : EMPTY_ANNOUNCEMENTS;
+    context.header("Cache-Control", "no-store");
+    return context.json(
+      announcementListResponseSchema.parse({
+        ok: true,
+        data: { items: publicAnnouncements(collection) },
+      }),
+    );
+  });
+
+  app.get("/api/v1/admin/announcements", async (context) => {
+    if (!requireAnnouncementAdmin(context)) return context.notFound();
+    context.header("Cache-Control", "no-store");
+    return context.json({ ok: true, data: await dependencies.announcements!.load() });
+  });
+
+  app.put("/api/v1/admin/announcements", async (context) => {
+    if (!requireAnnouncementAdmin(context)) return context.notFound();
+    const body = await readJsonBody(context);
+    if (body instanceof Response) return body;
+    const parsed = announcementCollectionSchema.safeParse(body);
+    if (!parsed.success)
+      return errorResponse(context, 422, "INVALID_ANNOUNCEMENTS", "公告格式不正确");
+    await dependencies.announcements!.save(parsed.data);
+    context.header("Cache-Control", "no-store");
+    return context.json({ ok: true, data: parsed.data });
   });
 
   // 画布运营后台（只读监控）。独立密钥，缺省回落到模型后台那把，少配一个变量。
