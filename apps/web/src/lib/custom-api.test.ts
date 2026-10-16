@@ -14,7 +14,10 @@ import {
   customApiAuthInit,
   executeCustomGeneration,
   fetchCustomApiModelIdsForFormat,
+  isLoopbackHost,
+  isPrivateNetworkHost,
   loadCustomApiCatalog,
+  normalizeCustomApiBaseUrl,
   normalizeProtocolOverride,
   probeCustomApiResponse,
   sendCustomApiTestRequest,
@@ -35,6 +38,75 @@ vi.mock("./media-store", () => ({
     durationMs: null,
   })),
 }));
+
+describe("custom API base URL policy", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("accepts HTTPS for any host and returns the origin", () => {
+    expect(normalizeCustomApiBaseUrl("https://relay.example.com/v1")).toBe(
+      "https://relay.example.com",
+    );
+  });
+
+  it("accepts plain HTTP for loopback and private-network hosts", () => {
+    for (const value of [
+      "http://127.0.0.1:3000",
+      "http://localhost:8000",
+      "http://192.168.1.50:3000",
+      "http://10.0.0.2:11434",
+      "http://172.16.3.4:3000",
+      "http://172.31.255.1",
+      "http://169.254.10.3:7000",
+      "http://nas:3000",
+      "http://relay.local:3000",
+      "http://box.home.arpa:3000",
+      "http://[fd00::1]:3000",
+      "http://[fe80::1]:3000",
+    ]) {
+      expect(normalizeCustomApiBaseUrl(value), value).toBe(new URL(value).origin);
+    }
+  });
+
+  it("still rejects public HTTP endpoints", () => {
+    for (const value of [
+      "http://relay.example.com",
+      "http://8.8.8.8:3000",
+      "http://172.32.0.1:3000",
+      "http://192.169.0.1:3000",
+      "ftp://relay.example.com",
+    ]) {
+      expect(() => normalizeCustomApiBaseUrl(value), value).toThrow(/HTTPS/);
+    }
+  });
+
+  it("rejects credentials, query strings and fragments", () => {
+    expect(() => normalizeCustomApiBaseUrl("https://user:pass@relay.example.com")).toThrow(
+      "服务地址不能包含账号、参数或片段",
+    );
+    expect(() => normalizeCustomApiBaseUrl("https://relay.example.com?key=1")).toThrow(
+      "服务地址不能包含账号、参数或片段",
+    );
+  });
+
+  it("explains mixed content when an HTTPS page points at a private HTTP relay", () => {
+    vi.stubGlobal("window", { location: { protocol: "https:" } });
+    expect(() => normalizeCustomApiBaseUrl("http://192.168.1.50:3000")).toThrow(
+      "HTTPS 页面不能调用局域网 HTTP 中转站",
+    );
+    // 回环地址不受混合内容限制：浏览器把它当可信来源。
+    expect(normalizeCustomApiBaseUrl("http://127.0.0.1:3000")).toBe("http://127.0.0.1:3000");
+  });
+
+  it("classifies loopback and private hosts", () => {
+    expect(isLoopbackHost("localhost")).toBe(true);
+    expect(isLoopbackHost("127.0.0.1")).toBe(true);
+    expect(isLoopbackHost("::1")).toBe(true);
+    expect(isLoopbackHost("192.168.1.1")).toBe(false);
+    expect(isPrivateNetworkHost("nas")).toBe(true);
+    expect(isPrivateNetworkHost("relay.example.com")).toBe(false);
+    expect(isPrivateNetworkHost("999.1.1.1")).toBe(false);
+  });
+});
 
 describe("custom API media binding", () => {
   afterEach(() => vi.unstubAllGlobals());

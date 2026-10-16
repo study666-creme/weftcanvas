@@ -1,8 +1,9 @@
 /**
  * 新手教程的步骤表与卡片落位计算（无 React 依赖，便于单测）。
  *
- * 教程跨三个界面：入口首屏 / 生成工作台（这两处共用前两步：认识工作台 → 从
- * **这个界面右上角**点「打开画布」→ 画布：创建节点 / 空格平移 / Ctrl 缩放）。
+ * 教程跨三个界面，按「入口首屏 → 简易工作台 → 专业画布」的顺序走：
+ * 首屏一步（去简易工作台）→ 工作台两步（认识工作台 → 从本界面右上角点「打开
+ * 画布」）→ 画布三步（创建节点 / 空格平移 / Ctrl 缩放）。
  * 步骤只存稳定的锚点选择器（各界面元素上的 `data-wc-tour`，手势步骤用
  * `.react-flow__pane`），组件持续测量真实矩形，所以宿主元素改版式不用改步骤表。
  */
@@ -17,13 +18,10 @@ export type CoachPlacement = "below" | "above" | "right" | "left" | "center";
 
 export type OnboardingStep = {
   id: string;
-  /**
-   * 这一步能在哪些界面里走。前两步在入口首屏与生成工作台上都成立（两个页面各挂
-   * 一份同名的 `data-wc-tour` 锚点），所以用户从哪边进来都走同一条路。
-   */
+  /** 这一步能在哪些界面里走；跨界面靠路由对齐推进（首屏 → 工作台 → 画布）。 */
   routes: readonly OnboardingRoute[];
   /**
-   * 锚点选择器：首屏/画布各自挂 `data-wc-tour` 属性，`.react-flow__pane` 用类名。
+   * 锚点选择器：各界面元素上的 `data-wc-tour` 属性，`.react-flow__pane` 用类名。
    * 锚点找不到时教程宁可不画，也不会先摆到屏幕中间再跳过去。
    */
   target: string;
@@ -40,26 +38,39 @@ export type OnboardingStep = {
   /** 主按钮文案，缺省 = 下一步 / 最后一步「完成」。 */
   primaryLabel?: string;
   /** 该步骤的按钮要触发的动作；缺省 = 前进到下一步。 */
-  action?: "enter-canvas";
+  action?: "enter-canvas" | "goto-workbench";
   /** 做出动作即自动前进。 */
   advanceOn?: OnboardingAdvance;
 };
 
 export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
   {
+    id: "goto-workbench",
+    routes: ["home"],
+    // 三个生成入口（图片 / 视频 / 音频）都挂这个锚点，教程环套第一个命中的
+    // 「图片生成」；文案说明旁边的入口同样可行。
+    target: '[data-wc-tour="goto-workbench"]',
+    surface: ".wc-entry-gate",
+    placement: "below",
+    title: "先去简易工作台",
+    body: "生成图片、视频、音频都从简易工作台开始，不用打开画布。点顶部任意一个生成入口进去看看。",
+    primaryLabel: "去简易工作台",
+    action: "goto-workbench",
+  },
+  {
     id: "workbench",
-    routes: ["home", "workbench"],
+    routes: ["workbench"],
     target: '[data-wc-tour="workbench"]',
-    surface: ".wc-entry-gate, .wc-direct-page",
+    surface: ".wc-direct-page",
     placement: "below",
     title: "这里是生成工作台",
     body: "写一句描述、选好模型和参数，就能直接生成图片或视频。生成的成果可以落进画布继续编排。",
   },
   {
     id: "enter-canvas",
-    routes: ["home", "workbench"],
+    routes: ["workbench"],
     target: '[data-wc-tour="enter-canvas"]',
-    surface: ".wc-entry-gate, .wc-direct-page",
+    surface: ".wc-direct-page",
     placement: "below",
     title: "进画布从这里开始",
     body: "点右上角这个按钮，正式进入画布。教程会在画布那边接着走。",
@@ -111,9 +122,9 @@ export function stepRunsOnRoute(step: OnboardingStep, route: OnboardingRoute): b
 }
 
 /**
- * 该路由的第一个步骤下标。自动开跑按用户落地的路由起步（首屏或工作台都是前两步
- * 里对应的那一个）；「重看新手教程」不走这里——它一律从第 0 步开始，再一路走进
- * 画布（见 onboarding-store 的 replay）。
+ * 该路由的第一个步骤下标。自动开跑按用户落地的路由起步（首屏从「去简易工作台」
+ * 起、直接落在工作台就从「认识工作台」起）；「重看新手教程」不走这里——它一律
+ * 从第 0 步开始，再一路走进画布（见 onboarding-store 的 replay）。
  */
 export function firstStepIndexForRoute(route: OnboardingRoute): number {
   const index = ONBOARDING_STEPS.findIndex((step) => stepRunsOnRoute(step, route));

@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, type MouseEvent } from "react";
 import {
   ArrowRight,
   CircleUserRound,
@@ -35,11 +35,13 @@ export function DirectGenerationPage({
   onModalityChange,
   theme,
   onToggleTheme,
+  onEnterCanvas,
 }: {
   modality: DirectModality;
   onModalityChange: (modality: DirectModality) => void;
   theme: ThemeMode;
   onToggleTheme: () => void;
+  onEnterCanvas?: () => void;
 }) {
   const identitySession = useIdentityStore((state) => state.session);
   const openAccount = useIdentityStore((state) => state.openDialog);
@@ -74,6 +76,25 @@ export function DirectGenerationPage({
     clearDirectReferenceSession();
     clearDirectDraftSession();
     useDirectReferenceStore.setState({ references: { image: [], video: [], audio: [] } });
+  };
+
+  // 普通左键点击「打开画布」走 SPA 切路由：新手教程在工作台之后还要接着走
+  // 画布那一段，整页刷新会把教程的内存状态清掉。修饰键/中键保留浏览器原生
+  // 行为（新标签页打开 / 新窗口）；没接回调时同样保留原生跳转。
+  const openCanvas = (event: MouseEvent<HTMLAnchorElement>) => {
+    leaveWorkbench();
+    if (!onEnterCanvas) return;
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    )
+      return;
+    event.preventDefault();
+    onEnterCanvas();
   };
 
   return (
@@ -188,9 +209,10 @@ export function DirectGenerationPage({
             className="wc-direct-page-action wc-entry-primary-action"
             href="/canvas"
             aria-label="打开画布"
-            // 教程第二步的锚点：它就是右上角这个「打开画布」（用户 2026-10-16）。
+            // 教程「进画布」这一步的锚点：它就是右上角这个「打开画布」
+            // （用户 2026-10-16 指定；同日起这一步只在工作台上出现）。
             data-wc-tour="enter-canvas"
-            onClick={leaveWorkbench}
+            onClick={openCanvas}
           >
             <span>打开画布</span>
             <ArrowRight aria-hidden="true" />

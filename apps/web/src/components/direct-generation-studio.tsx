@@ -1563,7 +1563,8 @@ export function DirectGenerationStudio({
         <div className="wc-direct-studio-body">
           <form
             className="wc-direct-composer"
-            // 新手教程的「这里是生成工作台」锚点：与入口首屏那份同名，两边都算首屏。
+            // 新手教程「这里是生成工作台」那一步的锚点：教程从入口首屏
+            // （去简易工作台）走进来之后落在这里。
             data-wc-tour="workbench"
             onSubmit={(event) => {
               event.preventDefault();

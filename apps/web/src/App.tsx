@@ -261,7 +261,9 @@ export function App() {
   // 画布不再要求先登录：匿名访客走本地项目 + BYOK 直连（lib/canvas-api-access.ts
   // 的 local 分支），云端资产、云项目、钱包等能力各自在用到时再打开账号层。
   const enterCanvas = () => {
-    if (routeRef.current.view !== "home" || entryState !== "idle") return;
+    if (routeRef.current.view === "canvas") return;
+    // 入口首屏与生成工作台的「打开画布」都走这一条：SPA 切路由，不做整页刷新
+    // ——新手教程正跨着这几个界面走，刷新会把它的内存状态清掉。
     window.history.replaceState(null, "", "/canvas");
     setWorkspaceReady(false);
     setRoute({ view: "canvas" });
@@ -273,8 +275,8 @@ export function App() {
   enterCanvasRef.current = enterCanvas;
 
   // 新手教程：第一次落在入口首屏、或直接落在生成工作台（/generate/*），就把它记起来
-  // 并开跑——这两处共用前两步（认识工作台 → 从本界面右上角打开画布）。所以即使用户是
-  // "登录后自动进画布"这条路、根本没点过入口门，画布步骤照样接得上。
+  // 并开跑——教程按「首屏 → 简易工作台 → 工作台右上角『打开画布』→ 画布」的顺序走，
+  // 所以即使用户是"登录后自动进画布"这条路、根本没点过入口门，画布步骤照样接得上。
   // 完成/跳过一次后不再自动弹出。
   useEffect(() => {
     // 已经在画布那段流程里（entryState=inside）就不再补开首屏/工作台教程；
@@ -285,8 +287,8 @@ export function App() {
   }, [entryState, route.view, tourRoute]);
 
   // 重看教程从首屏起步：人在画布上按了「重看新手教程」，先把人送回**首屏**
-  // （用户：「画布引导先要引导用户去首屏，然后从里面再去画布」），首屏那两步
-  // 走完由「进入画布」再把人带回来。
+  // （用户：「画布引导先要引导用户去首屏，然后从里面再去画布」），首屏一步 +
+  // 工作台两步走完，由「打开画布」再把人带回来。
   //
   // 只在教程还停在首屏第一步时回送：开始走首屏之后就不再拉人，否则用户刚点
   // 「进入画布」就被弹回入口页，两个方向当场打架。自动开跑（首访）也不走这条，
@@ -372,6 +374,13 @@ export function App() {
     setRoute({ view: "generate", modality });
   };
 
+  // 教程第一步「去简易工作台」的主按钮：SPA 切到 /generate（默认落在图片生成，
+  // 和顶部第一个导航入口一致），教程的步骤进度接着在工作台上走。
+  const openWorkbenchFromTour = () => {
+    if (routeRef.current.view !== "home") return;
+    changeDirectModality("image");
+  };
+
   if (route.view === "generate") {
     return (
       <div
@@ -396,6 +405,7 @@ export function App() {
             onModalityChange={changeDirectModality}
             theme={theme}
             onToggleTheme={toggleTheme}
+            onEnterCanvas={enterCanvas}
           />
         </Suspense>
         {accountDialogOpen && !identitySession ? (
@@ -414,11 +424,16 @@ export function App() {
         <GlobalTooltip />
         <SiteAnnouncements />
         <ToastViewport />
-        {/* 教程的前两步就长在工作台上（认识 01/STILL → 点右上角「打开画布」），
-            所以这一支也要挂教程浮层，否则从 /generate/* 进来的访客永远看不到它。 */}
+        {/* 教程的工作台两步（认识 01/STILL → 点右上角「打开画布」）就长在工作台上，
+            所以这一支也要挂教程浮层，否则直接从 /generate/* 进来的访客看不到它。 */}
         {onboardingStatus === "running" ? (
           <Suspense fallback={null}>
-            <OnboardingTourLazy route={tourRoute} canvasBusy={false} onEnterCanvas={enterCanvas} />
+            <OnboardingTourLazy
+              route={tourRoute}
+              canvasBusy={false}
+              onEnterCanvas={enterCanvas}
+              onOpenWorkbench={openWorkbenchFromTour}
+            />
           </Suspense>
         ) : null}
       </div>
@@ -503,6 +518,7 @@ export function App() {
             route={tourRoute}
             canvasBusy={canvasBootVisible}
             onEnterCanvas={enterCanvas}
+            onOpenWorkbench={openWorkbenchFromTour}
           />
         </Suspense>
       ) : null}

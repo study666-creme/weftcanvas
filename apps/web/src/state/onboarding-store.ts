@@ -32,7 +32,7 @@ type OnboardingState = {
   start: (route: OnboardingRoute) => void;
   /** 用户主动重看：从首屏第一步重新开始（人在画布上就先回到首屏）。 */
   replay: () => void;
-  /** 路由切换后把进度对齐到新路由的第一步（首屏 ↔ 画布）。 */
+  /** 路由切换后把进度对齐到新路由的第一步（首屏 → 工作台 → 画布）。 */
   alignToRoute: (route: OnboardingRoute) => void;
   next: () => void;
   back: () => void;
@@ -58,9 +58,11 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
     if (state.status !== "running") return;
     const step = ONBOARDING_STEPS[state.stepIndex];
     if (!step || stepRunsOnRoute(step, route)) return;
-    // 重看的第一步就在首屏：人还站在画布上时这一步不能被对齐跳过，
-    // 否则「先首屏、后画布」的次序当场就没了。
-    if (state.entryReplay && state.stepIndex === 0) return;
+    // 重看的第一步就在首屏：人还站在画布上时这一步不能被对齐快进掉，否则
+    // 「先首屏、后画布」的次序当场就没了（App 会把人在这一步送回首屏）。
+    // 只挡画布：用户从首屏走到工作台就是明确的前进，这时必须放行对齐，
+    // 否则教程会卡在首屏那一步上。
+    if (state.entryReplay && state.stepIndex === 0 && route === "canvas") return;
     set({ stepIndex: normalizeStepIndex(firstStepIndexForRoute(route)) });
   },
   next: () => {

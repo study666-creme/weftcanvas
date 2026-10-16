@@ -26,19 +26,21 @@ type TourRoute = OnboardingRoute;
 /**
  * 新手教程的浮层：一处高亮环 + 一张贴着它的说明卡。
  *
- * 教程跨「首屏 → 画布」两个路由，所以浮层挂在 App 顶层、portal 到 body，
- * 并持续测量锚点的真实矩形——首屏英雄区与画布入场都在动版式，缓存一次坐标
- * 必然错位。浮层本身不吃指针事件（只有卡片吃），用户随时能直接操作被高亮的
- * 控件；对着被教的控件做出动作会推进步骤，而不是被打断。
+ * 教程跨「首屏 → 简易工作台 → 画布」三个路由，所以浮层挂在 App 顶层、portal
+ * 到 body，并持续测量锚点的真实矩形——首屏英雄区与画布入场都在动版式，缓存
+ * 一次坐标必然错位。浮层本身不吃指针事件（只有卡片吃），用户随时能直接操作被
+ * 高亮的控件；对着被教的控件做出动作会推进步骤，而不是被打断。
  */
 export function OnboardingTour({
   route,
   canvasBusy = false,
   onEnterCanvas,
+  onOpenWorkbench,
 }: {
   route: TourRoute;
   canvasBusy?: boolean;
   onEnterCanvas?: () => void;
+  onOpenWorkbench?: () => void;
 }) {
   const status = useOnboardingStore((state) => state.status);
   const stepIndex = useOnboardingStore((state) => state.stepIndex);
@@ -47,7 +49,7 @@ export function OnboardingTour({
   const finish = useOnboardingStore((state) => state.finish);
   const alignToRoute = useOnboardingStore((state) => state.alignToRoute);
   const step = ONBOARDING_STEPS[stepIndex];
-  /** 这一步是否在当前界面里成立（前两步在首屏与工作台都成立）。 */
+  /** 这一步是否在当前界面里成立（每一步各自属于一个界面）。 */
   const stepOnRoute = step ? stepRunsOnRoute(step, route) : false;
   const advanceOn = step?.advanceOn ?? null;
   const targetSelector = step?.target ?? null;
@@ -70,10 +72,10 @@ export function OnboardingTour({
   const nodeCount = useCanvasStore((state) => state.nodes.length);
   const nodeBaselineRef = useRef<number | null>(null);
 
-  // 路由切换（首屏 → 画布）后把进度对齐到新路由的第一步。
+  // 路由切换（首屏 → 工作台 → 画布）后把进度对齐到新路由的第一步。
   useEffect(() => {
     if (status !== "running") return;
-    if (route !== "home" && route !== "canvas") return;
+    if (route !== "home" && route !== "canvas" && route !== "workbench") return;
     alignToRoute(route);
   }, [alignToRoute, route, status]);
 
@@ -236,6 +238,10 @@ export function OnboardingTour({
   const runPrimary = () => {
     if (step.action === "enter-canvas") {
       onEnterCanvas?.();
+      return;
+    }
+    if (step.action === "goto-workbench") {
+      onOpenWorkbench?.();
       return;
     }
     next();

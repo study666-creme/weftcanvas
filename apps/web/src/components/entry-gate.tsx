@@ -462,15 +462,17 @@ export function EntryGate({
             </span>
           </a>
           <nav aria-label="主页分区">
-            <a href="/generate/image">
+            {/* 新手教程第一步（去简易工作台）的锚点：三个生成入口都挂上，
+                教程环只套第一个命中的「图片生成」，文案里说明旁边的入口同样可行。 */}
+            <a href="/generate/image" data-wc-tour="goto-workbench">
               <ImageIcon aria-hidden="true" />
               图片生成
             </a>
-            <a href="/generate/video">
+            <a href="/generate/video" data-wc-tour="goto-workbench">
               <Video aria-hidden="true" />
               视频生成
             </a>
-            <a href="/generate/audio">
+            <a href="/generate/audio" data-wc-tour="goto-workbench">
               <Music2 aria-hidden="true" />
               音频生成
             </a>
@@ -502,7 +504,7 @@ export function EntryGate({
               <CircleUserRound aria-hidden="true" />
               <span>{identitySession?.user.displayName ?? "登录"}</span>
             </button>
-            <button type="button" onClick={onEnter} data-wc-tour="enter-canvas">
+            <button type="button" onClick={onEnter}>
               打开画布
               <ArrowRight aria-hidden="true" />
             </button>
@@ -566,11 +568,7 @@ export function EntryGate({
                 ))}
               </div>
 
-              <div
-                className="wc-entry-composer wc-entry-composer--neutral"
-                data-mode={mode}
-                data-wc-tour="workbench"
-              >
+              <div className="wc-entry-composer wc-entry-composer--neutral" data-mode={mode}>
                 <div className="wc-entry-composer-top">
                   <div className="wc-entry-mode-switch" role="tablist" aria-label="生成类型">
                     {MODES.map(({ value, label, icon: Icon }) => (

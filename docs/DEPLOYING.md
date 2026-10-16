@@ -114,6 +114,10 @@ docker compose logs --tail 100 api
 If startup fails, check the required secrets, PostgreSQL health and API logs.
 If the worker fails, check its key, endpoint and trusted result hosts. For BYOK
 failures, check browser Network output and the relay's CORS/protocol settings.
+Relay addresses must be HTTPS, except loopback and private-network hosts
+(`127.0.0.1`, `192.168.x`, `10.x`, `172.16-31.x`, `*.local`, bare hostnames),
+which the app accepts over HTTP as well — an HTTPS canvas page cannot reach
+those over HTTP because browsers block mixed content.
 
 CI builds this stack and checks startup, operator proxying, container recreation
 and shared-volume persistence using an isolated project and synthetic data.

@@ -13,24 +13,25 @@ const VIEWPORT = { width: 1440, height: 900 };
 const CARD = { width: 316, height: 196 };
 
 describe("新手教程步骤表", () => {
-  it("按「生成工作台 → 画布」的顺序推进，步骤 id 唯一", () => {
+  it("按「首屏 → 简易工作台 → 画布」的顺序推进，步骤 id 唯一", () => {
     const ids = ONBOARDING_STEPS.map((step) => step.id);
     expect(new Set(ids).size).toBe(ids.length);
-    // 前两步在入口首屏与生成工作台上都成立（各挂一份同名锚点），之后整段都在画布里。
-    expect(ONBOARDING_STEPS[0]!.routes).toContain("home");
-    expect(ONBOARDING_STEPS[0]!.routes).toContain("workbench");
-    expect(ONBOARDING_STEPS[1]!.routes).toContain("workbench");
+    // 每一段各自属于一个界面：首屏一步（去简易工作台），工作台两步，之后整段都在画布里。
+    expect(ONBOARDING_STEPS[0]!.routes).toEqual(["home"]);
+    expect(ONBOARDING_STEPS[1]!.routes).toEqual(["workbench"]);
+    expect(ONBOARDING_STEPS[2]!.routes).toEqual(["workbench"]);
     const firstCanvas = ONBOARDING_STEPS.findIndex((step) => step.routes.includes("canvas"));
     expect(firstCanvas).toBeGreaterThan(0);
     expect(
       ONBOARDING_STEPS.slice(firstCanvas).every((step) => step.routes.includes("canvas")),
     ).toBe(true);
-    // 从工作台进来的访客也是从第 0 步起步：前两步就长在工作台上。
-    expect(firstStepIndexForRoute("workbench")).toBe(0);
+    // 直接从工作台进来的访客从「认识工作台」起步：首屏那一步不该出现。
+    expect(ONBOARDING_STEPS[firstStepIndexForRoute("workbench")]!.id).toBe("workbench");
   });
 
-  it("教的是需求里那三件事：创建节点、空格平移、Ctrl 缩放", () => {
+  it("教的是需求里那几件事：去工作台、进画布、创建节点、空格平移、Ctrl 缩放", () => {
     expect(ONBOARDING_STEPS.map((step) => step.id)).toEqual([
+      "goto-workbench",
       "workbench",
       "enter-canvas",
       "create-node",
@@ -53,7 +54,7 @@ describe("新手教程步骤表", () => {
       expect(step.body.length).toBeGreaterThan(0);
     }
     expect(firstStepIndexForRoute("home")).toBe(0);
-    expect(firstStepIndexForRoute("canvas")).toBe(2);
+    expect(ONBOARDING_STEPS[firstStepIndexForRoute("canvas")]!.id).toBe("create-node");
   });
 
   it("存档只认显式的 done，脏值一律回落未看过", () => {

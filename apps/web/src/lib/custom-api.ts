@@ -457,6 +457,62 @@ export function isCustomModelKey(value: string) {
   return parseCustomModelKey(value) !== null;
 }
 
+/** 回环地址：浏览器把它当可信来源，HTTPS 页面也能直连它的 HTTP。 */
+export function isLoopbackHost(value: string) {
+  const host = normalizeHostname(value);
+  if (!host) return false;
+  if (host === "localhost" || host.endsWith(".localhost")) return true;
+  if (host === "::1") return true;
+  return /^127(?:\.\d{1,3}){3}$/.test(host);
+}
+
+/**
+ * 本机/局域网地址——可以用明文 HTTP 的例外。
+ *
+ * 自用部署常把中转站放在同一台机器或局域网里（one-api、ComfyUI、Ollama…），
+ * 这些地址没有 TLS，也不值得为它单独配一张证书；链路根本不出内网，明文
+ * 不构成"把 Key 发到公网"的风险。公网地址仍然必须 HTTPS：HTTPS 页面调用
+ * 明文地址会被浏览器按混合内容拦掉，私网非回环地址在 HTTPS 页面里也会被
+ * `normalizeCustomApiBaseUrl` 提前拒绝并说明原因。
+ */
+export function isPrivateNetworkHost(value: string) {
+  const host = normalizeHostname(value);
+  if (!host) return false;
+  if (isLoopbackHost(host)) return true;
+  if ([".local", ".lan", ".internal", ".home.arpa"].some((suffix) => host.endsWith(suffix)))
+    return true;
+  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (ipv4) {
+    const octets = ipv4.slice(1).map(Number);
+    if (octets.some((octet) => octet > 255)) return false;
+    const a = octets[0]!;
+    const b = octets[1]!;
+    return (
+      a === 10 ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 169 && b === 254)
+    );
+  }
+  if (host.includes(":"))
+    // IPv6：唯一本地地址（fc00::/7）与链路本地（fe80::/10）。
+    return /^f[cd][0-9a-f]{2}:/.test(host) || /^fe[89ab][0-9a-f]:/.test(host);
+  // 单标签主机名（nas、server 这类局域网短名）：公共 DNS 不会应答这种名字。
+  return !host.includes(".");
+}
+
+function normalizeHostname(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "")
+    .replace(/\.$/, "");
+}
+
+function pageServedOverHttps() {
+  return typeof window !== "undefined" && window.location.protocol === "https:";
+}
+
 export function normalizeCustomApiBaseUrl(value: string) {
   let url: URL;
   try {
@@ -466,10 +522,21 @@ export function normalizeCustomApiBaseUrl(value: string) {
   }
   if (url.username || url.password || url.search || url.hash)
     throw new CustomApiError("服务地址不能包含账号、参数或片段", "INVALID_API_URL");
-  const localHttp =
-    url.protocol === "http:" && ["127.0.0.1", "localhost", "::1"].includes(url.hostname);
-  if (url.protocol !== "https:" && !localHttp)
-    throw new CustomApiError("服务地址需要使用 HTTPS", "INSECURE_API_URL");
+  const http = url.protocol === "http:";
+  const loopback = isLoopbackHost(url.hostname);
+  const privateNetwork = isPrivateNetworkHost(url.hostname);
+  if (url.protocol !== "https:" && !(http && (loopback || privateNetwork)))
+    throw new CustomApiError(
+      "服务地址需要使用 HTTPS（本机或局域网地址可用 HTTP）",
+      "INSECURE_API_URL",
+    );
+  // HTTPS 页面里浏览器会拦掉对私网明文地址的请求（回环地址除外）；在这里提前
+  // 说清楚，免得用户只看到一句笼统的"连接失败"。
+  if (http && privateNetwork && !loopback && pageServedOverHttps())
+    throw new CustomApiError(
+      "HTTPS 页面不能调用局域网 HTTP 中转站，请改用 HTTPS 地址或本机地址",
+      "INSECURE_API_URL",
+    );
   return url.origin;
 }
 
@@ -641,7 +708,12 @@ export async function fetchCustomApiModelIdsForFormat(
       });
     }
   } catch {
-    throw new CustomApiError("连接测试失败，请检查网络和跨域设置", "CONNECTION_FAILED");
+    // 「连接失败」多半是两件事：地址不通，或中转站没放行浏览器跨域（CORS 预检
+    // 需要允许 OPTIONS 与 Authorization 头）。把自查顺序写进文案，用户不用猜。
+    throw new CustomApiError(
+      "连接测试失败：先确认地址可达，再检查中转站是否放行浏览器跨域（CORS 需允许 OPTIONS 预检与 Authorization 头）",
+      "CONNECTION_FAILED",
+    );
   }
   if (response.status === 401 || response.status === 403)
     throw new CustomApiError("API Key 无效或没有读取模型权限", "API_KEY_REJECTED");

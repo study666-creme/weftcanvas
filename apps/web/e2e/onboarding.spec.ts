@@ -3,10 +3,11 @@ import { expect, test, type Page } from "@playwright/test";
 import { addCanvasNode } from "./canvas-ui.fixture";
 
 /**
- * 新手教程：首屏生成工作台 → 点「打开画布」→ 画布上创建节点 / 空格平移 / Ctrl 缩放。
+ * 新手教程：首屏「去简易工作台」→ 工作台（认识工作台 → 点右上角「打开画布」）
+ * → 画布上创建节点 / 空格平移 / Ctrl 缩放。
  *
- * 教程只在"从首屏首访"这条路上自动开跑，所以这里必须让入口门真的渲染出来
- * （mock 一个已登录会话；匿名会话在本机会被登录优先页整个替掉）。
+ * 教程只在"从首屏首访"或"直接落在 /generate/*"这两条路上自动开跑，所以这里必须
+ * 让入口门真的渲染出来（mock 一个已登录会话；匿名会话在本机会被登录优先页整个替掉）。
  */
 
 const CARD = ".wc-tour-card";
@@ -98,30 +99,39 @@ test("a first-time visitor is walked from the workbench into the canvas and thro
 
   const card = page.locator(CARD);
 
-  // 首屏第一步：先认识生成工作台，高亮环套在工作台上。
+  // 首屏第一步：引导用户点顶部生成入口去简易工作台（不再从首屏直接进画布）。
   await expect(card).toBeVisible();
-  await expect(card).toHaveAttribute("data-step", "workbench");
-  await expect(card).toContainText("生成工作台");
-  await expect(card).toContainText("1/5");
-  await expectSpotlightOver(page, '[data-wc-tour="workbench"]');
-  await page.screenshot({ path: testInfo.outputPath("tour-1-workbench.png") });
+  await expect(card).toHaveAttribute("data-step", "goto-workbench");
+  await expect(card).toContainText("简易工作台");
+  await expect(card).toContainText("1/6");
+  await expectSpotlightOver(page, '[data-wc-tour="goto-workbench"]');
+  await page.screenshot({ path: testInfo.outputPath("tour-1-goto-workbench.png") });
 
-  // 第二步：指向右上角的「打开画布」。
+  // 用户点的是被高亮的真入口（不是卡片上的按钮）：三个生成入口都挂这个锚点，
+  // 教程环套住第一个「图片生成」，这里同样点它。整页跳到工作台后，
+  // 教程应当在工作台上自动接跑「认识工作台」那一步。
+  await page.locator('[data-wc-tour="goto-workbench"]').first().click();
+  await expect(page).toHaveURL(/\/generate\/image$/);
+  await expect(card).toHaveAttribute("data-step", "workbench", { timeout: 15_000 });
+  await expectSpotlightOver(page, '[data-wc-tour="workbench"]');
+  await page.screenshot({ path: testInfo.outputPath("tour-2-workbench.png") });
+
+  // 工作台第二步：指向右上角的「打开画布」。
   await card.getByRole("button", { name: "下一步" }).click();
   await expect(card).toHaveAttribute("data-step", "enter-canvas");
   await expectSpotlightOver(page, '[data-wc-tour="enter-canvas"]');
-  await page.screenshot({ path: testInfo.outputPath("tour-2-enter-canvas.png") });
+  await page.screenshot({ path: testInfo.outputPath("tour-3-enter-canvas.png") });
 
-  // 用户点的是被高亮的真按钮（不是卡片上的按钮）。
+  // 点被高亮的真按钮：SPA 切路由（不是整页刷新），教程在画布上接着走。
   await page.locator('[data-wc-tour="enter-canvas"]').click();
   await expect(page).toHaveURL(/\/canvas$/);
 
   // 画布第三步：创建节点。画布入场加载层退场后才出现，所以给宽一点的等待。
   await expect(card).toHaveAttribute("data-step", "create-node", { timeout: 15_000 });
   await expectSpotlightOver(page, '[data-wc-tour="create-rail"]');
-  // 跨路由（首屏 → 画布）回不去，所以这一步不提供「上一步」。
+  // 跨路由（工作台 → 画布）回不去，所以这一步不提供「上一步」。
   await expect(card.getByRole("button", { name: "上一步" })).toHaveCount(0);
-  await page.screenshot({ path: testInfo.outputPath("tour-3-create-node.png") });
+  await page.screenshot({ path: testInfo.outputPath("tour-4-create-node.png") });
 
   // 真的去创建一个节点：教程应当自己往前走。
   await addCanvasNode(page, "添加文本节点");
@@ -130,7 +140,7 @@ test("a first-time visitor is walked from the workbench into the canvas and thro
   await expect(card).toContainText("空格");
 
   // 真按住空格拖动一次：自动前进到缩放那一步。
-  await page.screenshot({ path: testInfo.outputPath("tour-4-space-pan.png") });
+  await page.screenshot({ path: testInfo.outputPath("tour-5-space-pan.png") });
   // 起手点刻意选在画面右侧：居中的教程卡占着视口中下方。
   await page.mouse.move(1_080, 300);
   await page.keyboard.down("Space");
@@ -142,7 +152,7 @@ test("a first-time visitor is walked from the workbench into the canvas and thro
 
   // Ctrl + 滚轮：既真的缩放画布，也让教程收尾。
   await expectSpotlightOver(page, '[data-wc-tour="zoom"]');
-  await page.screenshot({ path: testInfo.outputPath("tour-5-ctrl-zoom.png") });
+  await page.screenshot({ path: testInfo.outputPath("tour-6-ctrl-zoom.png") });
   const before = await canvasZoom(page);
   await page.keyboard.down("Control");
   await page.mouse.wheel(0, -240);
@@ -217,11 +227,16 @@ test("the tour can be replayed from the shortcuts panel and skipped for good", a
   const card = page.locator(CARD);
   await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/$/);
   await expect(card).toBeVisible();
-  await expect(card).toHaveAttribute("data-step", "workbench");
-  await expectSpotlightOver(page, '[data-wc-tour="workbench"]');
+  await expect(card).toHaveAttribute("data-step", "goto-workbench");
+  await expectSpotlightOver(page, '[data-wc-tour="goto-workbench"]');
   await page.screenshot({ path: testInfo.outputPath("tour-replay-entry.png") });
 
-  // 从首屏再走回画布：第二步的高亮环套在「打开画布」上，点它回到画布，
+  // 这一步也走一遍卡片自己的「去简易工作台」按钮：SPA 切路由，教程跟着走到工作台。
+  await card.getByRole("button", { name: "去简易工作台" }).click();
+  await expect(page).toHaveURL(/\/generate\/image$/);
+  await expect(card).toHaveAttribute("data-step", "workbench", { timeout: 15_000 });
+
+  // 从工作台再走回画布：第二步的高亮环套在「打开画布」上，点它回到画布，
   // 教程接着走画布那一段。
   await card.getByRole("button", { name: "下一步" }).click();
   await expect(card).toHaveAttribute("data-step", "enter-canvas");
