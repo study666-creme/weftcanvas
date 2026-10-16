@@ -65,7 +65,10 @@ test("graph identity, parameters, task status, groups, and media references surv
   ).toHaveCount(1);
   await expect(page.locator(".wc-group-frame")).toHaveCount(1);
 
-  const persisted = await readPersistedProject(page, "persist-project");
+  // config-c 的参数向 image-gen 传播是面板挂载后的异步同步：慢机器（CI）上可能
+  // 晚于首次落盘，读到未传播的种子值。等它落地再断言；断言本身保持精确比较，
+  // 不放宽（下面的 parameters 断言原样保留）。
+  const persisted = await readPersistedProjectOnceConfigured(page, "persist-project");
   expect(persisted.nodes.map((node) => node.id).sort()).toEqual([
     "config-c",
     "image-b",
@@ -481,6 +484,27 @@ function projectRow(page: Page, name: string) {
       hasText: new RegExp(`^${escapeRegExp(name)}$`),
     }),
   });
+}
+
+/**
+ * 轮询读取持久化快照，直到配置节点的参数传播完成（image-gen 的 parameters
+ * 拿到 quality）或超时。传播是面板挂载后的异步同步，读早了拿到的是种子值——
+ * 这是本测试的时序前提，不是被测行为；断言本身仍是精确比较。
+ */
+async function readPersistedProjectOnceConfigured(page: Page, projectId: string) {
+  const deadline = Date.now() + 15_000;
+  for (;;) {
+    const snapshot = await readPersistedProject(page, projectId);
+    const imageGen = snapshot.nodes.find((node) => node.id === "image-gen");
+    const configC = snapshot.nodes.find((node) => node.id === "config-c");
+    const propagated =
+      imageGen &&
+      configC &&
+      JSON.stringify(imageGen.data.generation.parameters) ===
+        JSON.stringify(configC.data.generation.parameters);
+    if (propagated || Date.now() > deadline) return snapshot;
+    await page.waitForTimeout(250);
+  }
 }
 
 async function readPersistedProject(page: Page, projectId?: string) {
