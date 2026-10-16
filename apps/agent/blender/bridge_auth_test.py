@@ -47,14 +47,47 @@ def load_bridge_module():
     return module
 
 
+def _placeholder(name):
+    """一个既能当基类、又能随意调用的占位类：桥接导入期就是这样用 bpy 的。
+
+    既要有 `class X(bpy.types.Operator)` 这样的基类，又要有
+    `server_url: bpy.props.StringProperty(name="…")` 这样的注解求值——
+    类同时满足两者（类可被继承、可被调用），因此这里统一给"类"。
+    """
+
+    def _swallow(self, *_args, **_kwargs):
+        return None
+
+    return type(name, (), {"__init__": _swallow, "__init_subclass__": classmethod(_swallow)})
+
+
+class _PermissiveBpy:
+    """bpy 替身：取任何属性都得到一个占位类（可继承、可调用）。"""
+
+    def __getattr__(self, name):
+        return _placeholder(name)
+
+
 def install_bpy_stub():
-    """桥接模块 import bpy：测试只需要 app.timers 与 app.version_string。"""
+    """给桥接模块一个最小的 bpy。
+
+    真实 Blender 里这个模块**在导入期**就会用 bpy 定义 Operator / Panel /
+    AddonPreferences 子类并声明属性注解，因此替身必须覆盖到导入面——只给
+    `bpy.app` 不够（CI 首跑就是这么挂的：`'SimpleNamespace' object has no
+    attribute 'types'`）。有真实行为的只有下面这几处：
+    `app.version_string`（ping 的返回值）与 `app.timers`（本地模式的计时器注册）。
+    """
     timers = types.SimpleNamespace(
-        is_registered=lambda callback: False,
-        register=lambda *args, **kwargs: None,
-        unregister=lambda *args, **kwargs: None,
+        is_registered=lambda _callback: False,
+        register=lambda *_args, **_kwargs: None,
+        unregister=lambda *_args, **_kwargs: None,
     )
-    bpy = types.SimpleNamespace(app=types.SimpleNamespace(version_string="4.2.0-stub", timers=timers))
+    bpy = _PermissiveBpy()
+    bpy.app = types.SimpleNamespace(version_string="4.2.0-stub", timers=timers)
+    bpy.types = _PermissiveBpy()
+    bpy.props = _PermissiveBpy()
+    bpy.utils = _PermissiveBpy()
+    bpy.context = types.SimpleNamespace(scene=None)
     sys.modules["bpy"] = bpy
     return bpy
 
@@ -95,13 +128,20 @@ class BridgeHarness:
                 time.sleep(0.02)
 
     def request(self, payload, timeout=5.0):
+        """发一行请求，边驱动主线程 pump 边读响应；拿到整行就返回。"""
         with self._connect(timeout) as client:
-            client.settimeout(timeout)
             client.sendall((json.dumps(payload) + "\n").encode("utf-8"))
-            self._drive_pump()
+            client.settimeout(0.05)
             buffer = b""
-            while b"\n" not in buffer:
-                chunk = client.recv(65536)
+            deadline = time.time() + timeout
+            while b"\n" not in buffer and time.time() < deadline:
+                self.bridge._pump()
+                try:
+                    chunk = client.recv(65536)
+                except socket.timeout:
+                    continue
+                except OSError:
+                    break
                 if not chunk:
                     break
                 buffer += chunk
@@ -112,12 +152,6 @@ class BridgeHarness:
             return json.loads(line)
         except ValueError:
             raise RuntimeError("响应不是合法 JSON：%r" % line)
-
-    def _drive_pump(self, deadline_seconds=5.0):
-        deadline = time.time() + deadline_seconds
-        while time.time() < deadline:
-            self.bridge._pump()
-            time.sleep(0.01)
 
     def read_token(self) -> str:
         with open(self.token_file, encoding="utf-8") as handle:

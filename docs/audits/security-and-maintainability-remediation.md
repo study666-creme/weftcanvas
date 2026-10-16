@@ -81,8 +81,11 @@
   `bridge_auth_test.py` 11 项验收（无令牌拒绝且不执行、错令牌拒绝、`params`
   内藏令牌不可绕过、非字符串令牌拒绝、正确令牌 ping/run_python 通过、
   `0.0.0.0`/`192.168.x`/`::` 绑定拒绝、轮换后旧令牌失效新令牌生效、令牌
-  不出现在状态文案、POSIX 0600、env 直配不落盘），进开源 CI（python3，
-  bpy 替身直打 TCP，不需要 Blender）。
+  不出现在状态文案、POSIX 0600、env 直配不落盘），用 bpy 替身直打 TCP、
+  不需要 Blender；已在 `python:3.12-slim` 容器与本机 CI（ubuntu python3）
+  实跑通过。**首跑 CI 曾失败**（替身缺 `bpy.types`/`bpy.props`/`bpy.utils`，
+  桥接在导入期就定义操作符类）——替身已修为宽容占位类，失败与本修复的经过
+  见 §3.2 说明与 §4。
 - **影响**：远程模式、一键装配、旧桥接 + 新客户端（头被忽略，照常工作）不受
   影响；新桥接 + 旧客户端会得到"认证失败"的明确提示并指引更新。
 - **兼容性**：见 §6.1。
@@ -263,16 +266,14 @@ pnpm 11.7.0）执行；物化后在开源树复验（见 §3.2）。
 | `pnpm --filter @weftcanvas/canvas-web exec playwright test e2e/project-backup.spec.ts`                             | **2 通过**（18.3s）                                                                                                                                          |
 | `pnpm --filter @weftcanvas/canvas-web exec playwright test e2e/project-persistence.spec.ts e2e/custom-api.spec.ts` | **12 通过**（56.7s）                                                                                                                                         |
 | `CANVAS_TEST_PUBLIC_NETWORK=1`（guarded-transport 公网正例，经受控传输访问 `https://example.com`）                 | **1 通过**（返回 200）                                                                                                                                       |
+| `docker run python:3.12-slim python3 apps/agent/blender/bridge_auth_test.py`                                       | **11 通过**（0.36s；公开树同款 0.13s）——桥接认证回归的本地实跑证据，两棵树各跑一次                                                                           |
 
 ### 3.2 未运行（如实记录，不得伪称通过）
 
-- **`bridge_auth_test.py`（Blender 桥接认证回归）本机未运行**——本机没有任何
-  Python 解释器（仅 Windows Store 占位符），无 Blender。该测试已接入开源 CI
-  quality 作业（ubuntu 自带 python3，用 bpy 替身直打 TCP，无需 Blender）；
-  其 11 项断言对应 §2.1 的验收清单。**开源 CI 结果以 push 后的 Actions 运行为准。**
-- **Docker 自托管栈本机未构建**——本机 Docker 拉取镜像超时（既有记录：镜像
-  仓库连接超时）。nginx 安全头与栈级行为由开源 CI 的 self-host 作业验收
-  （build + up --wait + 探活 + 持久化检查）。
+- **Docker 自托管栈本机未做完整 compose 构建**——本机 Docker 对镜像仓库
+  时通时不通（本轮恰好拉到了 postgres 与 python 镜像，但未跑完整栈）。nginx
+  安全头与栈级行为由开源 CI 的 self-host 作业验收（build + up --wait + 探活 +
+  持久化检查），该作业在已跑的三轮 CI 中均通过。
 - **全量 e2e（除上述 4 个 spec 外）未全部重跑**——本轮改动集中在 API 侧
   lib 与项目侧栏/导入路径，已跑 project-persistence（同屏回归）+ custom-api
   （BYOK 回归）+ 备份 2 条；其余 spec 的批量回归按既有惯例走发布前批次。
@@ -296,9 +297,11 @@ pnpm 11.7.0）执行；物化后在开源树复验（见 §3.2）。
    未来 fflate 修复流式语义后可回到恒定内存。
 5. **新桥接 + 旧 Agent 客户端的过渡**：旧客户端（不带令牌）会被新桥接拒绝并
    得到"认证失败"提示；一键装配重新执行即可对齐（见 §6.1）。
-6. **`bridge_auth_test.py` 未在本机执行过**（§3.2），首跑即开源 CI——若
-   CI 发现脚本级问题（语法/环境差异），按 CI 日志修复即可，桥接本体的 TS 侧
-   逻辑已由 10 条单测钉住。
+6. **`bridge_auth_test.py` 首跑状态（已消除）**：最初本机无 Python 解释器，
+   该测试首跑即 CI 并失败（bpy 替身面不够，§2.1/§3.2）。现已用
+   `python:3.12-slim` 容器在本地实跑通过，测试也已随批次修好并重新物化。
+   遗留物：CI 的第一次失败记录（run 38934609344）保留在 Actions 历史里，
+   作为"未本地验证就推送"的教训案例。
 7. **另一会话的未提交改动**：私有仓工作区存在另一会话的未提交内容
    （`direct-generation-studio.tsx`、`entry-gate.css`、`docs/AI-HANDOFF.md`）。
    本轮全部提交均按显式路径 staging，未触碰它们；`docs/AI-HANDOFF.md` 的
