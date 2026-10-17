@@ -1,5 +1,4 @@
 import {
-  announcementListResponseSchema,
   cloudProjectDeleteResponseSchema,
   cloudProjectPrincipalIdSchema,
   cloudProjectInvitationListResponseSchema,
@@ -36,11 +35,6 @@ import {
   agentSkillImportRequestSchema,
   agentSkillListResponseSchema,
   agentSkillResponseSchema,
-  generationJobEventSchema,
-  generationJobListResponseSchema,
-  generationJobReconcileQuerySchema,
-  generationJobResponseSchema,
-  generationQuoteResponseSchema,
   mediaResponseSchema,
   mediaKindSchema,
   MEDIA_MULTIPART_THRESHOLD,
@@ -57,18 +51,11 @@ import {
   mediaUploadRequestSchema,
   providerMediaReferenceRequestSchema,
   providerMediaReferenceResponseSchema,
-  modelCatalogResponseSchema,
-  modelModalitySchema,
-  type GenerationJobStatus,
   type MediaUploadIntent,
-  type PublicGenerationJob,
-  type PublicModel,
-  type PublicModelCatalog,
 } from "@weftcanvas/contracts";
 import { type Context, Hono } from "hono";
 import { getCookie } from "hono/cookie";
-import { streamSSE } from "hono/streaming";
-import { createHash, timingSafeEqual } from "node:crypto";
+import { timingSafeEqual } from "node:crypto";
 import { Readable } from "node:stream";
 import { z, ZodError } from "zod";
 
@@ -78,28 +65,15 @@ import type { ExternalConnectorService } from "./connectors/external-connector-s
 import type { CanvasCommandBroker } from "./connectors/canvas-command-broker.js";
 import { handleCodexMcpMessage } from "./connectors/codex-mcp.js";
 import { CatalogUnavailableError, WeftcanvasCatalogAdapter } from "./catalog/adapter.js";
-import {
-  modelOverridesSchema,
-  type ModelOverrideStore,
-  type ModelOverrides,
-} from "./catalog/overrides.js";
-import {
-  EMPTY_ANNOUNCEMENTS,
-  announcementCollectionSchema,
-  publicAnnouncements,
-  type AnnouncementStore,
-} from "./announcements/store.js";
-import { toPublicCatalogView } from "./catalog/public-view.js";
+import { type ModelOverrideStore } from "./catalog/overrides.js";
+import type { AnnouncementStore } from "./announcements/store.js";
 import { GenerationQuoteService, QuoteValidationError } from "./catalog/quote.js";
-import type { ModelHealth, ModelHealthProvider } from "./catalog/model-health.js";
-import { CANVAS_OPS_ADMIN_PAGE } from "./ops/admin-page.js";
-import { ADMIN_THEME_BOOT_JS, ADMIN_THEME_CSS } from "./ops/admin-theme.js";
+import type { ModelHealthProvider } from "./catalog/model-health.js";
 import type { CanvasOpsService } from "./ops/service.js";
 import type { ApiReadinessProbe } from "./database/readiness.js";
 import { IdentityProviderError, type IdentityProvider } from "./identity/provider.js";
 import { GenerationApiGuard, GenerationApiLimitError } from "./generation/api-rate-limit.js";
 import { GenerationJobServiceError } from "./generation/service.js";
-import type { HostedGenerationResult } from "./generation/hosted-result.js";
 import { MediaService, MediaServiceError } from "./media/service.js";
 import type { CloudResourceService } from "./media/cloud-resource-service.js";
 import type { MediaMultipartService } from "./media/multipart-service.js";
@@ -114,6 +88,9 @@ import { AgentSkillStoreError, type AgentSkillStore } from "./skills/store.js";
 import { optionalQueryInteger, type ApiErrorStatus, errorResponse } from "./http/errors.js";
 import { registerMusicRoutes } from "./media/music-routes.js";
 import { registerCanvasImportRoutes } from "./canvas-import/routes.js";
+import { registerOperatorRoutes } from "./admin/operator-routes.js";
+import { registerGenerationRoutes } from "./generation/routes.js";
+import type { GenerationApi } from "./generation/api.js";
 import { readJsonBody } from "./http/json-body.js";
 import { isTrustedBrowserRequest } from "./http/browser-request.js";
 import { registerAccountDomainRoutes } from "./identity/account-routes.js";
@@ -156,60 +133,6 @@ export type AgentApi = Pick<
   | "dismissProposal"
   | "recordReceipt"
 >;
-
-type GenerationApi = {
-  submit(
-    ownerId: string,
-    value: unknown,
-    token?: string,
-  ): Promise<PublicGenerationJob | HostedGenerationResult<PublicGenerationJob>>;
-  get(
-    ownerId: string,
-    jobId: string,
-    token?: string,
-  ): Promise<PublicGenerationJob | HostedGenerationResult<PublicGenerationJob>>;
-  list(
-    ownerId: string,
-    value: { projectId?: string; limit?: number },
-    token?: string,
-  ): Promise<PublicGenerationJob[] | HostedGenerationResult<PublicGenerationJob[]>>;
-  /** Resolve one durable request by its existing idempotency identity (read-only). */
-  resolveByIdempotency?(
-    ownerId: string,
-    key: string,
-    token?: string,
-  ): Promise<PublicGenerationJob | HostedGenerationResult<PublicGenerationJob> | null>;
-  openMedia?(
-    ownerId: string,
-    mediaId: string,
-    token?: string,
-    range?: string,
-    projectId?: string,
-    signal?: AbortSignal,
-  ): Promise<HostedGenerationResult<Response>>;
-  createReferenceUpload?(
-    ownerId: string,
-    value: unknown,
-    token?: string,
-  ): Promise<HostedGenerationResult<unknown>>;
-  uploadReference?(
-    ownerId: string,
-    mediaId: string,
-    source: AsyncIterable<Uint8Array>,
-    token?: string,
-    contentType?: string,
-    contentLength?: number | null,
-    projectId?: string,
-  ): Promise<HostedGenerationResult<unknown>>;
-  getReference?(ownerId: string, mediaId: string): Promise<unknown>;
-  createProviderReference?(
-    ownerId: string,
-    mediaId: string,
-    kind: "image" | "video" | "audio",
-    token?: string,
-    projectId?: string,
-  ): Promise<HostedGenerationResult<{ url: string }>>;
-};
 
 type ProjectApi = Pick<CloudProjectService, "list" | "get" | "create" | "save" | "delete"> &
   Partial<Pick<CloudProjectService, "getForActor" | "saveForActor" | "resolveMediaAccess">>;
@@ -425,6 +348,30 @@ export function createApiApp(dependencies: ApiDependencies) {
     canvasImport: dependencies.canvasImport,
   });
 
+  registerOperatorRoutes(app, {
+    catalogAdapter: dependencies.catalog,
+    modelOverrides: dependencies.modelOverrides,
+    modelOverridesAdminSecret: dependencies.modelOverridesAdminSecret,
+    modelHealth: dependencies.modelHealth,
+    announcements: dependencies.announcements,
+    announcementsAdminSecret: dependencies.announcementsAdminSecret,
+    ops: dependencies.ops,
+    opsAdminSecret: dependencies.opsAdminSecret,
+  });
+
+  registerGenerationRoutes(app, {
+    quotes: dependencies.quotes,
+    generation: dependencies.generation,
+    generationUnavailableMessage: dependencies.generationUnavailableMessage,
+    generationGuard: dependencies.generationGuard,
+    generationStream: dependencies.generationStream,
+    allowedOrigins: dependencies.allowedOrigins,
+    identity: dependencies.identity,
+    identityCookie,
+    storageSweep: dependencies.storageSweep,
+    storageSweepSecret: dependencies.storageSweepSecret,
+  });
+
   app.get("/api/health", async (context) => {
     context.header("Cache-Control", "no-store");
     // 目录新鲜度决定「能不能报价、能不能提交」：一旦过期或报价不可用，前端会直接
@@ -472,435 +419,6 @@ export function createApiApp(dependencies: ApiDependencies) {
   // 音乐平台没有对个人开放的歌曲/歌单 API，媒体域也不开 CORS：链接解析与
   // 音频代拉全部收在服务端，重定向逐跳重新过 SSRF 守卫；浏览器只接触
   // 同源代理路径，节点里不落任何第三方媒体直链。
-
-  app.get("/api/v1/model-catalog", async (context) => {
-    const forceRefresh = context.req.query("refresh") === "1";
-    const requestedModality = context.req.query("modality");
-    const modality = requestedModality ? modelModalitySchema.safeParse(requestedModality) : null;
-    if (modality && !modality.success)
-      return errorResponse(context, 400, "INVALID_MODALITY", "不支持这个模型类型");
-    const catalog = toPublicCatalogView(
-      await dependencies.catalog.getCatalog({
-        forceRefresh,
-        awaitRefresh: forceRefresh,
-        // The canvas hydrates every modality from the unfiltered response.
-        awaitVideoAvailability: modality?.success ? modality.data === "video" : true,
-      }),
-    );
-    const health = await dependencies.modelHealth?.get();
-    const data = modality?.success
-      ? {
-          ...catalog,
-          models: withModelHealth(catalog.models, health).filter(
-            (model) => model.modality === modality.data,
-          ),
-        }
-      : { ...catalog, models: withModelHealth(catalog.models, health) };
-    const catalogViewVersion = modelCatalogViewVersion(data);
-    const etag = `"${data.version}:${data.capabilityVersion}:${data.pricingVersion}:${catalogViewVersion}:${data.quoteAvailable ? "fresh" : "stale"}:${data.expiresAt}:${modality?.success ? modality.data : "all"}"`;
-    context.header("ETag", etag);
-    context.header(
-      "Cache-Control",
-      forceRefresh ? "private, no-store" : "private, max-age=60, stale-while-revalidate=300",
-    );
-    if (context.req.header("If-None-Match") === etag) return context.body(null, 304);
-    return context.json(modelCatalogResponseSchema.parse({ ok: true, data }));
-  });
-
-  app.get("/api/v1/model-catalog/version", async (context) => {
-    const catalog = toPublicCatalogView(await dependencies.catalog.getCatalog());
-    const viewVersion = modelCatalogViewVersion(catalog);
-    const etag = `"${catalog.version}:${catalog.capabilityVersion}:${catalog.pricingVersion}:${viewVersion}:${catalog.quoteAvailable ? "fresh" : "stale"}"`;
-    context.header("ETag", etag);
-    context.header("Cache-Control", "private, max-age=60, stale-while-revalidate=300");
-    if (context.req.header("If-None-Match") === etag) return context.body(null, 304);
-    return context.json({
-      ok: true,
-      data: {
-        version: catalog.version,
-        capabilityVersion: catalog.capabilityVersion,
-        pricingVersion: catalog.pricingVersion,
-        viewVersion,
-        quoteAvailable: catalog.quoteAvailable,
-      },
-    });
-  });
-
-  // Operator model overrides. The API is the source of the fields Canvas
-  // actually bills against, so hiding a model or repricing it here takes effect
-  // for the picker, quotes, and new jobs without touching the upstream catalog.
-  // A strong per-deployment secret guards both reads and writes; when the
-  // secret is not configured the whole surface is invisible.
-  app.get("/api/v1/admin/model-overrides", async (context) => {
-    const secret = dependencies.modelOverridesAdminSecret;
-    if (
-      !dependencies.modelOverrides ||
-      !secret ||
-      context.req.header("x-model-overrides-secret") !== secret
-    ) {
-      return context.notFound();
-    }
-    const [overrides, catalog] = await Promise.all([
-      dependencies.modelOverrides.load(),
-      dependencies.catalog.getCatalog({ includeOverrides: false }),
-    ]);
-    const health = await dependencies.modelHealth?.get();
-    context.header("Cache-Control", "no-store");
-    return context.json({
-      ok: true,
-      data: {
-        overrides,
-        models: modelOverrideAdminRows(withModelHealth(catalog.models, health), overrides),
-      },
-    });
-  });
-
-  app.put("/api/v1/admin/model-overrides", async (context) => {
-    const secret = dependencies.modelOverridesAdminSecret;
-    if (
-      !dependencies.modelOverrides ||
-      !secret ||
-      context.req.header("x-model-overrides-secret") !== secret
-    ) {
-      return context.notFound();
-    }
-    const body = await readJsonBody(context);
-    if (body instanceof Response) return body;
-    const parsed = modelOverridesSchema.safeParse(body);
-    if (!parsed.success)
-      return errorResponse(context, 422, "INVALID_MODEL_OVERRIDES", "模型覆盖配置格式不正确");
-    await dependencies.modelOverrides.save(parsed.data);
-    const catalog = await dependencies.catalog.getCatalog({ includeOverrides: false });
-    context.header("Cache-Control", "no-store");
-    return context.json({
-      ok: true,
-      data: { overrides: parsed.data, models: modelOverrideAdminRows(catalog.models, parsed.data) },
-    });
-  });
-
-  app.get("/admin/model-overrides", (context) => {
-    context.header("Content-Type", "text/html; charset=utf-8");
-    context.header("Cache-Control", "no-store");
-    context.header("X-Robots-Tag", "noindex, nofollow");
-    return context.body(MODEL_OVERRIDES_ADMIN_PAGE);
-  });
-
-  // 站点公告：运营在后台维护，画布前端匿名读取。启用 / 定时发布 / 过期都在
-  // 读取时现算，保存即生效，不需要定时任务；写用运营密钥（与后台同一把，
-  // 缺省已回落到模型密钥），没配密钥时管理面整体 404。
-  const requireAnnouncementAdmin = (context: {
-    req: { header(name: string): string | undefined };
-  }) =>
-    Boolean(dependencies.announcements && dependencies.announcementsAdminSecret) &&
-    context.req.header("x-canvas-ops-secret") === dependencies.announcementsAdminSecret;
-
-  app.get("/api/v1/announcements", async (context) => {
-    const collection = dependencies.announcements
-      ? await dependencies.announcements.load()
-      : EMPTY_ANNOUNCEMENTS;
-    context.header("Cache-Control", "no-store");
-    return context.json(
-      announcementListResponseSchema.parse({
-        ok: true,
-        data: { items: publicAnnouncements(collection) },
-      }),
-    );
-  });
-
-  app.get("/api/v1/admin/announcements", async (context) => {
-    if (!requireAnnouncementAdmin(context)) return context.notFound();
-    context.header("Cache-Control", "no-store");
-    return context.json({ ok: true, data: await dependencies.announcements!.load() });
-  });
-
-  app.put("/api/v1/admin/announcements", async (context) => {
-    if (!requireAnnouncementAdmin(context)) return context.notFound();
-    const body = await readJsonBody(context);
-    if (body instanceof Response) return body;
-    const parsed = announcementCollectionSchema.safeParse(body);
-    if (!parsed.success)
-      return errorResponse(context, 422, "INVALID_ANNOUNCEMENTS", "公告格式不正确");
-    await dependencies.announcements!.save(parsed.data);
-    context.header("Cache-Control", "no-store");
-    return context.json({ ok: true, data: parsed.data });
-  });
-
-  // 画布运营后台（只读监控）。独立密钥，缺省回落到模型后台那把，少配一个变量。
-  const requireOpsAdmin = (context: { req: { header(name: string): string | undefined } }) =>
-    Boolean(dependencies.ops && dependencies.opsAdminSecret) &&
-    context.req.header("x-canvas-ops-secret") === dependencies.opsAdminSecret;
-
-  app.get("/api/v1/admin/ops/overview", async (context) => {
-    if (!requireOpsAdmin(context)) return context.notFound();
-    context.header("Cache-Control", "no-store");
-    return context.json({ ok: true, data: await dependencies.ops!.overview() });
-  });
-
-  app.get("/api/v1/admin/ops/jobs", async (context) => {
-    if (!requireOpsAdmin(context)) return context.notFound();
-    const status = context.req.query("status") === "all" ? "all" : "failed";
-    const limit = Number(context.req.query("limit") ?? 50);
-    context.header("Cache-Control", "no-store");
-    return context.json({
-      ok: true,
-      data: { jobs: await dependencies.ops!.recentJobs(status, limit) },
-    });
-  });
-
-  app.get("/api/v1/admin/ops/users", async (context) => {
-    if (!requireOpsAdmin(context)) return context.notFound();
-    const query = context.req.query("query") ?? "";
-    const limit = Number(context.req.query("limit") ?? 50);
-    context.header("Cache-Control", "no-store");
-    return context.json({ ok: true, data: await dependencies.ops!.users(query, limit) });
-  });
-
-  app.get("/admin/ops", (context) => {
-    context.header("Content-Type", "text/html; charset=utf-8");
-    context.header("Cache-Control", "no-store");
-    context.header("X-Robots-Tag", "noindex, nofollow");
-    return context.body(CANVAS_OPS_ADMIN_PAGE);
-  });
-
-  app.post("/api/v1/generation-quotes", async (context) => {
-    const body = await readJsonBody(context);
-    if (body instanceof Response) return body;
-    const quote = await dependencies.quotes.createQuote(body);
-    context.header("Cache-Control", "no-store");
-    return context.json(generationQuoteResponseSchema.parse({ ok: true, data: quote }));
-  });
-
-  app.post("/api/v1/generation-jobs", async (context) => {
-    if (!dependencies.generation)
-      return generationUnavailable(context, dependencies.generationUnavailableMessage);
-    if (!isTrustedBrowserRequest(context.req.raw, dependencies.allowedOrigins)) {
-      return errorResponse(
-        context,
-        403,
-        "CROSS_SITE_REQUEST_REJECTED",
-        "无法从其他站点提交生成任务",
-      );
-    }
-    const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
-    if (session instanceof Response) return session;
-    await dependencies.generationGuard?.checkSubmission(session.user.id);
-    const body = await readJsonBody(context);
-    if (body instanceof Response) return body;
-    const result = await dependencies.generation.submit(
-      session.user.id,
-      body,
-      getCookie(context, identityCookie.name),
-    );
-    const job = unwrapGenerationResult(result);
-    refreshIdentityCookie(context, identityCookie, generationRefresh(result));
-    context.header("Cache-Control", "no-store");
-    return context.json(generationJobResponseSchema.parse({ ok: true, data: job }), 202);
-  });
-
-  app.get("/api/v1/generation-jobs", async (context) => {
-    if (!dependencies.generation)
-      return generationUnavailable(context, dependencies.generationUnavailableMessage);
-    const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
-    if (session instanceof Response) return session;
-    await dependencies.generationGuard?.checkRead(session.user.id);
-    const limit = optionalQueryInteger(context, context.req.query("limit"), 50);
-    if (limit instanceof Response) return limit;
-    const result = await dependencies.generation.list(
-      session.user.id,
-      {
-        ...(context.req.query("projectId") !== undefined
-          ? { projectId: context.req.query("projectId") }
-          : {}),
-        limit,
-      },
-      getCookie(context, identityCookie.name),
-    );
-    const jobs = unwrapGenerationResult(result);
-    refreshIdentityCookie(context, identityCookie, generationRefresh(result));
-    context.header("Cache-Control", "private, no-store");
-    return context.json(generationJobListResponseSchema.parse({ ok: true, data: jobs }));
-  });
-
-  // 本机专用：每日存储清扫（systemd timer 调用）。防线：强随机 secret 头 +
-  // 拒绝一切带代理痕迹的请求（x-forwarded-for 存在即说明经 Tunnel/代理到达，
-  // timer 直连 127.0.0.1 不会带该头；原生 Headers.get 对缺失头返回 null）。
-  app.post("/api/v1/internal/storage-sweep", async (context) => {
-    if (!dependencies.storageSweep || !dependencies.storageSweepSecret) {
-      return context.notFound();
-    }
-    if (
-      context.req.header("x-forwarded-for") !== undefined ||
-      context.req.header("x-storage-sweep-secret") !== dependencies.storageSweepSecret
-    ) {
-      return context.notFound();
-    }
-    const result = await dependencies.storageSweep.sweep();
-    context.header("Cache-Control", "no-store");
-    return context.json({ ok: true, data: result });
-  });
-
-  // Read-only reconciliation by the exact durable idempotency identity. This
-  // route resolves a persisted optimistic request that the newest-100 list
-  // recovery cannot authoritatively cover. It is owner-scoped, rate-limited
-  // through the normal generation read guard, and never submits, retries,
-  // replays, mutates a job, or contacts a provider. A 404 is the unambiguous
-  // authoritative miss the browser uses to settle an expired request.
-  app.get("/api/v1/generation-jobs/reconcile", async (context) => {
-    if (!dependencies.generation)
-      return generationUnavailable(context, dependencies.generationUnavailableMessage);
-    const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
-    if (session instanceof Response) return session;
-    await dependencies.generationGuard?.checkRead(session.user.id);
-    const parsed = generationJobReconcileQuerySchema.safeParse({
-      key: context.req.query("key") ?? "",
-    });
-    if (!parsed.success) {
-      return errorResponse(context, 422, "INVALID_IDEMPOTENCY_KEY", "任务标识格式不正确");
-    }
-    if (!dependencies.generation.resolveByIdempotency) {
-      return errorResponse(
-        context,
-        503,
-        "GENERATION_RECONCILE_UNAVAILABLE",
-        "任务核对服务暂不可用",
-      );
-    }
-    const result = await dependencies.generation.resolveByIdempotency(
-      session.user.id,
-      parsed.data.key,
-      getCookie(context, identityCookie.name),
-    );
-    if (result === null || result === undefined) {
-      context.header("Cache-Control", "private, no-store");
-      return errorResponse(context, 404, "GENERATION_JOB_NOT_FOUND", "没有找到这个生成任务");
-    }
-    const job = unwrapGenerationResult(result);
-    refreshIdentityCookie(context, identityCookie, generationRefresh(result));
-    context.header("Cache-Control", "private, no-store");
-    return context.json(generationJobResponseSchema.parse({ ok: true, data: job }));
-  });
-
-  app.get("/api/v1/generation-jobs/:jobId", async (context) => {
-    if (!dependencies.generation)
-      return generationUnavailable(context, dependencies.generationUnavailableMessage);
-    const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
-    if (session instanceof Response) return session;
-    await dependencies.generationGuard?.checkRead(session.user.id);
-    const result = await dependencies.generation.get(
-      session.user.id,
-      context.req.param("jobId"),
-      getCookie(context, identityCookie.name),
-    );
-    const job = unwrapGenerationResult(result);
-    refreshIdentityCookie(context, identityCookie, generationRefresh(result));
-    context.header("Cache-Control", "private, no-store");
-    return context.json(generationJobResponseSchema.parse({ ok: true, data: job }));
-  });
-
-  app.get("/api/v1/generation-jobs/:jobId/events", async (context) => {
-    if (!dependencies.generation)
-      return generationUnavailable(context, dependencies.generationUnavailableMessage);
-    const session = await requireIdentitySession(context, dependencies.identity, identityCookie);
-    if (session instanceof Response) return session;
-    const release = dependencies.generationGuard
-      ? await dependencies.generationGuard.acquireStream(session.user.id)
-      : () => undefined;
-    const sessionToken = getCookie(context, identityCookie.name);
-    let initial;
-    try {
-      const initialResult = await dependencies.generation.get(
-        session.user.id,
-        context.req.param("jobId"),
-        sessionToken,
-      );
-      // The first hosted status read happens before the SSE response starts,
-      // so a rotated Prompt Hub session can still be written to the browser.
-      refreshIdentityCookie(context, identityCookie, generationRefresh(initialResult));
-      initial = unwrapGenerationResult(initialResult);
-    } catch (error) {
-      release();
-      throw error;
-    }
-    const settings = dependencies.generationStream ?? {
-      pollIntervalMs: 1_000,
-      heartbeatMs: 15_000,
-      maxDurationMs: 10 * 60_000,
-    };
-    const now = settings.now ?? Date.now;
-    const lastVersion = lastEventVersion(
-      context.req.header("Last-Event-ID"),
-      initial.id,
-      initial.version,
-    );
-    context.header("Cache-Control", "private, no-cache, no-transform");
-    context.header("X-Accel-Buffering", "no");
-    return streamSSE(context, async (stream) => {
-      let aborted = false;
-      stream.onAbort(() => {
-        aborted = true;
-      });
-      let current = initial;
-      let emittedVersion = isGenerationObservationTerminal(current.status) ? -1 : lastVersion;
-      let heartbeatAt = now() + settings.heartbeatMs;
-      const deadline = now() + settings.maxDurationMs;
-      try {
-        while (!aborted && now() < deadline) {
-          if (current.version !== emittedVersion) {
-            const event = generationJobEventSchema.parse({ type: "job", job: current });
-            await stream.writeSSE({
-              id: generationEventId(current.id, current.version),
-              event: "job",
-              data: JSON.stringify(event),
-              retry: 2_000,
-            });
-            emittedVersion = current.version;
-          }
-          if (isGenerationObservationTerminal(current.status)) return;
-          if (now() >= heartbeatAt) {
-            await stream.write(": heartbeat\n\n");
-            heartbeatAt = now() + settings.heartbeatMs;
-          }
-          await stream.sleep(settings.pollIntervalMs);
-          if (aborted) return;
-          const nextResult = await dependencies.generation!.get(
-            session.user.id,
-            current.id,
-            sessionToken,
-          );
-          current = unwrapGenerationResult(nextResult);
-          if (generationRefresh(nextResult).refreshedToken) {
-            // Set-Cookie cannot be changed reliably after an SSE body starts.
-            // Move observation to the normal polling route, whose response can
-            // persist the rotated HttpOnly session before continuing.
-            await stream.writeSSE({
-              event: "status-error",
-              data: JSON.stringify({
-                code: "SESSION_REFRESH_REQUIRED",
-                message: "正在更新登录状态",
-              }),
-              retry: 1_000,
-            });
-            return;
-          }
-        }
-      } catch {
-        if (!aborted) {
-          await stream
-            .writeSSE({
-              event: "status-error",
-              data: JSON.stringify({
-                code: "GENERATION_STATUS_UNAVAILABLE",
-                message: "任务状态暂时无法更新",
-              }),
-              retry: 2_000,
-            })
-            .catch(() => undefined);
-        }
-      } finally {
-        release();
-      }
-    });
-  });
 
   app.get("/api/v1/cloud-projects", async (context) => {
     if (!dependencies.projects) return cloudProjectsUnavailable(context);
@@ -2682,31 +2200,12 @@ function collaborationUnavailable(context: Context) {
   );
 }
 
-function generationUnavailable(context: Context, message?: string) {
-  return errorResponse(context, 503, "GENERATION_UNAVAILABLE", message || "生成服务暂未配置");
-}
-
 function setCloudProjectEtag(context: Context, projectId: string, revision: number) {
   context.header("ETag", `\"${projectId}:${revision}\"`);
 }
 
 function optionalProjectOwnerId(value: string | undefined) {
   return value === undefined ? undefined : cloudProjectPrincipalIdSchema.parse(value);
-}
-
-function generationEventId(jobId: string, version: number) {
-  if (!/^[A-Za-z0-9._:-]{1,128}$/.test(jobId) || !Number.isSafeInteger(version) || version < 0) {
-    throw new Error("Generation event identity is invalid");
-  }
-  return `generation:${jobId}:${version}`;
-}
-
-function lastEventVersion(value: string | undefined, jobId: string, currentVersion: number) {
-  if (!value) return -1;
-  const prefix = `generation:${jobId}:`;
-  if (!value.startsWith(prefix)) return -1;
-  const version = Number(value.slice(prefix.length));
-  return Number.isSafeInteger(version) && version >= 0 && version <= currentVersion ? version : -1;
 }
 
 type AgentAccess = {
@@ -2748,10 +2247,6 @@ function remoteAddressOf(context: Context): string | undefined {
   return env?.incoming?.socket?.remoteAddress;
 }
 
-function isGenerationObservationTerminal(status: GenerationJobStatus) {
-  return status === "completed" || status === "failed" || status === "submission_unknown";
-}
-
 function hostedGenerationError(
   error: unknown,
 ): { status: ApiErrorStatus; code: string; message: string } | null {
@@ -2772,385 +2267,7 @@ function hostedGenerationError(
   return { status, code, message: error.message.slice(0, 240) || "生成请求没有完成" };
 }
 
-function unwrapGenerationResult<T>(result: T | HostedGenerationResult<T>): T {
-  return result && typeof result === "object" && !Array.isArray(result) && "data" in result
-    ? (result as HostedGenerationResult<T>).data
-    : (result as T);
-}
-
-function generationRefresh(result: unknown) {
-  if (!result || typeof result !== "object" || Array.isArray(result)) return {};
-  const value = result as { refreshedToken?: unknown; expiresAt?: unknown };
-  return {
-    ...(typeof value.refreshedToken === "string" ? { refreshedToken: value.refreshedToken } : {}),
-    ...(typeof value.expiresAt === "string" ? { expiresAt: value.expiresAt } : {}),
-  };
-}
-
-function modelCatalogViewVersion(catalog: Pick<PublicModelCatalog, "models">) {
-  return createHash("sha256")
-    .update(JSON.stringify(catalog.models))
-    .digest("base64url")
-    .slice(0, 16);
-}
-
 /** 把聚合出的成功率合并进公共目录模型；无数据模型保持缺省 health。 */
-function withModelHealth(models: PublicModel[], health: Map<string, ModelHealth> | undefined) {
-  if (!health?.size) return models;
-  return models.map((model) => {
-    const stats = health.get(model.id);
-    return stats ? { ...model, health: stats } : model;
-  });
-}
-
-type ModelOverrideAdminRow = {
-  id: string;
-  label: string;
-  description: string;
-  modality: string;
-  unit: string;
-  pricingMode: string;
-  creditsPerYuan: number;
-  baseYuan: number | null;
-  /** 当前 token 费率（元 / 百万 token）。 */
-  inputYuanPerMillion: number | null;
-  outputYuanPerMillion: number | null;
-  resolutions: string[];
-  /** false = 本地兼容占位（老项目可报价），不是 API 站上架模型。 */
-  listed: boolean;
-  hidden: boolean;
-  yuan: number | null;
-  byResolution: Record<string, number> | null;
-  /** 自定义 token 费率（元 / 百万 token）。 */
-  tokenInputYuanPerMillion: number | null;
-  tokenOutputYuanPerMillion: number | null;
-  /** 覆盖：站内显示名 / 简介 / 运营分区。 */
-  displayName: string | null;
-  overrideDescription: string | null;
-  zone: "stable" | "promo" | null;
-  /** 近 7 天真实成功率（0..1）与样本数；样本不足或无数据库为 null。 */
-  healthSuccessRate: number | null;
-  healthSamples: number | null;
-};
-
-export function modelOverrideAdminRows(
-  models: readonly PublicModel[],
-  overrides: ModelOverrides,
-): ModelOverrideAdminRow[] {
-  return models.map((model) => {
-    const override = overrides.models[model.id];
-    const resolutionParameter = model.parameters.find(
-      (parameter) => parameter.name === "resolution",
-    );
-    const resolutions = resolutionParameter
-      ? Array.isArray(resolutionParameter.options)
-        ? resolutionParameter.options.filter(
-            (option): option is string => typeof option === "string",
-          )
-        : typeof resolutionParameter.fixed === "string"
-          ? [resolutionParameter.fixed]
-          : []
-      : [];
-    return {
-      id: model.id,
-      label: model.label,
-      description: model.description,
-      modality: model.modality,
-      unit: model.pricing.unit,
-      pricingMode: model.pricing.mode,
-      creditsPerYuan: model.pricing.creditsPerYuan,
-      baseYuan:
-        model.pricing.baseYuanMicros !== undefined
-          ? model.pricing.baseYuanMicros / 1_000_000
-          : null,
-      inputYuanPerMillion:
-        model.pricing.inputYuanMicrosPerMillion !== undefined
-          ? model.pricing.inputYuanMicrosPerMillion / 1_000_000
-          : null,
-      outputYuanPerMillion:
-        model.pricing.outputYuanMicrosPerMillion !== undefined
-          ? model.pricing.outputYuanMicrosPerMillion / 1_000_000
-          : null,
-      resolutions,
-      listed: model.listed !== false,
-      hidden: override?.hidden === true,
-      yuan: override?.price?.yuan ?? null,
-      byResolution: override?.price?.byResolution ?? null,
-      tokenInputYuanPerMillion: override?.price?.inputYuanPerMillion ?? null,
-      tokenOutputYuanPerMillion: override?.price?.outputYuanPerMillion ?? null,
-      displayName: override?.displayName ?? null,
-      overrideDescription: override?.description ?? null,
-      zone: override?.zone ?? null,
-      healthSuccessRate: model.health?.successRate ?? null,
-      healthSamples: model.health?.sampleCount ?? null,
-    };
-  });
-}
-
-/**
- * Self-contained operator page for the override API. It is served by the API
- * itself so an operator does not need a separate deploy; the shared secret is
- * held in sessionStorage and sent as the `x-model-overrides-secret` header.
- */
-const MODEL_OVERRIDES_ADMIN_PAGE = `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex, nofollow">
-<title>画布模型上架与定价</title>
-<style>
-${ADMIN_THEME_CSS}
-/* 本页专属：沿用本页既有类名，观感全部走共享 token（与 /admin/ops 同源）。 */
-header.wc-model-header {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  padding: 9px 18px;
-  background: var(--wc-surface);
-  border-bottom: 1px solid var(--wc-border);
-}
-header.wc-model-header h1 { font-size: 15px; margin: 0 auto 0 0; font-weight: 600; }
-main { padding: 14px 18px 64px; max-width: 1280px; margin: 0 auto; }
-#status { font-size: 12px; color: var(--wc-text-tertiary); }
-#msg { margin: 12px 0 0; font-size: 13px; min-height: 20px; color: var(--wc-text-tertiary); }
-#msg.ok { color: var(--wc-success); }
-#msg.err { color: var(--wc-danger); }
-table { width: 100%; border-collapse: collapse; }
-th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--wc-border); vertical-align: middle; }
-th { position: sticky; top: 52px; z-index: 1; background: var(--wc-surface); font-size: 11px; color: var(--wc-text-tertiary); font-weight: 500; }
-td { font-variant-numeric: tabular-nums; }
-td.id code { font-size: 11.5px; color: var(--wc-text-secondary); font-family: ui-monospace, "SF Mono", Consolas, monospace; }
-td .label { display: block; font-size: 12px; color: var(--wc-text-tertiary); }
-.muted { color: var(--wc-text-tertiary); font-size: 12px; }
-.price-input { width: 94px; }
-.hidden-row td { opacity: .5; }
-.badge {
-  display: inline-block; padding: 0 6px; margin-left: 4px; border-radius: 3px; font-size: 11px;
-  line-height: 16px; border: 1px solid var(--wc-border-strong); color: var(--wc-text-secondary);
-}
-.badge.badge-promo { background: var(--wc-amber-soft); border-color: transparent; color: var(--wc-amber); }
-#filters { display: flex; gap: 8px; margin: 14px 0 10px; flex-wrap: wrap; align-items: center; }
-#filters input[type=text] { flex: 1; min-width: 180px; }
-#filters label { color: var(--wc-text-tertiary); font-size: 12px; }
-.token-inputs { display: flex; gap: 4px; }
-.token-inputs .price-input { width: 84px; }
-.hint { color: var(--wc-text-tertiary); font-size: 12px; margin: 12px 0 0; max-width: 980px; }
-.zone-input { width: 108px; }
-.name-input { width: 100%; margin-bottom: 4px; }
-.desc-input { width: 100%; font-size: 12px; }
-.health-good { color: var(--wc-success); font-weight: 600; }
-.health-mid { color: var(--wc-amber); font-weight: 600; }
-.health-low { color: var(--wc-danger); font-weight: 600; }
-@media (max-width: 720px) {
-  header.wc-model-header { padding: 8px 14px; }
-  main { padding: 12px 14px 48px; }
-}
-</style>
-<script>${ADMIN_THEME_BOOT_JS}</script>
-</head>
-<body>
-<header class="wc-model-header">
-  <h1>画布模型上架与定价</h1>
-  <input id="secret" type="password" placeholder="管理密钥" style="width:200px">
-  <button id="load" class="wc-btn wc-btn-primary">加载</button>
-  <button id="save" class="wc-btn wc-btn-primary" disabled>保存</button>
-  <span id="status"></span>
-  <div class="wc-seg" role="group" aria-label="配色">
-    <button type="button" data-wc-theme-set="light" title="石墨（亮色）">石墨</button>
-    <button type="button" data-wc-theme-set="dark" title="墨黑（暗色）">墨黑</button>
-  </div>
-</header>
-<main>
-  <div id="msg"></div>
-  <p class="hint">列表来自上游目录（含所有可接模型）。<b>展示</b>取消勾选 = 下架，画布与 Agent 都不再出现；<b>自定义价</b>留空则沿用上游价，Token 模型按「元 / 百万 token」填输入与输出费率，其余模型按每条/张/秒填单个价格。<b>分区</b>决定模型出现在「稳定主推」还是「特惠」选择区：特惠区模型面向用户时明确标注「随时可能下架、不保证可用性与成功率」，只放中转渠道等不稳定模型，主推与默认选中始终是稳定区。<b>显示名/简介</b>只改站内文案（对外不出现上游原始模型名），不影响路由与计费。</p>
-  <div id="filters">
-    <input id="search" placeholder="筛选模型 id / 名称">
-    <select id="modality">
-      <option value="">全部类型</option>
-      <option value="text">文本</option>
-      <option value="image">图片</option>
-      <option value="video">视频</option>
-      <option value="audio">音频</option>
-    </select>
-    <label class="muted"><input type="checkbox" id="onlyHidden"> 只看已下架</label>
-    <label class="muted"><input type="checkbox" id="onlyPromo"> 只看特惠区</label>
-  </div>
-  <table>
-    <thead><tr>
-      <th style="width:24%">模型</th><th>类型</th><th style="width:96px">成功率(7天)</th><th>分辨率</th><th style="width:180px">当前价</th><th style="width:170px">自定义价（元）</th><th style="width:110px">分区</th><th style="width:200px">显示名 / 简介</th><th style="width:64px">展示</th>
-    </tr></thead>
-    <tbody id="rows"><tr><td colspan="9" class="muted">输入密钥后点「加载」</td></tr></tbody>
-  </table>
-</main>
-<script>
-(function () {
-  var SECRET_KEY = 'canvas_model_overrides_secret_v1';
-  var state = { models: [], overrides: { models: {} } };
-  var $ = function (id) { return document.getElementById(id); };
-  function setMsg(text, ok) { var el = $('msg'); el.textContent = text || ''; el.className = text ? (ok ? 'ok' : 'err') : ''; }
-  function secret() { return $('secret').value.trim(); }
-  function headers() { return { 'Content-Type': 'application/json', 'x-model-overrides-secret': secret() }; }
-  function parse(v) { var n = Number(v); return Number.isFinite(n) && n >= 0 ? n : null; }
-  function fmtYuan(v) { return v === null || v === undefined ? '—' : String(Number(Number(v).toFixed(4))); }
-  function esc(v) { return String(v === null || v === undefined ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-  function unitSuffix(unit) { return unit === 'image' ? '张' : unit === 'second' ? '秒' : '次'; }
-  function healthCell(m) {
-    if (m.healthSuccessRate === null || m.healthSuccessRate === undefined) return '<span class="muted">—</span>';
-    var pct = Math.round(m.healthSuccessRate * 100);
-    var cls = pct >= 90 ? 'health-good' : pct >= 70 ? 'health-mid' : 'health-low';
-    return '<span class="' + cls + '">' + pct + '%</span> <span class="muted">(' + m.healthSamples + ')</span>';
-  }
-  function currentPrice(row) {
-    if (row.pricingMode === 'token') {
-      return '入 ¥' + fmtYuan(row.inputYuanPerMillion) + '/M · 出 ¥' + fmtYuan(row.outputYuanPerMillion) + '/M';
-    }
-    if (row.byResolution) return Object.keys(row.byResolution).sort().map(function (r) { return esc(r.toUpperCase()) + ' ' + row.byResolution[r]; }).join(' / ');
-    if (row.yuan !== null) return String(row.yuan) + ' 元/' + unitSuffix(row.unit);
-    if (row.baseYuan !== null) return fmtYuan(row.baseYuan) + ' 元/' + unitSuffix(row.unit);
-    return '—';
-  }
-  function render() {
-    var q = $('search').value.trim().toLowerCase();
-    var modality = $('modality').value;
-    var onlyHidden = $('onlyHidden').checked;
-    var onlyPromo = $('onlyPromo').checked;
-    var body = $('rows');
-    var list = state.models.filter(function (m) {
-      if (modality && m.modality !== modality) return false;
-      var isPromo = state.overrides.models[m.id] && state.overrides.models[m.id].zone === 'promo';
-      if (onlyHidden && !(state.overrides.models[m.id] && state.overrides.models[m.id].hidden === true)) return false;
-      if (onlyPromo && !isPromo) return false;
-      if (!q) return true;
-      return (m.id + ' ' + m.label).toLowerCase().indexOf(q) >= 0;
-    });
-    if (!list.length) { body.innerHTML = '<tr><td colspan="9" class="muted">没有匹配的模型</td></tr>'; return; }
-    body.innerHTML = list.map(function (m) {
-      var o = state.overrides.models[m.id] || {};
-      var hidden = o.hidden === true;
-      var isPromo = o.zone === 'promo';
-      var tokenPrice = o.price || {};
-      var res = (m.resolutions && m.resolutions.length ? m.resolutions.map(function (r) { return esc(r); }).join(' / ') : '—');
-      var priceCell;
-      if (m.pricingMode === 'token') {
-        priceCell = '<div class="token-inputs">' +
-          '<input class="price-input" data-field="tokenIn" type="number" min="0" step="0.01" placeholder="入 元/M" value="' + (tokenPrice.inputYuanPerMillion !== undefined && tokenPrice.inputYuanPerMillion !== null ? String(tokenPrice.inputYuanPerMillion) : '') + '">' +
-          '<input class="price-input" data-field="tokenOut" type="number" min="0" step="0.01" placeholder="出 元/M" value="' + (tokenPrice.outputYuanPerMillion !== undefined && tokenPrice.outputYuanPerMillion !== null ? String(tokenPrice.outputYuanPerMillion) : '') + '">' +
-          '</div>';
-      } else {
-        var custom = o.price && o.price.yuan !== undefined && o.price.yuan !== null ? String(o.price.yuan) : (o.price && o.price.byResolution ? '' : '');
-        priceCell = '<input class="price-input" data-field="price" type="number" min="0" step="0.001" placeholder="不改" value="' + custom + '">';
-      }
-      var shownLabel = o.displayName || m.label;
-      return '<tr data-id="' + esc(m.id) + '"' + (hidden ? ' class="hidden-row"' : '') + '>' +
-        '<td class="id"><code>' + esc(m.id) + '</code><span class="label">' + esc(shownLabel) + (isPromo ? ' <span class="badge badge-promo">特惠</span>' : '') + '</span></td>' +
-        '<td>' + m.modality + ' · ' + m.unit + (m.listed === false ? ' <span class="badge">兼容项</span>' : '') + '</td>' +
-        '<td>' + healthCell(m) + '</td>' +
-        '<td class="muted">' + res + '</td>' +
-        '<td>' + currentPrice(m) + (o.price && o.price.byResolution ? ' <span class="badge">分档</span>' : '') + (tokenPrice.inputYuanPerMillion !== undefined || tokenPrice.outputYuanPerMillion !== undefined ? ' <span class="badge">已改</span>' : '') + '</td>' +
-        '<td>' + priceCell + '</td>' +
-        '<td><select class="zone-input" data-field="zone" title="特惠区：随时可能下架、不保证可用性与成功率">' +
-          '<option value=""' + (!isPromo ? ' selected' : '') + '>稳定主推</option>' +
-          '<option value="promo"' + (isPromo ? ' selected' : '') + '>特惠</option>' +
-        '</select></td>' +
-        '<td><input class="name-input" data-field="displayName" type="text" maxlength="60" placeholder="不改名（' + esc(shownLabel) + '）" title="站内显示名；留空沿用上游名称" value="' + esc(o.displayName || '') + '">' +
-          '<input class="desc-input" data-field="description" type="text" maxlength="400" placeholder="不改简介" title="站内简介文案；留空沿用上游描述" value="' + esc(o.description || '') + '"></td>' +
-        '<td><input data-field="visible" type="checkbox"' + (hidden ? '' : ' checked') + '></td>' +
-      '</tr>';
-    }).join('');
-  }
-  function collect() {
-    var models = {};
-    state.models.forEach(function (m) {
-      // data-id 在 render() 里经过 esc()，这里必须用同一转义才能选回同一行。
-      var tr = $('rows').querySelector('tr[data-id="' + esc(m.id) + '"]');
-      var existing = state.overrides.models[m.id] || {};
-      var entry = {};
-      var visible;
-      var price = null;
-      if (tr) {
-        visible = tr.querySelector('[data-field=visible]').checked;
-        if (m.pricingMode === 'token') {
-          var tokenIn = tr.querySelector('[data-field=tokenIn]');
-          var tokenOut = tr.querySelector('[data-field=tokenOut]');
-          var inValue = tokenIn ? parse(tokenIn.value.trim()) : null;
-          var outValue = tokenOut ? parse(tokenOut.value.trim()) : null;
-          if (inValue !== null || outValue !== null) {
-            price = {};
-            if (inValue !== null) price.inputYuanPerMillion = inValue;
-            if (outValue !== null) price.outputYuanPerMillion = outValue;
-          }
-        } else {
-          var priceInput = tr.querySelector('[data-field=price]');
-          price = priceInput ? parse(priceInput.value.trim()) : null;
-        }
-        var zoneSelect = tr.querySelector('[data-field=zone]');
-        var zone = zoneSelect ? zoneSelect.value : '';
-        var displayName = tr.querySelector('[data-field=displayName]');
-        var nameValue = displayName ? displayName.value.trim() : '';
-        var descriptionInput = tr.querySelector('[data-field=description]');
-        var descriptionValue = descriptionInput ? descriptionInput.value.trim() : '';
-      } else {
-        visible = existing.hidden !== true;
-        if (m.pricingMode === 'token') {
-          price = existing.price && (existing.price.inputYuanPerMillion !== undefined || existing.price.outputYuanPerMillion !== undefined) ? existing.price : null;
-        } else {
-          price = existing.price && existing.price.yuan !== undefined ? existing.price.yuan : null;
-        }
-        var zone = existing.zone === 'promo' ? 'promo' : '';
-        var nameValue = existing.displayName || '';
-        var descriptionValue = existing.description || '';
-      }
-      if (!visible) entry.hidden = true;
-      if (price !== null) entry.price = m.pricingMode === 'token' ? price : { yuan: price };
-      else if (existing.price && existing.price.byResolution) entry.price = { byResolution: existing.price.byResolution };
-      if (existing.sortOrder !== undefined) entry.sortOrder = existing.sortOrder;
-      if (zone === 'promo') entry.zone = 'promo';
-      if (nameValue) entry.displayName = nameValue;
-      if (descriptionValue) entry.description = descriptionValue;
-      if (Object.keys(entry).length) models[m.id] = entry;
-    });
-    return { models: models };
-  }
-  function load() {
-    if (!secret()) { setMsg('请先填写管理密钥', false); return; }
-    setMsg('加载中…', true);
-    fetch('/api/v1/admin/model-overrides', { headers: headers(), cache: 'no-store' }).then(function (res) {
-      return res.json().then(function (json) { if (!res.ok || !json.ok) throw new Error((json.error && json.error.message) || ('HTTP ' + res.status)); return json.data; });
-    }).then(function (data) {
-      sessionStorage.setItem(SECRET_KEY, secret());
-      state = data;
-      $('save').disabled = false;
-      setMsg('已加载 ' + data.models.length + ' 个模型' + (Object.keys(data.overrides.models || {}).length ? '（' + Object.keys(data.overrides.models).length + ' 条覆盖）' : ''), true);
-      render();
-    }).catch(function (e) { setMsg('加载失败：' + e.message, false); });
-  }
-  function save() {
-    if (!secret()) { setMsg('请先填写管理密钥', false); return; }
-    setMsg('保存中…', true);
-    fetch('/api/v1/admin/model-overrides', { method: 'PUT', headers: headers(), body: JSON.stringify(collect()) }).then(function (res) {
-      return res.json().then(function (json) { if (!res.ok || !json.ok) throw new Error((json.error && json.error.message) || ('HTTP ' + res.status)); return json.data; });
-    }).then(function (data) {
-      state = data;
-      setMsg('已保存，画布模型面板将在下次目录刷新后生效', true);
-      render();
-    }).catch(function (e) { setMsg('保存失败：' + e.message, false); });
-  }
-  $('secret').value = sessionStorage.getItem(SECRET_KEY) || '';
-  $('load').addEventListener('click', load);
-  $('save').addEventListener('click', save);
-  $('search').addEventListener('input', render);
-  $('modality').addEventListener('change', render);
-  $('onlyHidden').addEventListener('change', render);
-  $('onlyPromo').addEventListener('change', render);
-})();
-</script>
-</body>
-</html>`;
 
 function hostedMediaResponse(upstream: Response) {
   const headers = new Headers({

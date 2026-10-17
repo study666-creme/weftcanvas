@@ -383,7 +383,7 @@ Pages `_headers`与`docker/nginx.conf`同时加`script-src 'self'`与`worker-src
 按 §12 原则执行：一次一个可验证的逻辑范围、纯代码搬移、每步全量测试、
 公开接口不变（跨模块导入路径全部保持原样）。
 
-### 7.1 已拆出（6 个提交，app.ts 4575 → 3230 行，-29.4%）
+### 7.1 已拆出（8 个提交，app.ts 4575 → 2347 行，-48.7%）
 
 | 提交      | 内容                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -392,6 +392,8 @@ Pages `_headers`与`docker/nginx.conf`同时加`script-src 'self'`与`worker-src
 | `a46ac0e` | music 三条路由成域 → `media/music-routes.ts`（registerMusicRoutes(app, deps)；解析/流式代拉/封面）                                                                                                                                                                                                                                                                                                                                            |
 | `08c839d` | canvas-import 三条路由成域 → `canvas-import/routes.ts`（providers/preview/asset + MEDIA_PROXY_MAX_BYTES 随域搬入）                                                                                                                                                                                                                                                                                                                            |
 | `fa6092f` | 账号域 14 条路由成域 → `identity/account-routes.ts`（auth 四条 + 钱包七条 + 会员三条，随域搬走 identityCapabilities / walletUnavailable / identityRequestErrorResponse；isTrustedBrowserRequest 46 处使用的跨站门 → `http/browser-request.ts`；optionalQueryInteger → http/errors.ts）                                                                                                                                                        |
+| `df6b2c2` | 运营面成域 → `admin/operator-routes.ts`（模型目录 ETag/health/modality、模型上下架改价、站点公告、运营后台四条只读端点、两个内联管理页；ModelOverrideAdminRow / modelCatalogViewVersion / withModelHealth / modelOverrideAdminRows 随域搬走；依赖以结构类型注入）                                                                                                                                                                             |
+| `6e9be4d` | 生成域成域 → `generation/routes.ts`（报价/提交/列表/对账/单任务/SSE/存储清扫 8 条 + 6 个 helper）+ `generation/api.ts`（GenerationApi 结构类型独立，避免反向依赖）                                                                                                                                                                                                                                                                            |
 
 ### 7.2 验证
 
@@ -408,22 +410,52 @@ worker 16 / web 947 全过。
 机制候选（暂存 finally-unlink 与惰性打开的窗口 / 幂等路径不消费 source 流）
 记录在此，修复属于 prompt-hub 暂存加固，建议单独做。
 
-### 7.4 剩余拆分清单（按此顺序继续，每域独立提交 + 全量 api 测试）
+### 7.4 剩余拆分清单（新会话从这里接手，每域独立提交 + 全量 api 测试）
 
-1. `catalog + admin`（model-catalog / model-overrides / announcements / ops，
-   约 200 行）：需要把 createApiApp 里 env 派生的 MODEL_OVERRIDES_FRAME_ANCESTORS、
-   requireAnnouncementAdmin / requireOpsAdmin 闭包、CANVAS_OPS_ADMIN_PAGE 与
-   modelOverrideAdminRows / withModelHealth 一起随域搬走。
-2. `generation`（quotes / jobs / events SSE / reconcile，约 240 行）：依赖
-   generationGuard、generationEventId、unwrapGenerationResult、hosted 观测。
-3. `cloud-projects + invitations`（约 280 行）：依赖 resolveProjectMediaAccess
-   / resolveMediaQuotaBytes / scopeMediaUploadIntent / mediaProjectUrl（随域
-   搬入 media/access.ts）。
-4. `agent`（约 680 行，最大）：skills / models / conversations / runs /
-   connectors / canvas-control / external；依赖 anonymousAgentGuard、
-   resolveAgentAccess、connectorUnavailable。
-5. `media`（约 630 行）：uploads / multipart / cleanup / content / provider-reference。
-6. web 侧（`custom-api.ts` 3162 行的协议适配段、`canvas-store.ts` 2414 行、
-   `node-generation-panel.tsx` 2446 行）：先拆纯函数 helpers（请求装配段），
-   组件级拆分放最后。`direct-generation-studio.tsx` 有另一会话的未提交在制品，
-   等它落地后再动。
+> 已完成 8 个域/共享层（§7.1）。当前 app.ts 2347 行，剩余全部是路由块。
+> 拆分模式已定型：新建 `<domain>/routes.ts`，导出
+> `registerXxxRoutes(app, deps)`，在 app.ts 的注册区（`registerGenerationRoutes(app, {...})`
+> 之后）加一行调用；依赖用**结构类型**注入（不要 import `ApiDependencies`，
+> 否则循环依赖）；搬完删掉 app.ts 里的域私有 helper 与 import。
+> 每步验证：
+> `pnpm --filter @weftcanvas/canvas-api typecheck && pnpm --filter @weftcanvas/canvas-api test`
+> （602 单测 + 14 脚本测试必须全过），然后独立提交。
+
+1. **cloud-projects + invitations**（约 280 行，app.ts 当前 711 行起）：
+   `ProjectApi` / `CollaborationApi` 结构类型已存在于 app.ts 顶部，一并搬到
+   `project/api.ts`；media 访问辅助（`resolveMediaQuotaBytes` /
+   `resolveProjectMediaAccess` / `scopeMediaUploadIntent` / `mediaProjectUrl`）
+   搬进 `media/access.ts`；还要带上 `cloudProjectsUnavailable` /
+   `collaborationUnavailable` / `setCloudProjectEtag` / `optionalProjectOwnerId` /
+   `resolveAgentAccess`。
+2. **agent**（约 680 行，最大）：skills / models / conversations / runs /
+   connectors / canvas-control / external poll+results / internal blender run /
+   MCP。依赖 `anonymousAgentGuard`（实例注入）、`anonymousAgentRateLimited`、
+   `agentUnavailable`、`connectorUnavailable`、`constantTimeEquals`、
+   `readBearerToken`、`connectorFailure`、`anonymousAgentCookie`、
+   `resolveAgentAccess`。建议先拆 `agent/skills-routes.ts` +
+   `agent/conversation-routes.ts` 两片再合。
+3. **media**（约 630 行）：uploads / multipart / cleanup / content /
+   provider-reference；依赖 `readContentLength`、`parseByteRange`、
+   `mediaUnavailable`、`scopeMediaUploadIntent`、`resolveProjectMediaAccess`。
+   先拆 `media/upload-routes.ts` 与 `media/content-routes.ts` 两片。
+4. **web 侧**：`custom-api.ts`（3162 行）先抽协议适配段（builtin/gemini/anthropic
+   请求装配，纯函数）；`canvas-store.ts`（2414 行）先抽纯 helper（assistant
+   消息构建、参数归一）；`node-generation-panel.tsx`（2446 行）最后。
+   `direct-generation-studio.tsx` 有另一会话未提交在制品，等它落地或由该会话
+   自行拆分。
+5. **既有 flake（§7.3）**：`prompt-hub-service.test.ts` 全量并行下的
+   unhandled ENOENT 需要单独修（建议方向：暂存文件的惰性打开与 finally-unlink
+   之间加"先消费后清理"的保证，或让幂等路径显式 drain source 流）。
+
+## 8. 交付状态（2026-10-17）
+
+- 私有分支 `fix/security-remediation`：安全修复 16 提交 + 重构 8 提交
+  （`ff2aac4` → `6e9be4d`），全部已推送。
+- 公开仓 main：本轮重构已物化推送（详见 OSS-SYNC 发布记录）；上一轮
+  `ac074e7` 的 CI 三作业全绿
+  [38950940934](https://github.com/study666-creme/weftcanvas/actions/runs/38950940934)。
+- 全量回归：`pnpm typecheck` 8 包通过；contracts 77 / agent 89 / worker 16 /
+  web 947 / api 602（+25 条 PG 集成按门控跳过，CI 单独跑）+ 14 脚本测试通过。
+- 未完成项：§7.4 的 cloud-projects / agent / media 三个域，web 侧四个巨型
+  模块，以及 §7.3 的既有 flake。均有明确切分点与顺序。
