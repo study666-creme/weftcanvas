@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { AgentModelCatalog } from "@weftcanvas/contracts";
+
 import {
   AgentService,
   AgentServiceError,
@@ -177,10 +179,11 @@ function billingMock() {
 function createBillingHarness(options: {
   billing: AgentBilling;
   execute?: AgentExecutor["execute"];
+  models?: AgentModelCatalog;
 }) {
   const store = new MemoryAgentStore();
   const executor: AgentExecutor = {
-    getModels: async () => runtimeCatalog,
+    getModels: async () => options.models ?? runtimeCatalog,
     execute:
       options.execute ??
       (async () => ({
@@ -199,6 +202,78 @@ const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 function submitFixture(idempotencyKey: string) {
   return { content: "画一个圆", idempotencyKey, canvasContext: canvasContextFixture() };
 }
+
+describe("AgentService reference attachments", () => {
+  const attachment = {
+    id: "reference-1",
+    kind: "image" as const,
+    name: "参考图.jpg",
+    mimeType: "image/jpeg",
+    width: 640,
+    height: 480,
+    durationMs: null,
+    nodeId: "node-1",
+    dataUrl: "data:image/jpeg;base64,AAAA",
+  };
+
+  it("rejects attachments for a text-only model before charging", async () => {
+    const { billing, consume } = billingMock();
+    const { service } = createBillingHarness({ billing });
+    const conversation = await service.createConversation(OWNER_ID, { projectId: PROJECT_ID });
+
+    await expect(
+      service.submitMessage(
+        OWNER_ID,
+        conversation.id,
+        { ...submitFixture("key-media-unsupported"), attachments: [attachment] },
+        "session-token",
+      ),
+    ).rejects.toMatchObject({
+      name: "AgentServiceError",
+      code: "MODEL_MEDIA_UNSUPPORTED",
+      message: "所选模型不支持图片输入",
+    });
+    expect(consume).not.toHaveBeenCalled();
+    expect((await service.getDetail(OWNER_ID, conversation.id)).messages).toHaveLength(0);
+  });
+
+  it("passes bounded attachment bytes to the runtime and persists only metadata", async () => {
+    const { billing, consume } = billingMock();
+    let seen: Parameters<AgentExecutor["execute"]>[0] | null = null;
+    const { service } = createBillingHarness({
+      billing,
+      models: {
+        defaultModelId: "gpt-5-mini",
+        models: [
+          {
+            id: "gpt-5-mini",
+            label: "GPT-5 Mini",
+            mediaInput: { images: true, videos: false },
+          },
+        ],
+      },
+      execute: async (request) => {
+        seen = request;
+        return { content: "收到参考图", actions: [], executionMode: "none", proposal: null };
+      },
+    });
+    const conversation = await service.createConversation(OWNER_ID, { projectId: PROJECT_ID });
+    await service.submitMessage(
+      OWNER_ID,
+      conversation.id,
+      { ...submitFixture("key-media-ok"), attachments: [attachment] },
+      "session-token",
+    );
+    await flush();
+
+    expect(consume).toHaveBeenCalledTimes(1);
+    expect(seen?.attachments).toEqual([attachment]);
+    const detail = await service.getDetail(OWNER_ID, conversation.id);
+    const stored = detail.messages.find((message) => message.role === "user");
+    const { dataUrl: _dataUrl, ...metadata } = attachment;
+    expect(stored?.attachments).toEqual([metadata]);
+  });
+});
 
 describe("AgentService credit billing", () => {
   it("charges the flat turn price once before creating the run", async () => {

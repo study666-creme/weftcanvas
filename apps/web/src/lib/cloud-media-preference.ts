@@ -1,3 +1,5 @@
+import { useUiPreferencesStore } from "../state/ui-preferences-store";
+
 const SKIP_CLOUD_UPLOAD_KEY = "weftcanvas:cloud-media-preference:v1";
 
 /**
@@ -24,7 +26,14 @@ export function writeSkipCloudUploads(value: boolean) {
   }
 }
 
-/** 同步读取当前开关：云同步在上传素材前调用。 */
+/**
+ * 同步读取当前开关：云同步在上传素材前调用。
+ *
+ * 两个入口都算「不上传云端」：清理云端资源里的旧开关，与设置 → 本地保存里
+ * 的「只保存本地」——后者是创作者主动选择的数据边界，云项目保存同样不能
+ * 把素材带上去。
+ */
 export function cloudUploadsSkipped() {
-  return readSkipCloudUploads();
+  if (readSkipCloudUploads()) return true;
+  return useUiPreferencesStore.getState().localMediaOnly;
 }

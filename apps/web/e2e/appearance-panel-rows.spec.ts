@@ -45,12 +45,12 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator(".wc-canvas-entry-loader")).toHaveCount(0, { timeout: 15_000 });
 
   const dock = page.getByRole("navigation", { name: "编辑工具" });
-  await dock.getByLabel("打开 UI 设置").click();
-  await expect(page.getByRole("dialog", { name: "设置" })).toBeVisible();
+  await dock.getByLabel("打开界面设置").click();
+  await expect(page.getByRole("dialog", { name: "界面设置" })).toBeVisible();
 });
 
 test("界面页签的每一组偏好都排成一行", async ({ page }) => {
-  const settings = page.getByRole("dialog", { name: "设置" });
+  const settings = page.getByRole("dialog", { name: "界面设置" });
   await settings.getByRole("tab", { name: "视觉" }).click();
   await expect
     .poll(async () => (await groupRows(page)).filter((group) => group.rows > 1))

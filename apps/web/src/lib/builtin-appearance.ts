@@ -23,6 +23,8 @@ registerAll("canvasVisualStyle", [
   { id: "onyx", label: "纯黑" },
   // 巨幕只在节点档出现（界面档没有），与旧 NodeVisualStyle 的并集一致。
   { id: "imax", label: "巨幕" },
+  // 敛锋：连续曲率收角。只换几何与边光，颜色仍走 --wc-* 令牌。
+  { id: "facet", label: "敛锋" },
 ]);
 
 registerAll("chromeVisualStyle", [

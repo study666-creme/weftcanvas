@@ -38,12 +38,11 @@ export type CompanionStyle = "whale" | "bear" | "robot";
 export type CursorStyle = StyleOptionId;
 /**
  * 配色方案，与节点/界面样式、深浅主题三者正交。
- * `graphite`（石墨）是现有的灰调版本，偏商业；`ink`（墨黑）把底色压到近纯黑、
- * 层级完全交给 1px 描边与明度，不再靠灰色渐变。
- * `onyx`（纯黑）是新加的质感纯黑——深而聚的阴影、内嵌高光、浮起面板，
- * 不同于 ink 的「纯黑怼纯黑」，更接近玻璃暗夜观感。
+ * `graphite`（石墨）是现有的灰调版本，偏商业；`ink`（墨黑）把底色压到近纯黑——
+ * 节点靠 1px 描边分层、浮层靠内嵌高光与深影（原「纯黑」档已并入这里）；
+ * `clay`（素陶）是暖炭 + 陶土铜的材质路线；`soda`（糖彩）是多巴胺路线。
  */
-export type ColorScheme = "graphite" | "ink" | "onyx";
+export type ColorScheme = "graphite" | "ink" | "clay" | "soda";
 
 /**
  * 伙伴可以趴上去的面板。键名是稳定的业务名，组件里再映射成选择器——
@@ -154,6 +153,12 @@ type UiPreferencesState = {
   companionAnchor: CompanionAnchor | null;
   cursorStyle: CursorStyle;
   defaultNodeAspectRatio: DefaultNodeAspectRatio;
+  /**
+   * 素材只保存在本机：拖入 / 粘贴 / 上传的图片、视频、音频只写入浏览器
+   * 媒体库，一律不上传云端。默认关闭（沿用「先云端、失败回退本机」的既有
+   * 口径）；创作者想为自己的数据安全负责时在这里显式打开。
+   */
+  localMediaOnly: boolean;
   lastMediaGeneration: Partial<Record<ModelModality, LastMediaGenerationSettings>>;
   setNodePortStyle: (style: NodePortStyle) => void;
   setColorScheme: (scheme: ColorScheme) => void;
@@ -167,6 +172,7 @@ type UiPreferencesState = {
   setCompanionAnchor: (anchor: CompanionAnchor | null) => void;
   setCursorStyle: (style: CursorStyle) => void;
   setDefaultNodeAspectRatio: (aspectRatio: DefaultNodeAspectRatio) => void;
+  setLocalMediaOnly: (localOnly: boolean) => void;
   setLastMediaGeneration: (modality: ModelModality, settings: LastMediaGenerationSettings) => void;
 };
 
@@ -183,6 +189,7 @@ type StoredUiPreferences = {
   companionAnchor: CompanionAnchor | null;
   cursorStyle: CursorStyle;
   defaultNodeAspectRatio: DefaultNodeAspectRatio;
+  localMediaOnly: boolean;
   lastMediaGeneration: Partial<Record<ModelModality, LastMediaGenerationSettings>>;
 };
 
@@ -209,6 +216,8 @@ export const useUiPreferencesStore = create<UiPreferencesState>((set) => ({
   setCursorStyle: (cursorStyle) => set((state) => persistPreferences(state, { cursorStyle })),
   setDefaultNodeAspectRatio: (defaultNodeAspectRatio) =>
     set((state) => persistPreferences(state, { defaultNodeAspectRatio })),
+  setLocalMediaOnly: (localMediaOnly) =>
+    set((state) => persistPreferences(state, { localMediaOnly })),
   setLastMediaGeneration: (modality, settings) =>
     set((state) =>
       persistPreferences(state, {
@@ -233,22 +242,31 @@ function readUiPreferences(): StoredUiPreferences {
       cursorStyle?: unknown;
       defaultNodeSize?: unknown;
       defaultNodeAspectRatio?: unknown;
+      localMediaOnly?: unknown;
       lastMediaGeneration?: unknown;
     } | null;
+    // 默认档从「疏朗」换成「敛锋」：连续曲率收角，四角保留得比大圆角多。
+    // 存过偏好的用户原样保留，只有从未选过的人落到这一档。
     const canvasVisualStyle = normalizeStyleOption(
       "canvasVisualStyle",
       stored?.canvasVisualStyle,
-      "airy",
+      "facet",
     );
     const legacyChromeFallback = isRegisteredAppearanceValue("chromeVisualStyle", canvasVisualStyle)
       ? (canvasVisualStyle as StyleOptionId)
       : ("airy" as StyleOptionId);
     return {
       nodePortStyle: normalizeStyleOption("nodePortStyle", stored?.nodePortStyle, "classic"),
+      // 「纯黑」（onyx）已并入「墨黑」：老记录落在墨黑上，不跳回石墨。
+      // 两档本来就是同一个方向（把底色压到黑、靠结构分层），并入后不丢意图。
       colorScheme:
-        stored?.colorScheme === "ink" || stored?.colorScheme === "onyx"
-          ? stored.colorScheme
-          : "graphite",
+        stored?.colorScheme === "onyx"
+          ? "ink"
+          : stored?.colorScheme === "ink" ||
+              stored?.colorScheme === "clay" ||
+              stored?.colorScheme === "soda"
+            ? stored.colorScheme
+            : "graphite",
       canvasVisualStyle,
       // Older v1 records used one preset for nodes and chrome. Copy it once so
       // the upgrade has no visual jump, then persist both controls separately.
@@ -281,6 +299,7 @@ function readUiPreferences(): StoredUiPreferences {
       defaultNodeAspectRatio: isDefaultNodeAspectRatio(stored?.defaultNodeAspectRatio)
         ? stored.defaultNodeAspectRatio
         : "16:9",
+      localMediaOnly: stored?.localMediaOnly === true,
       lastMediaGeneration: normalizeLastMediaGeneration(stored?.lastMediaGeneration),
       companionAnchor: normalizeCompanionAnchor(stored?.companionAnchor),
     };
@@ -289,7 +308,7 @@ function readUiPreferences(): StoredUiPreferences {
       nodePortStyle: "classic",
       colorScheme: "graphite",
       chromeVisualStyle: "airy",
-      canvasVisualStyle: "airy",
+      canvasVisualStyle: "facet",
       canvasBackgroundStyle: "layered-grid",
       generationEffectStyle: "beam",
       edgePathStyle: "taut",
@@ -297,6 +316,7 @@ function readUiPreferences(): StoredUiPreferences {
       companionStyle: "whale",
       cursorStyle: "classic",
       defaultNodeAspectRatio: "16:9",
+      localMediaOnly: false,
       lastMediaGeneration: {},
       companionAnchor: null,
     };
@@ -317,6 +337,7 @@ function persistPreferences(state: UiPreferencesState, change: Partial<StoredUiP
     companionAnchor: state.companionAnchor,
     cursorStyle: state.cursorStyle,
     defaultNodeAspectRatio: state.defaultNodeAspectRatio,
+    localMediaOnly: state.localMediaOnly,
     lastMediaGeneration: state.lastMediaGeneration,
     ...change,
   };

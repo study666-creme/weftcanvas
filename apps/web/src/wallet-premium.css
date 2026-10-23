@@ -394,6 +394,7 @@
    ========================================================================== */
 
 .wc-membership-plan {
+  position: relative;
   display: flex;
   flex-direction: column;
   padding: 0;
@@ -401,6 +402,9 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition:
+    border-color 140ms cubic-bezier(0.2, 0.7, 0.3, 1),
+    box-shadow 160ms cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 
 .wc-membership-plan:focus-visible {
@@ -584,7 +588,14 @@
 }
 
 .wc-membership-plan:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--tier, var(--wc-text)) 24%, var(--wc-border-strong));
+  border-color: color-mix(in srgb, var(--tier, var(--wc-text)) 30%, var(--wc-border-strong));
+  box-shadow: 0 4px 12px -9px rgb(0 0 0 / 26%);
+}
+
+/* 当前档位：一圈极淡的档位色内描边，把"你在这张卡上"从徽章延伸到整卡。
+   选中态在下面，优先级更高；两者叠加时就靠选中态的描边 + 顶线说话。 */
+.wc-membership-plan.is-current {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tier, var(--wc-text)) 24%, transparent);
 }
 
 /* 选中态：档位描边 + 洗色 + 顶边线，"已选好"的框选感。 */
@@ -596,6 +607,62 @@
   box-shadow:
     inset 0 2px 0 color-mix(in srgb, var(--tier, var(--wc-text)) 58%, transparent),
     0 6px 16px -10px rgb(0 0 0 / 20%);
+}
+
+/* 选中瞬间：一道档位色光扫过卡面（一次性）。
+   常驻光会变成噪音，所以只在选中时跑一遍；峰值约 12%，只为"这一下"给点分量。 */
+.wc-membership-plan.is-selected::after {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    115deg,
+    transparent 44%,
+    color-mix(in srgb, var(--tier, var(--wc-text)) 12%, transparent) 50%,
+    transparent 56%
+  );
+  background-size: 260% 100%;
+  background-repeat: no-repeat;
+  animation: wc-membership-plan-signature 620ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  content: "";
+  pointer-events: none;
+}
+
+.wc-membership-plan.is-selected .wc-membership-plan-price {
+  border-top-color: color-mix(in srgb, var(--tier, var(--wc-text)) 26%, var(--wc-border));
+}
+
+.wc-membership-plan.is-selected .wc-membership-plan-check {
+  border-color: var(--wc-text);
+  background: var(--wc-text);
+  color: var(--wc-surface-raised);
+  /* 墨色勾 + 档位色细环：身份由环承担，勾本身保持最高对比。 */
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tier, var(--wc-text)) 20%, transparent);
+}
+
+.wc-membership-plan.is-selected .wc-membership-plan-check svg {
+  animation: wc-membership-plan-check-pop 180ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+@keyframes wc-membership-plan-signature {
+  0% {
+    background-position: 140% 0;
+  }
+  100% {
+    background-position: -140% 0;
+  }
+}
+
+@keyframes wc-membership-plan-check-pop {
+  0% {
+    transform: scale(0.84);
+  }
+  62% {
+    transform: scale(1.06);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .wc-membership-plan.is-selected .wc-membership-plan-check {
@@ -825,7 +892,13 @@
 
   .wc-wallet-product,
   .wc-wallet-checkout,
+  .wc-membership-plan,
   .wc-membership-plan-check {
     transition: none;
+  }
+
+  .wc-membership-plan.is-selected::after,
+  .wc-membership-plan.is-selected .wc-membership-plan-check svg {
+    animation: none;
   }
 }

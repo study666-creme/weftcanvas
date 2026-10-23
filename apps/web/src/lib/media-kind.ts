@@ -24,6 +24,11 @@ function mediaKindFromMime(mimeType: string): MediaKind | null {
   return null;
 }
 
+/** 只要 MIME 判定（调用方已经拿到可信的媒体记录，不需要魔数嗅探）。 */
+export function mediaKind(mimeType: string): MediaKind | null {
+  return mediaKindFromMime(mimeType);
+}
+
 function mediaKindFromFileName(name: string): MediaKind | null {
   const extension = name.split(".").at(-1)?.toLowerCase();
   if (

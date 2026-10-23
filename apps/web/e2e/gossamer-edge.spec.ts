@@ -125,8 +125,8 @@ test("游丝：可切换、不发光", async ({ page }, testInfo) => {
   const edgePath = page.locator(".react-flow__edge-path").first();
 
   const dock = page.getByRole("navigation", { name: "编辑工具" });
-  await dock.getByLabel("打开 UI 设置").click();
-  const settings = page.getByRole("dialog", { name: "设置" });
+  await dock.getByLabel("打开界面设置").click();
+  const settings = page.getByRole("dialog", { name: "界面设置" });
   await expect(settings).toBeVisible();
   await settings.getByRole("tab", { name: "交互" }).click();
 

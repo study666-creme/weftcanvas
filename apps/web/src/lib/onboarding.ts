@@ -3,7 +3,7 @@
  *
  * 教程跨三个界面，按「入口首屏 → 简易工作台 → 专业画布」的顺序走：
  * 首屏一步（去简易工作台）→ 工作台两步（认识工作台 → 从本界面右上角点「打开
- * 画布」）→ 画布三步（创建节点 / 空格平移 / Ctrl 缩放）。
+ * 画布」）→ 画布四步（创建节点 / 点中节点 + Ctrl 滚轮缩放 / 空格平移 / 缩放条）。
  * 步骤只存稳定的锚点选择器（各界面元素上的 `data-wc-tour`，手势步骤用
  * `.react-flow__pane`），组件持续测量真实矩形，所以宿主元素改版式不用改步骤表。
  */
@@ -93,6 +93,20 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     advanceHint: "创建一个节点后自动继续",
   },
   {
+    id: "node-zoom",
+    routes: ["canvas"],
+    target: ".react-flow__node",
+    surface: ".wc-workspace",
+    // 卡片放节点右侧：节点本身（尤其是刚建好的文本节点）下面紧贴着提示词
+    // 面板，卡片压上去会盖住用户要看的输入区。
+    placement: "right",
+    title: "点中节点，Ctrl 滚轮放大",
+    body: "先点一下节点选中它（边框高亮就是选中了），再按住 Ctrl（Mac 上是 ⌘）滚动滚轮，节点会被放大缩小——提示词和参数看不清时就这么干。",
+    keys: ["点击节点", "Ctrl / ⌘", "滚轮"],
+    advanceOn: "wheel-zoom",
+    advanceHint: "按着 Ctrl 滚一次自动继续",
+  },
+  {
     id: "space-pan",
     routes: ["canvas"],
     target: ".react-flow__pane",
@@ -105,16 +119,14 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     advanceHint: "拖一次后自动继续",
   },
   {
-    id: "ctrl-zoom",
+    id: "zoom-bar",
     routes: ["canvas"],
     target: '[data-wc-tour="zoom"]',
     surface: ".wc-workspace",
     placement: "above",
-    title: "按住 Ctrl 滚动缩放",
-    body: "按住 Ctrl（Mac 上是 ⌘）滚动滚轮即可放大缩小；左下角这条缩放条也能直接拖。",
-    keys: ["Ctrl / ⌘", "滚轮"],
-    advanceOn: "wheel-zoom",
-    advanceHint: "缩放一次后自动继续",
+    title: "左下角还能直接拖比例",
+    body: "这条显示当前缩放比例，拖滑块或点 ± 都能缩放，不用记快捷键。到这里画布的基本操作就齐了。",
+    primaryLabel: "完成",
   },
 ];
 

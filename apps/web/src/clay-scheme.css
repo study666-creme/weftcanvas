@@ -1,0 +1,126 @@
+/*
+ * 素陶（clay）配色方案 —— 第四套配色，走「暖炭 + 陶土」的材质路线。
+ *
+ * 前三套都在黑白灰里找层级：石墨是中性灰、墨黑靠描边、纯黑靠阴影高光。
+ * 素陶换一条路：底色带一丝暖褐（#131110），表面像未上釉的素坯，强调色
+ * 用陶土铜（#d3a878）。暖调的好处是画面里的照片和视频不会显得「贴在玻璃上」，
+ * 深色下的阴影也能更柔——纯黑阴影会发脏，暖黑阴影不会。
+ *
+ * 浅色端对称：米纸底（#ece8df）+ 深铜强调（#8a5f33），像画在纸上的稿子，
+ * 而不是白底网页刷了一层灰。
+ *
+ * 只覆写颜色令牌，几何/间距/圆角一概不动，因此与节点样式（含蓄锋）、界面样式、
+ * 背景样式全部正交，可任意组合。节点样式的「敛锋」在这一档下另有一组暖边光
+ * 令牌，避免白边在暖底上发冷。
+ */
+
+:root[data-theme="dark"][data-color-scheme="clay"] {
+  color: #f2ebdf;
+  background: #131110;
+  --wc-canvas: #12100e;
+  --wc-background-canvas: #12100e;
+  --wc-background-surface: #1c1813;
+  --wc-background-grid: #3d382f;
+  --wc-surface: #1c1813;
+  --wc-surface-raised: #26211a;
+  --wc-surface-muted: #16130f;
+  --wc-surface-strong: #322b21;
+  --wc-text: #f2ebdf;
+  --wc-text-secondary: #b6ab99;
+  --wc-text-tertiary: #7f7666;
+  /* 暖褐描边：比中性灰更「有厚度」，也不会像纯黑描边那样发硬。 */
+  --wc-border: #332b22;
+  --wc-border-strong: #4d4133;
+  --wc-selection: #e8dcc6;
+  --wc-jade: #d3a878;
+  --wc-jade-hover: #e8c396;
+  --wc-jade-soft: #2a2118;
+  --wc-accent: #d3a878;
+  --wc-accent-hover: #e8c396;
+  --wc-accent-soft: #2a2118;
+  --wc-on-accent: #1a1208;
+  --wc-success: #8fb389;
+  --wc-success-soft: #1b241a;
+  --wc-blue: #93a9bd;
+  --wc-blue-soft: #1a2027;
+  --wc-coral: #cf9682;
+  --wc-coral-soft: #281b16;
+  --wc-amber: #d9b878;
+  --wc-amber-soft: #292114;
+  --wc-danger: #d98574;
+  --wc-danger-soft: #2b1714;
+  /* 暖黑阴影：用带褐的深色而非纯黑，叠在暖底上不会出现一圈脏灰。 */
+  --wc-shadow-node:
+    inset 0 1px 0 rgb(255 244 228 / 7%), 0 1px 2px rgb(22 15 9 / 54%),
+    0 12px 26px -12px rgb(22 15 9 / 62%);
+  --wc-shadow-float:
+    inset 0 1px 0 rgb(255 244 228 / 9%), 0 2px 6px rgb(22 15 9 / 48%),
+    0 20px 44px -14px rgb(22 15 9 / 66%);
+  --wc-shadow-editor:
+    inset 0 1px 0 rgb(255 244 228 / 10%), 0 4px 12px rgb(22 15 9 / 54%),
+    0 30px 68px -20px rgb(22 15 9 / 72%);
+}
+
+:root[data-theme="light"][data-color-scheme="clay"] {
+  color: #211c15;
+  background: #e8e2d6;
+  --wc-canvas: #e8e2d6;
+  --wc-background-canvas: #e8e2d6;
+  --wc-background-surface: #f7f3ea;
+  --wc-background-grid: #b8b0a0;
+  --wc-surface: #f8f5ee;
+  --wc-surface-raised: #fdfbf6;
+  --wc-surface-muted: #eae5db;
+  --wc-surface-strong: #dcd6c9;
+  --wc-text: #211c15;
+  --wc-text-secondary: #5e5647;
+  --wc-text-tertiary: #8a8170;
+  --wc-border: #d5cebf;
+  --wc-border-strong: #b2a996;
+  --wc-selection: #2a2318;
+  --wc-jade: #8a5f33;
+  --wc-jade-hover: #6f4a26;
+  --wc-jade-soft: #efe3d3;
+  --wc-accent: #8a5f33;
+  --wc-accent-hover: #6f4a26;
+  --wc-accent-soft: #efe3d3;
+  --wc-on-accent: #fdfbf6;
+  --wc-success: #2f7256;
+  --wc-success-soft: #e2ede4;
+  --wc-blue: #35648c;
+  --wc-blue-soft: #e3eaf0;
+  --wc-coral: #a8503c;
+  --wc-coral-soft: #f3e5df;
+  --wc-amber: #8d6318;
+  --wc-amber-soft: #f1e8d5;
+  --wc-danger: #b0453a;
+  --wc-danger-soft: #f5e4e0;
+  --wc-shadow-node:
+    inset 0 1px 0 rgb(255 255 255 / 96%), 0 1px 2px rgb(33 25 15 / 9%),
+    0 12px 26px -12px rgb(33 25 15 / 15%);
+  --wc-shadow-float:
+    inset 0 1px 0 rgb(255 255 255 / 98%), 0 2px 6px rgb(33 25 15 / 11%),
+    0 20px 44px -14px rgb(33 25 15 / 20%);
+  --wc-shadow-editor:
+    inset 0 1px 0 rgb(255 255 255 / 99%), 0 4px 12px rgb(33 25 15 / 13%),
+    0 30px 68px -20px rgb(33 25 15 / 24%);
+}
+
+/* 敛锋档在素陶下的边光：白边改暖白，压在暖底上才不像一层霜。 */
+:root[data-theme="dark"][data-color-scheme="clay"][data-node-style="facet"] {
+  --wc-facet-node-line: rgb(255 243 224 / 15%);
+  --wc-facet-node-line-hover: rgb(255 243 224 / 23%);
+  --wc-facet-node-line-strong: rgb(246 231 205 / 48%);
+  --wc-facet-surface-shadow:
+    inset 0 1px 0 rgb(255 243 224 / 15%), inset 0 -1px 0 rgb(0 0 0 / 52%),
+    0 1px 2px rgb(22 15 9 / 52%), 0 12px 28px -16px rgb(22 15 9 / 64%);
+  --wc-facet-surface-shadow-hover:
+    inset 0 1px 0 rgb(255 243 224 / 19%), inset 0 -1px 0 rgb(0 0 0 / 48%),
+    0 2px 4px rgb(22 15 9 / 48%), 0 16px 34px -18px rgb(22 15 9 / 68%);
+}
+
+:root[data-theme="light"][data-color-scheme="clay"][data-node-style="facet"] {
+  --wc-facet-node-line: rgb(33 25 15 / 19%);
+  --wc-facet-node-line-hover: rgb(33 25 15 / 29%);
+  --wc-facet-node-line-strong: rgb(33 25 15 / 47%);
+}

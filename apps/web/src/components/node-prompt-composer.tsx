@@ -39,6 +39,7 @@ import { useUiShellStore } from "../state/ui-shell-store";
 import type { WeftcanvasEdge, WeftcanvasNode } from "../types";
 import { DOCK_RIGHT_CORNER_X } from "./companion-placement";
 import { NodeGenerationPanel } from "./node-generation-panel";
+import { TextPromptAssistant } from "./text-prompt-assistant";
 
 const MAX_REFERENCE_NODES = 32;
 const MAX_VISIBLE_CANDIDATES = MAX_REFERENCE_NODES;
@@ -151,7 +152,9 @@ export const NodePromptComposer = memo(function NodePromptComposer({
   );
   const promptPlaceholder = upstreamTextContent.length
     ? `已连接 ${upstreamTextContent.length} 条文本，生成时自动使用`
-    : "描述想生成的内容";
+    : data.kind === "audio"
+      ? "描述音乐风格与情绪，或写下要说的话"
+      : "描述想生成的内容";
   const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const candidateById = useMemo(
     () => new Map(candidates.map((candidate) => [candidate.node.id, candidate])),
@@ -824,6 +827,7 @@ export const NodePromptComposer = memo(function NodePromptComposer({
                 <AtSign aria-hidden="true" />
               </button>
             </div>
+            <TextPromptAssistant nodeId={nodeId} data={data} />
           </div>
         ) : null}
 

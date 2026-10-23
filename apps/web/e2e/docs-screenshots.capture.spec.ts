@@ -650,9 +650,15 @@ test.describe("docs screenshot capture", () => {
       .poll(async () =>
         imageNode
           .locator("img")
-          .evaluateAll((imgs) => imgs.every((i) => i.complete && i.naturalWidth > 0)),
+          .evaluateAll(
+            (imgs) => imgs.length > 0 && imgs.every((i) => i.complete && i.naturalWidth > 0),
+          ),
       )
       .toBe(true);
+    // 底部 dock 与创建栏是懒加载块：首张图跑在冷模块缓存上，不等它们入场就会拍到
+    // 一张没有工具条的空画布。
+    await expect(page.locator(".wc-edit-dock")).toBeVisible();
+    await expect(page.locator(".wc-create-rail")).toBeVisible();
     // 让入场动画与呼吸动画稳定一拍再拍，避免糊。
     await page.waitForTimeout(900);
     return imageNode;
@@ -702,6 +708,8 @@ test.describe("docs screenshot capture", () => {
     await page.addInitScript(() => {
       localStorage.setItem("weftcanvas:theme", "light");
       localStorage.setItem("weftcanvas:theme-mode", "manual");
+      // 直接落在 /generate/* 会自动开新手教程；文档图只要工作台本身。
+      localStorage.setItem("weftcanvas:onboarding:v1", "done");
     });
     await page.goto("/generate/image");
     await expect(page.locator("[data-direct-generation]")).toBeVisible();
@@ -713,6 +721,8 @@ test.describe("docs screenshot capture", () => {
     await page.addInitScript(() => {
       localStorage.setItem("weftcanvas:theme", "dark");
       localStorage.setItem("weftcanvas:theme-mode", "manual");
+      // 同上：暗色工作台也不带教程浮层。
+      localStorage.setItem("weftcanvas:onboarding:v1", "done");
     });
     await page.goto("/generate/image");
     await expect(page.locator("[data-direct-generation]")).toBeVisible();
@@ -866,8 +876,8 @@ test.describe("docs screenshot capture", () => {
 
   test("appearance styles", async ({ page }) => {
     await openCanvas(page, "light");
-    await page.getByRole("button", { name: "打开 UI 设置" }).click();
-    await expect(page.locator(".wc-appearance-toolbar")).toBeVisible();
+    await page.getByRole("button", { name: "打开界面设置" }).click();
+    await expect(page.locator("#wc-appearance-panel")).toBeVisible();
     await page.waitForTimeout(600);
     await shot(page, "appearance-styles");
   });

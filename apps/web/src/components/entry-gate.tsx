@@ -38,6 +38,7 @@ import {
   type DirectMentionCandidate,
 } from "../lib/direct-generation-mentions";
 import { validateImageBlob, validateMediaBlob } from "../lib/media-validation";
+import { inferMaterialKind } from "../lib/media-kind";
 import { WEFTCANVAS_API_SITE_URL } from "../lib/custom-api";
 
 /** 卡片库站点由部署注入（custom-api 的 VITE_WEFTCANVAS_API_BASE_URL）；为空不渲染外链。 */
@@ -263,9 +264,20 @@ export function EntryGate({
   const uploadFiles = async (files: File[]) => {
     if (!files.length || !model) return;
     setUploadError(null);
-    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
-    const videoFiles = files.filter((file) => file.type.startsWith("video/"));
-    const audioFiles = files.filter((file) => file.type.startsWith("audio/"));
+    // 按文件内容分类（MIME → 扩展名 → 魔数）：下载素材的 file.type 常为空，
+    // 只按 MIME 分组会让这些文件在拖入/粘贴后无声消失。
+    const grouped: Record<"image" | "video" | "audio", File[]> = {
+      image: [],
+      video: [],
+      audio: [],
+    };
+    for (const file of files) {
+      const kind = await inferMaterialKind(file);
+      if (kind) grouped[kind].push(file);
+    }
+    const imageFiles = grouped.image;
+    const videoFiles = grouped.video;
+    const audioFiles = grouped.audio;
     const groups: { kind: "image" | "video" | "audio"; items: File[] }[] = [];
     if (imageFiles.length && supportedKinds.has("image"))
       groups.push({ kind: "image", items: imageFiles });
@@ -355,12 +367,7 @@ export function EntryGate({
   };
 
   const onDrop = (event: DragEvent<HTMLDivElement>) => {
-    const files = Array.from(event.dataTransfer?.files ?? []).filter(
-      (file) =>
-        file.type.startsWith("image/") ||
-        file.type.startsWith("video/") ||
-        file.type.startsWith("audio/"),
-    );
+    const files = Array.from(event.dataTransfer?.files ?? []);
     if (!files.length) return;
     event.preventDefault();
     setDragActive(false);
@@ -375,12 +382,7 @@ export function EntryGate({
   };
 
   const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
-    const files = Array.from(event.clipboardData?.files ?? []).filter(
-      (file) =>
-        file.type.startsWith("image/") ||
-        file.type.startsWith("video/") ||
-        file.type.startsWith("audio/"),
-    );
+    const files = Array.from(event.clipboardData?.files ?? []);
     if (files.length) void uploadFiles(files);
   };
 

@@ -475,6 +475,186 @@ describe("custom API connection", () => {
     expect(result.media?.every((media) => media.mimeType === "image/png")).toBe(true);
   });
 
+  it("keeps polling a Midjourney task through a transient relay refusal", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("window", { setTimeout });
+    const imageUrls = [
+      "http://127.0.0.1/mj-retry-1.png",
+      "http://127.0.0.1/mj-retry-2.png",
+      "http://127.0.0.1/mj-retry-3.png",
+      "http://127.0.0.1/mj-retry-4.png",
+    ];
+    let pollCount = 0;
+    const fetchMock = vi.fn((input: string | URL | Request) => {
+      const url = new URL(String(input));
+      if (url.pathname === "/api/model-catalog") {
+        return Promise.resolve(
+          jsonResponse({
+            success: true,
+            version: "mj-catalog-1",
+            capability_version: "mj-capability-1",
+            pricing_version: "mj-pricing-1",
+            fetched_at: "2026-08-27T08:00:00.000Z",
+            models: [
+              {
+                id: "Midjourney v8.2 高速",
+                modality: "image",
+                operation: "generate",
+                endpoint: {
+                  method: "POST",
+                  path: "/v1/midjourney/generations",
+                  content_type: "application/json",
+                },
+                input: { text: { required: true }, images: { min: 0, max: 5, multiple: true } },
+                output: { type: "image", count: { fixed: 4 } },
+                parameters: [
+                  { name: "model", type: "string", fixed: "Midjourney v8.2 高速" },
+                  { name: "prompt", type: "string", required: true },
+                  { name: "n", type: "integer", fixed: 1 },
+                ],
+                public: { id: "Midjourney v8.2 高速", label: "Midjourney v8.2 高速" },
+                selectable: true,
+              },
+            ],
+          }),
+        );
+      }
+      if (url.pathname === "/v1/models") {
+        return Promise.resolve(jsonResponse({ data: [{ id: "Midjourney v8.2 高速" }] }));
+      }
+      if (url.pathname === "/v1/midjourney/generations") {
+        return Promise.resolve(
+          jsonResponse({ data: { task_id: "mj-task-retry", status: "queued" } }),
+        );
+      }
+      if (url.pathname === "/v1/tasks/mj-task-retry") {
+        pollCount += 1;
+        // The relay's own public phrase for a gateway-level timeout: one
+        // unreadable poll, the task itself is fine.
+        if (pollCount === 1) {
+          return Promise.resolve(
+            jsonResponse(
+              {
+                error: {
+                  message: "service timeout, please try again later.",
+                  type: "new_api_error",
+                },
+              },
+              503,
+            ),
+          );
+        }
+        return Promise.resolve(
+          jsonResponse({
+            data: { task_id: "mj-task-retry", status: "completed", image_urls: imageUrls },
+          }),
+        );
+      }
+      if (imageUrls.includes(url.toString())) {
+        return Promise.resolve(
+          new Response(new Blob(["png"], { type: "image/png" }), {
+            status: 200,
+            headers: { "Content-Type": "image/png" },
+          }),
+        );
+      }
+      throw new Error(`unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const catalog = await testCustomApiConnection({
+      baseUrl: "http://127.0.0.1",
+      apiKey: "secret",
+    });
+    const model = catalog.models[0]!;
+    const generation = executeCustomGeneration({
+      connection: { baseUrl: "http://127.0.0.1", apiKey: "secret" },
+      model,
+      route: catalog.routes[model.id]!,
+      parameters: { prompt: "cinematic city", n: 1 },
+      inputs: { images: [], styleImages: [], elementImages: [], videos: [], audios: [] },
+    });
+    await vi.advanceTimersByTimeAsync(60_000);
+    const result = await generation;
+
+    expect(pollCount).toBe(2);
+    expect(result.media).toHaveLength(4);
+  });
+
+  it("still fails a Midjourney task whose relay rejects the poll definitively", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("window", { setTimeout });
+    let pollCount = 0;
+    const fetchMock = vi.fn((input: string | URL | Request) => {
+      const url = new URL(String(input));
+      if (url.pathname === "/api/model-catalog") {
+        return Promise.resolve(
+          jsonResponse({
+            success: true,
+            version: "mj-catalog-1",
+            capability_version: "mj-capability-1",
+            pricing_version: "mj-pricing-1",
+            fetched_at: "2026-08-27T08:00:00.000Z",
+            models: [
+              {
+                id: "Midjourney v8.2 高速",
+                modality: "image",
+                operation: "generate",
+                endpoint: {
+                  method: "POST",
+                  path: "/v1/midjourney/generations",
+                  content_type: "application/json",
+                },
+                input: { text: { required: true }, images: { min: 0, max: 5, multiple: true } },
+                output: { type: "image", count: { fixed: 4 } },
+                parameters: [
+                  { name: "model", type: "string", fixed: "Midjourney v8.2 高速" },
+                  { name: "prompt", type: "string", required: true },
+                  { name: "n", type: "integer", fixed: 1 },
+                ],
+                public: { id: "Midjourney v8.2 高速", label: "Midjourney v8.2 高速" },
+                selectable: true,
+              },
+            ],
+          }),
+        );
+      }
+      if (url.pathname === "/v1/models") {
+        return Promise.resolve(jsonResponse({ data: [{ id: "Midjourney v8.2 高速" }] }));
+      }
+      if (url.pathname === "/v1/midjourney/generations") {
+        return Promise.resolve(
+          jsonResponse({ data: { task_id: "mj-task-rejected", status: "queued" } }),
+        );
+      }
+      if (url.pathname === "/v1/tasks/mj-task-rejected") {
+        pollCount += 1;
+        return Promise.resolve(jsonResponse({ message: "任务不存在" }, 400));
+      }
+      throw new Error(`unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const catalog = await testCustomApiConnection({
+      baseUrl: "http://127.0.0.1",
+      apiKey: "secret",
+    });
+    const model = catalog.models[0]!;
+    const generation = executeCustomGeneration({
+      connection: { baseUrl: "http://127.0.0.1", apiKey: "secret" },
+      model,
+      route: catalog.routes[model.id]!,
+      parameters: { prompt: "cinematic city", n: 1 },
+      inputs: { images: [], styleImages: [], elementImages: [], videos: [], audios: [] },
+    });
+    const assertion = expect(generation).rejects.toThrow(/任务不存在/);
+    await vi.advanceTimersByTimeAsync(60_000);
+    await assertion;
+
+    // A definitive rejection is not retried.
+    expect(pollCount).toBe(1);
+  });
+
   it("uses the catalog version when an upstream omits its pricing version", async () => {
     const fetchMock = vi.fn((input: string | URL | Request) => {
       const pathname = new URL(String(input)).pathname;

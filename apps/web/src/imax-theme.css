@@ -48,18 +48,18 @@
     linear-gradient(
       180deg,
       var(--wc-imax-rim) 0%,
-      transparent 14%,
-      transparent 84%,
-      rgb(0 0 0 / 52%) 100%
+      transparent 9%,
+      transparent 90%,
+      rgb(0 0 0 / 26%) 100%
     ),
     linear-gradient(
       90deg,
       rgb(255 255 255 / 5%) 0%,
-      transparent 8%,
-      transparent 92%,
-      rgb(0 0 0 / 34%) 100%
+      transparent 6%,
+      transparent 94%,
+      rgb(0 0 0 / 16%) 100%
     ),
-    radial-gradient(ellipse 88% 132% at 50% 48%, transparent 58%, rgb(0 0 0 / 38%) 100%);
+    radial-gradient(ellipse 96% 140% at 50% 48%, transparent 76%, rgb(0 0 0 / 20%) 100%);
   clip-path: url("#wc-imax-screen-clip");
   content: "";
   pointer-events: none;

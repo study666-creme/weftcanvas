@@ -36,6 +36,7 @@ import {
   createGenerationQuote,
   createRequestKey,
   submitGenerationJob,
+  type GenerationSubmitRetryProgress,
 } from "../lib/api-client";
 import {
   beginBrowserSubmission,
@@ -45,6 +46,7 @@ import {
   releaseBrowserSubmissionIdentity,
 } from "../lib/browser-generation-runtime";
 import { formatCreditMicros, generationBillingText } from "../lib/generation-billing";
+import { useWalletStore } from "../state/wallet-store";
 import { isCustomModelKey } from "../lib/custom-api";
 import {
   autoPickGenerationSettings,
@@ -205,6 +207,8 @@ export function NodeGenerationPanel({
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [quoteRevision, setQuoteRevision] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [submitRetry, setSubmitRetry] = useState<GenerationSubmitRetryProgress | null>(null);
+  const retryNoticeShown = useRef(false);
   const [standaloneQuantity, setStandaloneQuantity] = useState(1);
   const [batchCount, setBatchCount] = useState(1);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -970,6 +974,7 @@ export function NodeGenerationPanel({
       return;
     }
     setSubmitting(true);
+    retryNoticeShown.current = false;
     const markSubmissionFailure = (targetId: string, message: string) => {
       const current = findCanvasGenerationNode(useCanvasStore.getState(), targetId);
       if (!current || current.data.generation.jobStatus !== "submitting") return;
@@ -1024,7 +1029,7 @@ export function NodeGenerationPanel({
         tokenFields: ReturnType<typeof quoteTokenFields>;
         requestParameters: Record<string, unknown>;
       },
-    ): Promise<"ok" | "failed" | "ambiguous" | "quote-changed"> => {
+    ): Promise<"ok" | "failed" | "ambiguous" | "quote-changed" | "media-missing"> => {
       // Resolve the durable idempotency identity and start the visual hand-off
       // BEFORE the optimistic submitting stage flips the node. Inside a
       // pre-existing ambiguous window (submitting/submission_unknown) the one
@@ -1036,33 +1041,54 @@ export function NodeGenerationPanel({
       let generationPostAttempted = false;
       try {
         generationPostAttempted = true;
-        const job = await submitGenerationJob({
-          projectId: useCanvasStore.getState().projectId,
-          nodeId: targetId,
-          modelId: model.id,
-          modality,
-          parameters: payload.requestParameters,
-          inputs: payload.inputs,
-          quantity: requestQuantity,
-          ...payload.tokenFields,
-          expectedQuote: {
-            id: quote.id,
-            modelId: quote.modelId,
-            creditMicros: quote.creditMicros,
-            pricingVersion: quote.pricingVersion,
-            expiresAt: quote.expiresAt,
+        const job = await submitGenerationJob(
+          {
+            projectId: useCanvasStore.getState().projectId,
+            nodeId: targetId,
+            modelId: model.id,
+            modality,
+            parameters: payload.requestParameters,
+            inputs: payload.inputs,
+            quantity: requestQuantity,
+            ...payload.tokenFields,
+            expectedQuote: {
+              id: quote.id,
+              modelId: quote.modelId,
+              creditMicros: quote.creditMicros,
+              pricingVersion: quote.pricingVersion,
+              expiresAt: quote.expiresAt,
+            },
+            idempotencyKey: identity.key,
           },
-          idempotencyKey: identity.key,
-        });
+          {
+            // 重试期间把状态讲出来：链路上一次尝试可能等十几秒，没有任何反馈
+            // 时用户只会当成卡死然后重复点击。整段提交只提示一次，避免抖动时
+            // 刷屏。
+            onRetry: (progress) => {
+              setSubmitRetry(progress);
+              if (retryNoticeShown.current) return;
+              retryNoticeShown.current = true;
+              showToast("网络不稳定，正在自动重试提交", "info");
+            },
+          },
+        );
+        setSubmitRetry(null);
         releaseBrowserSubmissionIdentity(projectId, targetId);
         watchJob(job);
         return "ok";
       } catch (cause) {
+        // 服务端解析不到参考素材（生成的素材归档未完成、或素材归属被换过）时，
+        // 任务还没创建，整单可以直接重来：交给外层用本地缓存重新上传再提交一次。
+        if (cause instanceof CanvasApiError && cause.code === "MEDIA_NOT_FOUND")
+          return "media-missing";
         if (cause instanceof CanvasApiError && cause.status === 401)
           useIdentityStore.getState().expire();
         if (cause instanceof CanvasApiError && cause.code === "INSUFFICIENT_CREDITS") {
           // Keep the recovery path inside the account surface so the creator can
           // recharge and return to this node without losing its configured prompt.
+          // 角标余额可能是旧快照：扣费失败后立刻拉一次真实余额，避免用户看着
+          // 两百多积分却反复被拒。
+          void useWalletStore.getState().loadSummary(true);
           openAccount("login");
         }
         const quoteChanged = cause instanceof CanvasApiError && cause.code === "QUOTE_CHANGED";
@@ -1090,7 +1116,10 @@ export function NodeGenerationPanel({
           // have accepted the request. Keep the durable identity and lock the node
           // as unknown so a repeated action cannot create a second paid task.
           markAmbiguousSubmissionFailure(targetId);
-          showToast("提交结果待确认，请稍后在任务记录中确认", "info");
+          // 传输层认输不代表服务端没接单：立刻在后台按幂等键核对几次，网络
+          // 一恢复节点就自己收敛，不用等用户重开项目才发现任务其实在跑。
+          useGenerationStore.getState().reconcileAmbiguousSubmissions(projectId);
+          showToast("网络中断，提交结果待确认；恢复后会自动核对", "info");
           return "ambiguous";
         }
         releaseBrowserSubmissionIdentity(projectId, targetId);
@@ -1107,7 +1136,7 @@ export function NodeGenerationPanel({
     let succeeded = 0;
     let failedTargets = 0;
     try {
-      const inputs = await prepareGenerationInputs(references);
+      let inputs = await prepareGenerationInputs(references);
       const tokenFields = quoteTokenFields(model, promptBody, parameters, maxOutputTokens);
       const requestParameters = composeGenerationParameters(
         model,
@@ -1117,8 +1146,16 @@ export function NodeGenerationPanel({
         outputQuantity,
         videoDurations,
       );
+      let reuploadedReferences = false;
       for (const targetId of batchTargets) {
-        const outcome = await submitTarget(targetId, { inputs, tokenFields, requestParameters });
+        let outcome = await submitTarget(targetId, { inputs, tokenFields, requestParameters });
+        if (outcome === "media-missing" && !reuploadedReferences) {
+          // 生成的素材在服务器上解析不到：用浏览器本地缓存的那份字节重新上传成
+          // 当前项目的素材，再提交一次（任务没创建，幂等键和报价都还能用）。
+          reuploadedReferences = true;
+          inputs = await prepareGenerationInputs(references, { forceUpload: true });
+          outcome = await submitTarget(targetId, { inputs, tokenFields, requestParameters });
+        }
         if (outcome === "ok") succeeded += 1;
         else failedTargets += 1;
         // 价格/参数已经变了：后续几张必然同样被拒，停下来让用户重新确认。
@@ -1132,6 +1169,7 @@ export function NodeGenerationPanel({
       showToast(message, "error");
     } finally {
       setSubmitting(false);
+      setSubmitRetry(null);
     }
     // 至少提交成功一条就收起面板；失败的节点会把错误留在画布上。
     if (succeeded > 0) {
@@ -1300,7 +1338,11 @@ export function NodeGenerationPanel({
       generationLocked ||
       Boolean(unavailableModelError) ||
       (!customSelected && !quote);
-    const submitText = "生成";
+    // 重试期间把状态讲出来：链路上一次尝试可能等十几秒，没有任何反馈时用户
+    // 只会当成卡死。按钮宽度有限，完整说明走 toast。
+    const submitText = submitRetry
+      ? `重试中 ${submitRetry.attempt}/${submitRetry.attempts}`
+      : "生成";
     const retryAvailable =
       !activeJob &&
       !awaitingConfirmation &&
@@ -1632,11 +1674,13 @@ export function NodeGenerationPanel({
           </div>
         ) : !embedded ? (
           <label className="wc-generation-field wc-generation-prompt">
-            <span>提示内容</span>
+            <span>{modality === "audio" ? "音频描述" : "提示内容"}</span>
             <textarea
               value={data.body}
               rows={4}
-              placeholder="输入创作内容"
+              placeholder={
+                modality === "audio" ? "描述音乐风格与情绪，或写下要说的话" : "输入创作内容"
+              }
               onFocus={beginTransaction}
               onBlur={commitTransaction}
               onPaste={blockFilePaste}
@@ -1910,7 +1954,12 @@ export function NodeGenerationPanel({
           ) : (
             <Sparkles aria-hidden="true" />
           )}
-          {isConfiguration ? "完成配置" : "生成"}
+          {isConfiguration
+            ? "完成配置"
+            : // 按钮宽度上限 240px：只放短标签，完整说明走 toast。
+              submitRetry
+              ? `重试中 ${submitRetry.attempt}/${submitRetry.attempts}`
+              : "生成"}
         </button>
       </footer>
     </section>

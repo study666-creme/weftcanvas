@@ -461,9 +461,14 @@ export function registerOperatorRoutes(app: Hono, deps: OperatorRouteDependencie
     const catalogViewVersion = modelCatalogViewVersion(data);
     const etag = `"${data.version}:${data.capabilityVersion}:${data.pricingVersion}:${catalogViewVersion}:${data.quoteAvailable ? "fresh" : "stale"}:${data.expiresAt}:${modality?.success ? modality.data : "all"}"`;
     context.header("ETag", etag);
+    // Visitor-independent: the catalog view carries no account state, so the
+    // shared caches in front of this API (the Canvas release router's edge
+    // cache included) may serve it. `private` used to keep every cold canvas
+    // boot crossing the ocean to this origin for a response that is identical
+    // for every visitor. Operator edits still propagate within a minute.
     context.header(
       "Cache-Control",
-      forceRefresh ? "private, no-store" : "private, max-age=60, stale-while-revalidate=300",
+      forceRefresh ? "no-store" : "public, max-age=60, stale-while-revalidate=300",
     );
     if (context.req.header("If-None-Match") === etag) return context.body(null, 304);
     return context.json(modelCatalogResponseSchema.parse({ ok: true, data }));

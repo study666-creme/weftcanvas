@@ -14,7 +14,7 @@
 
 /* ===== 节点：onyx ======================================================= */
 
-:root[data-node-style="onyx"] :is(.wc-node-surface, .wc-node-type-label) {
+:root[data-node-style="onyx"] .wc-node-surface {
   --wc-node-jade: #79b39c;
   --wc-node-jade-soft: #142420;
   --wc-node-blue: #86abc5;
@@ -23,15 +23,8 @@
   --wc-node-coral-soft: #2a1a17;
   --wc-node-amber: #c7a45f;
   --wc-node-amber-soft: #2b2418;
-  /* 节点几何：用 7px 圆角 + 半透底 + 顶部高光 + 深染阴影做"浮起的玻璃片" */
-  --wc-onyx-node-border: rgb(232 234 238 / 11%);
-  --wc-onyx-node-highlight: rgb(255 255 255 / 7%);
-  --wc-onyx-node-inner-rim: rgb(232 234 238 / 6%);
-  --wc-onyx-node-shade: rgb(0 0 0 / 52%);
-  --wc-onyx-node-shadow: rgb(0 0 0 / 72%);
-}
-
-:root[data-theme="dark"][data-node-style="onyx"] :is(.wc-node-surface, .wc-node-type-label) {
+  /* 节点令牌不区分深浅主题：这一档的节点永远是同一块深色玻璃，浅色画布上
+     也不翻白。标签在表面之外，必须跟随主题，所以不写进这个作用域。 */
   --wc-canvas: #020203;
   --wc-surface: #0d0d11;
   --wc-surface-raised: #131318;
@@ -47,11 +40,19 @@
   --wc-shadow-node:
     inset 0 1px 0 rgb(255 255 255 / 5%), 0 1px 2px rgb(0 0 0 / 64%),
     0 12px 28px -10px rgb(0 0 0 / 72%);
+  /* 玻璃斜面：16px 圆角 + 半透底 + 顶部高光 + 深染阴影 */
+  --wc-onyx-node-border: rgb(232 234 238 / 15%);
+  --wc-onyx-node-highlight: rgb(255 255 255 / 11%);
+  --wc-onyx-node-inner-rim: rgb(232 234 238 / 9%);
+  --wc-onyx-node-shade: rgb(0 0 0 / 52%);
+  --wc-onyx-node-shadow: rgb(0 0 0 / 72%);
 }
 
-/* 基础节点壳：半透深色面板 + 细发丝白边 + 顶部高光 + 多层阴影 */
+/* 纯黑（onyx）——「暗玻」。它和经典的分界不是深浅，而是「永远深 + 有斜面」：
+   节点底色固定走深色令牌（见下方令牌块，不区分主题），浅色画布上也不翻白；
+   四角比经典大得多，边缘靠一圈 15% 的发丝白线和顶部斜面高光立起来。 */
 :root[data-node-style="onyx"] .wc-node-surface {
-  border-radius: 10px;
+  border-radius: 16px;
   border-color: var(--wc-onyx-node-border);
   background:
     linear-gradient(
@@ -65,8 +66,9 @@
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--wc-canvas) 80%, transparent),
     inset 0 1px 0 var(--wc-onyx-node-highlight),
+    inset 0 -1px 0 var(--wc-onyx-node-shade),
     0 2px 6px var(--wc-onyx-node-shadow),
-    0 18px 36px -20px var(--wc-onyx-node-shadow);
+    0 22px 44px -20px var(--wc-onyx-node-shadow);
 }
 
 /* ::after 兜底再加一层内嵌高光与底沿阴影，做"厚玻璃"感 */

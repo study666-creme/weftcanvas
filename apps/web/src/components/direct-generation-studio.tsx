@@ -43,6 +43,7 @@ import {
   fetchMediaMetadata,
   listGenerationJobs,
   mediaContentPath,
+  reconcileGenerationJob,
   subscribeGenerationJob,
   submitGenerationJob,
   uploadMediaBlob,
@@ -116,7 +117,7 @@ import {
   type PersistedDirectDraft,
 } from "../lib/direct-reference-session";
 import { useDirectReferenceStore } from "../state/direct-reference-store";
-import { useGenerationStore } from "../state/generation-store";
+import { useGenerationStore, AMBIGUOUS_RECONCILE_DELAYS_MS } from "../state/generation-store";
 import { useIdentityStore } from "../state/identity-store";
 import { useWalletStore } from "../state/wallet-store";
 import { CategorizedModelSelect } from "./categorized-model-select";
@@ -176,24 +177,32 @@ const MODALITIES: {
   value: DirectModality;
   label: string;
   description: string;
+  placeholder: string;
+  noun: string;
   icon: typeof ImageIcon;
 }[] = [
   {
     value: "image",
     label: "图片生成",
     description: "用一句话得到可直接使用的画面",
+    placeholder: "描述主体、环境、光线和画面气质……",
+    noun: "图片",
     icon: ImageIcon,
   },
   {
     value: "video",
     label: "视频生成",
     description: "把想法变成一段有镜头感的动态片段",
+    placeholder: "描述镜头、动作、节奏和时长感……",
+    noun: "视频",
     icon: Video,
   },
   {
     value: "audio",
     label: "音频生成",
     description: "一句话得到一段音乐或一条语音",
+    placeholder: "描述音乐风格与情绪，或写下要说的话……",
+    noun: "音频",
     icon: Music2,
   },
 ];
@@ -653,6 +662,17 @@ export function DirectGenerationStudio({
       watcherRef.current.clear();
     },
     [identityUserId],
+  );
+  // 「提交结果待确认」之后按幂等键在后台核对：这条链路上响应被丢是常态，而工作台
+  // 一次提交失败只留下「再点一次会重新扣费」的提示。核对成功就把真实任务接上，
+  // 用户不必自己决定要不要冒第二次扣费的风险。
+  const submissionReconcileTimersRef = useRef<number[]>([]);
+  useEffect(
+    () => () => {
+      for (const timer of submissionReconcileTimersRef.current) window.clearTimeout(timer);
+      submissionReconcileTimersRef.current = [];
+    },
+    [],
   );
 
   // Auto-submit once when arriving from the home gate with a composed prompt.
@@ -1255,7 +1275,7 @@ export function DirectGenerationStudio({
     const readyCount = draft.references.filter((reference) => reference.status === "ready").length;
     const accepted = await requestConfirmation({
       title: "清空上传素材",
-      description: `将移除当前${modality === "image" ? "图片" : "视频"}生成的全部 ${draft.references.length} 个素材${readyCount ? `（其中 ${readyCount} 个已上传）` : ""}，清空后需要重新上传。`,
+      description: `将移除当前${activeOption.noun}生成的全部 ${draft.references.length} 个素材${readyCount ? `（其中 ${readyCount} 个已上传）` : ""}，清空后需要重新上传。`,
       confirmLabel: "清空",
       tone: "danger",
     });
@@ -1416,6 +1436,9 @@ export function DirectGenerationStudio({
       submissionError: null,
       quoteError: null,
     });
+    // 幂等键在重试与后台核对之间必须同一个：无论丢掉的是哪一次响应，服务端
+    // 只会认这一个逻辑请求。声明在 try 之外，catch 里的核对才用得上。
+    const submissionKey = createRequestKey(`home-${modality}`);
     try {
       const parameters = composeModelParameters(model, draft.prompt, draft.parameters);
       // 与报价请求保持同一份参数：参考视频时长缺失会让服务端重建的报价对不上，
@@ -1443,6 +1466,8 @@ export function DirectGenerationStudio({
           JSON.stringify(referenceInputs),
         );
       }
+      // 幂等键在重试与后台核对之间必须同一个：无论丢掉的是哪一次响应，服务端
+      // 只会认这一个逻辑请求。
       const job = await submitGenerationJob({
         projectId: DIRECT_GENERATION_PROJECT_ID,
         nodeId: DIRECT_GENERATION_NODE_IDS[modality],
@@ -1459,14 +1484,18 @@ export function DirectGenerationStudio({
           pricingVersion: draft.quote.pricingVersion,
           expiresAt: draft.quote.expiresAt,
         },
-        idempotencyKey: createRequestKey(`home-${modality}`),
+        idempotencyKey: submissionKey,
       });
       updateJob(modality, job);
       watch(modality, job);
     } catch (cause) {
       if (cause instanceof CanvasApiError && cause.status === 401) expireIdentity();
-      if (cause instanceof CanvasApiError && cause.code === "INSUFFICIENT_CREDITS")
+      if (cause instanceof CanvasApiError && cause.code === "INSUFFICIENT_CREDITS") {
+        // 角标里的余额是上一次拉到的快照：扣费失败后立刻取一次真实余额，
+        // 否则用户会一直看着旧数字以为「钱够却不让用」。
+        void loadWalletSummary(true);
         openAccount("login");
+      }
       if (cause instanceof CanvasApiError && cause.code === "QUOTE_CHANGED") {
         await loadCatalog(modality, true);
         updateDraft(modality, {
@@ -1478,17 +1507,34 @@ export function DirectGenerationStudio({
       const unknown =
         cause instanceof CanvasApiError &&
         (cause.status === 0 || cause.code === "NETWORK_UNAVAILABLE");
+      if (unknown) {
+        // 传输层认输不等于服务端没接单：按同一个幂等键在后台核对几次，找到
+        // 就地接上真实任务并继续观测；找不到就保留「待确认」的诚实提示。
+        for (const timer of submissionReconcileTimersRef.current) window.clearTimeout(timer);
+        submissionReconcileTimersRef.current = AMBIGUOUS_RECONCILE_DELAYS_MS.map((delay) =>
+          window.setTimeout(() => {
+            void reconcileGenerationJob(submissionKey)
+              .then((job) => {
+                if (!job) return;
+                updateDraft(modality, { submissionUnknown: false, submissionError: null });
+                updateJob(modality, job);
+                watch(modality, job);
+              })
+              .catch(() => undefined);
+          }, delay),
+        );
+      }
       updateDraft(modality, {
         submitting: false,
         submitLabel: "生成",
         submissionUnknown: draft.submissionUnknown || unknown,
         submissionError: unknown
-          ? "提交结果待确认；再次点击会创建新的请求并正常扣费"
+          ? "网络中断，提交结果待确认；正在自动核对，请勿重复点击"
           : cause instanceof Error
             ? cause.message
             : "生成任务没有提交成功",
         quoteError: unknown
-          ? "提交结果待确认；再次点击会创建新的请求并正常扣费"
+          ? "网络中断，提交结果待确认；正在自动核对，请勿重复点击"
           : cause instanceof Error
             ? cause.message
             : "生成任务没有提交成功",
@@ -1535,29 +1581,30 @@ export function DirectGenerationStudio({
           <h2>把一个想法，直接变成画面。</h2>
         </div>
         <p>
-          选择图片或视频模型，写下提示词，确认价格后立即生成。完成结果会留在这里，也可以下载后继续进入画布。
+          选择图片、视频或音频模型，写下提示词，确认价格后立即生成。完成结果会留在这里，也可以下载后继续进入画布。
         </p>
       </div>
 
       <div className="wc-direct-studio" data-direct-generation data-direct-modality={modality}>
-        <div className="wc-direct-studio-tabs" role="tablist" aria-label="生成类型">
-          {MODALITIES.map(({ value, label, description, icon: Icon }) => (
-            <button
-              key={value}
-              type="button"
-              role="tab"
-              aria-selected={modality === value}
-              className={modality === value ? "is-active" : undefined}
-              onClick={() => onModalityChange(value)}
-            >
-              <Icon aria-hidden="true" />
-              <span>
-                <strong>{label}</strong>
-                <small>{description}</small>
-              </span>
-              {modality === value ? <Check aria-hidden="true" /> : null}
-            </button>
-          ))}
+        {/* 生成类型是切换器而不是版块：一行窄条（图标 + 名称），当前项的描述
+            挪到同一行右侧，把纵向空间还给提示词与结果。 */}
+        <div className="wc-direct-studio-tabs">
+          <div className="wc-direct-studio-tablist" role="tablist" aria-label="生成类型">
+            {MODALITIES.map(({ value, label, icon: Icon }) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={modality === value}
+                className={modality === value ? "is-active" : undefined}
+                onClick={() => onModalityChange(value)}
+              >
+                <Icon aria-hidden="true" />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+          <span className="wc-direct-studio-tab-hint">{activeOption.description}</span>
         </div>
 
         <div className="wc-direct-studio-body">
@@ -1580,7 +1627,7 @@ export function DirectGenerationStudio({
             <header className="wc-direct-composer-header">
               <div>
                 <span className="wc-direct-index">
-                  01 / {modality === "image" ? "STILL" : "MOTION"}
+                  01 / {modality === "image" ? "STILL" : modality === "video" ? "MOTION" : "SOUND"}
                 </span>
                 <h3>{activeOption.label}</h3>
               </div>
@@ -1597,11 +1644,7 @@ export function DirectGenerationStudio({
                 ref={promptRef}
                 value={draft.prompt}
                 disabled={locked}
-                placeholder={
-                  modality === "image"
-                    ? "描述主体、环境、光线和画面气质……"
-                    : "描述镜头、动作、节奏和时长感……"
-                }
+                placeholder={activeOption.placeholder}
                 rows={6}
                 maxLength={4_000}
                 onChange={(event) =>
@@ -2045,6 +2088,15 @@ export function DirectGenerationStudio({
                   {activeJobs.map((job) => (
                     <GeneratingTile key={job.id} job={job} />
                   ))}
+                </div>
+              ) : modality === "audio" ? (
+                // 音频没有可供展示的静态示例图，也不再借用视频示例卡
+                // （示例卡上是视频模型与成片，挂在音频页属于误导）。
+                <div className="wc-direct-result-gallery" aria-label="音频结果">
+                  <p className="wc-direct-sample-note">
+                    音频结果会以播放器形式出现在这里，可直接试听 / 下载 / 加入画布。
+                    提示词可写音乐风格与情绪，也可以直接写要朗读的文字。
+                  </p>
                 </div>
               ) : (
                 <div className="wc-direct-result-gallery" aria-label="示例结果">

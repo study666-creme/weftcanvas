@@ -22,3 +22,6 @@ __pycache__/
 Thumbs.db
 .idea/
 .vscode/
+
+# 发布前保留的上一版产物（本机批量删除保护下无法直接清空）
+dist.prev/

@@ -31,44 +31,44 @@
 
 ## 预览
 
-白天（石墨）与黑夜（墨黑）两套配色，同一份画布：
+四套配色（石墨 / 墨黑 / 素陶 / 糖彩），这里看石墨（白天）与墨黑（黑夜）的同一份画布：
 
 | 石墨 · 白天                                       | 墨黑 · 黑夜                                      |
 | ------------------------------------------------- | ------------------------------------------------ |
-| ![石墨画布](docs/screenshots/canvas-light-v2.png) | ![墨黑画布](docs/screenshots/canvas-dark-v2.png) |
+| ![石墨画布](docs/screenshots/canvas-light-v3.png) | ![墨黑画布](docs/screenshots/canvas-dark-v3.png) |
 
 **节点生成面板**——选中节点即开，模型、参数、价格一目了然；角落里的蓝发少女（白色是头饰）
 是可拖拽的 Agent 伙伴，平时待在画布上方的默认位，输入框打开时她趴到输入框的右上角：
 
-![节点生成面板](docs/screenshots/generation-panel-v2.png)
+![节点生成面板](docs/screenshots/generation-panel-v3.png)
 
 **模型选择器**——按厂商/系列分类，每个模型带简介与服务端聚合的真实成功率（能量条）：
 
-![模型选择器](docs/screenshots/model-picker-v2.png)
+![模型选择器](docs/screenshots/model-picker-v3.png)
 
 **BYOK 外接 API**——填自己的 OpenAI 兼容或 Gemini 原生端点，请求由浏览器直发、Key 只落本机；
 支持多份配置、拉取上游模型目录：
 
-![BYOK 外接 API 配置](docs/screenshots/byok-settings-v2.png)
+![BYOK 外接 API 配置](docs/screenshots/byok-settings-v3.png)
 
-**外观与样式**——节点/界面风格、配色（石墨 / 墨黑 / 纯黑）、背景（网格 / 点阵 / 星空 / 水面）、
-生成特效、默认画幅，逐项可换：
+**外观与样式**——独立的外观面板里调节点 / 界面风格、配色（石墨 / 墨黑 / 素陶 / 糖彩）、
+背景（网格 / 点阵 / 星空 / 水面）、生成特效、默认画幅，逐项可换：
 
-![外观与样式设置](docs/screenshots/appearance-styles-v2.png)
+![外观与样式设置](docs/screenshots/appearance-styles-v3.png)
 
 **资产库**——本地素材、提示词、分类管理，拖进画布即用：
 
-![资产库](docs/screenshots/asset-library-v2.png)
+![资产库](docs/screenshots/asset-library-v3.png)
 
 **3D 导演台**——Three.js 预演空间：摆人物道具、定机位、逐镜头截图回画布：
 
-![3D 导演台](docs/screenshots/director-stage.png)
+![3D 导演台](docs/screenshots/director-stage-v2.png)
 
 **直出工作台**——不开画布也能生成，明暗双主题：
 
-| 白天                                                        | 黑夜                                                       |
-| ----------------------------------------------------------- | ---------------------------------------------------------- |
-| ![直出工作台（白天）](docs/screenshots/workbench-light.png) | ![直出工作台（黑夜）](docs/screenshots/workbench-dark.png) |
+| 白天                                                           | 黑夜                                                          |
+| -------------------------------------------------------------- | ------------------------------------------------------------- |
+| ![直出工作台（白天）](docs/screenshots/workbench-light-v2.png) | ![直出工作台（黑夜）](docs/screenshots/workbench-dark-v2.png) |
 
 ## 运营后台
 
@@ -91,23 +91,25 @@
 没有数据库也能用。同一套覆盖接口也有独立页 `/admin/model-overrides`，方便嵌进已有的
 运营后台。
 
-| 概览（石墨）                                      | 模型运营（墨黑）                             |
-| ------------------------------------------------- | -------------------------------------------- |
-| ![运营后台概览](docs/screenshots/ops-console.png) | ![模型运营](docs/screenshots/ops-models.png) |
+| 概览（石墨）                                         | 模型运营（墨黑）                                |
+| ---------------------------------------------------- | ----------------------------------------------- |
+| ![运营后台概览](docs/screenshots/ops-console-v2.png) | ![模型运营](docs/screenshots/ops-models-v2.png) |
 
 ## 开源范围
 
 **包含**：
 
 - 画布核心：节点、连线、磁性端口、分组、撤销重做、小屏地图、指针反馈、
-  两种配色（石墨 / 墨黑）、Three.js 导演台。
+  四套配色（石墨 / 墨黑 / 素陶 / 糖彩）、Three.js 导演台。
 - 本地优先的项目库：项目存 localStorage、媒体存 IndexedDB，断网可编辑。
 - BYOK 直连：在设置里填自己的 OpenAI 兼容或 Gemini 端点，请求由浏览器直发，
   Key 保存在本机 `localStorage`，调用时发给你配置的上游。可接入提供兼容 API 的中转站，
   包含模型识别与高级协议配置；需要精确参数与
   渠道可用性时再按 `UPSTREAM-CONTRACT.md` 发布一份目录 JSON。
-- Agent：右侧回复工作区 + 本地连接器（Codex 走 MCP 操作当前画布、Blender 走
-  `weftcanvas_bridge` 插件）。
+- 生成节点：文本、图片、视频与音频；文本节点带提示词助手（优化 / 根据文本生成提示词），
+  空音频节点可直接打开音频生成面板。
+- Agent：预留右栏的回复工作区 + 多模态参考（粘贴图片、从画布节点引用）+ 本地连接器
+  （Codex 走 MCP 操作当前画布、Blender 走 `weftcanvas_bridge` 插件）。
 - 运营后台：`/admin/ops` 概览 / 用户目录 / 任务排查 / 模型上架与定价 / 站点公告，
   与画布同一套配色（石墨 / 墨黑）；公告在画布侧以「系统公告」弹窗展示。
 - 生成任务的持久化 worker（PostgreSQL 队列、租约与 fencing）。

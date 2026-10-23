@@ -401,18 +401,29 @@ Pages `_headers`与`docker/nginx.conf`同时加`script-src 'self'`与`worker-src
 14 脚本测试通过。提交后全仓：typecheck 8 包通过；contracts 77 / agent 89 /
 worker 16 / web 947 全过。
 
-### 7.3 顺带发现并记录的既有 flake（未在本批修复）
+### 7.3 既有 flake（已修复，`6f38cd2`）
 
 `prompt-hub-service.test.ts` 在全量并行下偶发 unhandled
 `ENOENT ... weftcanvas-hosted-image-<uuid>.tmp`（hosted-image 暂存临时文件的
 打开竞态；与 reboot 后台重试/幂等路径相关）。单跑 8/8 全过、CI 曾两轮全绿；
 它会让 `pnpm test` 的链式执行在 api 处随机中止。**未删除、未跳过**；已把
 机制候选（暂存 finally-unlink 与惰性打开的窗口 / 幂等路径不消费 source 流）
-记录在此，修复属于 prompt-hub 暂存加固，建议单独做。
+记录在此。
+
+**根因**（已证实）：`archiveHostedMediaResponse` 在调用 `persistGenerated` 前
+就 `createReadStream(temporary)`。幂等路径（同一 job+index 已 ready）不会迭代
+source，调用方随即在 `finally` 里删除暂存文件；流的异步 open 落在删除之后，
+ENOENT 作为无人监听的流错误变成进程级 unhandled error。
+
+**修复**：source 改为 `readTemporaryFileOnce(path)`（生成器，首次迭代才打开）。
+回归测试 `generation/temporary-file-source.test.ts` 覆盖三种情形：正常读取、
+未迭代即删除不产生未处理错误、删除后迭代得到普通 ENOENT。修复后
+`prompt-hub-service.test.ts` 连续 3 次单跑 68/68 通过，全量 api 605 通过。
 
 ### 7.4 剩余拆分清单（新会话从这里接手，每域独立提交 + 全量 api 测试）
 
-> 已完成 8 个域/共享层（§7.1）。当前 app.ts 2347 行，剩余全部是路由块。
+> 已完成 8 个域/共享层（§7.1）+ 本轮 4 个域（§7.5）。当前 app.ts 543 行，
+> 只剩 Hono 初始化、中间件、健康/就绪、notFound 与 onError 错误映射。
 > 拆分模式已定型：新建 `<domain>/routes.ts`，导出
 > `registerXxxRoutes(app, deps)`，在 app.ts 的注册区（`registerGenerationRoutes(app, {...})`
 > 之后）加一行调用；依赖用**结构类型**注入（不要 import `ApiDependencies`，
@@ -421,41 +432,79 @@ worker 16 / web 947 全过。
 > `pnpm --filter @weftcanvas/canvas-api typecheck && pnpm --filter @weftcanvas/canvas-api test`
 > （602 单测 + 14 脚本测试必须全过），然后独立提交。
 
-1. **cloud-projects + invitations**（约 280 行，app.ts 当前 711 行起）：
+1. ~~**cloud-projects + invitations**~~ **已完成（`de929b1`）** → `project/routes.ts`，
+   访问辅助 → `media/access.ts`，结构类型 → `project/api.ts`。（原说明如下，留作参考）：
    `ProjectApi` / `CollaborationApi` 结构类型已存在于 app.ts 顶部，一并搬到
    `project/api.ts`；media 访问辅助（`resolveMediaQuotaBytes` /
    `resolveProjectMediaAccess` / `scopeMediaUploadIntent` / `mediaProjectUrl`）
    搬进 `media/access.ts`；还要带上 `cloudProjectsUnavailable` /
    `collaborationUnavailable` / `setCloudProjectEtag` / `optionalProjectOwnerId` /
    `resolveAgentAccess`。
-2. **agent**（约 680 行，最大）：skills / models / conversations / runs /
+2. ~~**agent**~~ **已完成（`376dac9` / `ba980f9`）** → `agent/skills-routes.ts`、
+   `agent/conversation-routes.ts`、`agent/connector-routes.ts`、`agent/connector-http.ts`、
+   `connectors/routes.ts`（会话侧与令牌侧分文件，鉴权方式不同，改动时需看清落点）。
+   （原说明如下，留作参考）：skills / models / conversations / runs /
    connectors / canvas-control / external poll+results / internal blender run /
    MCP。依赖 `anonymousAgentGuard`（实例注入）、`anonymousAgentRateLimited`、
    `agentUnavailable`、`connectorUnavailable`、`constantTimeEquals`、
    `readBearerToken`、`connectorFailure`、`anonymousAgentCookie`、
    `resolveAgentAccess`。建议先拆 `agent/skills-routes.ts` +
    `agent/conversation-routes.ts` 两片再合。
-3. **media**（约 630 行）：uploads / multipart / cleanup / content /
+3. ~~**media**~~ **已完成（`1824074`）** → `media/upload-routes.ts`、
+   `media/content-routes.ts`、`media/library-routes.ts`、`media/http.ts`。
+   （原说明如下，留作参考）：uploads / multipart / cleanup / content /
    provider-reference；依赖 `readContentLength`、`parseByteRange`、
    `mediaUnavailable`、`scopeMediaUploadIntent`、`resolveProjectMediaAccess`。
    先拆 `media/upload-routes.ts` 与 `media/content-routes.ts` 两片。
-4. **web 侧**：`custom-api.ts`（3162 行）先抽协议适配段（builtin/gemini/anthropic
-   请求装配，纯函数）；`canvas-store.ts`（2414 行）先抽纯 helper（assistant
-   消息构建、参数归一）；`node-generation-panel.tsx`（2446 行）最后。
-   `direct-generation-studio.tsx` 有另一会话未提交在制品，等它落地或由该会话
-   自行拆分。
-5. **既有 flake（§7.3）**：`prompt-hub-service.test.ts` 全量并行下的
-   unhandled ENOENT 需要单独修（建议方向：暂存文件的惰性打开与 finally-unlink
-   之间加"先消费后清理"的保证，或让幂等路径显式 drain source 流）。
+4. ~~**web 侧**~~ **部分完成（`f5e5fb9` / `6dd772d` / `d56495f`）**：
+   `custom-api.ts` 的协议档案归一化层 → `lib/custom-api-protocol.ts`；
+   `canvas-store.ts` 的纯几何/产物计算 → `lib/canvas-node-projection.ts`，
+   并为后者补了直接单测。**仍待办**：`node-generation-panel.tsx`（2446 行）与
+   `direct-generation-studio.tsx`（该文件的未提交在制品已由所属会话提交，可独立
+   评估了）的组件级拆分——这两处属于组件结构拆分，不再是纯函数搬移，需要单独的
+   验收标准。
+5. ~~**既有 flake（§7.3）**~~ **已修复（`6f38cd2`）**，见 §7.3。
 
-## 8. 交付状态（2026-10-17）
+## 7.5 本轮增量（2026-10-17，api 域拆分续作）
 
-- 私有分支 `fix/security-remediation`：安全修复 16 提交 + 重构 8 提交
-  （`ff2aac4` → `6e9be4d`），全部已推送。
-- 公开仓 main：本轮重构已物化推送（详见 OSS-SYNC 发布记录）；上一轮
-  `ac074e7` 的 CI 三作业全绿
+| 提交      | 内容                                                                                                                                          |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `de929b1` | 云项目与协作成域 → `project/routes.ts`（14 条）+ `project/api.ts` + `media/access.ts`                                                         |
+| `376dac9` | Agent 会话与技能成域 → `agent/skills-routes.ts`、`agent/conversation-routes.ts`、`agent/api.ts`                                               |
+| `ba980f9` | 本机连接与用户侧反向连接成域 → `agent/connector-{http,routes}.ts`、`connectors/routes.ts`                                                     |
+| `1824074` | 素材域成域 → `media/upload-routes.ts`、`media/content-routes.ts`、`media/library-routes.ts`、`media/http.ts`                                  |
+| `6f38cd2` | §7.3 flake 修复 + 回归测试                                                                                                                    |
+| `f5e5fb9` | web 协议档案层独立 → `lib/custom-api-protocol.ts`（类型 + 归一化器 + 路径守卫；`custom-api.ts` 单向依赖并重导出，导入路径不变）               |
+| `6dd772d` | web 节点产物投影纯函数独立 → `lib/canvas-node-projection.ts`（14 个纯函数；`currentDefaultNodeAspectRatio` 读 store，留在 `canvas-store.ts`） |
+| `d56495f` | 上述纯函数的直接单测（15 条）                                                                                                                 |
+
+app.ts：2347 → 543 行（相对重构起点 4575 行，-88.1%）。每步独立提交，每步
+`pnpm --filter @weftcanvas/canvas-api typecheck` 与全量 api 测试通过。
+
+**web 侧（先评估后执行）。** 协议档案归一化器在 `custom-api.ts` 内有 10 处调用，
+外部还有 `custom-api-store.ts` 与对话框类型导入，直接切段会形成循环依赖。实际切法
+是把**纯归一化层**独立出去：新模块只依赖类型和自身辅助函数，原文件单向导入并在
+原位置重导出 `normalizeProtocolOverride` 与四个类型，因此
+`custom-api-store.ts`、`custom-api-dialog.tsx` 与 53 条既有单测的导入路径全部不变。
+`canvas-store.ts` 同法：只有不读 store 的几何/产物计算被搬走，读 UI 偏好的那一个
+helper 留在原处。最后为抽出的纯函数补了直接单测（15 条），使这次拆分有独立验证，
+而不是只靠间接覆盖。
+
+尺寸：`custom-api.ts` 3162 → 2986 行、新增 `custom-api-protocol.ts` 206 行；
+`canvas-store.ts` 2414 → 2265 行、新增 `canvas-node-projection.ts` 184 行。
+
+**仍待办**：`node-generation-panel.tsx`（2446 行）与
+`direct-generation-studio.tsx` 的组件级拆分，按 §7.4 第 4 条放在最后。
+
+## 8. 交付状态（2026-10-17，更新）
+
+- 私有分支 `fix/security-remediation`：安全修复 16 提交 + 重构 8 提交（`ff2aac4` → `6e9be4d`）
+  - 本轮 5 个提交（`de929b1` → `6f38cd2`）。本轮提交仅在本地，未推送。
+- 公开仓 main：上一轮 `ac074e7` 的 CI 三作业全绿
   [38950940934](https://github.com/study666-creme/weftcanvas/actions/runs/38950940934)。
-- 全量回归：`pnpm typecheck` 8 包通过；contracts 77 / agent 89 / worker 16 /
-  web 947 / api 602（+25 条 PG 集成按门控跳过，CI 单独跑）+ 14 脚本测试通过。
-- 未完成项：§7.4 的 cloud-projects / agent / media 三个域，web 侧四个巨型
-  模块，以及 §7.3 的既有 flake。均有明确切分点与顺序。
+  本轮提交尚未物化到公开仓。
+- 全量回归（本轮末，本地）：`pnpm typecheck` 全部包通过；contracts 80 / agent 92 /
+  worker 16 / api 609（+25 条 PG 集成按门控跳过，CI 单独跑）+ 14 脚本测试通过；
+  web 967。计数含其他会话并行新增的用例。
+- 未完成项：web 侧 `node-generation-panel.tsx` 与 `direct-generation-studio.tsx`
+  的组件级拆分（§7.4 第 4 条）。

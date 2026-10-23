@@ -24,6 +24,57 @@
     0 42px 88px -40px rgb(0 0 0 / 82%);
 }
 
+/* 界面设置是独立面板（不再挂在设置中心里）：贴右侧竖排，画布左半边始终可见，
+   改完立刻能看到效果。窄屏落回底部一张矮卡片。 */
+.wc-ui-settings.wc-appearance-panel {
+  top: 64px;
+  right: 14px;
+  bottom: 96px;
+  left: auto;
+  display: grid;
+  width: min(408px, calc(100vw - 28px));
+  height: auto;
+  grid-template-columns: minmax(0, 1fr);
+  /* 头部 + 视觉/交互页签 + 内容（没有板块页签那一行） */
+  grid-template-rows: 44px auto minmax(0, 1fr);
+  padding: 0;
+  overflow: hidden;
+  transform: none;
+}
+
+.wc-ui-settings.wc-appearance-panel.is-open {
+  transform: none;
+}
+
+/* 窄栏里分组只能单列排；每组内部仍是一行（列数由下面各 --nodes/--edges 规则钉住）。 */
+.wc-ui-settings.wc-appearance-panel .wc-ui-settings-panel {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* 界面设置里没有板块页签：组件用 hidden 关掉它，但 .wc-ui-settings-tabs 自带
+   display:flex，作者样式会盖过 [hidden] 的 UA 规则，必须显式再压一次。 */
+.wc-ui-settings.wc-appearance-panel .wc-ui-settings-tabs[hidden] {
+  display: none;
+}
+
+.wc-ui-settings.wc-appearance-panel .wc-ui-settings-tabs {
+  height: auto;
+  flex-wrap: wrap;
+  overflow-x: visible;
+  row-gap: 2px;
+}
+
+@media (max-width: 719px) {
+  .wc-ui-settings.wc-appearance-panel {
+    top: auto;
+    right: 10px;
+    left: 10px;
+    bottom: 82px;
+    width: auto;
+    height: min(72vh, 560px);
+  }
+}
+
 /* API 配置 / 模型 / 本地保存 / 协作板块：没有子 tab 行，内容区直接吃满剩余高度 */
 .wc-ui-settings.wc-appearance-toolbar[data-section="apis"],
 .wc-ui-settings.wc-appearance-toolbar[data-section="models"],
@@ -297,7 +348,12 @@
   grid-template-columns: repeat(5, minmax(46px, 1fr));
 }
 
-.wc-ui-settings .wc-appearance-segmented.wc-appearance-segmented--nodes,
+/* 节点 6 档（疏朗/无界/经典/纯黑/巨幕/敛锋）；连线仍是 5 档。列数必须跟着
+   选项数走，否则多出来的一档会掉到第二行（e2e/appearance-panel-rows.spec.ts 钉住）。 */
+.wc-ui-settings .wc-appearance-segmented.wc-appearance-segmented--nodes {
+  grid-template-columns: repeat(6, minmax(44px, 1fr));
+}
+
 .wc-ui-settings .wc-appearance-segmented.wc-appearance-segmented--edges {
   grid-template-columns: repeat(5, minmax(48px, 1fr));
 }

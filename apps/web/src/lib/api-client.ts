@@ -84,17 +84,24 @@ import {
 
 type Parser<T> = { parse(value: unknown): T };
 
-const GENERATION_SUBMIT_TIMEOUT_MS = 6_000;
-const GENERATION_SUBMIT_RETRY_DELAYS_MS = [250, 750, 1_500] as const;
+// 这些预算是按国内到生产回源链路的实测延迟定的（2026-10-20 实测：最便宜的
+// GET /api/health 12 次里 8 次整请求超时，成功那几次 TTFB 1–5 秒、尾部 20 秒
+// 以上）。失稳时响应是「被丢了」而不是「被拒绝」：旧的 6 秒提交预算会把一次
+// 仍在路上的成功任务判成失败，节点随后锁成「待确认」。提交带幂等键，超时重试
+// 不会产生第二笔扣费，所以多等一轮比放弃便宜。
+const GENERATION_SUBMIT_TIMEOUT_MS = 15_000;
+const GENERATION_SUBMIT_RETRY_DELAYS_MS = [750, 2_500] as const;
 const GENERATION_EVENT_SILENCE_TIMEOUT_MS = 30_000;
 const GENERATION_FETCH_TIMEOUT_MS = 12_000;
 const OBSERVATION_MAX_BACKOFF_MS = 30_000;
-// Consecutive transport failures (SSE disconnects, poll fetch errors, 5xx/429
-// statuses) that stop observation once spent. This budget is separate from the
-// version/progress-stagnation budget: a successful fetch of the same
-// nonterminal snapshot proves transport recovered and must not itself reset
-// every no-progress/exhaustion deadline indefinitely.
+// 连续传输失败（SSE 掉线、轮询 fetch 失败、5xx/429）把观测降级为低速重试，
+// 而不是直接停表：停表在丢包的链路上等于节点永远停在转圈上，而一次重试只花
+// 一个请求。降级期间每 60 秒试一次，成功即恢复常规节奏；连续失败到上限才真的
+// 放弃。这个预算与进度停滞预算分开：一次成功但未推进的快照证明传输已经恢复，
+// 不应该无限重置未推进/耗尽的判定。
 const OBSERVATION_MAX_TRANSPORT_FAILURES = 8;
+const OBSERVATION_DEGRADED_RETRY_MS = 60_000;
+const OBSERVATION_MAX_DEGRADED_POLLS = 30;
 // A job whose public snapshot (version/status/progress) never advances for a
 // conservative state-aware window stops spinning and marks the node with the
 // explicit temporarily-unavailable state instead of an ordinary running
@@ -112,8 +119,6 @@ const OBSERVATION_STAGNATION_WINDOW_BY_STATUS: Readonly<Record<string, number>> 
 // A delivery-count backstop for the same stagnant snapshot so a throttled or
 // clock-skewed tab still converges, independent of wall-clock timers.
 const OBSERVATION_STAGNATION_MAX_DELIVERIES = 2400;
-const TRANSIENT_REQUEST_TIMEOUT_MS = 8_000;
-const TRANSIENT_REQUEST_RETRY_DELAYS_MS = [250, 750] as const;
 // 素材确认完成的退避要明显宽于普通读请求：服务端那次失败本身就等过一轮连接
 // 超时（约 5 秒），紧接着重试大概率还落在同一段抖动里。两次重试总计约 4 秒
 // 等待，在存储真的不可用时会由服务端快速失败兜住，不会把用户晾着。
@@ -121,6 +126,8 @@ const MEDIA_COMPLETE_RETRY_DELAYS_MS = [700, 3_000] as const;
 const MULTIPART_UPLOAD_CONCURRENCY = 4;
 const MULTIPART_RECONCILE_TIMEOUT_MS = 120_000;
 const MULTIPART_RECONCILE_INITIAL_DELAY_MS = 500;
+const TRANSIENT_REQUEST_TIMEOUT_MS = 10_000;
+const TRANSIENT_REQUEST_RETRY_DELAYS_MS = [400, 1_200, 3_000] as const;
 
 export class CanvasApiError extends Error {
   constructor(
@@ -160,12 +167,15 @@ export async function logoutIdentity() {
 }
 
 export async function listCloudProjects() {
-  const response = await request("/api/v1/cloud-projects", cloudProjectListResponseSchema);
+  const response = await requestWithTransientRetry(
+    "/api/v1/cloud-projects",
+    cloudProjectListResponseSchema,
+  );
   return response.data;
 }
 
 export async function fetchCloudProject(projectId: string, projectOwnerId?: string) {
-  const response = await request(
+  const response = await requestWithTransientRetry(
     cloudProjectPath(projectId, projectOwnerId),
     cloudProjectResponseSchema,
   );
@@ -214,7 +224,10 @@ export async function deleteServerMedia(mediaId: string): Promise<PublicMedia> {
 
 /** 盘点账号下全部云端素材及其项目绑定关系，用于“清理云端资源”。 */
 export async function listCloudResources() {
-  const response = await request("/api/v1/media", cloudResourceListResponseSchema);
+  const response = await requestWithTransientRetry(
+    "/api/v1/media",
+    cloudResourceListResponseSchema,
+  );
   return response.data;
 }
 
@@ -236,7 +249,7 @@ export async function listCloudProjectMembers(
   invitations: CloudProjectInvitation[];
   seatUsage?: { limit: number; used: number } | null;
 }> {
-  const response = await request(
+  const response = await requestWithTransientRetry(
     `${cloudProjectPath(projectId, projectOwnerId, "/members")}`,
     cloudProjectMemberListResponseSchema,
   );
@@ -278,7 +291,7 @@ export async function revokeCloudProjectInvitation(projectId: string, invitation
 }
 
 export async function listCloudProjectInvitations(): Promise<CloudProjectInvitation[]> {
-  const response = await request(
+  const response = await requestWithTransientRetry(
     "/api/v1/cloud-project-invitations",
     cloudProjectInvitationListResponseSchema,
   );
@@ -305,18 +318,24 @@ export async function declineCloudProjectInvitation(invitationId: string) {
 }
 
 export async function fetchWallet() {
-  const response = await request("/api/v1/wallet", walletResponseSchema);
+  const response = await requestWithTransientRetry("/api/v1/wallet", walletResponseSchema);
   return response.data;
 }
 
 export async function fetchWalletLedger(limit = 20) {
   const query = new URLSearchParams({ limit: String(limit) });
-  const response = await request(`/api/v1/wallet/ledger?${query}`, walletLedgerResponseSchema);
+  const response = await requestWithTransientRetry(
+    `/api/v1/wallet/ledger?${query}`,
+    walletLedgerResponseSchema,
+  );
   return response.data.items;
 }
 
 export async function fetchWalletProducts() {
-  const response = await request("/api/v1/wallet/products", walletProductsResponseSchema);
+  const response = await requestWithTransientRetry(
+    "/api/v1/wallet/products",
+    walletProductsResponseSchema,
+  );
   return {
     products: response.data,
     customCreditTopUp: response.customCreditTopUp ?? null,
@@ -359,7 +378,7 @@ export async function createWalletCheckout(value: WalletCheckoutRequest) {
 }
 
 export async function fetchWalletOrder(orderNo: string) {
-  const response = await request(
+  const response = await requestWithTransientRetry(
     `/api/v1/wallet/orders/${encodeURIComponent(orderNo)}`,
     walletOrderResponseSchema,
   );
@@ -377,7 +396,7 @@ export async function redeemWalletCode(value: WalletRedeemRequest) {
 
 export async function listAgentConversations(projectId: string, limit = 30) {
   const query = new URLSearchParams({ projectId, limit: String(limit) });
-  const response = await request(
+  const response = await requestWithTransientRetry(
     `/api/v1/agent/conversations?${query}`,
     agentConversationListResponseSchema,
   );
@@ -386,7 +405,7 @@ export async function listAgentConversations(projectId: string, limit = 30) {
 
 export async function fetchAgentModels(force = false) {
   const path = force ? `/api/v1/agent/models?refresh=${Date.now()}` : "/api/v1/agent/models";
-  const response = await request(path, agentModelCatalogResponseSchema);
+  const response = await requestWithTransientRetry(path, agentModelCatalogResponseSchema);
   return response.data;
 }
 
@@ -400,7 +419,7 @@ export async function createAgentConversation(value: AgentConversationCreateRequ
 }
 
 export async function fetchAgentConversation(conversationId: string) {
-  const response = await request(
+  const response = await requestWithTransientRetry(
     `/api/v1/agent/conversations/${encodeURIComponent(conversationId)}`,
     agentConversationDetailResponseSchema,
   );
@@ -462,7 +481,10 @@ export async function recordAgentExecutionReceipt(
 
 /** 用户自导入的 Agent 技能清单（不带正文）。部署没有技能库时整个面 404。 */
 export async function listAgentSkills() {
-  const response = await request("/api/v1/agent/skills", agentSkillListResponseSchema);
+  const response = await requestWithTransientRetry(
+    "/api/v1/agent/skills",
+    agentSkillListResponseSchema,
+  );
   return response.data;
 }
 
@@ -614,7 +636,16 @@ export async function createGenerationQuote(value: GenerationQuoteRequest) {
   return response.data;
 }
 
-export async function submitGenerationJob(value: GenerationJobSubmission) {
+export type GenerationSubmitRetryProgress = {
+  /** 下一次尝试的序号（从 1 开始计）与总尝试次数。 */
+  attempt: number;
+  attempts: number;
+};
+
+export async function submitGenerationJob(
+  value: GenerationJobSubmission,
+  options: { onRetry?: (progress: GenerationSubmitRetryProgress) => void } = {},
+) {
   const init = jsonRequest("POST", value);
   for (let attempt = 0; attempt <= GENERATION_SUBMIT_RETRY_DELAYS_MS.length; attempt += 1) {
     try {
@@ -629,7 +660,13 @@ export async function submitGenerationJob(value: GenerationJobSubmission) {
       // returns the one durable task without another upstream debit.
       if (!isTransientRequestError(error) || attempt === GENERATION_SUBMIT_RETRY_DELAYS_MS.length)
         throw error;
-      await delay(GENERATION_SUBMIT_RETRY_DELAYS_MS[attempt] ?? 0);
+      // 让面板把「还在重试」讲出来：一次十几秒的等待如果没有任何反馈，用户
+      // 只会当成卡死。重试本身是安全的（同一个幂等键）。
+      options.onRetry?.({
+        attempt: attempt + 2,
+        attempts: GENERATION_SUBMIT_RETRY_DELAYS_MS.length + 1,
+      });
+      await delayWithJitter(GENERATION_SUBMIT_RETRY_DELAYS_MS[attempt] ?? 0);
     }
   }
   throw new CanvasApiError(0, "NETWORK_UNAVAILABLE", "无法连接画布服务");
@@ -685,7 +722,7 @@ export async function reconcileGenerationJob(key: string): Promise<PublicGenerat
 
 export async function listGenerationJobs(projectId: string, limit = 50) {
   const query = new URLSearchParams({ projectId, limit: String(limit) });
-  const response = await request(
+  const response = await requestWithTransientRetry(
     `/api/v1/generation-jobs?${query}`,
     generationJobListResponseSchema,
   );
@@ -704,7 +741,7 @@ export async function createMediaUpload(value: MediaUploadRequest) {
 export async function fetchMediaMetadata(mediaId: string, projectId?: string) {
   const path = `/api/v1/media/${encodeURIComponent(mediaId)}`;
   const query = projectId ? `?${new URLSearchParams({ projectId })}` : "";
-  const response = await request(`${path}${query}`, mediaResponseSchema);
+  const response = await requestWithTransientRetry(`${path}${query}`, mediaResponseSchema);
   return response.data;
 }
 
@@ -997,6 +1034,7 @@ export function subscribeGenerationJob(
     onJob: (job: PublicGenerationJob) => void;
     onSessionExpired?: () => void;
     onObservationExhausted?: () => void;
+    onObservationRecovered?: () => void;
   },
 ) {
   let active = true;
@@ -1005,6 +1043,8 @@ export function subscribeGenerationJob(
   let eventWatchdogTimer: number | null = null;
   let eventFailures = 0;
   let transportFailures = 0;
+  let degraded = false;
+  let degradedPolls = 0;
   let pollDelay = 2_000;
   let highestVersion = -1;
   let unknownSince: number | null = null;
@@ -1018,16 +1058,24 @@ export function subscribeGenerationJob(
 
   const recordTransportSuccess = () => {
     transportFailures = 0;
+    if (!degraded) return;
+    degraded = false;
+    degradedPolls = 0;
+    handlers.onObservationRecovered?.();
   };
 
-  // SSE 429/5xx/disconnects and poll fetch timeouts back off with a cap; once
-  // the consecutive transport-failure budget is spent, observation stops and
-  // releases the EventSource/fetch/timers instead of polling forever.
+  // SSE 429/5xx/disconnects and poll fetch timeouts back off with a cap. Once the
+  // consecutive transport-failure budget is spent, observation does not stop:
+  // on a lossy link that leaves the node spinning forever with no way back. It
+  // degrades to one probe a minute instead, and any delivered snapshot restores
+  // the normal cadence. Only a spent degraded budget stops observation for real
+  // (the stagnation budget below still ends a job that is genuinely not moving).
   const recordTransportFailure = () => {
     transportFailures += 1;
-    if (transportFailures >= OBSERVATION_MAX_TRANSPORT_FAILURES) {
+    if (transportFailures >= OBSERVATION_MAX_TRANSPORT_FAILURES && !degraded) {
+      degraded = true;
+      degradedPolls = 0;
       handlers.onObservationExhausted?.();
-      stop();
     }
   };
 
@@ -1124,6 +1172,17 @@ export function subscribeGenerationJob(
       }
       recordTransportFailure();
       if (!active) return;
+      if (degraded) {
+        // 降级窗口：一次失败只消耗一次降级预算，等一分钟后再说。连续失败到
+        // 上限（约半小时）才真正停表，交给用户重开项目。
+        degradedPolls += 1;
+        if (degradedPolls >= OBSERVATION_MAX_DEGRADED_POLLS) {
+          stop();
+          return;
+        }
+        schedulePoll(OBSERVATION_DEGRADED_RETRY_MS);
+        return;
+      }
       const retryAfter =
         cause instanceof CanvasApiError && cause.retryAfterSeconds !== null
           ? cause.retryAfterSeconds * 1_000
@@ -1175,7 +1234,9 @@ export function subscribeGenerationJob(
       eventFailures += 1;
       recordTransportFailure();
       if (!active) return;
-      if (eventFailures >= 2) startPolling();
+      // 已经降级就不再等第二条 SSE 错误：直接交给轮询的低速节奏，避免在坏
+      // 链路上反复重建长连接（每次重建都是一轮完整的握手）。
+      if (eventFailures >= 2 || degraded) startPolling();
       else armEventWatchdog();
     };
     armEventWatchdog();
@@ -1224,7 +1285,7 @@ async function requestWithTransientRetry<T>(
     } catch (error) {
       if (!isTransientRequestError(error) || attempt === TRANSIENT_REQUEST_RETRY_DELAYS_MS.length)
         throw error;
-      await delay(TRANSIENT_REQUEST_RETRY_DELAYS_MS[attempt] ?? 0);
+      await delayWithJitter(TRANSIENT_REQUEST_RETRY_DELAYS_MS[attempt] ?? 0);
     }
   }
   throw new CanvasApiError(0, "NETWORK_UNAVAILABLE", "无法连接画布服务");
@@ -1232,6 +1293,14 @@ async function requestWithTransientRetry<T>(
 
 function delay(milliseconds: number) {
   return new Promise<void>((resolve) => globalThis.setTimeout(resolve, milliseconds));
+}
+
+/**
+ * 退避加 ±30% 抖动：所有节点、所有面板都在同一条丢包链路上重试，固定间隔会
+ * 让它们的重试挤在同一毫秒里，反而把回源打得更堵。
+ */
+function delayWithJitter(milliseconds: number) {
+  return delay(Math.round(milliseconds * (0.7 + Math.random() * 0.6)));
 }
 
 function jsonRequest(method: "POST" | "PUT" | "DELETE", value: unknown): RequestInit {

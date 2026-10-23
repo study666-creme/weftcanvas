@@ -3193,6 +3193,70 @@
   animation: wc-cat-menu-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
+/* 视口定位版菜单：top/bottom/left/width/max-height 由组件按触发器矩形算好写进
+   内联样式，渲染在 body 上（portal），因此不再被生成台的 overflow 与祖先层叠
+   上下文截断，也不会被顶部的工具栏盖住。 */
+.wc-cat-select-menu--floating {
+  position: fixed;
+  right: auto;
+  bottom: auto;
+  z-index: 2400;
+  transform-origin: 50% 100%;
+}
+
+/* 朝下开时从顶边展开，朝上开时从底边展开——动画方向与面板贴住的那条边一致。 */
+.wc-cat-select-menu--floating[data-side="below"] {
+  transform-origin: 50% 0;
+}
+
+/* portal 到 body 的菜单拿不到 .wc-app / .wc-entry-gate 上的 --entry-* 令牌。
+   入口首屏（.wc-entry-gate，图一里的模型选择器）不加载工作台样式表，没有别的
+   地方补这组变量，于是 .wc-cat-select-menu 的 background 声明整条失效——面板
+   变全透明，首屏大标题直接从菜单里透出来。这里就地声明一套等价的入口材质，
+   深浅跟随 <html data-theme>。
+   整段套 :where() 把特异性压成 0，只负责「把变量补上」：画布/生成台上的
+   styles-workbench.css 用同名规则把 --entry-* 重定向到 --wc-*（跟随节点外观
+   档与深浅主题），无论谁先加载都以那份为准。 */
+:where(body > .wc-cat-select-menu) {
+  --entry-surface: #141614;
+  --entry-surface-strong: #1b1e1b;
+  --entry-surface-muted: #101210;
+  --entry-border: rgb(232 238 232 / 11%);
+  --entry-border-strong: rgb(232 238 232 / 22%);
+  --entry-text: #f2f4f1;
+  --entry-muted: #a6aca6;
+  --entry-faint: #6b716c;
+  --entry-scrollbar: rgb(220 217 207 / 18%);
+  --entry-w6: rgb(255 255 255 / 7%);
+  --entry-w8: rgb(255 255 255 / 11%);
+}
+
+:where(:root[data-theme="light"] body > .wc-cat-select-menu) {
+  --entry-surface: #ffffff;
+  --entry-surface-strong: #ffffff;
+  --entry-surface-muted: #eceee9;
+  --entry-border: rgb(0 0 0 / 12%);
+  --entry-border-strong: rgb(0 0 0 / 20%);
+  --entry-text: #171917;
+  --entry-muted: #5c625c;
+  --entry-faint: #7b817b;
+  --entry-scrollbar: rgb(0 0 0 / 22%);
+  --entry-w6: rgb(0 0 0 / 5%);
+  --entry-w8: rgb(0 0 0 / 7%);
+}
+
+/* 触摸设备：菜单的分类标签与触发器按手指热区放大，桌面端尺寸一点不动。 */
+@media (pointer: coarse) {
+  .wc-cat-select-trigger {
+    min-height: 38px;
+  }
+
+  .wc-cat-select-tabs > button {
+    height: 34px;
+    padding: 0 14px;
+  }
+}
+
 @keyframes wc-cat-menu-in {
   from {
     opacity: 0;
@@ -3672,91 +3736,77 @@
 }
 
 .wc-direct-studio-tabs {
-  display: grid;
-  /* 三种生成类型排成**一行三列**（用户 2026-10-16：「一行三列」）：图片 / 视频 / 音频
-     并排，不再折成两列两行。窄屏（≤520px）才降回两列，见底部媒体查询。 */
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: flex;
+  min-width: 0;
+  /* 生成类型是切换器，不是版块（用户 2026-10-16：「功能选项太长了，占据屏幕，
+     每次都要往下翻很多」）。三张 118px 高卡片收成一行 48px 窄条，当前项的描述
+     挪到同一行右侧，纵向空间还给提示词、模型与结果。 */
+  min-height: 48px;
+  padding: 7px 14px;
+  align-items: center;
+  gap: 12px;
   border-bottom: 1px solid var(--entry-border);
   background: var(--entry-surface);
 }
 
-.wc-direct-studio-tabs > button {
-  position: relative;
-  display: grid;
-  min-width: 0;
-  /* 一行三列比原来的两列两行矮了一行，工作台整页跟着短了（用户：「画布工作台页面
-     太短了，搞成以前一样长就行了」）。把这一行的格子撑到两行版块的高度，页面总长
-     回到原样，卡片仍是一行三列。 */
-  min-height: 118px;
-  padding: 11px 16px;
-  grid-template-columns: 22px minmax(0, 1fr) 17px;
-  align-items: center;
-  gap: 12px;
-  border: 0;
-  border-right: 1px solid var(--entry-border);
-  color: var(--entry-muted);
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    color 160ms ease,
-    background-color 160ms ease;
-}
-
-.wc-direct-studio-tabs > button:last-child {
-  border-right: 0;
-}
-
-.wc-direct-studio-tabs > button:hover,
-.wc-direct-studio-tabs > button.is-active {
-  color: var(--entry-text);
+.wc-direct-studio-tablist {
+  display: inline-flex;
+  flex: 0 0 auto;
+  padding: 3px;
+  gap: 2px;
+  border-radius: 10px;
   background: var(--entry-w4);
 }
 
-.wc-direct-studio-tabs > button.is-active::after {
-  position: absolute;
-  right: 20px;
-  bottom: -1px;
-  left: 20px;
-  height: 2px;
-  background: var(--entry-jade);
-  content: "";
-}
-
-.wc-direct-studio-tabs > button > svg {
-  width: 19px;
-  height: 19px;
-  color: var(--entry-jade);
-  stroke-width: 1.55;
-}
-
-.wc-direct-studio-tabs > button > span,
-.wc-direct-studio-tabs strong,
-.wc-direct-studio-tabs small {
-  display: block;
+.wc-direct-studio-tablist > button {
+  display: inline-flex;
   min-width: 0;
+  height: 30px;
+  padding: 0 12px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--entry-muted);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 580;
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    background-color 180ms ease;
 }
 
-.wc-direct-studio-tabs strong {
-  color: inherit;
-  font-size: 13px;
-  font-weight: 640;
+.wc-direct-studio-tablist > button:hover {
+  color: var(--entry-text);
 }
 
-.wc-direct-studio-tabs small {
-  margin-top: 5px;
+.wc-direct-studio-tablist > button.is-active {
+  color: var(--entry-text);
+  background: var(--entry-w9);
+}
+
+.wc-direct-studio-tablist > button > svg {
+  width: 14px;
+  height: 14px;
+  color: var(--entry-muted);
+  stroke-width: 1.7;
+}
+
+.wc-direct-studio-tablist > button:hover > svg,
+.wc-direct-studio-tablist > button.is-active > svg {
+  color: var(--entry-jade);
+}
+
+.wc-direct-studio-tab-hint {
+  min-width: 0;
+  margin-left: auto;
   overflow: hidden;
   color: var(--entry-faint);
-  font-size: 10px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.wc-direct-studio-tabs > button > svg:last-child {
-  width: 15px;
-  height: 15px;
-  justify-self: end;
-  color: var(--entry-jade);
 }
 
 .wc-direct-studio-body {
@@ -4890,19 +4940,24 @@
     padding: 24px 20px 26px;
   }
 
-  .wc-direct-studio-tabs > button {
-    min-height: 68px;
-    padding: 14px 15px;
-    grid-template-columns: 19px minmax(0, 1fr) 14px;
-    gap: 9px;
+  .wc-direct-studio-tabs {
+    padding: 6px 12px;
+    gap: 8px;
   }
 
-  .wc-direct-studio-tabs strong {
-    font-size: 11px;
+  .wc-direct-studio-tablist {
+    flex: 1 1 auto;
   }
 
-  .wc-direct-studio-tabs small {
-    font-size: 9px;
+  .wc-direct-studio-tablist > button {
+    flex: 1 1 0;
+    padding: 0 8px;
+    font-size: 11.5px;
+  }
+
+  /* 窄屏优先把空间给切换器：描述文字让位，切换项本身仍完整可读。 */
+  .wc-direct-studio-tab-hint {
+    display: none;
   }
 
   .wc-direct-result-stage,
@@ -4957,9 +5012,17 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  /* 生成类型同理：一行三列在手机宽度下每格不足 150px，降回两列。 */
-  .wc-direct-studio-tabs {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* 生成类型一行三列在手机宽度下也放得下：图标缩小、内边距收紧即可，
+     不再需要降列（原为两列两行的高卡片）。 */
+  .wc-direct-studio-tablist > button {
+    padding: 0 6px;
+    gap: 4px;
+    font-size: 11px;
+  }
+
+  .wc-direct-studio-tablist > button > svg {
+    width: 13px;
+    height: 13px;
   }
 
   .wc-lightbox {
@@ -4968,14 +5031,6 @@
 
   .wc-lightbox-actions {
     flex-wrap: wrap;
-  }
-
-  .wc-direct-studio-tabs > button {
-    grid-template-columns: 18px minmax(0, 1fr);
-  }
-
-  .wc-direct-studio-tabs > button > svg:last-child {
-    display: none;
   }
 
   .wc-direct-composer-header h3 {
@@ -5291,6 +5346,13 @@
 }
 
 .wc-app[data-theme="light"] .wc-entry-mode-switch > button.is-active {
+  background: var(--entry-surface);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
+}
+
+/* 浅色下切换条底轨是 5% 黑，选中项改用浮起的白底 + 细阴影（与入口首屏的
+   生成类型切换器同一套读法），避免灰上加灰。 */
+.wc-app[data-theme="light"] .wc-direct-studio-tablist > button.is-active {
   background: var(--entry-surface);
   box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
 }

@@ -203,13 +203,13 @@ test("node plus styles switch, persist, and share quick add behavior", async ({
     addedConfigBounds!.y + addedConfigBounds!.height > imageBounds!.y;
   expect(overlapsImage).toBe(false);
 
-  await page.getByLabel("打开 UI 设置").click();
+  await page.getByLabel("打开界面设置").click();
   await page.getByRole("tab", { name: "交互" }).click();
   await page
     .getByRole("group", { name: "节点加号样式" })
     .getByRole("button", { name: "简洁" })
     .click();
-  await page.getByLabel("收起 UI 设置").click();
+  await page.getByLabel("收起界面设置").click();
   await expect(textNode.locator(".wc-node-port-zone--right")).toHaveAttribute(
     "data-node-port-style",
     "compact",
@@ -234,13 +234,13 @@ test("node plus styles switch, persist, and share quick add behavior", async ({
 
 test("studio compact port keeps a quiet core and a 64px hit target", async ({ page }) => {
   await page.goto("/canvas");
-  await page.getByLabel("打开 UI 设置").click();
+  await page.getByLabel("打开界面设置").click();
   await page.getByRole("tab", { name: "交互" }).click();
   await page
     .getByRole("group", { name: "节点加号样式" })
     .getByRole("button", { name: "简洁" })
     .click();
-  await page.getByLabel("收起 UI 设置").click();
+  await page.getByLabel("收起界面设置").click();
   const imageNode = page.locator(
     '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="image"])',
   );
@@ -414,13 +414,13 @@ test("connection can be created port-to-port after fit-view without losing the h
 
 test("compact hit target starts an XYFlow connection outside the visual core", async ({ page }) => {
   await page.goto("/canvas");
-  await page.getByLabel("打开 UI 设置").click();
+  await page.getByLabel("打开界面设置").click();
   await page.getByRole("tab", { name: "交互" }).click();
   await page
     .getByRole("group", { name: "节点加号样式" })
     .getByRole("button", { name: "简洁" })
     .click();
-  await page.getByLabel("收起 UI 设置").click();
+  await page.getByLabel("收起界面设置").click();
   const nodes = page.locator(".react-flow__node-weftcanvas");
   const edges = page.locator(".react-flow__edge");
   const imageNode = page.locator(
@@ -546,13 +546,13 @@ test("compact plus follows the pointer and dropping on blank canvas opens connec
   page,
 }) => {
   await page.goto("/canvas");
-  await page.getByLabel("打开 UI 设置").click();
+  await page.getByLabel("打开界面设置").click();
   await page.getByRole("tab", { name: "交互" }).click();
   await page
     .getByRole("group", { name: "节点加号样式" })
     .getByRole("button", { name: "简洁" })
     .click();
-  await page.getByLabel("收起 UI 设置").click();
+  await page.getByLabel("收起界面设置").click();
   const nodes = page.locator(".react-flow__node-weftcanvas");
   const edges = page.locator(".react-flow__edge");
   const viewport = page.locator(".react-flow__viewport");

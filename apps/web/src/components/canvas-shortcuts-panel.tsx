@@ -1,38 +1,44 @@
 import { Keyboard, Sparkles, X } from "lucide-react";
-import { memo, useEffect, useRef } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 
+import { detectMacPlatform, formatShortcutKeys } from "../lib/shortcut-labels";
+
+/**
+ * 一个组合一颗键帽：`Ctrl+A` / `⌘+A`。旧版把修饰键单独拆成一格写着
+ * 「Ctrl / ⌘」，读起来像没填完的占位符，用户还得自己把两格拼起来才知道按什么。
+ */
 const shortcutGroups = [
   {
     title: "画布导航",
     items: [
-      { keys: ["空格键"], label: "按住平移画布" },
+      { keys: ["空格"], label: "按住平移画布" },
       { keys: ["滚轮"], label: "上下移动画布" },
-      { keys: ["Ctrl", "滚轮"], label: "缩放画布" },
+      { keys: ["Ctrl", "滚轮"], label: "缩放画布（先点节点再缩放更准）" },
       { keys: ["双击空白"], label: "创建节点" },
       { keys: ["Tab"], label: "专注模式：收起 / 恢复界面" },
-      { keys: ["?", "F1"], label: "打开快捷键说明" },
+      { keys: ["?"], label: "打开这个面板（F1 也行）" },
     ],
   },
   {
     title: "选择与编辑",
     items: [
-      { keys: ["Ctrl / ⌘", "A"], label: "全选节点" },
-      { keys: ["Ctrl / ⌘", "C"], label: "复制选中内容" },
-      { keys: ["Ctrl / ⌘", "V"], label: "粘贴内容" },
-      { keys: ["Ctrl / ⌘", "D"], label: "快速复制" },
-      { keys: ["Ctrl / ⌘", "G"], label: "组合选中节点" },
-      { keys: ["Ctrl / ⌘", "Shift", "G"], label: "解散选中组合" },
-      { keys: ["Delete / Backspace"], label: "删除选中内容" },
+      { keys: ["Ctrl", "A"], label: "全选节点" },
+      { keys: ["Ctrl", "C"], label: "复制选中内容" },
+      { keys: ["Ctrl", "V"], label: "粘贴内容" },
+      { keys: ["Ctrl", "D"], label: "快速复制" },
+      { keys: ["Ctrl", "G"], label: "组合选中节点" },
+      { keys: ["Ctrl", "Shift", "G"], label: "解散选中组合" },
+      { keys: ["Delete"], label: "删除选中内容（Backspace 也行）" },
       { keys: ["Esc"], label: "取消选择或关闭面板" },
     ],
   },
   {
     title: "历史",
     items: [
-      { keys: ["Ctrl / ⌘", "Z"], label: "撤销" },
-      { keys: ["Ctrl / ⌘", "Shift", "Z"], label: "重做" },
-      { keys: ["Ctrl / ⌘", "Y"], label: "重做" },
+      { keys: ["Ctrl", "Z"], label: "撤销" },
+      { keys: ["Ctrl", "Shift", "Z"], label: "重做" },
+      { keys: ["Ctrl", "Y"], label: "重做" },
     ],
   },
 ] as const;
@@ -56,6 +62,14 @@ export const CanvasShortcutsPanel = memo(function CanvasShortcutsPanel({
 }) {
   const closeButton = useRef<HTMLButtonElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
+  // 只影响显示：同一个组合在 mac 上是 ⌘+A，在其他平台是 Ctrl+A。
+  const mac = useMemo(
+    () =>
+      typeof navigator === "undefined"
+        ? false
+        : detectMacPlatform(navigator.userAgent, navigator.platform),
+    [],
+  );
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -126,9 +140,7 @@ export const CanvasShortcutsPanel = memo(function CanvasShortcutsPanel({
                 {group.items.map((item) => (
                   <div key={`${group.title}:${item.keys.join("+")}:${item.label}`}>
                     <dt>
-                      {item.keys.map((key) => (
-                        <kbd key={key}>{key}</kbd>
-                      ))}
+                      <kbd>{formatShortcutKeys(item.keys, mac)}</kbd>
                     </dt>
                     <dd>{item.label}</dd>
                   </div>

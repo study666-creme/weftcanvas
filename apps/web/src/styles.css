@@ -1410,6 +1410,63 @@ textarea:focus-visible {
   height: 34px;
 }
 
+/* 文本节点的提示词助手：模型 + 两个动作。与生成条的紧凑控件同高，
+   动作按钮保留文字标签，模型名过长时自己截断。 */
+.wc-node-text-reference-bar {
+  flex-wrap: wrap;
+  height: auto;
+  min-height: 48px;
+}
+
+.wc-text-assist-model {
+  min-width: 110px;
+  flex: 1 1 140px;
+}
+
+.wc-text-assist-model .wc-canvas-select-trigger {
+  height: 30px;
+  min-height: 30px;
+}
+
+.wc-text-assist-action {
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 30px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--wc-text-secondary) 24%, transparent);
+  border-radius: 6px;
+  color: var(--wc-text-secondary);
+  background: color-mix(in srgb, var(--wc-jade) 9%, transparent);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.wc-text-assist-action:hover:not(:disabled),
+.wc-text-assist-action:focus-visible {
+  color: var(--wc-text);
+  border-color: color-mix(in srgb, var(--wc-jade) 46%, transparent);
+  background: color-mix(in srgb, var(--wc-jade) 16%, transparent);
+}
+
+.wc-text-assist-action:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.wc-text-assist-action svg {
+  width: 14px;
+  height: 14px;
+}
+
 @keyframes wc-node-prompt-enter {
   from {
     opacity: 0;
@@ -2817,6 +2874,9 @@ textarea:focus-visible {
 .wc-card-preview-canvas {
   position: relative;
   display: grid;
+  /* 显式 1fr 轨道：隐式 auto 行会按内容撑高，img 的 max-height:100% 就失效，
+     竖版原图会被裁成一条。轨道固定后 max-height 相对定高的网格区域生效。 */
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
   min-height: 0;
   place-items: center;
   overflow: hidden;
@@ -2994,9 +3054,38 @@ textarea:focus-visible {
 }
 
 .wc-asset-library-panel {
+  position: relative;
   display: grid;
   min-height: 0;
   grid-template-columns: 176px minmax(0, 1fr);
+}
+
+.wc-asset-library-panel:focus {
+  outline: none;
+}
+
+/* 拖入媒体文件存入资产库时的覆盖提示；pointer-events 关闭，松手仍落到面板。 */
+.wc-asset-drop-hint {
+  position: absolute;
+  inset: 8px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px dashed color-mix(in srgb, var(--wc-accent) 58%, transparent);
+  border-radius: 8px;
+  color: var(--wc-text);
+  background: color-mix(in srgb, var(--wc-surface-raised) 82%, transparent);
+  font-size: 12px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.wc-asset-drop-hint svg {
+  width: 16px;
+  height: 16px;
+  color: var(--wc-accent);
 }
 
 .wc-agent-drawer {
@@ -4779,6 +4868,15 @@ textarea:focus-visible {
   border-bottom: 1px solid var(--wc-border);
 }
 
+/* 「只保存本地」开关：比目录行矮一点，说明文字用弱化色（它是提示而非状态）。 */
+.wc-local-output-row--preference {
+  min-height: 80px;
+}
+
+.wc-local-output-row--preference .wc-local-output-copy small {
+  color: var(--wc-text-tertiary);
+}
+
 .wc-local-output-actions {
   display: flex;
   align-items: center;
@@ -5895,6 +5993,16 @@ textarea:focus-visible {
     padding-inline: 6px;
   }
 
+  .wc-text-assist-model {
+    min-width: 96px;
+    flex: 1 1 118px;
+    margin-left: 0;
+  }
+
+  .wc-text-assist-action {
+    padding: 0 8px;
+  }
+
   .wc-generation-leading-control {
     min-width: 34px;
     flex-basis: 34px;
@@ -5981,18 +6089,19 @@ textarea:focus-visible {
   }
 }
 
-/* Studio keeps the canvas visible through each node, but a quiet rim and
-   shallow inner light keep even empty media nodes findable on a dark canvas. */
+/* 无界（studio）：节点没有可见的边框。图片出血到节点边缘，节点靠投影离开画布，
+   边界只在指针指向或选中时浮现——这是它与「经典」最直白的区别：一个没有边界，
+   一个是把边界做成主角。 */
 :root[data-node-style="studio"] {
-  --wc-studio-node-border: rgb(31 37 34 / 14%);
+  --wc-studio-node-border: rgb(31 37 34 / 16%);
   --wc-studio-node-highlight: rgb(255 255 255 / 72%);
   --wc-studio-node-inner-rim: rgb(31 37 34 / 6%);
   --wc-studio-node-shade: rgb(31 37 34 / 10%);
-  --wc-studio-node-shadow: rgb(31 37 34 / 22%);
+  --wc-studio-node-shadow: rgb(31 37 34 / 26%);
 }
 
 :root[data-theme="dark"][data-node-style="studio"] {
-  --wc-studio-node-border: rgb(235 240 237 / 21%);
+  --wc-studio-node-border: rgb(235 240 237 / 16%);
   --wc-studio-node-highlight: rgb(255 255 255 / 10%);
   --wc-studio-node-inner-rim: rgb(235 240 237 / 7%);
   --wc-studio-node-shade: rgb(0 0 0 / 26%);
@@ -6000,42 +6109,26 @@ textarea:focus-visible {
 }
 
 :root[data-node-style="studio"] .wc-node-surface {
-  border-color: var(--wc-studio-node-border);
-  border-radius: 7px;
-  background:
-    linear-gradient(
-      180deg,
-      var(--wc-studio-node-highlight) 0,
-      transparent 18%,
-      transparent 72%,
-      var(--wc-studio-node-shade) 100%
-    ),
-    color-mix(in srgb, var(--wc-surface) 76%, transparent);
+  border-color: transparent;
+  border-radius: 14px;
+  background: var(--wc-surface);
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--wc-canvas) 64%, transparent),
-    0 2px 5px var(--wc-studio-node-shadow),
-    0 18px 32px -24px var(--wc-studio-node-shadow);
+    0 1px 2px color-mix(in srgb, var(--wc-studio-node-shadow) 58%, transparent),
+    0 16px 34px -16px var(--wc-studio-node-shadow);
 }
 
+/* 暗色下抬一档底色：没有边框时，节点与画布的差别全靠这点明度。 */
 :root[data-theme="dark"][data-node-style="studio"] .wc-node-surface {
-  background-color: color-mix(in srgb, var(--wc-surface-raised) 82%, transparent);
-}
-
-:root[data-node-style="studio"] .wc-node-surface::after {
-  box-shadow:
-    inset 0 0 0 1px var(--wc-studio-node-inner-rim),
-    inset 0 1px 0 var(--wc-studio-node-highlight),
-    inset 0 -1px 0 var(--wc-studio-node-shade);
+  background-color: var(--wc-surface-raised);
 }
 
 :root[data-node-style="studio"] .wc-node-wrap--image .wc-node-surface,
 :root[data-node-style="studio"] .wc-node-wrap--video .wc-node-surface {
-  border-color: var(--wc-studio-node-border);
+  border-color: transparent;
   background: transparent;
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--wc-canvas) 64%, transparent),
-    0 2px 5px var(--wc-studio-node-shadow),
-    0 18px 32px -24px var(--wc-studio-node-shadow);
+    0 1px 2px color-mix(in srgb, var(--wc-studio-node-shadow) 54%, transparent),
+    0 16px 34px -16px var(--wc-studio-node-shadow);
 }
 
 :root[data-node-style="studio"] .wc-node-media-frame {
@@ -6056,39 +6149,30 @@ textarea:focus-visible {
 }
 
 :root[data-node-style="studio"] .react-flow__node-weftcanvas:hover .wc-node-surface {
-  border-color: color-mix(in srgb, var(--wc-text-secondary) 42%, transparent);
-  background-color: color-mix(in srgb, var(--wc-surface-raised) 76%, transparent);
+  border-color: var(--wc-studio-node-border);
   box-shadow:
-    inset 0 1px 0 var(--wc-studio-node-highlight),
-    0 1px 2px var(--wc-studio-node-shadow),
-    0 14px 26px -21px var(--wc-studio-node-shadow);
+    0 2px 4px color-mix(in srgb, var(--wc-studio-node-shadow) 54%, transparent),
+    0 20px 40px -18px var(--wc-studio-node-shadow);
   transform: translateY(-1px);
 }
 
 :root[data-node-style="studio"] .react-flow__node-weftcanvas.selected .wc-node-surface {
-  border-color: color-mix(in srgb, var(--wc-selection) 72%, transparent);
-  background-color: color-mix(in srgb, var(--wc-surface-raised) 78%, transparent);
+  border-color: color-mix(in srgb, var(--wc-selection) 74%, transparent);
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--wc-selection) 20%, transparent),
-    inset 0 1px 0 var(--wc-studio-node-highlight),
-    0 1px 2px var(--wc-studio-node-shadow),
-    0 16px 28px -21px var(--wc-studio-node-shadow);
+    0 0 0 2px color-mix(in srgb, var(--wc-selection) 22%, transparent),
+    0 20px 40px -18px var(--wc-studio-node-shadow);
   transform: translateY(-1px);
 }
 
 :root[data-node-style="studio"] .react-flow__node-weftcanvas.dragging .wc-node-surface {
   border-color: color-mix(in srgb, var(--wc-selection) 56%, transparent);
-  background-color: color-mix(in srgb, var(--wc-surface) 70%, transparent);
   box-shadow: 0 4px 10px -8px var(--wc-studio-node-shadow);
   transform: translateY(1px) scale(0.997);
 }
 
 :root[data-node-style="studio"] .wc-workspace.is-overview-zoom .wc-node-surface {
-  border-color: color-mix(in srgb, var(--wc-text-secondary) 26%, transparent);
-  background-color: color-mix(in srgb, var(--wc-surface-raised) 90%, transparent);
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--wc-canvas) 72%, transparent),
-    0 3px 10px var(--wc-studio-node-shadow);
+  border-color: color-mix(in srgb, var(--wc-text-secondary) 22%, transparent);
+  box-shadow: 0 2px 8px var(--wc-studio-node-shadow);
 }
 
 :root[data-node-style="studio"] .wc-node-wrap[data-node-status="running"] .wc-node-surface {
@@ -6204,29 +6288,49 @@ textarea:focus-visible {
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--wc-text) 7%, transparent);
 }
 
+/* 经典（classic）——「相纸」。
+   它是唯一一档把边框当成主角的材质：方角 + 一道实线细边框 + 7px 纸边，
+   图片被压在这圈纸边上，像一张贴到画布里的印相。没有模糊阴影——纸贴在桌上
+   只有一条接触线，不会浮起来。和无界（无边框、大圆角、靠投影浮起）正好相反。 */
 :root[data-node-style="classic"] .wc-node-surface {
-  border-color: color-mix(in srgb, var(--wc-border-strong) 82%, var(--wc-border));
-  border-radius: 10px;
-  box-shadow: var(--wc-shadow-node);
+  border-color: color-mix(in srgb, var(--wc-text) 30%, var(--wc-border));
+  border-radius: 3px;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--wc-canvas) 22%, transparent),
+    0 1px 2px rgb(0 0 0 / 20%);
 }
 
-:root[data-node-style="classic"] .wc-node-surface::after {
+/* 纸边：给媒体容器加内距，图片因此从四边各让出 7px。 */
+:root[data-node-style="classic"] .wc-node-wrap--image .wc-node-media-body,
+:root[data-node-style="classic"] .wc-node-wrap--video .wc-node-media-body,
+:root[data-node-style="classic"] .wc-node-wrap--audio .wc-node-media-body {
+  padding: 7px;
+  background: var(--wc-surface);
+}
+
+/* 印相本身：方角 + 一圈发丝边，跟纸边分开。 */
+:root[data-node-style="classic"] :is(.wc-node-media-frame, .wc-media-empty) {
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wc-text) 14%, transparent);
+}
+
+:root[data-node-style="classic"] .wc-node-wrap--image .wc-node-surface,
+:root[data-node-style="classic"] .wc-node-wrap--video .wc-node-surface {
+  background: var(--wc-surface);
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--wc-text) 4%, transparent),
-    inset 0 1px 0 color-mix(in srgb, var(--wc-text) 8%, transparent),
-    inset 0 -1px 0 rgb(0 0 0 / 28%);
+    0 0 0 1px color-mix(in srgb, var(--wc-canvas) 22%, transparent),
+    0 1px 2px rgb(0 0 0 / 20%);
 }
 
 :root[data-theme="dark"][data-node-style="classic"] .wc-node-wrap--image .wc-node-surface,
 :root[data-theme="dark"][data-node-style="classic"] .wc-node-wrap--video .wc-node-surface {
-  background: color-mix(in srgb, #090a0a 88%, var(--wc-surface));
-  box-shadow: var(--wc-shadow-node);
+  border-color: color-mix(in srgb, var(--wc-text) 34%, var(--wc-border));
+  background: color-mix(in srgb, #1b1c1c 92%, var(--wc-surface));
 }
 
 :root[data-theme="light"][data-node-style="classic"] .wc-node-wrap--image .wc-node-surface,
 :root[data-theme="light"][data-node-style="classic"] .wc-node-wrap--video .wc-node-surface {
   background: var(--wc-surface);
-  box-shadow: var(--wc-shadow-node);
 }
 
 :root[data-chrome-style="classic"] .wc-node-prompt-row,
@@ -8200,4 +8304,298 @@ textarea:focus-visible {
 
 .wc-startup-error button:hover {
   background: rgb(255 255 255 / 14%);
+}
+
+/* --- Agent 工作区布局：预留右栏，不让抽屉压住底部 dock / 视口控件 ------ */
+.wc-workspace.is-agent-open {
+  --wc-agent-space: clamp(440px, 34vw, 620px);
+}
+
+.wc-workspace.is-agent-open > .wc-flow-shell {
+  width: calc(100% - var(--wc-agent-space));
+}
+
+@media (max-width: 720px) {
+  .wc-workspace.is-agent-open {
+    --wc-agent-space: 0px;
+  }
+
+  .wc-workspace.is-agent-open > .wc-flow-shell {
+    width: 100%;
+  }
+}
+
+/* --- Agent 引用口与连线（渲染层虚拟节点，不写进项目文档） ------------- */
+.wc-agent-anchor-node {
+  z-index: 1000 !important;
+  pointer-events: auto;
+}
+
+.wc-agent-anchor {
+  display: flex;
+  width: 190px;
+  min-height: 54px;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  border: 1px dashed color-mix(in srgb, var(--wc-accent) 52%, var(--wc-border-strong));
+  border-radius: 10px;
+  color: var(--wc-text-secondary);
+  background: color-mix(in srgb, var(--wc-surface-raised) 88%, var(--wc-canvas));
+  box-shadow: 0 8px 22px rgb(0 0 0 / 12%);
+}
+
+.wc-agent-anchor.is-selected {
+  border-color: var(--wc-accent);
+}
+
+.wc-agent-anchor-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--wc-accent);
+  background: var(--wc-accent-soft);
+}
+
+.wc-agent-anchor-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.wc-agent-anchor-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.wc-agent-anchor-copy strong {
+  color: var(--wc-text);
+  font-size: 12px;
+  font-weight: 620;
+  line-height: 1.1;
+}
+
+.wc-agent-anchor-copy small {
+  overflow: hidden;
+  color: var(--wc-text-tertiary);
+  font-size: 10px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wc-agent-anchor .wc-agent-anchor-handle {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid color-mix(in srgb, var(--wc-accent) 66%, var(--wc-border-strong));
+  background: var(--wc-surface-raised);
+}
+
+.wc-agent-link-edge .react-flow__edge-path {
+  stroke: color-mix(in srgb, var(--wc-accent) 72%, var(--wc-border-strong));
+  stroke-dasharray: 5 4;
+  stroke-width: 1.5;
+}
+
+/* --- Agent composer：附件托盘 + 两行控制区 ---------------------------- */
+.wc-agent-drawer--refined .wc-agent-composer {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.wc-agent-composer-footer {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 7px 7px;
+  border-top: 1px solid color-mix(in srgb, var(--wc-border) 80%, transparent);
+}
+
+.wc-agent-composer-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.wc-agent-composer-row--send .wc-agent-model-field {
+  flex: 1 1 auto;
+}
+
+.wc-agent-attach-button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--wc-border-strong) 60%, var(--wc-border));
+  border-radius: 7px;
+  color: var(--wc-text-secondary);
+  background: color-mix(in srgb, var(--wc-surface-raised) 62%, transparent);
+}
+
+.wc-agent-attach-button:hover:not(:disabled) {
+  color: var(--wc-text);
+  background: color-mix(in srgb, var(--wc-surface-strong) 58%, transparent);
+}
+
+.wc-agent-attach-button:disabled {
+  opacity: 0.45;
+}
+
+.wc-agent-attach-button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.wc-agent-attachment-tray {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 10px 2px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.wc-agent-attachment,
+.wc-agent-link-chip {
+  display: inline-flex;
+  max-width: 210px;
+  height: 34px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 5px 3px 3px;
+  border: 1px solid color-mix(in srgb, var(--wc-border-strong) 62%, var(--wc-border));
+  border-radius: 7px;
+  color: var(--wc-text-secondary);
+  background: color-mix(in srgb, var(--wc-surface-raised) 72%, transparent);
+  font-size: 11px;
+}
+
+.wc-agent-attachment > span,
+.wc-agent-link-chip > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wc-agent-attachment img {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.wc-agent-attachment > svg,
+.wc-agent-link-chip > svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin-left: 4px;
+  color: var(--wc-accent);
+}
+
+.wc-agent-attachment button,
+.wc-agent-link-chip button {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 4px;
+  color: var(--wc-text-tertiary);
+}
+
+.wc-agent-attachment button:hover:not(:disabled),
+.wc-agent-link-chip button:hover:not(:disabled) {
+  color: var(--wc-text);
+  background: color-mix(in srgb, var(--wc-surface-strong) 62%, transparent);
+}
+
+.wc-agent-attachment button svg,
+.wc-agent-link-chip button svg {
+  width: 11px;
+  height: 11px;
+}
+
+.wc-agent-link-chip {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--wc-accent) 46%, var(--wc-border-strong));
+}
+
+.wc-agent-media-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 10px 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  color: var(--wc-text-secondary);
+  background: color-mix(in srgb, var(--wc-danger, #b4544a) 10%, transparent);
+  font-size: 11px;
+}
+
+.wc-agent-media-hint svg {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  color: var(--wc-danger, #b4544a);
+}
+
+.wc-agent-message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.wc-agent-message-attachment {
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  width: 78px;
+  height: 60px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--wc-border-strong) 58%, var(--wc-border));
+  border-radius: 6px;
+  color: var(--wc-text-tertiary);
+  background: color-mix(in srgb, var(--wc-surface-muted) 80%, transparent);
+}
+
+.wc-agent-message-attachment img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.wc-agent-message-attachment small {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: #fff;
+  background: rgb(0 0 0 / 52%);
+  font-size: 9px;
+  line-height: 1.2;
+}
+
+.wc-agent-composer-media:empty {
+  display: none;
+}
+
+/* 附件托盘 + 两行 composer 控制区需要比原先单行版本多一点高度。 */
+.wc-agent-drawer.wc-agent-drawer--refined {
+  grid-template-rows: 58px minmax(0, 1fr) clamp(176px, 27vh, 260px);
+}
+
+@media (max-width: 720px) {
+  .wc-agent-drawer.wc-agent-drawer--refined {
+    grid-template-rows: 56px minmax(0, 1fr) clamp(160px, 30vh, 220px);
+  }
 }

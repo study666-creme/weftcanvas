@@ -3,10 +3,10 @@ import {
   Clapperboard,
   Eraser,
   Hand,
+  Palette,
   Plus,
   Puzzle,
   Redo2,
-  SlidersHorizontal,
   Trash2,
   Undo2,
   Upload,
@@ -23,15 +23,15 @@ import { useUiShellStore } from "../state/ui-shell-store";
 import { useCreatableNodeDefinitions } from "../lib/node-registry";
 import type { InsertableAsset } from "../lib/insertable-asset";
 import type { WeftcanvasEdge, WeftcanvasNode } from "../types";
-import { AppearanceToolbar } from "./appearance-toolbar";
+import { AppearancePanel, AppearanceToolbar } from "./appearance-toolbar";
 import { CommunityRail } from "./community-rail";
 
 /**
  * 底部 dock + 创建栏。
  *
- * appearanceOpen 状态已提升到 canvas-workspace，触发器由顶部 TopBarSettings 和
- * 底部 UI 设置按钮共用同一个 ref。两个入口共存：顶部设置键（hover 弹 创作设置/
- * 项目协作 / 点击开「设置」面板）+ 底部 dock 的 UI 设置键（点击开同一面板）。
+ * 两个入口对应两个不同的面板：顶部「设置」键开设置中心（API / 模型 / 本地 /
+ * 协作 / 插件），底部 dock 的调色板键开「界面设置」（视觉 / 交互）。界面设置不再
+ * 混在设置中心里，改完样式能立刻在画布上看到效果。
  */
 export const BottomToolbar = memo(function BottomToolbar({
   panMode,
@@ -42,10 +42,9 @@ export const BottomToolbar = memo(function BottomToolbar({
   onImport,
   onRequestClear,
   getCanvasCenter,
-  appearanceOpen,
-  appearanceTriggerRef,
-  onToggleAppearance,
-  onCloseAppearance,
+  settingsOpen,
+  settingsTriggerRef,
+  onCloseSettings,
   onInsertAsset,
 }: {
   panMode: boolean;
@@ -56,10 +55,9 @@ export const BottomToolbar = memo(function BottomToolbar({
   onImport: () => void;
   onRequestClear: () => void;
   getCanvasCenter: () => { x: number; y: number };
-  appearanceOpen: boolean;
-  appearanceTriggerRef: RefObject<HTMLButtonElement | null>;
-  onToggleAppearance: () => void;
-  onCloseAppearance: () => void;
+  settingsOpen: boolean;
+  settingsTriggerRef: RefObject<HTMLButtonElement | null>;
+  onCloseSettings: () => void;
   onInsertAsset?: (asset: InsertableAsset) => void;
 }) {
   const addNode = useCanvasStore((state) => state.addNode);
@@ -76,6 +74,10 @@ export const BottomToolbar = memo(function BottomToolbar({
   const defaultNodeAspectRatio = useUiPreferencesStore((state) => state.defaultNodeAspectRatio);
   const settingsSection = useUiShellStore((state) => state.settingsSection);
   const setSettingsSection = useUiShellStore((state) => state.setSettingsSection);
+  const appearanceOpen = useUiShellStore((state) => state.appearanceOpen);
+  const toggleAppearance = useUiShellStore((state) => state.toggleAppearance);
+  const closeAppearance = useUiShellStore((state) => state.closeAppearance);
+  const appearanceTriggerRef = useRef<HTMLButtonElement>(null);
   const creatableNodes = useCreatableNodeDefinitions();
   const { getZoom, screenToFlowPosition, setCenter } = useReactFlow<
     WeftcanvasNode,
@@ -84,7 +86,11 @@ export const BottomToolbar = memo(function BottomToolbar({
   const dockRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    if (!appearanceOpen) return;
+    if (!settingsOpen && !appearanceOpen) return;
+    const dismiss = () => {
+      if (settingsOpen) onCloseSettings();
+      if (appearanceOpen) closeAppearance();
+    };
     const dismissOutside = (event: PointerEvent) => {
       const target = event.target;
       if (target instanceof Node) {
@@ -93,10 +99,10 @@ export const BottomToolbar = memo(function BottomToolbar({
         // 否则 pointerdown 先关、click 再开，面板永远关不掉。
         if (target instanceof Element && target.closest(".wc-topbar-settings")) return;
       }
-      onCloseAppearance();
+      dismiss();
     };
     const dismissWithKeyboard = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onCloseAppearance();
+      if (event.key === "Escape") dismiss();
     };
     window.addEventListener("pointerdown", dismissOutside);
     window.addEventListener("keydown", dismissWithKeyboard);
@@ -104,11 +110,13 @@ export const BottomToolbar = memo(function BottomToolbar({
       window.removeEventListener("pointerdown", dismissOutside);
       window.removeEventListener("keydown", dismissWithKeyboard);
     };
-  }, [appearanceOpen, onCloseAppearance]);
+  }, [settingsOpen, appearanceOpen, onCloseSettings, closeAppearance]);
 
   useEffect(() => {
-    if (resourceOpen) onCloseAppearance();
-  }, [resourceOpen, onCloseAppearance]);
+    if (!resourceOpen) return;
+    if (settingsOpen) onCloseSettings();
+    if (appearanceOpen) closeAppearance();
+  }, [resourceOpen, settingsOpen, appearanceOpen, onCloseSettings, closeAppearance]);
 
   const createAtCenter = (kind: CanvasNodeKind) => {
     const position = screenToFlowPosition(getCanvasCenter());
@@ -188,11 +196,16 @@ export const BottomToolbar = memo(function BottomToolbar({
 
       <nav ref={dockRef} className="wc-edit-dock" aria-label="编辑工具">
         <AppearanceToolbar
-          open={appearanceOpen}
-          triggerRef={appearanceTriggerRef}
-          onClose={onCloseAppearance}
+          open={settingsOpen}
+          triggerRef={settingsTriggerRef}
+          onClose={onCloseSettings}
           section={settingsSection}
           onSectionChange={setSettingsSection}
+        />
+        <AppearancePanel
+          open={appearanceOpen}
+          triggerRef={appearanceTriggerRef}
+          onClose={closeAppearance}
         />
         <div className="wc-edit-dock-side wc-edit-dock-side--left">
           <button
@@ -223,7 +236,8 @@ export const BottomToolbar = memo(function BottomToolbar({
           title="资产库"
           aria-pressed={resourceOpen}
           onClick={() => {
-            onCloseAppearance();
+            onCloseSettings();
+            closeAppearance();
             onToggleResource();
           }}
         >
@@ -238,18 +252,19 @@ export const BottomToolbar = memo(function BottomToolbar({
           />
         </button>
         <div className="wc-edit-dock-side wc-edit-dock-side--right">
-          {/* UI 设置键：与顶部"设置"键共用 appearanceOpen，两个入口共存 */}
+          {/* 界面设置（视觉 / 交互）：独立面板，不混进顶栏的「设置」 */}
           <button
             type="button"
+            ref={appearanceTriggerRef}
             className={appearanceOpen ? "is-active" : ""}
-            aria-label={appearanceOpen ? "收起 UI 设置" : "打开 UI 设置"}
-            title="UI 设置"
+            aria-label={appearanceOpen ? "收起界面设置" : "打开界面设置"}
+            title="界面设置"
             aria-haspopup="dialog"
             aria-expanded={appearanceOpen}
-            aria-controls="wc-appearance-toolbar"
-            onClick={onToggleAppearance}
+            aria-controls="wc-appearance-panel"
+            onClick={toggleAppearance}
           >
-            <SlidersHorizontal aria-hidden="true" />
+            <Palette aria-hidden="true" />
           </button>
           <button
             type="button"

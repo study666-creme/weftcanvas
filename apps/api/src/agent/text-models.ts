@@ -30,7 +30,30 @@ export type AgentTextModel = {
   meta: string;
   billing: "request" | "token";
   thinking?: { levels: string[]; default: string };
+  mediaInput?: { images: boolean; videos: boolean };
 };
+
+/**
+ * 目录里的 `input.images` 只描述生成类接口，文本对话模型普遍没有这一栏，
+ * 因此多模态能力按主流系列做保守判定；命中不了就当纯文本，界面不会把
+ * 图片发给收不了的模型。视频统一以首帧图片发送，`videos` 留给后续原生输入。
+ */
+const MEDIA_INPUT_RULES: ReadonlyArray<RegExp> = [
+  /^gpt-(?:4o|4\.1|5|6)/i,
+  /^claude-(?:3|4|opus|sonnet|haiku)/i,
+  /^gemini-/i,
+  /^qwen.*vl/i,
+  /^glm-4(?:\.\d+)?v/i,
+  /^grok-[3-9]/i,
+  /^kimi-(?:k2|k3)/i,
+  /^mimo-v/i,
+];
+
+export function agentTextModelMediaInput(id: string) {
+  return MEDIA_INPUT_RULES.some((rule) => rule.test(id))
+    ? { images: true, videos: false }
+    : undefined;
+}
 
 /**
  * 与模型广场一致的厂商口径：同名厂商的模型归进同一个分类标签（GLM 放一起、
@@ -223,6 +246,7 @@ export function buildAgentTextModels(input: {
     const billing: "request" | "token" = requestEligible ? "request" : "token";
     const overrideYuan = overrides.models[model.id]?.price?.yuan;
     const thinking = agentThinkingFromParameters(model.parameters);
+    const mediaInput = agentTextModelMediaInput(model.id);
     entries.push({
       id: model.id,
       label: model.label,
@@ -237,6 +261,7 @@ export function buildAgentTextModels(input: {
             ),
       billing,
       ...(thinking ? { thinking } : {}),
+      ...(mediaInput ? { mediaInput } : {}),
     });
   }
   return entries;

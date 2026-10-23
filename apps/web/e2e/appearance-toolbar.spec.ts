@@ -17,25 +17,31 @@ test("UI settings separate visual previews from interaction preferences and pers
   const dock = page.getByRole("navigation", { name: "编辑工具" });
   await expect(dock.getByLabel("组合选中节点")).toHaveCount(0);
 
-  await dock.getByLabel("打开 UI 设置").click();
-  const settings = page.getByRole("dialog", { name: "UI 设置" });
+  await dock.getByLabel("打开界面设置").click();
+  const settings = page.getByRole("dialog", { name: "界面设置" });
   await expect(settings).toBeVisible();
+  // 界面设置是独立面板：只有视觉 / 交互两个页签，没有 API / 模型那些板块
   await expect(settings.getByRole("tab")).toHaveCount(2);
+  await expect(
+    settings.getByRole("tablist", { name: "界面设置类别" }).getByRole("tab"),
+  ).toHaveCount(2);
   await expect(settings.getByRole("group")).toHaveCount(6);
   const settingsBounds = await settings.boundingBox();
   expect(settingsBounds).not.toBeNull();
   expect(settingsBounds!.height).toBeGreaterThan(280);
   await expect(settings.getByRole("group", { name: "新建媒体节点默认画幅" })).toBeVisible();
+  // 疏朗 / 无界 / 经典 / 纯黑 / 巨幕 / 敛锋
   await expect(settings.getByRole("group", { name: "节点样式" }).getByRole("button")).toHaveCount(
-    4,
+    6,
   );
+  // 疏朗 / 无界 / 经典 / 纯黑（巨幕只进节点档，界面档没有敛锋）
   await expect(
     settings.getByRole("group", { name: "界面与功能栏样式" }).getByRole("button"),
-  ).toHaveCount(3);
+  ).toHaveCount(4);
   await expect(settings.getByRole("button", { name: "深空", exact: true })).toHaveCount(0);
   await expect(settings.getByRole("button", { name: "灵境", exact: true })).toHaveCount(0);
-  await expect(page.locator("html")).toHaveAttribute("data-canvas-style", "airy");
-  await expect(page.locator("html")).toHaveAttribute("data-node-style", "airy");
+  await expect(page.locator("html")).toHaveAttribute("data-canvas-style", "facet");
+  await expect(page.locator("html")).toHaveAttribute("data-node-style", "facet");
   await expect(page.locator("html")).toHaveAttribute("data-chrome-style", "airy");
   await expect(page.locator("html")).toHaveAttribute("data-edge-path-style", "taut");
   await expect(page.locator("html")).toHaveAttribute("data-edge-flow-style", "stream");
@@ -109,6 +115,8 @@ test("UI settings separate visual previews from interaction preferences and pers
   await expect(settings.getByRole("group", { name: "配色方案" }).getByRole("button")).toHaveText([
     "石墨",
     "墨黑",
+    "素陶",
+    "糖彩",
   ]);
   await expect(page.locator("html")).not.toHaveAttribute("data-accent");
   await expect(page.locator(".wc-app")).not.toHaveAttribute("data-accent");
@@ -123,8 +131,9 @@ test("UI settings separate visual previews from interaction preferences and pers
   );
 
   await settings.getByRole("tab", { name: "交互" }).click();
-  await expect(settings.getByRole("group")).toHaveCount(3);
-  await expect(settings.getByRole("group", { name: "鼠标样式" })).toHaveCount(0);
+  // 鼠标样式 / 节点加号样式 / 连线形态 / 连线光效
+  await expect(settings.getByRole("group")).toHaveCount(4);
+  await expect(settings.getByRole("group", { name: "鼠标样式" })).toHaveCount(1);
   await settings
     .getByRole("group", { name: "连线形态" })
     .getByRole("button", { name: "柔弧" })
@@ -136,16 +145,18 @@ test("UI settings separate visual previews from interaction preferences and pers
   await expect(page.locator("html")).toHaveAttribute("data-edge-path-style", "gravity");
   await expect(page.locator("html")).toHaveAttribute("data-edge-flow-style", "stardust");
 
-  // The self-drawn cursor is gone: the native cursor stays visible, and the
-  // one-shot PointerFeedback ring replaces it as the interaction cue.
+  // 自绘光标已经接回画布（`cursorStyle: classic` 是默认档），这里断言的是它
+  // 生效而不是被移除：根节点带 data-cursor-style，body 挂 has-wc-cursor。
+  // 一次性 PointerFeedback 光环仍然作为按压提示存在。
   const pulse = page.getByTestId("pointer-pulse");
   await expect(pulse).toHaveCount(1);
   await expect(pulse).toHaveAttribute("aria-hidden", "true");
-  await expect(page.locator("html")).not.toHaveAttribute("data-cursor-style");
+  await expect(page.locator("html")).toHaveAttribute("data-cursor-style", "classic");
   expect(
     await page.evaluate(() => document.documentElement.classList.contains("has-wc-cursor")),
-  ).toBe(false);
-  expect(await page.evaluate(() => getComputedStyle(document.body).cursor)).not.toBe("none");
+  ).toBe(true);
+  // 自绘光标生效时把原生指针藏掉（body: cursor:none），由 DOM 光标顶替。
+  expect(await page.evaluate(() => getComputedStyle(document.body).cursor)).toBe("none");
   const pulseClassAfterPress = await page.evaluate(() => {
     const ring = document.querySelector<HTMLElement>('[data-testid="pointer-pulse"]')!;
     const node = document.querySelector<HTMLElement>(".react-flow__node-weftcanvas")!;
@@ -210,12 +221,11 @@ test("UI settings separate visual previews from interaction preferences and pers
 
   await dock.getByLabel("平移画布").click();
   await expect(page.locator(".wc-workspace")).toHaveClass(/is-space-pan/);
-  await expect(page.locator(".react-flow__pane")).toHaveCSS("cursor", "grab");
+  // 原生指针在自绘光标档位下统一是 none（样式表把 body 的 cursor 关掉，由 DOM
+  // 光标顶替），所以这里不能再拿 pane 的 grab/pointer 做断言；在暂停/恢复之间
+  // 真正要钉的是星点流动画的播放状态。
   await expect(inbound.first()).toHaveCSS("animation-play-state", "paused");
   await dock.getByLabel("平移画布").click();
-  // 关掉平移后 XYFlow 把面板交还给框选模式（.react-flow__pane.selection），
-  // 原生光标因此是 pointer 而不是 default；关键是它不再是 grab。
-  await expect(page.locator(".react-flow__pane")).toHaveCSS("cursor", "pointer");
   await expect(inbound.first()).toHaveCSS("animation-play-state", "running");
   await page.screenshot({ path: testInfo.outputPath("appearance-toolbar-stardust.png") });
 
@@ -228,13 +238,14 @@ test("UI settings separate visual previews from interaction preferences and pers
   await page.keyboard.press("Escape");
   await expect(settings).toBeHidden();
   await page.reload();
-  await expect(page.locator("html")).toHaveAttribute("data-node-style", "airy");
+  await expect(page.locator("html")).toHaveAttribute("data-node-style", "facet");
   await expect(page.locator("html")).toHaveAttribute("data-chrome-style", "airy");
   await expect(page.locator("html")).toHaveAttribute("data-edge-path-style", "gravity");
   await expect(page.locator("html")).toHaveAttribute("data-edge-flow-style", "stardust");
   await expect(page.locator("html")).not.toHaveAttribute("data-accent");
-  await expect(page.locator("html")).not.toHaveAttribute("data-cursor-style");
-  await page.getByLabel("打开 UI 设置").click();
+  // 光标样式是持久化偏好（默认 classic），刷新后仍然在。
+  await expect(page.locator("html")).toHaveAttribute("data-cursor-style", "classic");
+  await page.getByLabel("打开界面设置").click();
   await expect(
     page
       .getByRole("group", { name: "新建媒体节点默认画幅" })
@@ -259,32 +270,32 @@ test("retired cosmos and lingjing archives normalize onto the airy default", asy
   await page.reload();
 
   const root = page.locator("html");
-  await expect(root).toHaveAttribute("data-node-style", "airy");
+  await expect(root).toHaveAttribute("data-node-style", "facet");
   await expect(root).toHaveAttribute("data-chrome-style", "airy");
-  await expect(root).toHaveAttribute("data-canvas-style", "airy");
+  await expect(root).toHaveAttribute("data-canvas-style", "facet");
   await expect(page.locator(".wc-canvas-entry-loader")).toHaveCount(0, { timeout: 4_000 });
 
-  // The retired tiers must not break the UI: the canvas renders with airy
-  // material and the settings panel still opens with 疏朗 selected.
-  await page.getByLabel("打开 UI 设置").click();
-  const settings = page.getByRole("dialog", { name: "UI 设置" });
+  // The retired tiers must not break the UI: the canvas falls back to the
+  // default 敛锋 material and the settings panel opens with it selected.
+  await page.getByLabel("打开界面设置").click();
+  const settings = page.getByRole("dialog", { name: "界面设置" });
   await expect(settings).toBeVisible();
   await expect(
     settings
       .getByRole("group", { name: "节点样式" })
-      .getByRole("button", { name: "疏朗", exact: true }),
+      .getByRole("button", { name: "敛锋", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   await expect(
     settings
       .getByRole("group", { name: "界面与功能栏样式" })
       .getByRole("button", { name: "疏朗", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator(".wc-node-surface").first()).toHaveCSS("border-radius", "3px");
+  await expect(page.locator(".wc-node-surface").first()).toHaveCSS("border-radius", "20px");
 });
 
 test("quiet generation effect is selectable and persists across reloads", async ({ page }) => {
-  await page.getByLabel("打开 UI 设置").click();
-  const settings = page.getByRole("dialog", { name: "UI 设置" });
+  await page.getByLabel("打开界面设置").click();
+  const settings = page.getByRole("dialog", { name: "界面设置" });
   await settings
     .getByRole("group", { name: "生成动效" })
     .getByRole("button", { name: "光环生成动效" })
@@ -297,7 +308,7 @@ test("quiet generation effect is selectable and persists across reloads", async 
   await expect(settings).toBeHidden();
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-generation-effect", "quiet");
-  await page.getByLabel("打开 UI 设置").click();
+  await page.getByLabel("打开界面设置").click();
   await expect(
     page.getByRole("group", { name: "生成动效" }).getByRole("button", { name: "光环生成动效" }),
   ).toHaveAttribute("aria-pressed", "true");
@@ -377,9 +388,16 @@ test("光环 ring and preview rotate at the aligned ~2.4s cadence with stable ge
   // Apply the seeded project/preferences fixture on a fresh navigation.
   await page.goto("/canvas");
   await expect(page.locator("html")).toHaveAttribute("data-generation-effect", "quiet");
+  // 入场遮罩会吃掉点击：先等它退场，再开面板（其它用例都这么等）。
+  await expect(page.locator(".wc-canvas-entry-loader")).toHaveCount(0, { timeout: 15_000 });
+  // 种子里有一个运行中的生成，工作台会自动进入「生成中已收起界面」的禅模式，
+  // dock 被推到视口外；按 Tab 恢复界面后再开面板。
+  await expect(page.getByText("已收起界面", { exact: false })).toBeVisible();
+  await page.keyboard.press("Tab");
+  await expect(page.getByText("已收起界面", { exact: false })).toHaveCount(0);
 
-  await page.getByLabel("打开 UI 设置").click();
-  const settings = page.getByRole("dialog", { name: "UI 设置" });
+  await page.getByLabel("打开界面设置").click();
+  const settings = page.getByRole("dialog", { name: "界面设置" });
   const quietChoice = settings.locator(".wc-generation-effect-choice.is-quiet");
   await expect(quietChoice).toBeVisible();
 
@@ -451,8 +469,8 @@ test("光环 ring and preview rotate at the aligned ~2.4s cadence with stable ge
 
 test("UI settings remain usable on a narrow viewport", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByLabel("打开 UI 设置").click();
-  const settings = page.getByRole("dialog", { name: "UI 设置" });
+  await page.getByLabel("打开界面设置").click();
+  const settings = page.getByRole("dialog", { name: "界面设置" });
   await expect(settings).toBeVisible();
 
   const bounds = await settings.boundingBox();
@@ -466,7 +484,7 @@ test("UI settings remain usable on a narrow viewport", async ({ page }, testInfo
     .getByRole("button", { name: "柔弧" })
     .click();
   await expect(page.locator("html")).toHaveAttribute("data-edge-path-style", "gravity");
-  await expect(settings.getByRole("group", { name: "鼠标样式" })).toHaveCount(0);
+  await expect(settings.getByRole("group", { name: "鼠标样式" })).toHaveCount(1);
   await settings.getByRole("group", { name: "节点加号样式" }).scrollIntoViewIfNeeded();
   await settings
     .getByRole("group", { name: "节点加号样式" })
@@ -484,6 +502,8 @@ test("UI settings remain usable on a narrow viewport", async ({ page }, testInfo
   await expect(settings.getByRole("group", { name: "配色方案" }).getByRole("button")).toHaveText([
     "石墨",
     "墨黑",
+    "素陶",
+    "糖彩",
   ]);
   await expect(page.locator("html")).not.toHaveAttribute("data-accent");
   const panelOverflow = await settings.evaluate((element) => ({
@@ -514,8 +534,8 @@ test("UI settings panel stays above the bottom dock on a desktop viewport", asyn
   page,
 }, testInfo) => {
   await page.setViewportSize({ width: 2048, height: 1024 });
-  await page.locator('button[aria-label*="UI"]').first().click();
-  const settings = page.locator(".wc-ui-settings");
+  await page.getByLabel("打开界面设置").click();
+  const settings = page.getByRole("dialog", { name: "界面设置" });
   await expect(settings).toBeVisible();
 
   const bounds = await settings.boundingBox();
@@ -535,9 +555,9 @@ test("UI settings panel stays above the bottom dock on a desktop viewport", asyn
 test("default aspect ratio controls new media-node geometry and keeps toolbar creation centered", async ({
   page,
 }) => {
-  const settingsTrigger = page.getByLabel("打开 UI 设置");
+  const settingsTrigger = page.getByLabel("打开界面设置");
   await settingsTrigger.click();
-  const settings = page.getByRole("dialog", { name: "UI 设置" });
+  const settings = page.getByRole("dialog", { name: "界面设置" });
   const defaultAspect = settings.getByRole("group", { name: "新建媒体节点默认画幅" });
   await defaultAspect.getByRole("button", { name: "9:16", exact: true }).click();
   await page.keyboard.press("Escape");
@@ -602,8 +622,8 @@ test("default aspect ratio controls new media-node geometry and keeps toolbar cr
 });
 
 test("node and chrome presets change independently", async ({ page }, testInfo) => {
-  await page.getByLabel("打开 UI 设置").click();
-  const settings = page.getByRole("dialog", { name: "UI 设置" });
+  await page.getByLabel("打开界面设置").click();
+  const settings = page.getByRole("dialog", { name: "界面设置" });
   const nodeStyles = settings.getByRole("group", { name: "节点样式" });
   const chromeStyles = settings.getByRole("group", { name: "界面与功能栏样式" });
   const surface = page.locator(".wc-node-surface").first();
@@ -622,7 +642,7 @@ test("node and chrome presets change independently", async ({ page }, testInfo) 
   await nodeStyles.getByRole("button", { name: "无界", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-node-style", "studio");
   await expect(page.locator("html")).toHaveAttribute("data-chrome-style", "airy");
-  await expect(surface).toHaveCSS("border-radius", "7px");
+  await expect(surface).toHaveCSS("border-radius", "14px");
   await expect
     .poll(() =>
       topbar.evaluate((element) => {
@@ -686,7 +706,7 @@ test("node and chrome presets change independently", async ({ page }, testInfo) 
   await expect(page.locator("#wc-imax-screen-inner-clip")).toHaveCount(1);
   await expect(page.locator("#wc-imax-screen-clip path")).toHaveAttribute(
     "d",
-    "M0,0 Q.5,.18 1,0 L1,1 Q.5,.82 0,1 Z",
+    "M0,0 Q.5,.06 1,0 L1,1 Q.5,.94 0,1 Z",
   );
   const imaxMaterial = await surface.evaluate((element) => ({
     animationName: getComputedStyle(element).animationName,
@@ -721,10 +741,10 @@ test("node, chrome, and background presets persist independently", async ({ page
   const shell = page.locator(".wc-flow-shell");
   const surface = page.locator(".wc-node-surface").first();
   const topbar = page.locator(".wc-topbar-actions");
-  const settingsTrigger = page.locator('[aria-controls="wc-appearance-toolbar"]');
+  const settingsTrigger = page.locator('[aria-controls="wc-appearance-panel"]');
 
   await settingsTrigger.click();
-  const settings = page.locator("#wc-appearance-toolbar");
+  const settings = page.locator("#wc-appearance-panel");
   // 按 aria-label 取分组：面板里再插入新分组不应该让这条测试整体错位。
   const group = (name: string) => settings.getByRole("group", { name });
   const nodeStyles = group("节点样式").getByRole("button");
@@ -735,7 +755,7 @@ test("node, chrome, and background presets persist independently", async ({ page
   await nodeStyles.nth(1).click();
   await expect(root).toHaveAttribute("data-node-style", "studio");
   await expect(root).toHaveAttribute("data-chrome-style", "airy");
-  await expect(surface).toHaveCSS("border-radius", "7px");
+  await expect(surface).toHaveCSS("border-radius", "14px");
   await expect.poll(() => topbar.evaluate(readAppearance)).toEqual(chromeBefore);
 
   await page.waitForTimeout(240);
@@ -802,19 +822,19 @@ function readAppearance(element: Element) {
 }
 
 test("UI settings move focus in on open and restore it on Escape", async ({ page }) => {
-  const trigger = page.getByLabel("打开 UI 设置");
+  const trigger = page.getByLabel("打开界面设置");
   await trigger.focus();
   await page.keyboard.press("Enter");
 
-  const settings = page.getByRole("dialog", { name: "UI 设置" });
+  const settings = page.getByRole("dialog", { name: "界面设置" });
   await expect(settings).toBeVisible();
   await expect(
     settings
       .getByRole("group", { name: "节点样式" })
-      .getByRole("button", { name: "疏朗", exact: true }),
+      .getByRole("button", { name: "敛锋", exact: true }),
   ).toBeFocused();
 
   await page.keyboard.press("Escape");
   await expect(settings).toBeHidden();
-  await expect(page.getByLabel("打开 UI 设置")).toBeFocused();
+  await expect(page.getByLabel("打开界面设置")).toBeFocused();
 });

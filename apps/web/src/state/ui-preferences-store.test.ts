@@ -19,7 +19,7 @@ describe("UI preferences", () => {
       nodePortStyle: "classic",
       colorScheme: "graphite",
       chromeVisualStyle: "airy",
-      canvasVisualStyle: "airy",
+      canvasVisualStyle: "facet",
       canvasBackgroundStyle: "layered-grid",
       generationEffectStyle: "beam",
       edgePathStyle: "taut",
@@ -27,8 +27,8 @@ describe("UI preferences", () => {
       defaultNodeAspectRatio: "16:9",
     });
     // 旧的多彩配色档位已下线：偏好里不应再有 accentPalette，
-    // 配色收敛成 colorScheme 两档（石墨 / 墨黑）。自绘光标仍是可选偏好
-    // （appearance-toolbar 提供 classic / precision 两档），必须保留。
+    // 配色收敛成 colorScheme 四档（石墨 / 墨黑 / 素陶 / 糖彩）。自绘光标仍是
+    // 可选偏好（appearance-toolbar 提供 classic / precision 两档），必须保留。
     expect(useUiPreferencesStore.getState()).not.toHaveProperty("accentPalette");
     expect(useUiPreferencesStore.getState().cursorStyle).toBe("classic");
   });
@@ -50,6 +50,16 @@ describe("UI preferences", () => {
       colorScheme: "ink",
       canvasVisualStyle: "classic",
     });
+  });
+
+  it("migrates the retired onyx scheme onto ink", async () => {
+    // 「纯黑」已并入「墨黑」。老记录必须落在墨黑上，不能跳回默认的石墨/素陶，
+    // 否则这批用户会突然从近黑跳到浅色或暖炭。
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ colorScheme: "onyx" }));
+    vi.resetModules();
+    const { useUiPreferencesStore } = await import("./ui-preferences-store");
+
+    expect(useUiPreferencesStore.getState().colorScheme).toBe("ink");
   });
 
   it("falls back to graphite for unknown or missing stored schemes", async () => {
@@ -85,6 +95,7 @@ describe("UI preferences", () => {
       companionAnchor: null,
       defaultNodeAspectRatio: "3:4",
       cursorStyle: "classic",
+      localMediaOnly: false,
       lastMediaGeneration: {},
     });
 
@@ -102,6 +113,18 @@ describe("UI preferences", () => {
       defaultNodeAspectRatio: "3:4",
       lastMediaGeneration: {},
     });
+  });
+
+  it("persists the local-only media preference and hydrates it after reload", async () => {
+    const { useUiPreferencesStore } = await import("./ui-preferences-store");
+
+    expect(useUiPreferencesStore.getState().localMediaOnly).toBe(false);
+    useUiPreferencesStore.getState().setLocalMediaOnly(true);
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).localMediaOnly).toBe(true);
+
+    vi.resetModules();
+    const { useUiPreferencesStore: hydratedStore } = await import("./ui-preferences-store");
+    expect(hydratedStore.getState().localMediaOnly).toBe(true);
   });
 
   it("remembers the last generation settings per modality and hydrates them after reload", async () => {
@@ -177,7 +200,7 @@ describe("UI preferences", () => {
     expect(useUiPreferencesStore.getState()).toMatchObject({
       nodePortStyle: "classic",
       chromeVisualStyle: "airy",
-      canvasVisualStyle: "airy",
+      canvasVisualStyle: "facet",
       canvasBackgroundStyle: "layered-grid",
       generationEffectStyle: "beam",
       edgePathStyle: "taut",
@@ -197,7 +220,7 @@ describe("UI preferences", () => {
 
     const { useUiPreferencesStore } = await import("./ui-preferences-store");
     expect(useUiPreferencesStore.getState()).toMatchObject({
-      canvasVisualStyle: "airy",
+      canvasVisualStyle: "facet",
       chromeVisualStyle: "airy",
     });
   });

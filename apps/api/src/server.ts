@@ -150,11 +150,10 @@ const connectors =
         ),
       })
     : undefined;
-// Agent 只按轮次计费，因此选择器默认只放「有按次价」的文本模型：站点把按次价
-// 发布在公开价格表的 request 分组里（Gemini 全系都挂着按次价，但目录里写着
-// tiered_token，只看目录计费模式会把它们整线漏掉）。AGENT_INCLUDE_TOKEN_MODELS=true
-// 时放开全部文本模型（含纯按量）。
-const agentIncludeTokenModels = readBoolean(process.env.AGENT_INCLUDE_TOKEN_MODELS, false);
+// Agent 只按轮次计费。选择器默认纳入目录里的全部文本模型（含按量模型）：
+// 只放「按次价」会让站点价格表没挂牌的厂商整线消失，用户看到的就只剩默认那一个。
+// AGENT_INCLUDE_TOKEN_MODELS=false 可退回只收有按次价的模型。
+const agentIncludeTokenModels = readBoolean(process.env.AGENT_INCLUDE_TOKEN_MODELS, true);
 // Agent 模型选择器的站点定价表：weftcanvas 模式由私有装配给出端点；
 // dev-test 模式只认显式 WEFTCANVAS_PRICING_URL，没有配置就不查价（选择器
 // 仍可用，只是没有站点价参考）。

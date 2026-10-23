@@ -17,6 +17,12 @@ import type {
 } from "../identity/types.js";
 import { MediaService } from "./service.js";
 import { SignedMediaAccess } from "./signed-access.js";
+import {
+  MEDIA_CONTENT_CACHE_CONTROL,
+  MEDIA_NO_STORE_CACHE_CONTROL,
+  MEDIA_THUMB_CACHE_CONTROL,
+  mediaContentResponse,
+} from "./http.js";
 import type {
   CreateMediaResult,
   InspectedMedia,
@@ -91,6 +97,9 @@ describe("media HTTP API", () => {
     });
     expect(content.status).toBe(206);
     expect(content.headers.get("Content-Range")).toBe(`bytes 2-6/${BYTES.length}`);
+    // 画布内展示的字节允许落在浏览器私有缓存里：重开项目、重挂节点时不必再
+    // 跨洋回源一次。`private` 只给请求者自己的浏览器。
+    expect(content.headers.get("Cache-Control")).toBe("private, max-age=3600, no-transform");
     expect(Buffer.from(await content.arrayBuffer())).toEqual(BYTES.subarray(2, 7));
 
     const explicitFullRange = await app.request(
@@ -191,6 +200,8 @@ describe("media HTTP API", () => {
     expect(download.headers.get("Content-Disposition")).toBe(
       'attachment; filename="reference.png"',
     );
+    // 显式下载要的是当下这一份：不落缓存。
+    expect(download.headers.get("Cache-Control")).toBe("private, no-store, no-transform");
     expect(Buffer.from(await download.arrayBuffer())).toEqual(BYTES);
 
     const signedUrl = new SignedMediaAccess({
@@ -202,6 +213,31 @@ describe("media HTTP API", () => {
     const delivery = await app.request(signedUrl, { redirect: "manual" });
     expect(delivery.status).toBe(200);
     expect(Buffer.from(await delivery.arrayBuffer())).toEqual(BYTES);
+  });
+
+  it("serves node thumbnails under a browser-cacheable private policy", () => {
+    // 缩略图是画布上每一张预览图的来源：它以前跟着原图一起 `no-store`，于是
+    // 每次重开项目、每次重挂节点都要重新跨洋下载一遍。
+    const content = {
+      media: { id: MEDIA_ID, name: "reference.png", mimeType: "image/png", kind: "image" },
+      object: {
+        stream: Readable.from([BYTES]),
+        start: 0,
+        end: BYTES.length - 1,
+        totalSize: BYTES.length,
+      },
+    } as unknown as Parameters<typeof mediaContentResponse>[0];
+
+    const thumb = mediaContentResponse(content, false, false, MEDIA_THUMB_CACHE_CONTROL);
+    expect(thumb.headers.get("Cache-Control")).toBe("private, max-age=86400, no-transform");
+
+    const contentBytes = mediaContentResponse(content, true, false, MEDIA_CONTENT_CACHE_CONTROL);
+    expect(contentBytes.headers.get("Cache-Control")).toBe("private, max-age=3600, no-transform");
+
+    // 未指定策略时保持原来的「不进任何缓存」。
+    const defaulted = mediaContentResponse(content, false);
+    expect(defaulted.headers.get("Cache-Control")).toBe(MEDIA_NO_STORE_CACHE_CONTROL);
+    expect(defaulted.headers.get("Cache-Control")).toBe("private, no-store, no-transform");
   });
 });
 

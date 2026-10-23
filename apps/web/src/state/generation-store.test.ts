@@ -259,6 +259,118 @@ describe("generation state", () => {
     expect(useGenerationStore.getState().exhaustedObservations[running.id]).toBeUndefined();
   });
 
+  it("clears the degraded marker when the observation stream recovers", async () => {
+    let recover: (() => void) | null = null;
+    api.subscribeGenerationJob.mockImplementation(
+      (
+        _jobId: string,
+        handlers: {
+          onObservationExhausted?: () => void;
+          onObservationRecovered?: () => void;
+        },
+      ) => {
+        recover = handlers.onObservationRecovered ?? null;
+        return vi.fn();
+      },
+    );
+    const { useGenerationStore } = await import("./generation-store");
+    const { useCanvasStore } = await import("./canvas-store");
+    const running = generationJob(useCanvasStore.getState().projectId);
+
+    useGenerationStore.getState().watchJob(running);
+    useGenerationStore.getState().markObservationExhausted(running.id);
+    expect(useGenerationStore.getState().exhaustedObservations[running.id]).toBe(true);
+    expect(recover).not.toBeNull();
+
+    recover!();
+
+    // 丢包链路上网络恢复后，节点要自己回到正常的生成中展示。
+    expect(useGenerationStore.getState().exhaustedObservations[running.id]).toBeUndefined();
+  });
+
+  it("keeps watching a degraded job instead of releasing its watcher", async () => {
+    const stop = vi.fn();
+    let exhaust: (() => void) | null = null;
+    api.subscribeGenerationJob.mockImplementation(
+      (
+        _jobId: string,
+        handlers: {
+          onJob?: (job: PublicGenerationJob) => void;
+          onObservationExhausted?: () => void;
+          onObservationRecovered?: () => void;
+        },
+      ) => {
+        exhaust = handlers.onObservationExhausted ?? null;
+        return stop;
+      },
+    );
+    const { useGenerationStore } = await import("./generation-store");
+    const { useCanvasStore } = await import("./canvas-store");
+    const projectId = useCanvasStore.getState().projectId;
+    const running = generationJob(projectId);
+
+    useGenerationStore.getState().watchJob(running);
+    exhaust!();
+
+    // 降级不是停表：观测还在，网络恢复时才能自己接上。
+    expect(stop).not.toHaveBeenCalled();
+    useGenerationStore.getState().clearRuntime();
+    expect(stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("reconciles an ambiguous submission in the background instead of waiting for a reload", async () => {
+    const { useGenerationStore, AMBIGUOUS_RECONCILE_DELAYS_MS } =
+      await import("./generation-store");
+    const { useCanvasStore } = await import("./canvas-store");
+    const { useIdentityStore } = await import("./identity-store");
+    const scheduled: Array<{ delay: number; run: () => void }> = [];
+    const clearTimeout = vi.fn();
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {
+        innerWidth: 1440,
+        innerHeight: 900,
+        setTimeout: (callback: () => void, delay?: number) => {
+          scheduled.push({ delay: delay ?? 0, run: callback });
+          return scheduled.length;
+        },
+        clearTimeout,
+      },
+    });
+    const projectId = useCanvasStore.getState().projectId;
+    useIdentityStore.setState({
+      status: "authenticated",
+      session: {
+        user: {
+          id: "11111111-1111-4111-8111-111111111111",
+          email: "creator@example.com",
+          displayName: "Creator",
+          createdAt: "2026-07-23T08:00:00.000Z",
+        },
+        expiresAt: "2026-08-23T08:00:00.000Z",
+      },
+    });
+    const nodeId = useCanvasStore.getState().addNode("image", { x: 40, y: 60 });
+    useGenerationStore.getState().beginHostedSubmission(nodeId, () => "job:pending-key");
+    api.reconcileGenerationJob.mockResolvedValue(generationJob(projectId));
+
+    useGenerationStore.getState().reconcileAmbiguousSubmissions(projectId);
+
+    // 三次核对按分钟级退避排好：一次没成功就再问一次，网络恢复时节点自愈。
+    expect(scheduled.map((entry) => entry.delay)).toEqual([...AMBIGUOUS_RECONCILE_DELAYS_MS]);
+    expect(api.reconcileGenerationJob).not.toHaveBeenCalled();
+
+    scheduled[0]!.run();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(api.reconcileGenerationJob).toHaveBeenCalledWith("job:pending-key");
+
+    // 再排一份之前必须先清掉上一份，避免换项目后旧核对还在跑。
+    useGenerationStore.getState().reconcileAmbiguousSubmissions(projectId);
+    expect(clearTimeout).toHaveBeenCalledTimes(AMBIGUOUS_RECONCILE_DELAYS_MS.length);
+  });
+
   it("filters exhausted observations to the active project on recovery", async () => {
     const { useGenerationStore } = await import("./generation-store");
     const { useCanvasStore } = await import("./canvas-store");

@@ -54,6 +54,8 @@ describe("generation submission retries", () => {
 
   it("recovers repeated tunnel failures without changing the idempotency key", async () => {
     vi.useFakeTimers();
+    // 三次尝试（1 次重试延迟预算各一次）：这条链路上一次尝试要等十几秒，四次
+    // 尝试会把提交按钮锁住一分多钟。余下的不确定交给后台按幂等键核对。
     const fetchMock = vi
       .fn()
       .mockRejectedValueOnce(new TypeError("connection reset"))
@@ -64,15 +66,6 @@ describe("generation submission retries", () => {
             error: { code: "CLOUDFLARE_EDGE_UNAVAILABLE", message: "temporary edge outage" },
           }),
           { status: 530, headers: { "Content-Type": "application/json" } },
-        ),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            ok: false,
-            error: { code: "SERVICE_UNAVAILABLE", message: "temporary outage" },
-          }),
-          { status: 503, headers: { "Content-Type": "application/json" } },
         ),
       )
       .mockResolvedValueOnce(
@@ -87,7 +80,7 @@ describe("generation submission retries", () => {
     await vi.runAllTimersAsync();
     await expect(pending).resolves.toMatchObject({ id: "job-1" });
 
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     const bodies = fetchMock.mock.calls.map((call) =>
       JSON.parse(String((call[1] as RequestInit).body)),
     );
@@ -95,6 +88,29 @@ describe("generation submission retries", () => {
       new Set(["image-request-123456"]),
     );
     expect(bodies.every((body) => JSON.stringify(body) === JSON.stringify(bodies[0]))).toBe(true);
+  });
+
+  it("reports submit retry progress so the panel can say it is still trying", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("connection reset"))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true, data: job() }), {
+          status: 202,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const retries: Array<{ attempt: number; attempts: number }> = [];
+
+    const pending = submitGenerationJob(submission(), {
+      onRetry: (progress) => retries.push(progress),
+    });
+    await vi.runAllTimersAsync();
+    await expect(pending).resolves.toMatchObject({ id: "job-1" });
+
+    expect(retries).toEqual([{ attempt: 2, attempts: 3 }]);
   });
 
   it("retries transient login and model-catalog failures", async () => {
@@ -330,22 +346,14 @@ describe("generation submission retries", () => {
     stop();
   });
 
-  it("stops polling and releases resources after the observation failure budget is exhausted", async () => {
+  it("degrades to a slow retry after the transport budget, then stops for good", async () => {
     vi.useFakeTimers();
     vi.stubGlobal("EventSource", undefined);
     vi.stubGlobal("window", {
       setTimeout: globalThis.setTimeout,
       clearTimeout: globalThis.clearTimeout,
     });
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          ok: false,
-          error: { code: "SERVICE_UNAVAILABLE", message: "temporary outage" },
-        }),
-        { status: 503, headers: { "Content-Type": "application/json" } },
-      ),
-    );
+    const fetchMock = vi.fn().mockResolvedValue(serviceUnavailable());
     vi.stubGlobal("fetch", fetchMock);
     let exhausted = 0;
 
@@ -355,14 +363,62 @@ describe("generation submission retries", () => {
         exhausted += 1;
       },
     });
-    await vi.runAllTimersAsync();
+    // 花完连续传输失败预算：只是降级（节点显示「暂时无法更新」），观测继续。
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(exhausted).toBe(1);
+    const callsAtDegrade = fetchMock.mock.calls.length;
+    expect(callsAtDegrade).toBeGreaterThanOrEqual(8);
+
+    // 降级窗口按分钟级重试：丢包链路上网络恢复时节点会自己接上，而不是永远停表。
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(callsAtDegrade + 4);
+
+    // 降级预算（30 次、每 60 秒一次）用尽后才真正停表：之后不再有任何请求。
+    await vi.advanceTimersByTimeAsync(60 * 60_000);
+    const callsAfterGiveUp = fetchMock.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(30 * 60_000);
+    expect(fetchMock.mock.calls.length).toBe(callsAfterGiveUp);
+    stop();
+  });
+
+  it("recovers the fast cadence and clears the exhausted marker when the network returns", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("EventSource", undefined);
+    vi.stubGlobal("window", {
+      setTimeout: globalThis.setTimeout,
+      clearTimeout: globalThis.clearTimeout,
+    });
+    let calls = 0;
+    const fetchMock = vi.fn().mockImplementation(() => {
+      calls += 1;
+      return Promise.resolve(
+        calls <= 8
+          ? serviceUnavailable()
+          : jsonJob(job({ status: "running", version: 3, progress: 12 })),
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    let exhausted = 0;
+    let recovered = 0;
+
+    const stop = subscribeGenerationJob("job-1", {
+      onJob: () => undefined,
+      onObservationExhausted: () => {
+        exhausted += 1;
+      },
+      onObservationRecovered: () => {
+        recovered += 1;
+      },
+    });
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
 
     expect(exhausted).toBe(1);
-    const callsAfterBudget = fetchMock.mock.calls.length;
-    expect(callsAfterBudget).toBe(8);
-    // Once the budget is spent, no further fetch happens even as time passes.
-    await vi.advanceTimersByTimeAsync(5 * 60_000);
-    expect(fetchMock.mock.calls.length).toBe(callsAfterBudget);
+    expect(recovered).toBe(1);
+
+    // 恢复后回到 2 秒节奏：5 秒内至少再有两次快照。
+    const callsAfterRecovery = fetchMock.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(callsAfterRecovery + 2);
     stop();
   });
 
@@ -1113,6 +1169,17 @@ function jsonJob(value: ReturnType<typeof job>) {
     status: 200,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+/** 观测轮询里最常见的可重试失败：服务端 503。 */
+function serviceUnavailable() {
+  return new Response(
+    JSON.stringify({
+      ok: false,
+      error: { code: "SERVICE_UNAVAILABLE", message: "temporary outage" },
+    }),
+    { status: 503, headers: { "Content-Type": "application/json" } },
+  );
 }
 
 function jsonResponse(value: unknown, status = 200) {

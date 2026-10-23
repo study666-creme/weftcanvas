@@ -5,6 +5,7 @@ import type { PublicModel } from "@weftcanvas/contracts";
 import {
   AGENT_DEFAULT_REQUEST_PRICE_YUAN,
   agentTextModelGroup,
+  agentTextModelMediaInput,
   buildAgentTextModels,
   createStationTextPricingLookup,
   parseStationTextPricing,
@@ -40,6 +41,38 @@ describe("agent text model vendor grouping", () => {
     expect(agentTextModelGroup("mimo-v2.5 小米 MiMo V2.5")).toBe("小米");
     expect(agentTextModelGroup("grok-4.6 Grok 4.6")).toBe("Grok");
     expect(agentTextModelGroup("mystery-model Mystery")).toBe("其他");
+  });
+});
+
+describe("agent text model media capability", () => {
+  it("marks mainstream vision families and keeps unknown text models text-only", () => {
+    expect(agentTextModelMediaInput("gpt-5.6")).toEqual({ images: true, videos: false });
+    expect(agentTextModelMediaInput("claude-sonnet-5")).toEqual({
+      images: true,
+      videos: false,
+    });
+    expect(agentTextModelMediaInput("gemini-3.7-flash")).toEqual({
+      images: true,
+      videos: false,
+    });
+    expect(agentTextModelMediaInput("deepseek-v4-pro-0813")).toBeUndefined();
+    expect(agentTextModelMediaInput("glm-5.2")).toBeUndefined();
+  });
+
+  it("carries the capability into the picker entries", () => {
+    const gpt = textModel("gpt-5.6", "GPT-5.6", { perRequest: true });
+    const deepseek = textModel("deepseek-v4-pro-0813", "DeepSeek V4 Pro", { perRequest: true });
+    const models = buildAgentTextModels({
+      models: [gpt, deepseek],
+      overrides: noOverrides,
+      stationPricing: null,
+      includeTokenModels: true,
+    });
+    expect(models.find((model) => model.id === "gpt-5.6")?.mediaInput).toEqual({
+      images: true,
+      videos: false,
+    });
+    expect(models.find((model) => model.id === "deepseek-v4-pro-0813")?.mediaInput).toBeUndefined();
   });
 });
 

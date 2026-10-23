@@ -29,19 +29,23 @@ describe("新手教程步骤表", () => {
     expect(ONBOARDING_STEPS[firstStepIndexForRoute("workbench")]!.id).toBe("workbench");
   });
 
-  it("教的是需求里那几件事：去工作台、进画布、创建节点、空格平移、Ctrl 缩放", () => {
+  it("教的是需求里那几件事：去工作台、进画布、创建节点、点中节点缩放、空格平移、拖缩放条", () => {
     expect(ONBOARDING_STEPS.map((step) => step.id)).toEqual([
       "goto-workbench",
       "workbench",
       "enter-canvas",
       "create-node",
+      "node-zoom",
       "space-pan",
-      "ctrl-zoom",
+      "zoom-bar",
     ]);
     const pan = ONBOARDING_STEPS.find((step) => step.id === "space-pan")!;
     expect(pan.keys).toContain("空格键");
-    const zoom = ONBOARDING_STEPS.find((step) => step.id === "ctrl-zoom")!;
-    expect(zoom.keys).toContain("Ctrl / ⌘");
+    // 「点中节点 → Ctrl 滚轮缩放」这一步必须挂在真实节点上，并且认得 Ctrl 滚轮。
+    const nodeZoom = ONBOARDING_STEPS.find((step) => step.id === "node-zoom")!;
+    expect(nodeZoom.target).toBe(".react-flow__node");
+    expect(nodeZoom.keys).toContain("Ctrl / ⌘");
+    expect(nodeZoom.advanceOn).toBe("wheel-zoom");
     expect(ONBOARDING_STEPS.find((step) => step.id === "create-node")!.advanceOn).toBe(
       "node-created",
     );

@@ -28,7 +28,7 @@ test.beforeEach(async ({ page }) => {
 test("icon hints use the polished tooltip layer instead of the browser title bubble", async ({
   page,
 }, testInfo) => {
-  const trigger = page.getByLabel("打开 UI 设置");
+  const trigger = page.getByLabel("打开界面设置");
   await expect(trigger).toHaveAttribute("title", "UI 设置");
   await trigger.hover();
 
@@ -47,8 +47,8 @@ test("icon hints use the polished tooltip layer instead of the browser title bub
 test("node material, background, and generation effect remain completely independent", async ({
   page,
 }) => {
-  await page.getByLabel("打开 UI 设置").click();
-  const settings = page.getByRole("dialog", { name: "UI 设置" });
+  await page.getByLabel("打开界面设置").click();
+  const settings = page.getByRole("dialog", { name: "界面设置" });
   const materials = settings.getByRole("group", { name: "节点样式" });
   const backgrounds = settings.getByRole("group", { name: "背景样式" });
   const effects = settings.getByRole("group", { name: "生成动效" });
@@ -73,13 +73,13 @@ test("node material, background, and generation effect remain completely indepen
 test("water background stays still at idle and uses bounded parallax while the viewport is moving", async ({
   page,
 }) => {
-  await page.getByLabel("打开 UI 设置").click();
-  const settings = page.getByRole("dialog", { name: "UI 设置" });
+  await page.getByLabel("打开界面设置").click();
+  const settings = page.getByRole("dialog", { name: "界面设置" });
   await settings
     .getByRole("group", { name: "背景样式" })
     .getByRole("button", { name: "水面", exact: true })
     .click();
-  await page.getByLabel("收起 UI 设置").click();
+  await page.getByLabel("收起界面设置").click();
 
   const workspace = page.locator(".wc-workspace");
   const waterLayer = page.getByTestId("canvas-water-surface").locator(".wc-canvas-water-material");

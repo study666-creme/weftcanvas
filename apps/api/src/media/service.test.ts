@@ -74,6 +74,29 @@ describe("media upload service", () => {
     });
   });
 
+  it("reads a reference by owner regardless of project scope", async () => {
+    const metadata = new MemoryMetadataStore();
+    const objects = new MemoryObjectStore();
+    const service = createService(metadata, objects);
+    await service.createUpload("user-1", { ...uploadRequest(), projectId: "project-a" });
+    metadata.records[0]!.status = "ready";
+    metadata.records[0]!.size = BYTES.length;
+    objects.seed(BYTES);
+
+    // 精确项目读保持原样：换个项目就找不到。
+    await expect(
+      service.readReference("user-1", MEDIA_ID, "image", 1024, "project-b"),
+    ).rejects.toMatchObject({ code: "MEDIA_NOT_FOUND" });
+    // 本人名下忽略项目归属：A 项目里生成/上传的图接到 B 项目节点上仍读得到字节。
+    const read = await service.readOwnerReference("user-1", MEDIA_ID, "image", 1024);
+    expect(read.media.id).toBe(MEDIA_ID);
+    expect(read.bytes.equals(BYTES)).toBe(true);
+    // 别人名下的素材照旧 404，不扩大引用面。
+    await expect(
+      service.readOwnerReference("user-2", MEDIA_ID, "image", 1024),
+    ).rejects.toMatchObject({ code: "MEDIA_NOT_FOUND", status: 404 });
+  });
+
   it("streams, hashes, inspects, and publishes a ready media record", async () => {
     const metadata = new MemoryMetadataStore();
     const objects = new MemoryObjectStore();

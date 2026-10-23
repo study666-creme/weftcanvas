@@ -543,7 +543,33 @@ export class MediaService {
     maxBytes: number,
     projectId?: string,
   ) {
-    const media = await this.requireOwned(ownerId, mediaId, projectId);
+    return this.readReferenceRecord(
+      await this.requireOwned(ownerId, mediaId, projectId),
+      kind,
+      maxBytes,
+    );
+  }
+
+  /**
+   * 按「本人名下」读取参考素材，忽略项目归属。
+   *
+   * 同一个人把 A 项目里生成/上传的图接到 B 项目的节点上，是很常见的复用方式，
+   * 读的是同一份字节；严格按项目匹配会让这种提交回 404「没有找到这个素材」。
+   * 因此托管生成（只服务素材所有者本人）改用这个方法兜底；对外引用
+   * （provider-reference）仍然走 readReference 的精确项目范围，不扩大引用面。
+   */
+  async readOwnerReference(ownerId: string, mediaId: string, kind: MediaKind, maxBytes: number) {
+    const media = await this.metadata.getById(mediaId);
+    if (!media || media.ownerId !== ownerId)
+      throw new MediaServiceError(
+        "MEDIA_NOT_FOUND",
+        "素材在服务器上已不存在，请重新上传这个素材",
+        404,
+      );
+    return this.readReferenceRecord(media, kind, maxBytes);
+  }
+
+  private async readReferenceRecord(media: MediaRecord, kind: MediaKind, maxBytes: number) {
     if (media.status !== "ready" || media.kind !== kind) {
       throw new MediaServiceError("MEDIA_REFERENCE_INVALID", "参考素材尚未准备完成", 409);
     }

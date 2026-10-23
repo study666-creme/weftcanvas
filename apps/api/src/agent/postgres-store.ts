@@ -40,6 +40,7 @@ type MessageRow = {
   conversation_id: string;
   role: "user" | "assistant";
   content: string;
+  attachments?: unknown;
   created_at: Date | string;
 };
 
@@ -113,7 +114,7 @@ export class PostgresAgentStore implements AgentStore {
     const [messages, runs] = await Promise.all([
       this.pool.query<MessageRow>(
         `SELECT * FROM (
-          SELECT id, conversation_id, role, content, created_at
+          SELECT id, conversation_id, role, content, attachments, created_at
           FROM canvas_agent_messages
           WHERE conversation_id = $1
           ORDER BY created_at DESC, id DESC
@@ -171,13 +172,14 @@ export class PostgresAgentStore implements AgentStore {
       if (existing.rows[0]) return { run: runRecord(existing.rows[0]), created: false };
 
       await client.query(
-        `INSERT INTO canvas_agent_messages (id, conversation_id, role, content, created_at)
-         VALUES ($1, $2, $3, $4, $5)`,
+        `INSERT INTO canvas_agent_messages (id, conversation_id, role, content, attachments, created_at)
+         VALUES ($1, $2, $3, $4, $5::JSONB, $6)`,
         [
           input.userMessage.id,
           input.userMessage.conversationId,
           input.userMessage.role,
           input.userMessage.content,
+          JSON.stringify(input.userMessage.attachments),
           input.userMessage.createdAt,
         ],
       );
@@ -246,8 +248,8 @@ export class PostgresAgentStore implements AgentStore {
       const run = await lockActiveRun(client, ownerId, runId);
       if (!run) return false;
       await client.query(
-        `INSERT INTO canvas_agent_messages (id, conversation_id, role, content, created_at)
-         VALUES ($1, $2, 'assistant', $3, $4)`,
+        `INSERT INTO canvas_agent_messages (id, conversation_id, role, content, attachments, created_at)
+         VALUES ($1, $2, 'assistant', $3, '[]'::JSONB, $4)`,
         [message.id, run.conversation_id, message.content, message.createdAt],
       );
       await client.query(
@@ -372,6 +374,7 @@ function publicMessage(row: MessageRow) {
     conversationId: row.conversation_id,
     role: row.role,
     content: row.content,
+    attachments: Array.isArray(row.attachments) ? row.attachments : [],
     createdAt: dateIso(row.created_at),
   });
 }

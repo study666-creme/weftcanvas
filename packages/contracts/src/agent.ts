@@ -52,6 +52,19 @@ export type AgentThinking = z.infer<typeof agentThinkingSchema>;
 export const agentModelBillingSchema = z.enum(["request", "token"]);
 export type AgentModelBilling = z.infer<typeof agentModelBillingSchema>;
 
+/**
+ * 模型能否接收用户显式附加的参考素材。Agent 对话默认只有文字；连线节点与
+ * 粘贴的图片只有在模型声明支持时才随消息发送（视频目前发送首帧，`videos`
+ * 保留给后续原生视频输入）。
+ */
+export const agentModelMediaInputSchema = z
+  .object({
+    images: z.boolean(),
+    videos: z.boolean().default(false),
+  })
+  .strict();
+export type AgentModelMediaInput = z.infer<typeof agentModelMediaInputSchema>;
+
 export const agentModelSchema = z
   .object({
     id: agentModelIdSchema,
@@ -64,6 +77,8 @@ export const agentModelSchema = z
     billing: agentModelBillingSchema.optional(),
     /** 目录声明的思考强度档位；没有该字段表示模型不支持调节。 */
     thinking: agentThinkingSchema.optional(),
+    /** 多模态输入能力；缺省视为只收文字。 */
+    mediaInput: agentModelMediaInputSchema.optional(),
   })
   .strict();
 export type AgentModel = z.infer<typeof agentModelSchema>;
@@ -185,7 +200,9 @@ export const agentThemes = ["light", "dark", "auto", "toggle"] as const;
 export const agentThemeSchema = z.enum(agentThemes);
 export type AgentTheme = z.infer<typeof agentThemeSchema>;
 
-export const agentColorSchemes = ["graphite", "ink", "onyx"] as const;
+/** 配色档位。`onyx`（纯黑）已并入 `ink`（墨黑），保留字面量只为兼容旧指令，
+ *  执行层会把它归一成 `ink`，新指令不要再发 `onyx`。 */
+export const agentColorSchemes = ["graphite", "ink", "onyx", "clay", "soda"] as const;
 export const agentColorSchemeSchema = z.enum(agentColorSchemes);
 export type AgentColorScheme = z.infer<typeof agentColorSchemeSchema>;
 
@@ -407,12 +424,70 @@ export const agentConversationSchema = z.object({
 });
 export type AgentConversation = z.infer<typeof agentConversationSchema>;
 
+/**
+ * Agent 消息附件上限。API 的 JSON 请求体上限是 1MB，参考素材必须以压缩后的
+ * data URL 传入，所以这里同时限制单条与整轮总字符数，绝不把 25MB 原图塞进
+ * 一次对话请求。
+ */
+export const AGENT_MESSAGE_ATTACHMENT_LIMITS = {
+  maxPerMessage: 4,
+  maxDataUrlChars: 260_000,
+  maxTotalDataUrlChars: 520_000,
+  maxPreviewUrlChars: 40_000,
+} as const;
+
+export const agentMessageAttachmentKindSchema = z.enum(["image", "video"]);
+export type AgentMessageAttachmentKind = z.infer<typeof agentMessageAttachmentKindSchema>;
+
+/** 附件元数据：随消息持久化并在对话里回显，不含原始字节。 */
+export const agentMessageAttachmentSchema = z
+  .object({
+    id: z.string().trim().min(1).max(128),
+    kind: agentMessageAttachmentKindSchema,
+    name: z.string().trim().min(1).max(128),
+    mimeType: z.string().trim().min(1).max(128),
+    width: z.number().int().positive().nullable().default(null),
+    height: z.number().int().positive().nullable().default(null),
+    durationMs: z.number().int().positive().nullable().default(null),
+    /** 来源画布节点；粘贴进来的素材没有这个字段。 */
+    nodeId: z.string().trim().min(1).max(128).optional(),
+    /** 很小的缩略图 data URL，仅用于消息回显。 */
+    previewUrl: z
+      .string()
+      .trim()
+      .min(1)
+      .max(AGENT_MESSAGE_ATTACHMENT_LIMITS.maxPreviewUrlChars)
+      .optional(),
+  })
+  .strict();
+export type AgentMessageAttachment = z.infer<typeof agentMessageAttachmentSchema>;
+
+/**
+ * 提交消息时额外携带的字节：只在本轮运行内使用，不落库。
+ * 视频以首帧图片发送（kind 保留 video 供界面标注），因此 dataUrl 仍必须是图片。
+ */
+export const agentMessageAttachmentInputSchema = agentMessageAttachmentSchema
+  .extend({
+    dataUrl: z
+      .string()
+      .trim()
+      .min(1)
+      .max(AGENT_MESSAGE_ATTACHMENT_LIMITS.maxDataUrlChars)
+      .regex(/^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/),
+  })
+  .strict();
+export type AgentMessageAttachmentInput = z.infer<typeof agentMessageAttachmentInputSchema>;
+
 export const agentMessageSchema = z.object({
   schemaVersion: z.literal(AGENT_SCHEMA_VERSION),
   id: z.string().uuid(),
   conversationId: z.string().uuid(),
   role: agentMessageRoleSchema,
   content: z.string().min(1).max(MAX_AGENT_MESSAGE_CHARS),
+  attachments: z
+    .array(agentMessageAttachmentSchema)
+    .max(AGENT_MESSAGE_ATTACHMENT_LIMITS.maxPerMessage)
+    .default([]),
   createdAt: z.string().datetime({ offset: true }),
 });
 export type AgentMessage = z.infer<typeof agentMessageSchema>;
@@ -579,9 +654,30 @@ export const agentMessageCreateRequestSchema = z
     executionPermission: agentExecutionPermissionSchema.optional(),
     /** 本轮启用的技能 id（最多 4 个；服务端只接受本人已导入的技能）。 */
     skillIds: z.array(z.string().uuid()).max(agentSkillLimits.enabledPerRun).optional(),
+    /**
+     * 用户显式附加的参考素材（粘贴、上传或画布连线）。字节只随这次请求
+     * 传给运行时，落库的只有元数据与缩略图。
+     */
+    attachments: z
+      .array(agentMessageAttachmentInputSchema)
+      .max(AGENT_MESSAGE_ATTACHMENT_LIMITS.maxPerMessage)
+      .optional(),
     canvasContext: agentCanvasContextSchema,
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    const total = (value.attachments ?? []).reduce(
+      (sum, attachment) => sum + attachment.dataUrl.length,
+      0,
+    );
+    if (total > AGENT_MESSAGE_ATTACHMENT_LIMITS.maxTotalDataUrlChars) {
+      context.addIssue({
+        code: "custom",
+        message: "参考素材总大小超出本轮上限",
+        path: ["attachments"],
+      });
+    }
+  });
 export type AgentMessageCreateRequest = z.infer<typeof agentMessageCreateRequestSchema>;
 
 export const agentConversationResponseSchema = z.object({

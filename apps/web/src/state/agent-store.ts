@@ -9,6 +9,7 @@ import {
   type AgentExecutionPermission,
   type AgentExecutionReceiptCreateRequest,
   type AgentModelCatalog,
+  type AgentMessageAttachmentInput,
   type AgentSkillSummary,
 } from "@weftcanvas/contracts";
 import { create } from "zustand";
@@ -80,7 +81,12 @@ type AgentState = {
   setExecutionPermission: (permission: AgentExecutionPermission) => void;
   createConversation: (projectId: string) => Promise<string | null>;
   selectConversation: (conversationId: string) => Promise<void>;
-  send: (projectId: string, content: string, context: AgentCanvasContext) => Promise<boolean>;
+  send: (
+    projectId: string,
+    content: string,
+    context: AgentCanvasContext,
+    attachments?: AgentMessageAttachmentInput[],
+  ) => Promise<boolean>;
   cancel: () => Promise<void>;
   confirmProposal: (contextRevision: string) => Promise<boolean>;
   dismissProposal: () => Promise<boolean>;
@@ -388,9 +394,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     }
   },
 
-  send: async (projectId, content, context) => {
+  send: async (projectId, content, context, attachments = []) => {
     const trimmed = content.trim();
-    if (!trimmed) return false;
+    if (!trimmed && !attachments.length) return false;
     const modelState = get();
     const selectedModelId = modelState.selectedModelId;
     if (
@@ -412,12 +418,13 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         .filter((id) => !modelState.skills || modelState.skills.some((skill) => skill.id === id))
         .slice(0, agentSkillLimits.enabledPerRun);
       const detail = await submitAgentMessage(conversationId, {
-        content: trimmed,
+        content: trimmed || "请参考这些素材。",
         idempotencyKey: createRequestKey("agent"),
         modelId: selectedModelId,
         ...(modelState.reasoningEffort ? { reasoningEffort: modelState.reasoningEffort } : {}),
         executionPermission: modelState.executionPermission,
         ...(enabledSkillIds.length ? { skillIds: enabledSkillIds } : {}),
+        ...(attachments.length ? { attachments } : {}),
         canvasContext: context,
       });
       set((state) => ({

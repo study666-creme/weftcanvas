@@ -19,6 +19,13 @@ mode the runtime forwards any syntactically valid model id; Canvas API remains
 the authority because it only offers ids present in the published platform model
 catalog, and merges that catalog's text models into the Agent model picker.
 
+Reference media (pasted images or media from canvas nodes linked to the Agent)
+arrives as bounded data URLs on the run request. The browser downscales images
+and sends a video's first frame, because OpenAI-compatible chat completions do
+not accept video bytes. The runtime attaches them to the latest user message as
+`image_url` content parts. Canvas API rejects attachments for models that do not
+declare `mediaInput.images`, before any credits are consumed.
+
 ## Execution permission and skills
 
 Both arrive on the run request (`apps/agent/src/request.ts`) and are frozen by

@@ -1,33 +1,45 @@
 import {
   ArrowDown,
   ArrowUp,
+  ArrowUpRight,
   Bot,
   Check,
   ChevronDown,
   CircleAlert,
   CircleStop,
+  Clapperboard,
   Copy,
   Download,
   FilePlus2,
   History,
+  ImagePlus,
+  Link2,
   Maximize2,
   LoaderCircle,
   LogIn,
+  Network,
+  Paperclip,
   Plus,
   Pencil,
   Plug,
   RefreshCw,
+  SlidersHorizontal,
   Sparkles,
   Square,
+  Unlink,
+  Wand2,
   X,
 } from "lucide-react";
-import type {
-  AgentConversation,
-  AgentCreativeGuidance,
-  AgentCreativeMode,
-  AgentExecutionPermission,
-  AgentMessage as AgentMessageData,
-  AgentRun,
+import {
+  AGENT_MESSAGE_ATTACHMENT_LIMITS,
+  canvasNodeLabels,
+  type AgentConversation,
+  type AgentCreativeGuidance,
+  type AgentCreativeMode,
+  type AgentExecutionPermission,
+  type AgentMessage as AgentMessageData,
+  type AgentMessageAttachmentInput,
+  type AgentRun,
 } from "@weftcanvas/contracts";
 import {
   agentExecutionPermissionHints,
@@ -42,6 +54,8 @@ import {
   useMemo,
   useRef,
   useState,
+  type ClipboardEvent as ReactClipboardEvent,
+  type DragEvent as ReactDragEvent,
   type KeyboardEvent,
 } from "react";
 import { createPortal } from "react-dom";
@@ -53,10 +67,18 @@ import {
   writeAgentCreativeGuidance,
 } from "../lib/agent-creative-guidance";
 import { downloadAgentConversationExport } from "../lib/agent-conversation-export";
+import { formatAgentMessage } from "../lib/agent-message-format";
+import {
+  assertAgentAttachmentsWithinLimits,
+  createAgentAttachmentFromFile,
+  createAgentAttachmentFromMedia,
+} from "../lib/agent-attachments";
 import { nodeCreationDimensions } from "../lib/node-factory";
 import { readCurrentAgentCanvasContext } from "../lib/current-canvas-context";
+import { useAgentLinkStore, useAgentLinkedNodeIds } from "../state/agent-link-store";
 import { useAgentStore } from "../state/agent-store";
 import { useCanvasStore } from "../state/canvas-store";
+import { useCloudProjectStore } from "../state/cloud-project-store";
 import { useUiPreferencesStore } from "../state/ui-preferences-store";
 import { useIdentityStore } from "../state/identity-store";
 import { useToastStore, type ToastTone } from "../state/toast-store";
@@ -227,6 +249,9 @@ export const AgentDrawer = memo(function AgentDrawer() {
   const isAuthenticated = identityStatus === "authenticated";
   const [draft, setDraft] = useState("");
   const [connectorsOpen, setConnectorsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
+  const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const [creativeGuidance, setCreativeGuidance] = useState<AgentCreativeGuidance>(() =>
     readAgentCreativeGuidance(projectId),
   );
@@ -237,13 +262,68 @@ export const AgentDrawer = memo(function AgentDrawer() {
   );
   const [readerMessage, setReaderMessage] = useState<AgentMessageData | null>(null);
   const [readerDraft, setReaderDraft] = useState("");
+  /** 本轮显式附加的参考素材（粘贴 / 选择文件）。 */
+  const [attachments, setAttachments] = useState<AgentMessageAttachmentInput[]>([]);
+  const [attachmentBusy, setAttachmentBusy] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const attachInputRef = useRef<HTMLInputElement>(null);
   const messageListRef = useRef<HTMLDivElement>(null);
   const wasNearBottom = useRef(true);
   const previousConversationId = useRef<string | null>(null);
   const previousIdentityMode = useRef(identityMode);
   const processingRuns = useRef(new Set<string>());
   const drawerRef = useRef<HTMLElement>(null);
+
+  // 对话设置面板：点面板外或按 Esc 收起。模型 / 技能自己的浮层 portal 到 body，
+  // 点它们不能被当成「点在外面」把设置面板关掉。
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const dismiss = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (settingsRef.current?.contains(target) || settingsButtonRef.current?.contains(target)) {
+        return;
+      }
+      if (
+        target.closest(
+          "[data-wc-preserve-drawers], .wc-canvas-select-menu, .wc-cat-select-menu, .wc-agent-skills-dialog",
+        )
+      ) {
+        return;
+      }
+      setSettingsOpen(false);
+    };
+    const keyboard = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      // 面板里的技能 / 下拉还开着时，第一次 Escape 只收那一层；否则
+      // 会连同设置面板一起关掉，用户想改的权限档也随之消失。
+      if (settingsRef.current?.querySelector('[aria-expanded="true"]')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setSettingsOpen(false);
+    };
+    document.addEventListener("pointerdown", dismiss, true);
+    document.addEventListener("keydown", keyboard);
+    return () => {
+      document.removeEventListener("pointerdown", dismiss, true);
+      document.removeEventListener("keydown", keyboard);
+    };
+  }, [settingsOpen]);
+
+  const nodes = useCanvasStore((state) => state.nodes);
+  const linkedNodeIds = useAgentLinkedNodeIds(projectId);
+  const removeAgentLink = useAgentLinkStore((state) => state.remove);
+  const cloudLinked = useCloudProjectStore((state) => Boolean(state.links[projectId]));
+  const linkedNodes = useMemo(
+    () =>
+      linkedNodeIds.flatMap((id) => {
+        const node = nodes.find((item) => item.id === id);
+        return node ? [node] : [];
+      }),
+    [linkedNodeIds, nodes],
+  );
+  const selectedModel = models.find((model) => model.id === selectedModelId) ?? null;
+  const supportsMedia = selectedModel?.mediaInput?.images === true;
   const thinkingLevels = useMemo(
     () => models.find((model) => model.id === selectedModelId)?.thinking?.levels ?? [],
     [models, selectedModelId],
@@ -260,7 +340,12 @@ export const AgentDrawer = memo(function AgentDrawer() {
   );
   const activeRun = detail?.latestRun;
   const running = activeRun?.status === "queued" || activeRun?.status === "running";
-  const busy = agentStatus === "sending" || running || cancelPending || proposalPending !== null;
+  const busy =
+    agentStatus === "sending" ||
+    running ||
+    cancelPending ||
+    proposalPending !== null ||
+    attachmentBusy;
   const modelReady =
     modelStatus === "ready" &&
     selectedModelId !== null &&
@@ -478,18 +563,131 @@ export const AgentDrawer = memo(function AgentDrawer() {
     if (createTextNodeFromContent(body, showToast)) setReaderMessage(null);
   };
 
+  const addAttachmentFiles = async (files: File[]) => {
+    if (!supportsMedia) {
+      showToast("当前模型不支持图片输入，请先切换到多模态模型", "error");
+      return;
+    }
+    if (attachmentBusy) return;
+    const supported = files.filter(
+      (file) => file.type.startsWith("image/") || file.type.startsWith("video/"),
+    );
+    if (!supported.length) return;
+    const remaining = AGENT_MESSAGE_ATTACHMENT_LIMITS.maxPerMessage - attachments.length;
+    if (remaining <= 0) {
+      showToast(`最多附加 ${AGENT_MESSAGE_ATTACHMENT_LIMITS.maxPerMessage} 个参考素材`, "error");
+      return;
+    }
+    setAttachmentBusy(true);
+    try {
+      const created: AgentMessageAttachmentInput[] = [];
+      for (const file of supported.slice(0, remaining)) {
+        try {
+          created.push(await createAgentAttachmentFromFile(file));
+        } catch (cause) {
+          showToast(cause instanceof Error ? cause.message : "参考素材读取失败", "error");
+        }
+      }
+      if (!created.length) return;
+      const next = [...attachments, ...created];
+      try {
+        assertAgentAttachmentsWithinLimits(next);
+        setAttachments(next);
+      } catch (cause) {
+        showToast(cause instanceof Error ? cause.message : "参考素材过大", "error");
+      }
+    } finally {
+      setAttachmentBusy(false);
+    }
+  };
+
+  const onComposerPaste = (event: ReactClipboardEvent<HTMLTextAreaElement>) => {
+    const files = clipboardFiles(event.clipboardData);
+    if (!files.length) return;
+    event.preventDefault();
+    void addAttachmentFiles(files);
+  };
+
+  const onComposerDrop = (event: ReactDragEvent<HTMLDivElement>) => {
+    const files = Array.from(event.dataTransfer.files ?? []);
+    if (!files.length) return;
+    event.preventDefault();
+    event.stopPropagation();
+    void addAttachmentFiles(files);
+  };
+
+  /**
+   * 发送时把「显式附件 + 连线节点素材」合成一份列表。模型不支持图片时：
+   * 显式附件直接拦住（用户看得见它们，不能假装发过），纯连线素材则退回
+   * 文字对话并明确提示，避免所有对话都被一条旧连线卡死。
+   */
+  const collectOutgoingAttachments = async (): Promise<AgentMessageAttachmentInput[] | null> => {
+    if (!supportsMedia) {
+      if (attachments.length) {
+        showToast("当前模型不支持图片输入，请先切换到多模态模型", "error");
+        return null;
+      }
+      if (linkedNodes.some((node) => node.data.media)) {
+        showToast("当前模型不支持图片输入，连线素材本轮不会发送", "error");
+      }
+      return [];
+    }
+    const mediaNodes = linkedNodes.filter(
+      (node) =>
+        node.data.media &&
+        (node.data.kind === "image" || node.data.kind === "video") &&
+        !attachments.some((attachment) => attachment.nodeId === node.id),
+    );
+    const remaining = AGENT_MESSAGE_ATTACHMENT_LIMITS.maxPerMessage - attachments.length;
+    const fromLinks: AgentMessageAttachmentInput[] = [];
+    for (const node of mediaNodes.slice(0, Math.max(0, remaining))) {
+      if (!node.data.media) continue;
+      try {
+        const attachment = await createAgentAttachmentFromMedia(node.data.media, {
+          projectId,
+          cloudLinked,
+          nodeId: node.id,
+        });
+        if (attachment) fromLinks.push(attachment);
+      } catch (cause) {
+        showToast(
+          cause instanceof Error ? cause.message : `节点 ${node.id} 的素材读取失败`,
+          "error",
+        );
+      }
+    }
+    const outgoing = [...attachments, ...fromLinks];
+    try {
+      assertAgentAttachmentsWithinLimits(outgoing);
+    } catch (cause) {
+      showToast(cause instanceof Error ? cause.message : "参考素材超出本轮上限", "error");
+      return null;
+    }
+    return outgoing;
+  };
+
   const submit = async () => {
     if (!isAuthenticated) {
       openAccount("login");
       return;
     }
-    if (busy || !draft.trim()) return;
+    if (busy || (!draft.trim() && !attachments.length)) return;
     if (activeBaselineStep) {
       await submitBaselineAnswer(draft);
       return;
     }
-    const completed = await send(projectId, draft, readCurrentAgentCanvasContext(creativeGuidance));
-    if (completed) setDraft("");
+    const outgoing = await collectOutgoingAttachments();
+    if (outgoing === null) return;
+    const completed = await send(
+      projectId,
+      draft,
+      readCurrentAgentCanvasContext(creativeGuidance),
+      outgoing,
+    );
+    if (completed) {
+      setDraft("");
+      setAttachments([]);
+    }
   };
 
   const onComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -831,7 +1029,88 @@ export const AgentDrawer = memo(function AgentDrawer() {
           className="wc-agent-composer"
           data-busy={busy ? "true" : "false"}
           data-has-value={draft.trim() ? "true" : "false"}
+          onDragOver={(event) => {
+            if (!event.dataTransfer.types.includes("Files")) return;
+            event.preventDefault();
+          }}
+          onDrop={onComposerDrop}
         >
+          <input
+            ref={attachInputRef}
+            className="wc-visually-hidden"
+            type="file"
+            multiple
+            accept="image/*,video/*"
+            tabIndex={-1}
+            aria-hidden="true"
+            onChange={(event) => {
+              const files = Array.from(event.currentTarget.files ?? []);
+              event.currentTarget.value = "";
+              void addAttachmentFiles(files);
+            }}
+          />
+          <div className="wc-agent-composer-media">
+            {attachments.length || linkedNodes.length ? (
+              <div className="wc-agent-attachment-tray" aria-label="本轮参考素材">
+                {attachments.map((attachment) => (
+                  <span
+                    key={attachment.id}
+                    className="wc-agent-attachment"
+                    title={`${attachment.name}${attachment.kind === "video" ? "（视频首帧）" : ""}`}
+                  >
+                    {attachment.previewUrl ? (
+                      <img src={attachment.previewUrl} alt="" draggable={false} />
+                    ) : (
+                      <ImagePlus aria-hidden="true" />
+                    )}
+                    <span>{attachment.name}</span>
+                    <button
+                      type="button"
+                      aria-label={`移除参考素材 ${attachment.name}`}
+                      title="移除"
+                      disabled={busy}
+                      onClick={() =>
+                        setAttachments((current) =>
+                          current.filter((item) => item.id !== attachment.id),
+                        )
+                      }
+                    >
+                      <X aria-hidden="true" />
+                    </button>
+                  </span>
+                ))}
+                {linkedNodes.map((node) => (
+                  <span
+                    key={`link-${node.id}`}
+                    className="wc-agent-link-chip"
+                    title={
+                      node.data.media
+                        ? `${node.data.media.name}（发送时作为参考素材）`
+                        : "该节点没有可发送的图片或视频"
+                    }
+                  >
+                    <Link2 aria-hidden="true" />
+                    <span>{linkedNodeLabel(node.id, node.data.kind, node.data.media?.name)}</span>
+                    <button
+                      type="button"
+                      aria-label="断开与 Agent 的连线"
+                      title="断开连线"
+                      disabled={busy}
+                      onClick={() => removeAgentLink(projectId, node.id)}
+                    >
+                      <Unlink aria-hidden="true" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            {!supportsMedia && (attachments.length > 0 || linkedNodes.some((n) => n.data.media)) ? (
+              <div className="wc-agent-media-hint" role="status">
+                <CircleAlert aria-hidden="true" />
+                <span>当前模型不支持图片输入，发送前请切换到多模态模型。</span>
+              </div>
+            ) : null}
+          </div>
           <textarea
             ref={textareaRef}
             aria-label="发送给 Agent"
@@ -847,96 +1126,157 @@ export const AgentDrawer = memo(function AgentDrawer() {
             }
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={onComposerKeyDown}
+            onPaste={onComposerPaste}
           />
           <div className="wc-agent-composer-footer">
-            <div className="wc-agent-composer-extra">
+            <div className="wc-agent-composer-row">
+              <button
+                type="button"
+                className="wc-agent-attach-button"
+                aria-label="添加参考图片或视频"
+                title={
+                  supportsMedia ? "添加参考图片或视频（也可以直接粘贴）" : "当前模型不支持图片输入"
+                }
+                disabled={busy || !supportsMedia}
+                onClick={() => attachInputRef.current?.click()}
+              >
+                {attachmentBusy ? (
+                  <LoaderCircle className="is-spinning" aria-hidden="true" />
+                ) : (
+                  <Paperclip aria-hidden="true" />
+                )}
+              </button>
+              <div
+                className={`wc-agent-model-field${modelStatus === "error" ? " wc-agent-model-error" : ""}`}
+                role={modelStatus === "error" ? "status" : undefined}
+              >
+                <AgentModelSelect
+                  ariaLabel="Agent 模型"
+                  value={selectedModelId || ""}
+                  models={models}
+                  placeholder={
+                    modelStatus === "loading"
+                      ? "加载模型"
+                      : modelStatus === "error"
+                        ? "模型不可用"
+                        : "选择模型"
+                  }
+                  onChange={setSelectedModelId}
+                  disabled={busy || modelStatus !== "ready"}
+                />
+                {modelStatus === "error" ? (
+                  <>
+                    <span className="wc-visually-hidden">
+                      {modelError || "Agent 模型列表没有加载完成"}
+                    </span>
+                    <button
+                      type="button"
+                      className="wc-agent-model-retry"
+                      aria-label="重新加载 Agent 模型"
+                      title={modelError || "重新加载模型列表"}
+                      onClick={() => void loadModels(true)}
+                    >
+                      <RefreshCw aria-hidden="true" />
+                    </button>
+                  </>
+                ) : null}
+              </div>
               <CanvasSelect
-                className="wc-agent-permission-select"
-                ariaLabel="执行权限"
-                value={executionPermission}
-                options={EXECUTION_PERMISSION_OPTIONS}
-                onChange={(next) => setExecutionPermission(next as AgentExecutionPermission)}
+                className="wc-agent-mode-select wc-agent-mode-select--footer"
+                ariaLabel="创作协作模式"
+                value={creativeGuidance.mode}
+                options={CREATIVE_MODE_OPTIONS}
+                onChange={updateCreativeMode}
                 disabled={busy}
                 variant="compact"
-                menuMinWidth={200}
+                menuMinWidth={180}
               />
-              <AgentSkillsMenu disabled={busy} />
-            </div>
-            <CanvasSelect
-              className="wc-agent-mode-select wc-agent-mode-select--footer"
-              ariaLabel="创作协作模式"
-              value={creativeGuidance.mode}
-              options={CREATIVE_MODE_OPTIONS}
-              onChange={updateCreativeMode}
-              disabled={busy}
-              variant="compact"
-              menuMinWidth={180}
-            />
-            <div
-              className={`wc-agent-model-field${modelStatus === "error" ? " wc-agent-model-error" : ""}`}
-              role={modelStatus === "error" ? "status" : undefined}
-            >
-              <AgentModelSelect
-                ariaLabel="Agent 模型"
-                value={selectedModelId || ""}
-                models={models}
-                placeholder={
-                  modelStatus === "loading"
-                    ? "加载模型"
-                    : modelStatus === "error"
-                      ? "模型不可用"
-                      : "选择模型"
+              <button
+                ref={settingsButtonRef}
+                type="button"
+                className={`wc-agent-settings-button${settingsOpen ? " is-active" : ""}`}
+                aria-label="对话设置"
+                title="对话设置：执行权限、思考强度、技能"
+                aria-haspopup="dialog"
+                aria-expanded={settingsOpen}
+                onClick={() => setSettingsOpen((value) => !value)}
+              >
+                <SlidersHorizontal aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="wc-agent-send"
+                aria-label="发送给 Agent"
+                title="发送"
+                disabled={
+                  (!draft.trim() && !attachments.length) ||
+                  busy ||
+                  agentStatus === "loading" ||
+                  !modelReady
                 }
-                onChange={setSelectedModelId}
-                disabled={busy || modelStatus !== "ready"}
-              />
-              {modelStatus === "error" ? (
-                <>
-                  <span className="wc-visually-hidden">
-                    {modelError || "Agent 模型列表没有加载完成"}
-                  </span>
+                onClick={() => void submit()}
+              >
+                {agentStatus === "sending" ? (
+                  <LoaderCircle className="is-spinning" aria-hidden="true" />
+                ) : (
+                  <ArrowUp aria-hidden="true" />
+                )}
+              </button>
+            </div>
+
+            {settingsOpen ? (
+              <div
+                ref={settingsRef}
+                className="wc-agent-settings"
+                role="dialog"
+                aria-label="对话设置"
+              >
+                <header className="wc-agent-settings-head">
+                  <strong>对话设置</strong>
                   <button
                     type="button"
-                    className="wc-agent-model-retry"
-                    aria-label="重新加载 Agent 模型"
-                    title={modelError || "重新加载模型列表"}
-                    onClick={() => void loadModels(true)}
+                    aria-label="关闭对话设置"
+                    onClick={() => setSettingsOpen(false)}
                   >
-                    <RefreshCw aria-hidden="true" />
+                    <X aria-hidden="true" />
                   </button>
-                </>
-              ) : null}
-            </div>
-            {models.length ? (
-              <CanvasSelect
-                className="wc-agent-thinking-select"
-                ariaLabel="思考强度"
-                value={reasoningEffort ?? thinkingDefault}
-                options={
-                  thinkingOptions.length
-                    ? thinkingOptions
-                    : [{ value: "", label: "思考 · 默认", title: "该模型未声明思考强度" }]
-                }
-                onChange={(next) => setReasoningEffort(next)}
-                disabled={busy || modelStatus !== "ready" || thinkingLevels.length < 2}
-                variant="compact"
-                menuMinWidth={148}
-              />
+                </header>
+                <div className="wc-agent-settings-field">
+                  <span>执行权限</span>
+                  <CanvasSelect
+                    className="wc-agent-settings-select wc-agent-permission-select"
+                    ariaLabel="执行权限"
+                    value={executionPermission}
+                    options={EXECUTION_PERMISSION_OPTIONS}
+                    onChange={(next) => setExecutionPermission(next as AgentExecutionPermission)}
+                    disabled={busy}
+                    variant="compact"
+                    menuMinWidth={220}
+                  />
+                </div>
+                <div className="wc-agent-settings-field">
+                  <span>思考强度</span>
+                  <CanvasSelect
+                    className="wc-agent-settings-select wc-agent-thinking-select"
+                    ariaLabel="思考强度"
+                    value={reasoningEffort ?? thinkingDefault}
+                    options={
+                      thinkingOptions.length
+                        ? thinkingOptions
+                        : [{ value: "", label: "思考 · 默认", title: "该模型未声明思考强度" }]
+                    }
+                    onChange={(next) => setReasoningEffort(next)}
+                    disabled={busy || modelStatus !== "ready" || thinkingLevels.length < 2}
+                    variant="compact"
+                    menuMinWidth={180}
+                  />
+                </div>
+                <div className="wc-agent-settings-field wc-agent-settings-field--inline">
+                  <span>技能</span>
+                  <AgentSkillsMenu disabled={busy} />
+                </div>
+              </div>
             ) : null}
-            <button
-              type="button"
-              className="wc-agent-send"
-              aria-label="发送给 Agent"
-              title="发送"
-              disabled={!draft.trim() || busy || agentStatus === "loading" || !modelReady}
-              onClick={() => void submit()}
-            >
-              {agentStatus === "sending" ? (
-                <LoaderCircle className="is-spinning" aria-hidden="true" />
-              ) : (
-                <ArrowUp aria-hidden="true" />
-              )}
-            </button>
           </div>
         </div>
       ) : null}
@@ -1003,9 +1343,24 @@ export const AgentDrawer = memo(function AgentDrawer() {
 });
 
 const AGENT_STARTERS = [
-  { label: "梳理当前画布", prompt: "帮我梳理当前画布的结构，指出最需要补强的一步。" },
-  { label: "补一个分镜", prompt: "基于现有节点，帮我补一个能衔接前后节奏的分镜节点。" },
-  { label: "优化提示词", prompt: "帮我优化画布里最影响成片质量的提示词。" },
+  {
+    label: "梳理当前画布",
+    hint: "看结构断在哪，先补哪一步",
+    prompt: "帮我梳理当前画布的结构，指出最需要补强的一步。",
+    icon: Network,
+  },
+  {
+    label: "补一个分镜",
+    hint: "按前后节奏接一个能用的镜头",
+    prompt: "基于现有节点，帮我补一个能衔接前后节奏的分镜节点。",
+    icon: Clapperboard,
+  },
+  {
+    label: "优化提示词",
+    hint: "把最影响成片质量的那句改写",
+    prompt: "帮我优化画布里最影响成片质量的提示词。",
+    icon: Wand2,
+  },
 ] as const;
 
 function AgentThreadMenu({
@@ -1147,16 +1502,26 @@ function AgentEmptyState({
       <strong>说说这一步想做什么</strong>
       <small>Agent 能看到当前画布的节点和连线，可以直接增删节点、接好上下游。</small>
       <div className="wc-agent-starters">
-        {AGENT_STARTERS.map((starter) => (
-          <button
-            key={starter.label}
-            type="button"
-            disabled={disabled}
-            onClick={() => onUseStarter(starter.prompt)}
-          >
-            {starter.label}
-          </button>
-        ))}
+        {AGENT_STARTERS.map((starter) => {
+          const Icon = starter.icon;
+          return (
+            <button
+              key={starter.label}
+              type="button"
+              disabled={disabled}
+              onClick={() => onUseStarter(starter.prompt)}
+            >
+              <span className="wc-agent-starter-icon" aria-hidden="true">
+                <Icon />
+              </span>
+              <span className="wc-agent-starter-copy">
+                <strong>{starter.label}</strong>
+                <small>{starter.hint}</small>
+              </span>
+              <ArrowUpRight aria-hidden="true" className="wc-agent-starter-go" />
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -1209,10 +1574,30 @@ const AgentMessageItem = memo(function AgentMessageItem({
         </span>
       ) : null}
       <div className="wc-agent-message-body">
+        {message.attachments.length ? (
+          <div className="wc-agent-message-attachments" aria-label="本条消息的参考素材">
+            {message.attachments.map((attachment) => (
+              <span
+                key={attachment.id}
+                className="wc-agent-message-attachment"
+                title={`${attachment.name}${attachment.kind === "video" ? "（视频首帧）" : ""}`}
+              >
+                {attachment.previewUrl ? (
+                  <img src={attachment.previewUrl} alt="" draggable={false} />
+                ) : (
+                  <ImagePlus aria-hidden="true" />
+                )}
+                <small>{attachment.kind === "video" ? "视频首帧" : "图片"}</small>
+              </span>
+            ))}
+          </div>
+        ) : null}
         <div className="wc-agent-message-content">
-          {paragraphs.map((paragraph, index) => (
-            <p key={`${message.id}-${index}`}>{paragraph}</p>
-          ))}
+          {message.role === "assistant" ? (
+            <AgentMessageContent content={message.content} />
+          ) : (
+            paragraphs.map((paragraph, index) => <p key={`${message.id}-${index}`}>{paragraph}</p>)
+          )}
         </div>
         <span className="wc-agent-message-foot">
           {time ? <time dateTime={message.createdAt}>{time}</time> : null}
@@ -1248,6 +1633,70 @@ const AgentMessageItem = memo(function AgentMessageItem({
     </article>
   );
 });
+
+/**
+ * 助手消息的轻排版：列表、加粗、行内代码、小标题各归其位。用户消息保持
+ * 纯文本——自己输入的内容不做二次解释。
+ */
+function AgentMessageContent({ content }: { content: string }) {
+  const blocks = useMemo(() => formatAgentMessage(content), [content]);
+  return (
+    <>
+      {blocks.map((block, index) => {
+        if (block.type === "heading") {
+          return (
+            <h4 key={`h-${index}`} className="wc-agent-message-heading">
+              {renderAgentInline(block.text)}
+            </h4>
+          );
+        }
+        if (block.type === "list") {
+          const ListTag = block.ordered ? "ol" : "ul";
+          return (
+            <ListTag key={`l-${index}`} className="wc-agent-message-list">
+              {block.items.map((item, itemIndex) => (
+                <li key={`${index}-${itemIndex}`}>{renderAgentInline(item)}</li>
+              ))}
+            </ListTag>
+          );
+        }
+        if (block.type === "quote") {
+          return (
+            <blockquote key={`q-${index}`} className="wc-agent-message-quote">
+              {renderAgentInline(block.text)}
+            </blockquote>
+          );
+        }
+        if (block.type === "code") {
+          return (
+            <pre key={`c-${index}`} className="wc-agent-message-code">
+              <code>{block.text}</code>
+            </pre>
+          );
+        }
+        return <p key={`p-${index}`}>{renderAgentInline(block.text)}</p>;
+      })}
+    </>
+  );
+}
+
+const AGENT_INLINE_PATTERN = /(\*\*[^*\n]+\*\*|`[^`\n]+`)/g;
+
+function renderAgentInline(text: string) {
+  return text.split(AGENT_INLINE_PATTERN).map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+      return <strong key={index}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith("`") && part.endsWith("`") && part.length > 2) {
+      return (
+        <code key={index} className="wc-agent-message-inline-code">
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+    return part;
+  });
+}
 
 function AgentProposalCard({
   run,
@@ -1465,6 +1914,27 @@ function AgentLoading() {
       <i />
     </div>
   );
+}
+
+function clipboardFiles(data: DataTransfer | null) {
+  if (!data) return [];
+  const files = Array.from(data.files);
+  if (files.length) return files;
+  return Array.from(data.items).flatMap((item) =>
+    item.kind === "file" ? (item.getAsFile() ?? []) : [],
+  );
+}
+
+function linkedNodeLabel(
+  nodeId: string,
+  kind: keyof typeof canvasNodeLabels | string,
+  mediaName?: string,
+) {
+  const label =
+    kind in canvasNodeLabels
+      ? canvasNodeLabels[kind as keyof typeof canvasNodeLabels]
+      : `节点 ${nodeId.slice(0, 6)}`;
+  return mediaName ? `${label} · ${mediaName}` : label;
 }
 
 function formatMessageTime(value: string) {

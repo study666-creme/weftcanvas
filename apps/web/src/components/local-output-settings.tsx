@@ -4,6 +4,7 @@ import {
   Image as ImageIcon,
   LoaderCircle,
   RefreshCw,
+  ShieldCheck,
   Trash2,
   Video,
 } from "lucide-react";
@@ -14,6 +15,8 @@ import {
   type LocalOutputKind,
   type LocalOutputTargetState,
 } from "../state/local-output-store";
+import { useToastStore } from "../state/toast-store";
+import { useUiPreferencesStore } from "../state/ui-preferences-store";
 
 const targetMeta: Record<
   LocalOutputKind,
@@ -44,13 +47,18 @@ export function LocalOutputSettings() {
     void initialize();
   }, [initialize]);
 
+  const storagePreference = <LocalMediaOnlyRow />;
+
   if (!supported) {
     return (
-      <div className="wc-local-output-unsupported" role="status">
-        <HardDrive aria-hidden="true" />
-        <div>
-          <strong>当前浏览器不支持目录自动保存</strong>
-          <span>请在 HTTPS 环境下使用最新版 Chrome 或 Edge。</span>
+      <div className="wc-local-output-list">
+        {storagePreference}
+        <div className="wc-local-output-unsupported" role="status">
+          <HardDrive aria-hidden="true" />
+          <div>
+            <strong>当前浏览器不支持目录自动保存</strong>
+            <span>请在 HTTPS 环境下使用最新版 Chrome 或 Edge。</span>
+          </div>
         </div>
       </div>
     );
@@ -58,15 +66,19 @@ export function LocalOutputSettings() {
 
   if (!initialized) {
     return (
-      <div className="wc-settings-loading" role="status">
-        <LoaderCircle className="is-spinning" aria-hidden="true" />
-        <span>正在读取本地目录</span>
+      <div className="wc-local-output-list">
+        {storagePreference}
+        <div className="wc-settings-loading" role="status">
+          <LoaderCircle className="is-spinning" aria-hidden="true" />
+          <span>正在读取本地目录</span>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="wc-local-output-list">
+      {storagePreference}
       {(["image", "video"] as const).map((kind) => (
         <LocalOutputTarget
           key={kind}
@@ -80,6 +92,55 @@ export function LocalOutputSettings() {
         />
       ))}
     </div>
+  );
+}
+
+/**
+ * 「只保存本地」：拖入 / 粘贴 / 上传的素材只写浏览器媒体库，一律不上传云端。
+ * 与下面的「目录自动保存」是两件事——那是把作品另存一份到本地文件夹；这一条
+ * 决定素材会不会离开这台设备。默认关闭，由创作者自己打开并承担数据安全。
+ */
+function LocalMediaOnlyRow() {
+  const localMediaOnly = useUiPreferencesStore((state) => state.localMediaOnly);
+  const setLocalMediaOnly = useUiPreferencesStore((state) => state.setLocalMediaOnly);
+  const showToast = useToastStore((state) => state.show);
+
+  return (
+    <section
+      className="wc-local-output-row wc-local-output-row--preference"
+      aria-label="素材保存位置"
+    >
+      <span className="wc-local-output-icon" aria-hidden="true">
+        <ShieldCheck />
+      </span>
+      <div className="wc-local-output-copy">
+        <strong>只保存本地</strong>
+        <span>
+          {localMediaOnly ? "图片、视频、音频都只写本机" : "上传时先存云端，失败自动回退本机"}
+        </span>
+        <small>
+          {localMediaOnly
+            ? "换设备或清理浏览器数据后素材会丢失；云项目同步也不会上传素材"
+            : "打开后画布素材不再离开这台设备，云项目同步也不上传"}
+        </small>
+      </div>
+      <label
+        className="wc-settings-switch"
+        title={localMediaOnly ? "切换为云端同步" : "切换为只保存本地"}
+      >
+        <input
+          type="checkbox"
+          aria-label="只保存本地"
+          checked={localMediaOnly}
+          onChange={(event) => {
+            const next = event.target.checked;
+            setLocalMediaOnly(next);
+            showToast(next ? "素材只保存在本机，不再上传云端" : "素材已切回云端上传", "info");
+          }}
+        />
+        <i aria-hidden="true" />
+      </label>
+    </section>
   );
 }
 

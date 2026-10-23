@@ -75,6 +75,7 @@ export class AgentRunHandler {
         toolCatalog,
         request.skills,
         request.executionPermission,
+        request.attachments,
       );
       let output = parseAgentModelOutput("");
 

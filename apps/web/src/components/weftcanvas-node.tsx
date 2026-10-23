@@ -13,6 +13,7 @@ import {
   LoaderCircle,
   Music2,
   Plus,
+  Sparkles,
   Upload,
   Video,
 } from "lucide-react";
@@ -36,6 +37,8 @@ import { useBoundedImage } from "../hooks/use-bounded-image";
 import { useGenerationStall } from "../hooks/use-generation-stall";
 import { useNodePresence } from "./canvas-node-presence";
 import { resolveMusicLink } from "../lib/api-client";
+import { uploadCanvasFile } from "../lib/canvas-media-upload";
+import { inferMaterialKind } from "../lib/media-kind";
 import {
   localMediaMaxBytes,
   queueServerMediaBlobCache,
@@ -93,6 +96,17 @@ const ClipEditorHost = lazy(() =>
 type MediaNodeKind = "image" | "video" | "audio";
 
 const audioWaveHeights = Array.from({ length: 18 }, (_, index) => 24 + ((index * 17) % 58));
+
+/**
+ * 文件选择器的接受范围：`kind/*` 之外再列一遍常见扩展名。Windows 上未注册
+ * MIME 的音频/图片在只看 `audio/*` 时不会出现在选择框里，用户会以为
+ * 「上传不了」；扩展名兜底把它放回来，真正的类型校验仍在读取后按内容做。
+ */
+const mediaFileAccept: Record<MediaNodeKind, string> = {
+  image: "image/*,.png,.jpg,.jpeg,.webp,.gif,.avif,.heic,.heif,.bmp,.tif,.tiff",
+  video: "video/*,.mp4,.mov,.m4v,.webm,.mkv,.avi,.mpeg,.mpg,.ogv,.3gp,.3g2",
+  audio: "audio/*,.mp3,.wav,.flac,.aac,.m4a,.ogg,.oga,.opus,.aiff,.aif,.wma",
+};
 
 type PendingMediaDimension = {
   id: string;
@@ -622,6 +636,7 @@ function MediaBody({
   loading,
   priority,
   videoPlayer,
+  onGenerateAudio,
 }: {
   id: string;
   kind: MediaNodeKind;
@@ -636,6 +651,8 @@ function MediaBody({
   loading: boolean;
   priority: boolean;
   videoPlayer: RefObject<NodeVideoPlayerHandle | null>;
+  /** 空音频节点上的显式生成入口：打开使用音频模型的生成面板。 */
+  onGenerateAudio?: () => void;
 }) {
   const setNodeMedia = useCanvasStore.getState().setNodeMedia;
   const showToast = useToastStore((state) => state.show);
@@ -711,8 +728,18 @@ function MediaBody({
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (!file.type.startsWith(`${kind}/`)) {
-      showToast(`请选择${kindLabel}文件`, "error");
+    // 类型判定走共享的三层推断（MIME → 扩展名 → 文件头魔数）：Windows 下载的
+    // 音频 / 图片常见 file.type 为空，只看 MIME 会把好文件拒之门外。
+    const inferred = await inferMaterialKind(file);
+    if (inferred !== kind) {
+      const inferredLabel =
+        inferred === "image" ? "图片" : inferred === "video" ? "视频" : inferred ? "音频" : "";
+      showToast(
+        inferredLabel
+          ? `这是${inferredLabel}文件，请选择${kindLabel}文件`
+          : `无法识别这个文件，请选择${kindLabel}`,
+        "error",
+      );
       return;
     }
     if (file.size > localMediaMaxBytes[kind]) {
@@ -722,12 +749,16 @@ function MediaBody({
       );
       return;
     }
+    const canvas = useCanvasStore.getState();
+    canvas.updateNodeData(id, { uploading: true }, false);
     try {
-      const next = await storeMedia(file, kind);
+      const next = await uploadCanvasFile(file, kind);
       setNodeMedia(id, next, true);
       showToast(`${kindLabel}已加入节点`, "success");
     } catch (cause) {
       showToast(cause instanceof Error ? cause.message : "媒体保存失败", "error");
+    } finally {
+      canvas.updateNodeData(id, { uploading: false }, false);
     }
   };
 
@@ -737,7 +768,7 @@ function MediaBody({
         ref={input}
         type="file"
         hidden
-        accept={`${kind}/*`}
+        accept={mediaFileAccept[kind]}
         onChange={(event) => void upload(event)}
       />
       {url ? (
@@ -803,7 +834,7 @@ function MediaBody({
       ) : kind === "audio" && !loading && !missing ? (
         // 音频节点没有本地/服务器媒体时交给音乐链接接管：
         // 未解析是贴链接入口，解析后是代理音频流或平台外链卡片。
-        <MusicBody id={id} music={music} />
+        <MusicBody id={id} music={music} onGenerate={onGenerateAudio} />
       ) : (
         <div
           className={`wc-media-empty wc-media-empty--passive ${kind === "image" || kind === "video" ? "wc-media-empty--icon-only" : ""} ${missing ? "wc-media-empty--error" : ""} ${loading ? "wc-media-empty--loading" : ""}`}
@@ -838,12 +869,20 @@ const musicSourceLabels = {
 } as const;
 
 /**
- * 音乐节点主体：空态是粘贴链接入口；解析结果二选一——
- * 拿到代理音频流（streamPath）就地播放，拿不到（平台防盗链/DRM）渲染
- * 外链卡片。流与封面只接受 /api/v1/music/ 同源代理路径，第三方直链
- * 永远不进 <audio>/<img>。
+ * 音频节点主体：空态同时提供两条路——用音频模型生成，或粘贴链接导入。
+ * 解析结果二选一——拿到代理音频流（streamPath）就地播放，拿不到
+ * （平台防盗链/DRM）渲染外链卡片。流与封面只接受 /api/v1/music/ 同源
+ * 代理路径，第三方直链永远不进 <audio>/<img>。
  */
-function MusicBody({ id, music }: { id: string; music: WeftcanvasNodeType["data"]["music"] }) {
+function MusicBody({
+  id,
+  music,
+  onGenerate,
+}: {
+  id: string;
+  music: WeftcanvasNodeType["data"]["music"];
+  onGenerate?: () => void;
+}) {
   const showToast = useToastStore((state) => state.show);
   const [linkInput, setLinkInput] = useState("");
   const [resolving, setResolving] = useState(false);
@@ -883,6 +922,18 @@ function MusicBody({ id, music }: { id: string; music: WeftcanvasNodeType["data"
     return (
       <div className="wc-node-music wc-node-music--empty">
         <Disc3 aria-hidden="true" />
+        {onGenerate ? (
+          <button
+            type="button"
+            className="wc-node-music-generate nodrag nowheel"
+            aria-label="用音频模型生成"
+            title="选择音频模型生成音乐或语音"
+            onClick={onGenerate}
+          >
+            <Sparkles aria-hidden="true" />
+            用音频模型生成
+          </button>
+        ) : null}
         <p>粘贴歌曲链接或音频直链，也可从工具栏上传本地音频</p>
         <div className="wc-node-music-input">
           <input
@@ -1624,6 +1675,7 @@ export const WeftcanvasNode = memo(function WeftcanvasNode({
             loading={mediaLoading}
             priority={selected || hovered || data.status === "running"}
             videoPlayer={videoPlayer}
+            onGenerateAudio={data.kind === "audio" ? () => setGenerationOpen(true) : undefined}
           />
         ) : PluginBody ? (
           <PluginBodyBoundary pluginKind={data.kind}>

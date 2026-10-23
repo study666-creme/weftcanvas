@@ -114,10 +114,12 @@ export async function writeRestoredMediaRecord(
  * 服务端兜底上传：本地媒体库（IndexedDB）不可用时（配额已满/站点数据被禁用/库损坏），
  * 画布上传降级为直传服务端，节点以 source:"server" 渲染，与生成产物入画布的路径一致。
  * 文件本身的问题（内容非法、解码失败、SVG）会在前置校验中原样抛出，调用方据此报真实原因。
+ * 音频与图片、视频同列：服务端素材域本来就接受 audio，画布不再只支持前两种。
  */
 export async function uploadMediaToServer(
   file: File,
-  kind: "image" | "video",
+  kind: "image" | "video" | "audio",
+  projectId?: string,
 ): Promise<CanvasMedia> {
   const validated =
     kind === "image" ? await validateImageBlob(file) : await validateMediaBlob(file, kind);
@@ -129,6 +131,10 @@ export async function uploadMediaToServer(
     mimeType: validated.mimeType,
     size: validated.blob.size,
     idempotencyKey: createRequestKey("canvas-material"),
+    // 云项目里上传必须直接落在项目作用域：素材读取按 projectId 只认已绑定
+    // 素材，未绑定的上传会在节点回显时 404，随后只能等自动保存把原图取回、
+    // 再按项目重传一遍，回显因此晚十几秒。
+    ...(projectId ? { projectId } : {}),
   });
   const ready = intent.upload
     ? await uploadMediaBlob(intent.media, intent.upload, validated.blob)

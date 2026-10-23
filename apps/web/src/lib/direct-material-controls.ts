@@ -27,10 +27,22 @@ export function directMaterialControls(model: PublicModel | null, references: Di
     {
       kind: "image" as const,
       label: "图片素材",
-      accept: "image/png,image/jpeg,image/webp,image/gif,image/avif,image/heif,image/tiff",
+      // 扩展名兜底：Windows 上未注册 MIME 的图片在只列 MIME 的选择框里不出现，
+      // 用户会以为「上传不了」。类型仍按文件内容在读取后校验。
+      accept:
+        "image/png,image/jpeg,image/webp,image/gif,image/avif,image/heif,image/tiff," +
+        ".png,.jpg,.jpeg,.webp,.gif,.avif,.heic,.heif,.tif,.tiff",
     },
-    { kind: "video" as const, label: "视频素材", accept: "video/*" },
-    { kind: "audio" as const, label: "音频素材", accept: "audio/*" },
+    {
+      kind: "video" as const,
+      label: "视频素材",
+      accept: "video/*,.mp4,.mov,.m4v,.webm,.mkv,.avi,.mpeg,.mpg,.ogv,.3gp,.3g2",
+    },
+    {
+      kind: "audio" as const,
+      label: "音频素材",
+      accept: "audio/*,.mp3,.wav,.flac,.aac,.m4a,.ogg,.oga,.opus,.aiff,.aif,.wma",
+    },
   ].flatMap((control) => {
     const input = modelInput(model, control.kind);
     const max = directMaterialMaximum(model, control.kind);

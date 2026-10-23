@@ -25,13 +25,18 @@ import {
   useMemo,
   useRef,
   useState,
+  type ClipboardEvent,
   type CSSProperties,
+  type DragEvent,
   type FormEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import { createPortal } from "react-dom";
 
+import { startCanvasAssetDrag } from "../lib/canvas-asset-drag";
+import { filesFromDataTransfer, hasFilePayload } from "../lib/dropped-files";
 import {
   createAssetLibraryCategory,
   ensureMediaAsset,
@@ -271,6 +276,10 @@ function AssetLibraryPanel({
   const [contextMenu, setContextMenu] = useState<ResourceContextMenuState | null>(null);
   // 悬停缩略图时贴着鼠标浮出大图快览；图片与视频都支持，移出网格即收起。
   const [hoverPreview, setHoverPreview] = useState<CardHoverPreviewSource | null>(null);
+  // 拖入 / 粘贴本地媒体直接存入资产库（当前分类）。
+  const [dropActive, setDropActive] = useState(false);
+  const dropDepth = useRef(0);
+  const panelRef = useRef<HTMLDivElement>(null);
   const categoryInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const showToast = useToastStore((state) => state.show);
@@ -427,7 +436,7 @@ function AssetLibraryPanel({
     setContextMenu({ ...target, clientX: rect.left + 18, clientY: rect.top + 18 });
   };
 
-  const uploadFiles = async (files: FileList | null) => {
+  const uploadFiles = async (files: FileList | File[] | null) => {
     if (!files?.length || uploading) return;
     setUploading(true);
     let completed = 0;
@@ -457,6 +466,53 @@ function AssetLibraryPanel({
 
   const activeCategoryId =
     categoryFilter !== "all" && categoryFilter !== "uncategorized" ? categoryFilter : null;
+
+  const handleDragEnter = (event: DragEvent<HTMLDivElement>) => {
+    if (!hasFilePayload(event.dataTransfer)) return;
+    event.preventDefault();
+    dropDepth.current += 1;
+    setDropActive(true);
+  };
+
+  const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (!hasFilePayload(event.dataTransfer)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  };
+
+  const handleDragLeave = () => {
+    dropDepth.current = Math.max(0, dropDepth.current - 1);
+    if (!dropDepth.current) setDropActive(false);
+  };
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (!hasFilePayload(event.dataTransfer)) return;
+    event.preventDefault();
+    dropDepth.current = 0;
+    setDropActive(false);
+    void uploadFiles(filesFromDataTransfer(event.dataTransfer));
+  };
+
+  // 粘贴媒体文件存入资产库；输入框里的普通文本粘贴不受影响。
+  const handlePaste = (event: ClipboardEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest("input, textarea, [contenteditable='true']")) return;
+    const media = filesFromDataTransfer(event.clipboardData).filter((file) =>
+      /^(image|video|audio)\//.test(file.type),
+    );
+    if (!media.length) return;
+    event.preventDefault();
+    event.stopPropagation();
+    void uploadFiles(media);
+  };
+
+  // 点面板空白处聚焦面板，Ctrl+V 才会落到这里（画布粘贴会跳过抽屉内部）。
+  const focusPanel = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest("input, textarea, select, button, a, article, [contenteditable='true']"))
+      return;
+    panelRef.current?.focus({ preventScroll: true });
+  };
 
   const savePromptAsset = async () => {
     const prompt = promptDraft.trim();
@@ -495,7 +551,17 @@ function AssetLibraryPanel({
   };
 
   return (
-    <div className="wc-asset-library-panel">
+    <div
+      ref={panelRef}
+      className={`wc-asset-library-panel${dropActive ? " is-drop-active" : ""}`}
+      tabIndex={-1}
+      onPointerDown={focusPanel}
+      onPaste={handlePaste}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <aside
         className="wc-asset-categories"
         aria-label="资产分类"
@@ -671,7 +737,21 @@ function AssetLibraryPanel({
                   className={`wc-asset-item${assetBusyId === item.id ? " is-busy" : ""}${editing ? " is-editing" : ""}`}
                   key={item.id}
                   tabIndex={0}
+                  draggable
+                  title="拖到画布直接使用"
                   aria-label={`${item.name} 资产`}
+                  onDragStart={(event) => {
+                    startCanvasAssetDrag(event.dataTransfer, {
+                      title: item.name,
+                      load: async () => {
+                        if (item.media?.source === "local" && !(await readMedia(item.media.id))) {
+                          showToast("资产文件已不在本机", "error");
+                          return null;
+                        }
+                        return toInsertableAsset(item);
+                      },
+                    });
+                  }}
                   onContextMenu={(event) => openContextMenu(event, { type: "asset", item })}
                   onKeyDown={(event) => openContextMenuFromKeyboard(event, { type: "asset", item })}
                 >
@@ -803,6 +883,12 @@ function AssetLibraryPanel({
         />
       ) : null}
       <CardHoverPreview source={hoverPreview} />
+      {dropActive ? (
+        <div className="wc-asset-drop-hint" role="status" aria-live="polite">
+          <Upload aria-hidden="true" />
+          <span>松开即可存入资产库</span>
+        </div>
+      ) : null}
     </div>
   );
 }

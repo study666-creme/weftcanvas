@@ -139,7 +139,7 @@ test("canvas visual presets switch, persist, and keep graph geometry stable", as
   await expect(app).toHaveAttribute("data-canvas-style", "studio");
   await expect(page.locator("html")).toHaveAttribute("data-canvas-style", "studio");
 
-  await page.getByLabel("打开 UI 设置").click();
+  await page.getByLabel("打开界面设置").click();
   const styleGroup = page.getByRole("group", { name: "节点样式" });
   await styleGroup.getByRole("button", { name: "无界", exact: true }).click();
   await expect(app).toHaveAttribute("data-canvas-style", "studio");
@@ -154,7 +154,7 @@ test("canvas visual presets switch, persist, and keep graph geometry stable", as
   const classicBounds = await nodes.first().boundingBox();
   expect(classicBounds?.width).toBeCloseTo(initialBounds!.width, 0);
   expect(classicBounds?.height).toBeCloseTo(initialBounds!.height, 0);
-  await page.getByLabel("收起 UI 设置").click();
+  await page.getByLabel("收起界面设置").click();
   await page.waitForTimeout(220);
   await page.screenshot({ path: testInfo.outputPath("canvas-classic-dark.png") });
   await page.getByLabel("切换主题").click();
@@ -167,13 +167,13 @@ test("canvas visual presets switch, persist, and keep graph geometry stable", as
 
   await page.reload();
   await expect(app).toHaveAttribute("data-canvas-style", "classic");
-  await page.getByLabel("打开 UI 设置").click();
+  await page.getByLabel("打开界面设置").click();
   await page
     .getByRole("group", { name: "节点样式" })
     .getByRole("button", { name: "无界", exact: true })
     .click();
   await expect(app).toHaveAttribute("data-canvas-style", "studio");
-  await page.getByLabel("收起 UI 设置").click();
+  await page.getByLabel("收起界面设置").click();
   await page.waitForTimeout(220);
   await page.screenshot({ path: testInfo.outputPath("canvas-studio-dark.png") });
 });

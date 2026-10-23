@@ -7,7 +7,7 @@ import {
   parseCanvasClipboard,
   serializeCanvasClipboard,
 } from "../lib/canvas-clipboard";
-import { shouldIgnoreCanvasCommand } from "../lib/canvas-command-target";
+import { shouldIgnoreCanvasCommand, shouldIgnoreCanvasPaste } from "../lib/canvas-command-target";
 import { useCanvasStore } from "../state/canvas-store";
 import type { GraphSnapshot } from "../types";
 
@@ -51,7 +51,7 @@ export function useCanvasClipboard({
       if (writeSelection(event)) useCanvasStore.getState().deleteSelection();
     };
     const onPaste = (event: ClipboardEvent) => {
-      if (shouldIgnoreCanvasCommand(event.target) || !event.clipboardData) return;
+      if (shouldIgnoreCanvasPaste(event.target) || !event.clipboardData) return;
       const anchor = getAnchor();
       const encoded = event.clipboardData.getData(WEFTCANVAS_CANVAS_CLIPBOARD_MIME);
       const graph = parseCanvasClipboard(encoded);

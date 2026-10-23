@@ -124,6 +124,36 @@ describe("prepareGenerationInputs", () => {
     expect(mocks.readMedia).not.toHaveBeenCalled();
   });
 
+  it("re-uploads cached bytes when the server rejected the stored reference", async () => {
+    // 服务端回「素材不存在」之后：forceUpload 不能再信 serverId，把浏览器里缓存的
+    // 那份字节重新上传成当前项目的素材，再提交一次。
+    const media = { ...serverMedia("generated-image"), serverId: "stale-server-id" };
+    const blob = new Blob([new Uint8Array([7, 8, 9])], { type: "image/png" });
+    mocks.readMedia.mockResolvedValue({ ...media, blob, storedAt: Date.now() });
+    mocks.createMediaUpload.mockResolvedValue({
+      media: { id: "recovered-reference", status: "pending" },
+      upload: { url: "/api/v1/media/recovered-reference/content", method: "PUT", headers: {} },
+    });
+    mocks.uploadMediaBlob.mockResolvedValue({ id: "recovered-reference", status: "ready" });
+
+    // 正常路径仍然直接复用已经上传过的 serverId，不读本地缓存。
+    await expect(prepareGenerationInputs(references(media))).resolves.toMatchObject({
+      images: ["stale-server-id"],
+    });
+    await expect(
+      prepareGenerationInputs(references(media), { forceUpload: true }),
+    ).resolves.toMatchObject({ images: ["recovered-reference"] });
+  });
+
+  it("tells the user to re-upload when neither the server nor the browser has the bytes", async () => {
+    const media = { ...serverMedia("gone-image"), serverId: "gone-server-id" };
+    mocks.readMedia.mockResolvedValue(null);
+
+    await expect(prepareGenerationInputs(references(media), { forceUpload: true })).rejects.toThrow(
+      /素材在服务器上已不存在/,
+    );
+  });
+
   it("converts custom API references to provider-accessible HTTPS URLs when required", async () => {
     const media = { ...serverMedia("generated-image"), serverId: "durable-reference" };
     mocks.createProviderMediaReference.mockResolvedValue(

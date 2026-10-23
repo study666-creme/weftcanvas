@@ -45,44 +45,59 @@ type SettingsSection = "ui" | "apis" | "models" | "local" | "collaboration" | "p
 type AppearanceTab = "visual" | "interaction";
 
 /**
- * 配色方案。石墨是沿用的灰调；墨黑把底色压到近纯黑，层级交给描边。
- * 纯黑是质感路线——深而聚的阴影 + 内嵌高光 + 浮起面板，玻璃暗夜观感。
- * 两套都跟随深浅主题，且与节点/界面样式正交，可任意组合。
- * 配色是产品级三档（带整套 CSS 方案），不走开放注册。
+ * 配色方案。石墨是沿用的灰调；墨黑把底色压到近纯黑——节点靠 1px 描边分层、
+ * 浮层靠内嵌高光与深影，原来并列的「纯黑」已并入这一档；素陶走材质路线，
+ * 暖炭底 + 陶土铜强调，画面不显得贴在玻璃上；糖彩是多巴胺路线，玫红强调 +
+ * 糖果语义色 + 暖影，底色仍是安静的奶油/茄紫。
+ * 四套都跟随深浅主题，且与节点/界面样式正交，可任意组合。
+ * 配色是产品级四档（带整套 CSS 方案），不走开放注册。
  */
 const colorSchemes: Array<{ id: ColorScheme; label: string }> = [
   { id: "graphite", label: "石墨" },
   { id: "ink", label: "墨黑" },
-  { id: "onyx", label: "纯黑" },
+  { id: "clay", label: "素陶" },
+  { id: "soda", label: "糖彩" },
 ];
 
 const defaultAspectRatios: DefaultNodeAspectRatio[] = ["16:9", "9:16", "1:1", "4:3", "3:4"];
 
 /**
- * 设置中心：界面 / API 配置 / 模型 / 本地保存 / 协作 / 插件 六个一级板块。
- * 顶栏「设置」与 dock 的 UI 设置键都打开这里；界面是默认板块。
+ * 两用面板：
+ * - mode="settings"（默认）：设置中心，只放 API 配置 / 模型 / 本地保存 / 协作 / 插件。
+ *   顶栏「设置」键打开这里。
+ * - mode="appearance"：独立的「界面设置」面板，只有视觉 / 交互两页。
+ *   底部 dock 的调色板键打开这里，不再和设置中心混在一起。
  * API 配置 / 模型 / 本地保存由 CustomApiPanel 以受控嵌入形态提供。
  */
 export function AppearanceToolbar({
   open,
   triggerRef,
   onClose,
-  initialSection = "ui",
+  mode = "settings",
+  initialSection = "apis",
   section: controlledSection,
   onSectionChange,
 }: {
   open: boolean;
   triggerRef: RefObject<HTMLButtonElement | null>;
   onClose: () => void;
+  mode?: "settings" | "appearance";
   /** 首次打开时的板块；此后与画布一致，记住用户上次停留的板块。 */
   initialSection?: SettingsSection;
   /** 受控板块：画布从 ui-shell-store 传入，让 Agent 的 ui_open_panel 能切板块。 */
   section?: SettingsSection;
   onSectionChange?: (section: SettingsSection) => void;
 }) {
+  const appearanceMode = mode === "appearance";
   const panelRef = useRef<HTMLDivElement>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
   const [internalSection, setInternalSection] = useState<SettingsSection>(initialSection);
-  const section = controlledSection ?? internalSection;
+  const requestedSection = controlledSection ?? internalSection;
+  const section: SettingsSection = appearanceMode
+    ? "ui"
+    : requestedSection === "ui"
+      ? "apis"
+      : requestedSection;
   const setSection = (next: SettingsSection) => {
     onSectionChange?.(next);
     if (controlledSection === undefined) setInternalSection(next);
@@ -125,6 +140,11 @@ export function AppearanceToolbar({
     if (!panel) return;
 
     if (open) {
+      // 记住真正打开面板的那个控件（顶栏「设置」和 dock 的「UI 设置」是两个按钮，
+      // 共用同一个面板）。关闭时必须还给它，否则焦点会跑到另一个按钮上。
+      const opener = document.activeElement;
+      restoreFocusRef.current =
+        opener instanceof HTMLElement && !panel.contains(opener) ? opener : triggerRef.current;
       const frame = window.requestAnimationFrame(() => {
         const selectedPreference = panel.querySelector<HTMLButtonElement>(
           'button[aria-pressed="true"]',
@@ -134,16 +154,22 @@ export function AppearanceToolbar({
       return () => window.cancelAnimationFrame(frame);
     }
 
-    if (panel.contains(document.activeElement)) triggerRef.current?.focus();
+    const target = restoreFocusRef.current ?? triggerRef.current;
+    restoreFocusRef.current = null;
+    // 下一帧再交还：同一帧里面板还要挂 inert，浏览器会因为子树失效把焦点抹回
+    // body，同步 focus 会被这一步覆盖掉。
+    window.requestAnimationFrame(() => target?.focus());
   }, [open, triggerRef]);
 
   return createPortal(
     <div
       ref={panelRef}
-      id="wc-appearance-toolbar"
-      className={`wc-appearance-toolbar wc-ui-settings nodrag nopan nowheel ${open ? "is-open" : ""}`}
+      id={appearanceMode ? "wc-appearance-panel" : "wc-appearance-toolbar"}
+      className={`wc-appearance-toolbar wc-ui-settings nodrag nopan nowheel ${
+        appearanceMode ? "wc-appearance-panel" : ""
+      } ${open ? "is-open" : ""}`}
       role="dialog"
-      aria-label="设置"
+      aria-label={appearanceMode ? "界面设置" : "设置"}
       aria-modal="false"
       aria-hidden={!open}
       inert={open ? undefined : true}
@@ -153,13 +179,13 @@ export function AppearanceToolbar({
     >
       <header className="wc-ui-settings-header">
         <span className="wc-ui-settings-title">
-          <Settings aria-hidden="true" />
-          设置
+          {appearanceMode ? <Palette aria-hidden="true" /> : <Settings aria-hidden="true" />}
+          {appearanceMode ? "界面设置" : "设置"}
         </span>
         <button
           type="button"
           className="wc-ui-settings-close"
-          aria-label="关闭设置"
+          aria-label={appearanceMode ? "关闭界面设置" : "关闭设置"}
           title="关闭"
           onClick={onClose}
         >
@@ -167,18 +193,12 @@ export function AppearanceToolbar({
         </button>
       </header>
 
-      <div className="wc-ui-settings-tabs" role="tablist" aria-label="设置板块">
-        <button
-          type="button"
-          role="tab"
-          id="wc-settings-section-tab-ui"
-          aria-controls="wc-ui-settings-panel-visual"
-          aria-selected={section === "ui"}
-          onClick={() => setSection("ui")}
-        >
-          <Palette aria-hidden="true" />
-          界面
-        </button>
+      <div
+        className="wc-ui-settings-tabs"
+        role="tablist"
+        aria-label="设置板块"
+        hidden={appearanceMode}
+      >
         <button
           type="button"
           role="tab"
@@ -466,6 +486,18 @@ export function AppearanceToolbar({
     </div>,
     document.body,
   );
+}
+
+/**
+ * 独立的「界面设置」面板：只有视觉 / 交互两页，不出现 API、模型、协作这些设置项。
+ * 底部 dock 的调色板键打开它，顶栏「设置」仍然打开设置中心，两者互不打扰。
+ */
+export function AppearancePanel(props: {
+  open: boolean;
+  triggerRef: RefObject<HTMLButtonElement | null>;
+  onClose: () => void;
+}) {
+  return <AppearanceToolbar {...props} mode="appearance" />;
 }
 
 function PreferenceGroup({

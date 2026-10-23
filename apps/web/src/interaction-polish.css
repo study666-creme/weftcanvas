@@ -1,0 +1,95 @@
+/*
+ * 交互质感层：只调手感，不动布局、配色和几何。
+ *
+ * 这里收三类此前散在各处的细节：
+ * 1. 键盘焦点。全站 63 处 :focus-visible 各写各的，没写的控件会退回浏览器
+ *    默认的直角蓝框——在深色画布上非常刺眼。这里补一圈跟配色走的低透明度
+ *    强调色，`outline` 不参与布局，也不会把按钮撑大。
+ * 2. 按压。基线的 `scale(0.94)` 缩得太狠，点下去像整块按钮瘪了；改成
+ *    1px 下沉 + 3% 收缩 + 内阴影收紧，动作更像「按下去」而不是「缩小」。
+ * 3. 数值对齐。余额、积分、价格、缩放比例都是变宽数字，数字一跳整行就跟着
+ *    抖；统一 tabular-nums。
+ *
+ * 所有新规则都用 :where() 压到最低特异性，任何既有规则都能覆盖它——
+ * 也就是说这层只补空位，不跟现有实现抢优先级。
+ */
+
+:root {
+  --wc-ease-out: cubic-bezier(0.22, 0.8, 0.28, 1);
+  --wc-dur-press: 80ms;
+}
+
+/* ---------- 键盘焦点 ---------- */
+
+:where(
+  button,
+  a[href],
+  [role="button"],
+  input,
+  textarea,
+  select,
+  [tabindex]:not([tabindex="-1"])
+):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--wc-accent) 58%, transparent);
+  outline-offset: 2px;
+}
+
+/* ---------- 按压 ---------- */
+
+:where(
+    .wc-icon-button,
+    .wc-topbar-actions button,
+    .wc-zoom-control button,
+    .wc-create-rail button,
+    .wc-edit-dock button,
+    .wc-selection-toolbar button
+  ):active:not(:disabled) {
+  transform: translateY(1px) scale(0.97);
+  transition-duration: var(--wc-dur-press);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 20%);
+}
+
+/* ---------- 数值等宽 ---------- */
+
+:is(
+  .wc-wallet-balance,
+  .wc-activity-balance,
+  .wc-activity-ledger-balance,
+  .wc-direct-price,
+  .wc-generation-compact-credit,
+  .wc-entry-project-credits,
+  .wc-membership-plan-price,
+  .wc-cat-select-option-price
+) {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* ---------- 浮层滚动不穿透 ---------- */
+
+:where(
+  .wc-node-overlay-panel,
+  .wc-asset-library-panel,
+  .wc-generation-panel,
+  .wc-shortcuts-panel,
+  .wc-appearance-toolbar,
+  .wc-context-menu,
+  .wc-connection-create-menu
+) {
+  overscroll-behavior: contain;
+}
+
+/* 减少动效偏好下，按压不做位移，只保留颜色反馈。 */
+@media (prefers-reduced-motion: reduce) {
+  :where(
+      .wc-icon-button,
+      .wc-topbar-actions button,
+      .wc-zoom-control button,
+      .wc-create-rail button,
+      .wc-edit-dock button,
+      .wc-selection-toolbar button
+    ):active:not(:disabled) {
+    transform: none;
+    transition-duration: 1ms;
+  }
+}

@@ -32,7 +32,10 @@ import type { StoredCatalogSnapshot } from "./store.js";
 // 23: 上游目录容错（d5eacd4：书信字段一律推导），快照按新解析口径刷新。
 // 24: 音频模型进入执行白名单（chat/completions 返回链接、Gemini 原生返回内联
 //     PCM），目录不再丢弃它们，并给音频模型挂上 audio.v1 协议。
-export const CATALOG_NORMALIZATION_VERSION = 24;
+// 25: 参考素材费率（参考视频每秒另计价、参考图超量规则）进公开计价契约。必须
+//     bump：不 bump 的话已持久化的快照里没有这两个字段，报价只能继续按「所有
+//     带参考视频的模型都按档价加收」的旧口径算，等于修复不生效。
+export const CATALOG_NORMALIZATION_VERSION = 25;
 
 /** 站点 overlay 可以抬高效版本号，让带策展规则的快照独立失效。 */
 export function catalogNormalizationVersion(overlay?: CatalogCompatibilityOverlay) {
@@ -808,6 +811,14 @@ function normalizePricing(
     typeof pricing.estimate_note === "string" && pricing.estimate_note.trim()
       ? pricing.estimate_note.trim()
       : undefined;
+  // 参考素材费率：站点没有发布字段的模型保持「没有这条规则」——报价端据此回落到
+  // 描述口径（参考视频按当前档每秒价），而不是给所有模型套上同一个费率。
+  const referenceVideoYuanPerSecond = nonNegativeNumber(pricing.reference_video_yuan_per_second);
+  const referenceVideoCreditsPerSecond = nonNegativeNumber(
+    pricing.reference_video_credits_per_second,
+  );
+  const referenceImageFreeCount = nonNegativeInteger(pricing.reference_image_free_count);
+  const referenceImageOverageYuan = nonNegativeNumber(pricing.reference_image_overage_yuan);
   return modelPricingSchema.parse({
     mode: publicMode,
     unit,
@@ -843,6 +854,22 @@ function normalizePricing(
       ? { estimatedYuanMicrosPerSecond: toMicros(estimatedYuanPerSecond) }
       : {}),
     ...(estimateNote !== undefined ? { estimateNote } : {}),
+    ...(referenceVideoYuanPerSecond !== undefined
+      ? { referenceVideoYuanMicrosPerSecond: toMicros(referenceVideoYuanPerSecond) }
+      : {}),
+    ...(referenceVideoCreditsPerSecond !== undefined
+      ? { referenceVideoCreditMicrosPerSecond: toMicros(referenceVideoCreditsPerSecond) }
+      : {}),
+    // 免费张数与超量单价是一对：只发布其中一半不构成完整规则，宁可当没发布，
+    // 也不要用默认张数配一个站点没写的单价收钱。
+    ...(referenceImageFreeCount !== undefined && referenceImageOverageYuan !== undefined
+      ? {
+          referenceImageOverage: {
+            freeCount: referenceImageFreeCount,
+            yuanMicrosEach: toMicros(referenceImageOverageYuan),
+          },
+        }
+      : {}),
   });
 }
 
@@ -1041,6 +1068,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function toMicros(value: number) {
   return Math.round(value * 1_000_000);
+}
+
+/** 有限非负数字才认；NaN/Infinity/负数/非数字一律当作「没发布」。 */
+function nonNegativeNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+function nonNegativeInteger(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : undefined;
 }
 
 export function withQuoteAvailability(catalog: PublicModelCatalog, now: number) {

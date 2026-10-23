@@ -7,9 +7,11 @@ import {
   Files,
   FolderPlus,
   Group,
+  Link2,
   Puzzle,
   Trash2,
   Ungroup,
+  Unlink,
   Upload,
 } from "lucide-react";
 import type { XYPosition } from "@xyflow/react";
@@ -17,6 +19,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { nodeCreationDimensions } from "../lib/node-factory";
 import { findOpenNodePosition } from "../lib/node-placement";
+import { useAgentLinkStore } from "../state/agent-link-store";
+import { useAgentStore } from "../state/agent-store";
 import { useCanvasStore } from "../state/canvas-store";
 import { useProjectAssetStore } from "../state/project-asset-store";
 import { useUiPreferencesStore } from "../state/ui-preferences-store";
@@ -59,6 +63,20 @@ export function CanvasContextMenu({
   const selectedIds = useMemo(() => new Set(selectedNodes.map((node) => node.id)), [selectedNodes]);
   // 右键节点可手动存入项目工作资产库：有媒体存媒体，纯文本存提示词。
   const menuNode = menu.nodeId ? (nodes.find((node) => node.id === menu.nodeId) ?? null) : null;
+  const projectId = useCanvasStore((state) => state.projectId);
+  const agentOpen = useAgentStore((state) => state.open);
+  // 选择器必须返回稳定值：`?? []` 每次都是新数组，会让 zustand 无限重渲染。
+  const linkedNodeIds = useAgentLinkStore((state) => state.linksByProject[projectId]);
+  const toggleAgentLink = useAgentLinkStore((state) => state.toggle);
+  const agentLinkable =
+    agentOpen &&
+    menuNode &&
+    Boolean(menuNode.data.media) &&
+    (menuNode.data.kind === "image" || menuNode.data.kind === "video");
+  const agentLinked = Boolean(agentLinkable && menuNode && linkedNodeIds?.includes(menuNode.id));
+  const agentLinkNodeId = menu.edgeId?.startsWith("agent-link:")
+    ? menu.edgeId.slice("agent-link:".length)
+    : null;
   const libraryCandidate =
     menuNode && (menuNode.data.media || menuNode.data.body.trim()) ? menuNode : null;
   const saveNodeAsset = useProjectAssetStore((state) => state.saveNodeAsset);
@@ -68,7 +86,11 @@ export function CanvasContextMenu({
   const itemCount = menu.edgeId
     ? 1
     : menu.nodeId
-      ? 3 + Number(Boolean(libraryCandidate)) + Number(canPaste) + Number(canGroup || canUngroup)
+      ? 3 +
+        Number(Boolean(libraryCandidate)) +
+        Number(canPaste) +
+        Number(canGroup || canUngroup) +
+        Number(Boolean(agentLinkable))
       : creatableNodes.length +
         Number(canPaste) +
         selectionActionCount +
@@ -142,18 +164,32 @@ export function CanvasContextMenu({
       onPointerDown={(event) => event.stopPropagation()}
     >
       {menu.edgeId ? (
-        <button
-          role="menuitem"
-          type="button"
-          className="is-danger"
-          onClick={() => {
-            deleteSelection();
-            onClose();
-          }}
-        >
-          <Trash2 aria-hidden="true" />
-          删除连线
-        </button>
+        agentLinkNodeId ? (
+          <button
+            role="menuitem"
+            type="button"
+            onClick={() => {
+              toggleAgentLink(projectId, agentLinkNodeId);
+              onClose();
+            }}
+          >
+            <Unlink aria-hidden="true" />
+            取消 Agent 参考
+          </button>
+        ) : (
+          <button
+            role="menuitem"
+            type="button"
+            className="is-danger"
+            onClick={() => {
+              deleteSelection();
+              onClose();
+            }}
+          >
+            <Trash2 aria-hidden="true" />
+            删除连线
+          </button>
+        )
       ) : menu.nodeId ? (
         <>
           {canUngroup ? (
@@ -221,6 +257,19 @@ export function CanvasContextMenu({
             >
               <FolderPlus aria-hidden="true" />
               存入工作资产库
+            </button>
+          ) : null}
+          {agentLinkable && menuNode ? (
+            <button
+              role="menuitem"
+              type="button"
+              onClick={() => {
+                toggleAgentLink(projectId, menuNode.id);
+                onClose();
+              }}
+            >
+              {agentLinked ? <Unlink aria-hidden="true" /> : <Link2 aria-hidden="true" />}
+              {agentLinked ? "取消 Agent 参考" : "引用到 Agent"}
             </button>
           ) : null}
           {canPaste ? (

@@ -213,6 +213,10 @@ test("抽屉里启用技能、切换执行权限并导出对话", async ({ page 
   const drawer = page.getByRole("dialog", { name: "画布 Agent" });
   await expect(drawer).toBeVisible();
 
+  // 技能 / 权限收在「对话设置」弹层里：先展开设置面板
+  await drawer.getByRole("button", { name: "对话设置" }).click();
+  await expect(drawer.getByRole("dialog", { name: "对话设置" })).toBeVisible();
+
   // 技能触发键 → 面板列出两个技能
   const trigger = drawer.getByRole("button", { name: "Agent 技能" });
   await trigger.click();
@@ -289,6 +293,7 @@ test("抽屉里启用技能、切换执行权限并导出对话", async ({ page 
   await page.reload();
   await page.getByLabel("打开画布 Agent").click();
   const reloadedDrawer = page.getByRole("dialog", { name: "画布 Agent" });
+  await reloadedDrawer.getByRole("button", { name: "对话设置" }).click();
   await expect(
     reloadedDrawer.getByLabel("执行权限", { exact: true }).locator(".wc-canvas-select-label"),
   ).toHaveText("自动执行");
@@ -302,6 +307,7 @@ test("抽屉里启用技能、切换执行权限并导出对话", async ({ page 
   await page.getByLabel("打开画布 Agent").click();
   const lightDrawer = page.getByRole("dialog", { name: "画布 Agent" });
   await expect(lightDrawer).toBeVisible();
+  await lightDrawer.getByRole("button", { name: "对话设置" }).click();
   await lightDrawer.getByRole("button", { name: "Agent 技能" }).click();
   const lightMenu = page.getByRole("menu", { name: "Agent 技能" });
   await expect(lightMenu).toBeVisible();

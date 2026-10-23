@@ -326,24 +326,29 @@ function calculateAmount(
       : model.modality === "image"
         ? outputCount
         : request.quantity;
+  // 参考视频的秒数与成片秒数分开计价：站点单独发布了费率（如可灵「参考视频每秒
+  // 另计 0.07 元」）就按它算，没发布才回落到当前档的每秒价（H3 系列等描述口径）。
+  let referenceSeconds = 0;
   if (pricing.unit === "second") {
     const duration = parameters.duration_seconds ?? parameters.duration ?? parameters.seconds;
     if (typeof duration !== "number" || !Number.isFinite(duration) || duration <= 0) {
       throw new QuoteValidationError("MISSING_DURATION", "当前视频模型需要有效时长");
     }
     units *= duration;
-    // 参考视频按该模型的每秒价格另行计费（站点目录对 H3 系列的明示口径）。
-    // 预扣若只算成片秒数，实扣会超出预扣一个参考素材的量级，所以这部分秒数
-    // 按同一档每秒价并进 units；没有参考视频时为 0，行为不变。
-    units += referenceVideoBillableSeconds(model, parameters);
+    referenceSeconds = referenceVideoBillableSeconds(model, parameters);
   }
   if (pricing.unit === "image") units = outputCount;
+  const unitCreditMicros =
+    baseCreditMicros ?? yuanToCredits(baseYuanMicros!, pricing.creditsPerYuan);
+  const unitYuanMicros = baseYuanMicros ?? creditsToYuan(baseCreditMicros!, pricing.creditsPerYuan);
+  const referenceCreditMicros = referenceSecondCreditMicros(pricing, unitCreditMicros);
+  const referenceYuanMicros =
+    pricing.referenceVideoYuanMicrosPerSecond ??
+    creditsToYuan(referenceCreditMicros, pricing.creditsPerYuan);
   const creditMicros = Math.ceil(
-    (baseCreditMicros ?? yuanToCredits(baseYuanMicros!, pricing.creditsPerYuan)) * units,
+    unitCreditMicros * units + referenceCreditMicros * referenceSeconds,
   );
-  const yuanMicros = Math.ceil(
-    (baseYuanMicros ?? creditsToYuan(baseCreditMicros!, pricing.creditsPerYuan)) * units,
-  );
+  const yuanMicros = Math.ceil(unitYuanMicros * units + referenceYuanMicros * referenceSeconds);
   // 参考图超量是固定每张费，不与时长相乘，只能在算出基础额之后另加。
   const overage = referenceImageOverageCharge(model, request);
   return {
@@ -351,6 +356,17 @@ function calculateAmount(
     yuanMicros: yuanMicros + overage.yuanMicros,
     estimated: false,
   };
+}
+
+/**
+ * 参考视频每秒的积分费率：站点发布了单独费率就用它，否则与成片同档（描述口径）。
+ */
+function referenceSecondCreditMicros(pricing: ModelPricing, unitCreditMicros: number) {
+  if (pricing.referenceVideoCreditMicrosPerSecond !== undefined)
+    return pricing.referenceVideoCreditMicrosPerSecond;
+  if (pricing.referenceVideoYuanMicrosPerSecond !== undefined)
+    return yuanToCredits(pricing.referenceVideoYuanMicrosPerSecond, pricing.creditsPerYuan);
+  return unitCreditMicros;
 }
 
 function validateOutputCount(
@@ -401,9 +417,10 @@ function validateOutputCount(
 }
 
 /**
- * 参考视频的可计费秒数。上游把参考视频按该模型的每秒价格计费（站点目录对
- * H3 系列的明示口径），预扣只算成片秒数会让实扣超出预扣一个参考素材的量级。
- * 模型没发布这个参数、或本次请求没带合法音长时为 0，其他模型行为不变。
+ * 参考视频的可计费秒数。秒数本身是公开契约参数（referenceVideoDurations，与
+ * referenceVideos 成对、合计不超过目录声明的上限），费率由计价侧决定：站点单独
+ * 发布了参考视频费率就按那个价，没发布就按当前档的每秒价（H3 系列描述口径）。
+ * 模型没发布这个参数、或本次请求没带合法秒数时为 0，其他模型行为不变。
  */
 function referenceVideoBillableSeconds(model: PublicModel, parameters: Record<string, unknown>) {
   if (!declaresReferenceVideoDurations(model)) return 0;
@@ -414,25 +431,21 @@ function referenceVideoBillableSeconds(model: PublicModel, parameters: Record<st
 }
 
 /**
- * 参考图超量固定费：前 5 张免费，第 6 张起每张 0.1 元。这条口径来自站点目录
- * 对 H3 系列模型的描述原文（结构化价格里没有这一档），2026-09-23 运营确认照
- * 此执行——少计费的后果是实扣超过预扣，所以这里按目录口径把常数钉住并写清
- * 出处；每模型汇率从目录 credits_per_yuan 读，不把「100 积分/元」写死。
+ * 参考图超量固定费：免费张数与每张单价都从目录发布的规则读（H3 系列描述原文
+ * 「参考图前 5 张免费，第 6 张起每张 0.1 元」，2026-09-23 运营确认照此执行）。
+ * 目录没发布这条规则的模型不收超量费——这条规则属于明确声明它的模型，不能按
+ * 「模型带参考视频参数」一刀切加收。
  */
-const FREE_REFERENCE_IMAGES = 5;
-const REFERENCE_IMAGE_OVERAGE_YUAN = 0.1;
-
 function referenceImageOverageCharge(model: PublicModel, request: GenerationQuoteRequest) {
-  if (!declaresReferenceVideoDurations(model)) return { creditMicros: 0, yuanMicros: 0 };
+  const rule = model.pricing.referenceImageOverage;
+  if (!rule) return { creditMicros: 0, yuanMicros: 0 };
   const images =
     request.inputs.images + (request.inputs.styleImages ?? 0) + (request.inputs.elementImages ?? 0);
-  const overage = Math.max(0, images - FREE_REFERENCE_IMAGES);
+  const overage = Math.max(0, images - rule.freeCount);
   if (!overage) return { creditMicros: 0, yuanMicros: 0 };
   return {
-    creditMicros: Math.ceil(
-      overage * REFERENCE_IMAGE_OVERAGE_YUAN * model.pricing.creditsPerYuan * 1_000_000,
-    ),
-    yuanMicros: Math.ceil(overage * REFERENCE_IMAGE_OVERAGE_YUAN * 1_000_000),
+    creditMicros: Math.ceil(overage * rule.yuanMicrosEach * model.pricing.creditsPerYuan),
+    yuanMicros: Math.ceil(overage * rule.yuanMicrosEach),
   };
 }
 

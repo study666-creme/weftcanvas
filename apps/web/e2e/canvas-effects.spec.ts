@@ -129,7 +129,7 @@ test("canvas effect choices animate the real generation node and active edge", a
   await expect(scene).toBeVisible();
   await expect(sweep).toHaveCSS("animation-name", "wc-video-generation-sweep");
 
-  await page.getByLabel("打开 UI 设置").click();
+  await page.getByLabel("打开界面设置").click();
   const effects = page.locator(
     "#wc-ui-settings-panel-visual .wc-appearance-group--previews button",
   );
@@ -213,7 +213,7 @@ test("quiet renders a calm centered generation state inside the real media node"
   page,
 }) => {
   await page.goto("/canvas");
-  await page.getByLabel("打开 UI 设置").click();
+  await page.getByLabel("打开界面设置").click();
   await page.getByRole("button", { name: "光环生成动效" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-generation-effect", "quiet");
 
@@ -359,7 +359,7 @@ test("pointer feedback stays available when pointer media queries under-report i
   // 指针媒体查询谎报时，真实鼠标依然能触发进入反馈。
   await page.mouse.move(920, 620);
   await expect(pulse).not.toHaveClass(/is-enter|is-press/);
-  const toolbarButton = page.getByLabel("打开 UI 设置");
+  const toolbarButton = page.getByLabel("打开界面设置");
   await toolbarButton.hover();
   await expect(pulse).toHaveClass(/is-enter/);
   await page.mouse.down();

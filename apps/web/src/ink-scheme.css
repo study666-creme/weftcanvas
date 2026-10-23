@@ -1,95 +1,118 @@
 /*
- * 墨黑（ink）配色方案 —— 与「石墨」并列的第二套配色。
+ * 墨黑（ink）配色方案 —— 唯一的一套「近黑」配色。
  *
- * 石墨是仓库沿用的灰调：底 #141414、面 #1c1c1c，层级靠灰色渐变。
- * 墨黑把底色压到近纯黑并去掉灰味，层级完全交给 1px 描边与明度差：
- * 黑怼黑，靠线分层，不靠把东西染成不同深浅的灰。
+ * 这条档原来被拆成两套：墨黑（黑怼黑、靠 1px 描边分层）和纯黑（深阴影 + 顶光
+ * 的玻璃质感）。两者目标其实是同一件事——把底色压到黑，靠结构而不是灰阶分层；
+ * 差别只在「用线还是用阴影」。并列摆着等于让人在两种几乎一样的黑里做选择，
+ * 所以合成一档，取各自更强的那一半：
  *
- * 只覆盖颜色令牌，几何/间距/圆角一概不动，因此与节点样式（疏朗/无界/经典/巨幕）、
- * 界面样式、背景样式全部正交，可任意组合。浅色主题走对称的另一端：
- * 纯白底 + 纯黑字 + 更明确的细描边，同样不用灰调撑层级。
+ *   节点 —— 用线。纯黑底上投影只会糊出一圈灰边，节点之间靠 13% 的发丝白线
+ *           和顶部 1px 内高光分界，边缘是干净的。
+ *   浮层 —— 用阴影。面板、弹窗、菜单离开画布平面，才需要真正的深度：
+ *           顶部内嵌高光 + 底部深染，两层就够了，不堆五层。
+ *
+ * 底色取 #040406（原墨黑 #050507、纯黑 #020203 之间）——再往纯黑走，画布网格
+ * 和节点描边会一起消失。文字 #f3f5f9，冷白而不偏蓝。
+ *
+ * 只覆盖颜色令牌，几何/间距/圆角一概不动，因此与节点样式（含敛锋）、界面样式、
+ * 背景样式全部正交，可任意组合。浅色主题是对称的另一端：冷白纸底 + 纯黑字，
+ * 描边比石墨更明确，同样不靠灰阶撑层级。
  */
 
 :root[data-theme="dark"][data-color-scheme="ink"] {
-  color: #f4f6f8;
-  background: #050507;
-  --wc-canvas: #050507;
-  --wc-background-canvas: #050507;
-  --wc-background-surface: #0b0b0e;
-  --wc-background-grid: #3d434c;
-  --wc-surface: #0b0b0e;
-  --wc-surface-raised: #121216;
-  --wc-surface-muted: #08080a;
-  --wc-surface-strong: #1a1a1f;
-  --wc-text: #f4f6f8;
-  --wc-text-secondary: #a8b0ba;
-  --wc-text-tertiary: #6e7681;
-  /* 描边是唯一的层级手段，因此比石墨更明确，但仍然克制。 */
-  --wc-border: #23262c;
-  --wc-border-strong: #3d434c;
+  color: #f3f5f9;
+  background: #040406;
+  --wc-canvas: #040406;
+  --wc-background-canvas: #040406;
+  --wc-background-surface: #0a0a0d;
+  --wc-background-grid: #3a3f47;
+  --wc-surface: #0c0c10;
+  --wc-surface-raised: #15151b;
+  --wc-surface-muted: #07070a;
+  --wc-surface-strong: #1d1d24;
+  --wc-text: #f3f5f9;
+  --wc-text-secondary: #a7adb8;
+  --wc-text-tertiary: #6d7480;
+  /* 描边是节点的唯一层级手段，因此比石墨更明确，但不到「有边框感」的程度。 */
+  --wc-border: #262931;
+  --wc-border-strong: #43474f;
   --wc-selection: #f2f4f7;
   --wc-jade: #f2f4f7;
   --wc-jade-hover: #ffffff;
-  --wc-jade-soft: #1a1a1f;
+  --wc-jade-soft: #1b1b21;
   --wc-accent: #f2f4f7;
   --wc-accent-hover: #ffffff;
-  --wc-accent-soft: #1a1a1f;
-  --wc-on-accent: #08080a;
-  --wc-success: #6f9d88;
-  --wc-success-soft: #12201a;
-  --wc-blue: #7fa4c4;
-  --wc-blue-soft: #101820;
-  --wc-coral: #c07f70;
-  --wc-coral-soft: #1d1413;
-  --wc-amber: #c9b28a;
-  --wc-amber-soft: #1c1811;
-  --wc-danger: #c96a61;
-  --wc-danger-soft: #1f1211;
-  /* 纯黑底上投影几乎不可见，压到最小，避免糊出一圈灰边。 */
-  --wc-shadow-node: 0 0 0 1px rgb(0 0 0 / 60%);
-  --wc-shadow-float: 0 0 0 1px rgb(0 0 0 / 70%), 0 18px 44px rgb(0 0 0 / 62%);
-  --wc-shadow-editor: 0 0 0 1px rgb(0 0 0 / 70%), 0 26px 64px rgb(0 0 0 / 66%);
+  --wc-accent-soft: #1b1b21;
+  --wc-on-accent: #08080b;
+  --wc-success: #6fae95;
+  --wc-success-soft: #12211b;
+  --wc-blue: #86aed2;
+  --wc-blue-soft: #111a24;
+  --wc-coral: #c98a7c;
+  --wc-coral-soft: #221614;
+  --wc-amber: #d4b98a;
+  --wc-amber-soft: #221c11;
+  --wc-danger: #d17c73;
+  --wc-danger-soft: #241514;
+  /* 节点：一条顶光就够，投影压到最小——纯黑上大面积模糊阴影只会发糊。 */
+  --wc-shadow-node: inset 0 1px 0 rgb(255 255 255 / 4%), 0 1px 2px rgb(0 0 0 / 56%);
+  --wc-shadow-float:
+    inset 0 1px 0 rgb(255 255 255 / 7%), 0 2px 6px rgb(0 0 0 / 54%),
+    0 20px 48px -12px rgb(0 0 0 / 74%);
+  --wc-shadow-editor:
+    inset 0 1px 0 rgb(255 255 255 / 8%), 0 4px 12px rgb(0 0 0 / 60%),
+    0 30px 72px -18px rgb(0 0 0 / 78%);
 }
 
 :root[data-theme="light"][data-color-scheme="ink"] {
-  color: #0a0a0c;
-  background: #ffffff;
-  --wc-canvas: #ffffff;
-  --wc-background-canvas: #ffffff;
+  color: #0b0c0f;
+  /* 浅色下墨黑是「冷纸 + 纯白卡片」：底色再压一档，白卡片才浮得起来，
+     否则和石墨几乎分不出差别。 */
+  background: #eceef3;
+  --wc-canvas: #eceef3;
+  --wc-background-canvas: #eceef3;
   --wc-background-surface: #ffffff;
-  --wc-background-grid: #c9ced4;
+  --wc-background-grid: #b6bcc7;
   --wc-surface: #ffffff;
-  --wc-surface-raised: #fcfcfd;
-  --wc-surface-muted: #f6f7f8;
-  --wc-surface-strong: #edeef1;
-  --wc-text: #0a0a0c;
-  --wc-text-secondary: #43484f;
-  --wc-text-tertiary: #7d838b;
-  --wc-border: #dfe2e6;
-  --wc-border-strong: #b9bec5;
-  --wc-selection: #0a0a0a;
-  --wc-jade: #0a0a0a;
+  --wc-surface-raised: #ffffff;
+  --wc-surface-muted: #f1f2f5;
+  --wc-surface-strong: #e7e9ee;
+  --wc-text: #0b0c0f;
+  --wc-text-secondary: #414650;
+  --wc-text-tertiary: #7b818c;
+  --wc-border: #dadee4;
+  --wc-border-strong: #b3b9c2;
+  --wc-selection: #0b0c0f;
+  --wc-jade: #0b0c0f;
   --wc-jade-hover: #000000;
-  --wc-jade-soft: #f0f1f3;
-  --wc-accent: #0a0a0a;
+  --wc-jade-soft: #eef0f4;
+  --wc-accent: #0b0c0f;
   --wc-accent-hover: #000000;
-  --wc-accent-soft: #f0f1f3;
+  --wc-accent-soft: #eef0f4;
   --wc-on-accent: #ffffff;
   --wc-success: #1f7a5f;
+  --wc-success-soft: #e4f3ed;
   --wc-blue: #2f6ba3;
+  --wc-blue-soft: #e6eff7;
   --wc-coral: #b4483a;
-  --wc-amber: #9a6f1f;
+  --wc-coral-soft: #fbe9e6;
+  --wc-amber: #97690f;
+  --wc-amber-soft: #fbf1da;
   --wc-danger: #a83e37;
-  --wc-shadow-node: 0 1px 2px rgb(10 10 12 / 8%), 0 10px 24px -10px rgb(10 10 12 / 12%);
-  --wc-shadow-float: 0 0 0 1px rgb(10 10 12 / 6%), 0 12px 30px rgb(10 10 12 / 10%);
-  --wc-shadow-editor: 0 0 0 1px rgb(10 10 12 / 6%), 0 18px 44px rgb(10 10 12 / 12%);
+  --wc-danger-soft: #fbe8e7;
+  --wc-shadow-node: inset 0 1px 0 rgb(255 255 255 / 96%), 0 1px 2px rgb(11 12 15 / 8%);
+  --wc-shadow-float:
+    inset 0 1px 0 rgb(255 255 255 / 98%), 0 2px 6px rgb(11 12 15 / 10%),
+    0 20px 48px -12px rgb(11 12 15 / 18%);
+  --wc-shadow-editor:
+    inset 0 1px 0 rgb(255 255 255 / 99%), 0 4px 12px rgb(11 12 15 / 12%),
+    0 30px 72px -18px rgb(11 12 15 / 22%);
 }
 
 /* 石墨方案不需要覆盖：它就是 styles.css 里的默认令牌。 */
 
 /*
- * 墨黑下节点描边要更实：纯黑底上 7% 白几乎看不见，而这里没有灰色渐变可以兜底，
- * 边框就是唯一的分界。
+ * 墨黑下节点描边要更实：近黑底上 7% 白几乎看不见，而这里没有灰色渐变可以兜底。
  */
 :root[data-theme="dark"][data-color-scheme="ink"] .wc-node-surface {
   border-color: rgb(255 255 255 / 13%);
@@ -97,5 +120,5 @@
 
 :root[data-theme="dark"][data-color-scheme="ink"] .wc-node-wrap--image .wc-node-surface,
 :root[data-theme="dark"][data-color-scheme="ink"] .wc-node-wrap--video .wc-node-surface {
-  background: #08080a;
+  background: #07070a;
 }

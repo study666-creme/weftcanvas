@@ -48,6 +48,9 @@ type GenerationState = {
   recordJob: (job: PublicGenerationJob) => void;
   watchJob: (job: PublicGenerationJob) => void;
   markObservationExhausted: (jobId: string) => void;
+  markObservationRecovered: (jobId: string) => void;
+  /** 传输层认输后立刻在后台按幂等键核对，网络恢复即自动收敛，无需重开项目。 */
+  reconcileAmbiguousSubmissions: (projectId: string) => void;
   recoverProject: (projectId: string) => Promise<void>;
   beginHostedSubmission: (
     nodeId: string,
@@ -78,6 +81,20 @@ let recoveryRetryTimer: number | null = null;
 let recoveryRetryDelay = 2_000;
 let walletRefreshRevision = 0;
 let walletRefreshRunning = false;
+/**
+ * 一份「提交结果待确认」之后的核对节奏。传输层认输不代表服务端没接单，而这
+ * 条链路上丢包是常态：立刻核对一次、随后按分钟级退避重试几次，网络恢复时节点
+ * 自己收敛；不这样做就要等用户重开项目才有人去问服务端。工作台也复用这份节奏。
+ */
+export const AMBIGUOUS_RECONCILE_DELAYS_MS = [3_000, 12_000, 40_000, 90_000] as const;
+const ambiguousReconcileTimers = new Map<string, number[]>();
+
+function clearAmbiguousReconcile(projectId: string) {
+  const timers = ambiguousReconcileTimers.get(projectId);
+  if (!timers) return;
+  for (const timer of timers) window.clearTimeout(timer);
+  ambiguousReconcileTimers.delete(projectId);
+}
 
 export const useGenerationStore = create<GenerationState>((set, get) => ({
   catalogs: readStoredCatalogs(),
@@ -196,8 +213,10 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       onJob: (next) => useGenerationStore.getState().recordJob(next),
       onSessionExpired: () => useIdentityStore.getState().expire(),
       onObservationExhausted: () => {
-        watchers.delete(job.id);
         useGenerationStore.getState().markObservationExhausted(job.id);
+      },
+      onObservationRecovered: () => {
+        useGenerationStore.getState().markObservationRecovered(job.id);
       },
     });
     watchers.set(job.id, { projectId: job.projectId, stop });
@@ -209,6 +228,27 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     }));
   },
 
+  markObservationRecovered: (jobId) => {
+    set((state) => {
+      if (!state.exhaustedObservations[jobId]) return state;
+      const exhaustedObservations = Object.fromEntries(
+        Object.entries(state.exhaustedObservations).filter(([id]) => id !== jobId),
+      );
+      return { exhaustedObservations };
+    });
+  },
+
+  reconcileAmbiguousSubmissions: (projectId) => {
+    clearAmbiguousReconcile(projectId);
+    const timers = AMBIGUOUS_RECONCILE_DELAYS_MS.map((delay) =>
+      window.setTimeout(() => {
+        if (!useIdentityStore.getState().session?.user.id) return;
+        void reconcilePendingIdentities(projectId);
+      }, delay),
+    );
+    ambiguousReconcileTimers.set(projectId, timers);
+  },
+
   recoverProject: async (projectId) => {
     const userId = useIdentityStore.getState().session?.user.id;
     if (!userId) return;
@@ -217,6 +257,9 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       if (recoveryRetryTimer !== null) window.clearTimeout(recoveryRetryTimer);
       recoveryRetryTimer = null;
       recoveryRetryDelay = 2_000;
+      // 换项目/换账号后，上一个项目排队的「待确认」核对不再有意义。
+      for (const pendingProjectId of [...ambiguousReconcileTimers.keys()])
+        clearAmbiguousReconcile(pendingProjectId);
     } else if (recoveryRetryTimer !== null) {
       window.clearTimeout(recoveryRetryTimer);
       recoveryRetryTimer = null;
@@ -339,6 +382,8 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     if (recoveryRetryTimer !== null) window.clearTimeout(recoveryRetryTimer);
     recoveryRetryTimer = null;
     recoveryRetryDelay = 2_000;
+    for (const projectId of [...ambiguousReconcileTimers.keys()])
+      clearAmbiguousReconcile(projectId);
     set({ jobsById: {}, jobsByNode: {}, exhaustedObservations: {} });
   },
 }));

@@ -1244,3 +1244,126 @@ test("submission_unknown 状态保持可见并锁定，不自动重放提交", a
   expect(network.unmocked, `unmocked /api requests: ${network.unmocked.join(", ")}`).toEqual([]);
   expect(network.external, `external network requests: ${network.external.join(", ")}`).toEqual([]);
 });
+
+test("提交响应被丢掉一次：面板提示重试，同一个幂等键落到同一个任务", async ({ page }) => {
+  test.setTimeout(60_000);
+  await seedBrowser(page);
+  const network: NetworkState = { unmocked: [], external: [] };
+  await installNetworkGuard(page, network);
+  await mockAuthenticatedBackgroundApis(page);
+
+  const submittedKeys: string[] = [];
+  const startedJobs: Record<string, unknown>[] = [];
+  let jobPostAttempts = 0;
+  let created: Record<string, unknown> | null = null;
+
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({ json: { ok: true, data: session, capabilities } }),
+  );
+  await page.route("**/api/v1/model-catalog*", (route) =>
+    route.fulfill({ json: { ok: true, data: catalog("image") } }),
+  );
+  await page.route("**/api/v1/generation-quotes", (route) => {
+    const body = route.request().postDataJSON() as {
+      modality: "image";
+      parameters: Record<string, unknown>;
+    };
+    return route.fulfill({ json: { ok: true, data: quote(body.modality, body.parameters) } });
+  });
+  await page.route("**/api/v1/generation-jobs*", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname.endsWith("/events")) return route.fulfill({ status: 204, body: "" });
+    if (request.method() === "GET") {
+      return route.fulfill({ json: { ok: true, data: created ? [created] : [] } });
+    }
+    const body = request.postDataJSON() as {
+      modality: "image";
+      modelId: string;
+      nodeId: string;
+      projectId: string;
+      parameters: Record<string, unknown>;
+      idempotencyKey: string;
+    };
+    submittedKeys.push(body.idempotencyKey);
+    jobPostAttempts += 1;
+    if (jobPostAttempts === 1) {
+      // 第一次的响应在链路上被丢掉：浏览器看到的是网络错误，服务端其实已经接单。
+      return route.abort("connectionreset");
+    }
+    // 同一个幂等键回到同一个任务：第二次不产生新任务、也不产生第二笔扣费。
+    created ??= {
+      schemaVersion: 1,
+      version: 1,
+      id: "job-image",
+      projectId: body.projectId,
+      nodeId: body.nodeId,
+      modelId: body.modelId,
+      modelLabel: "画面生成模型",
+      modality: body.modality,
+      status: "completed",
+      progress: 100,
+      quote: quote(body.modality, body.parameters),
+      artifacts: [mediaArtifact("image", "image-result")],
+      error: null,
+      createdAt: NOW,
+      updatedAt: NOW,
+      startedAt: NOW,
+      completedAt: NOW,
+    };
+    startedJobs.push(created);
+    return route.fulfill({ status: 202, json: { ok: true, data: created } });
+  });
+  await page.route(/\/api\/v1\/media\/image-result\/content(?:\?.*)?$/, (route) =>
+    route.fulfill({ body: PIXEL, contentType: "image/png" }),
+  );
+  await page.route("**/api/v1/wallet", (route) =>
+    route.fulfill({ json: { ok: true, data: summary(100) } }),
+  );
+  await page.route(/\/api\/v1\/announcements(?:\?.*)?$/, (route) =>
+    route.fulfill({ json: { ok: true, data: { items: [] } } }),
+  );
+  await page.route(/\/api\/v1\/agent\/connectors(?:\?.*)?$/, (route) =>
+    route.fulfill({ json: { ok: true, data: [] } }),
+  );
+
+  await page.goto("/canvas");
+  await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
+  await skipOnboardingTour(page);
+  await page
+    .getByRole("navigation", { name: "创建工具" })
+    .locator(".wc-create-rail-plus-wrapper")
+    .hover();
+  await page
+    .getByRole("navigation", { name: "创建工具" })
+    .getByRole("menuitem", { name: "添加图片节点" })
+    .click();
+  const imageNode = page
+    .locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="image"])')
+    .first();
+  await imageNode.locator(".wc-node-drag-strip").click();
+  const composer = page.locator("[data-node-prompt-composer]").last();
+  const generation = composer.getByLabel("图片节点创作设置");
+  await expect(generation.getByRole("button", { name: "模型", exact: true })).toContainText(
+    "画面生成模型",
+  );
+  await composer.locator("[data-prompt-editor]").fill("雨夜站台，电影感灯光");
+  const submitButton = generation.locator(".wc-generation-submit");
+  await expect(submitButton).toBeEnabled();
+  await submitButton.click();
+
+  // 重试窗口里按钮和 toast 都要说清「还在重试」，而不是让用户以为卡死。
+  await expect(submitButton).toHaveText(/重试中 2\/3/);
+  await expect(
+    page.locator(".wc-toast").filter({ hasText: "网络不稳定，正在自动重试提交" }),
+  ).toBeVisible();
+
+  // 第二次尝试把同一张任务交回来，节点照常出图，且只有一笔任务。
+  await expect(imageNode.locator(".wc-node-wrap")).toHaveAttribute("data-node-status", "success");
+  await expect(imageNode.locator('img[data-media-id="image-result"]')).toBeVisible();
+  expect(submittedKeys.length).toBe(2);
+  expect(new Set(submittedKeys).size).toBe(1);
+  expect(startedJobs.length).toBe(1);
+  expect(network.unmocked, `unmocked /api requests: ${network.unmocked.join(", ")}`).toEqual([]);
+  expect(network.external, `external network requests: ${network.external.join(", ")}`).toEqual([]);
+});

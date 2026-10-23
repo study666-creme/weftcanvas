@@ -1,19 +1,22 @@
-import type { CanvasMedia, CanvasNodeKind, DirectorStageCapture } from "@weftcanvas/contracts";
+import type { CanvasNodeKind, DirectorStageCapture } from "@weftcanvas/contracts";
 import {
   applyNodeChanges,
   Background,
   BackgroundVariant,
   PanOnScrollMode,
+  Position,
   ReactFlow,
   SelectionMode,
   useReactFlow,
   useStore,
   useStoreApi,
   type Connection,
+  type EdgeChange,
   type EdgeMouseHandler,
   type IsValidConnection,
   type NodeMouseHandler,
   type NodeChange,
+  type NodeTypes,
   type OnNodeDrag,
   type OnConnectStart,
   type OnConnectEnd,
@@ -44,15 +47,22 @@ import { useTouchCanvasNavigation } from "../hooks/use-touch-canvas-navigation";
 import { MAX_CANVAS_ZOOM, MIN_CANVAS_ZOOM } from "../lib/canvas-viewport";
 import { setCanvasConnectionDragging } from "../lib/canvas-connection-state";
 import { connectionPolicyAllows } from "../lib/canvas-connection-rules";
-import { inferCanvasFileKind, layoutCanvasIngestDrafts } from "../lib/canvas-ingest";
+import { takeCanvasAssetDrag } from "../lib/canvas-asset-drag";
+import {
+  inferCanvasFileKind,
+  layoutCanvasIngestDrafts,
+  type CanvasIngestDraft,
+} from "../lib/canvas-ingest";
+import { uploadCanvasFile, type CanvasUploadKind } from "../lib/canvas-media-upload";
 import { loadOfficialPlugins } from "../lib/official-plugins";
-import { removeMedia, storeMedia, uploadMediaToServer } from "../lib/media-store";
+import { removeMedia, storeMedia } from "../lib/media-store";
 import {
   createNodeBodyConnection,
   type NodeBodyConnectionStart,
 } from "../lib/node-body-connection";
 import { nodeCreationDimensions } from "../lib/node-factory";
 import { getGroupBounds, indexCanvasNodes, type NodeGroupBounds } from "../lib/node-groups";
+import { useAgentLinkStore, useAgentLinkedNodeIds } from "../state/agent-link-store";
 import { useAgentStore } from "../state/agent-store";
 import { useCanvasStore } from "../state/canvas-store";
 import { useCloudProjectStore } from "../state/cloud-project-store";
@@ -89,6 +99,11 @@ import { CanvasShortcutsPanel } from "./canvas-shortcuts-panel";
 import { CanvasStarfield } from "./canvas-starfield";
 import { CanvasWaterSurface } from "./canvas-water-surface";
 import { ConnectionCreateMenu, type PendingConnectionCreate } from "./connection-create-menu";
+import {
+  AGENT_ANCHOR_HANDLE_ID,
+  AGENT_ANCHOR_NODE_ID,
+  AgentLinkAnchorNodeView,
+} from "./agent-link-anchor";
 import { WeftcanvasConnectionLine, WeftcanvasEdgeComponent } from "./weftcanvas-edge";
 import { WeftcanvasNode as WeftcanvasNodeComponent } from "./weftcanvas-node";
 import { NodeConfigurationComposer } from "./node-configuration-composer";
@@ -98,7 +113,10 @@ import { StorageTipBanner } from "./storage-tip-banner";
 import { TopBar } from "./top-bar";
 import { ZoomControl } from "./zoom-control";
 
-const nodeTypes = { weftcanvas: WeftcanvasNodeComponent };
+const nodeTypes = {
+  weftcanvas: WeftcanvasNodeComponent,
+  "agent-anchor": AgentLinkAnchorNodeView,
+} as unknown as NodeTypes;
 const edgeTypes = { default: WeftcanvasEdgeComponent, weftcanvas: WeftcanvasEdgeComponent };
 // Above this many nodes the per-node shadows/borders become the dominant paint
 // cost, so we degrade them to keep the canvas interactive on lower-end GPUs.
@@ -136,6 +154,17 @@ function connectionKeysFor(edges: readonly WeftcanvasEdge[]) {
 const isValidCanvasConnection: IsValidConnection<WeftcanvasEdge> = (connection) => {
   if (!connection.source || !connection.target || connection.source === connection.target)
     return false;
+  if (connection.target === AGENT_ANCHOR_NODE_ID) {
+    // Agent 引用口只收有图片/视频素材的节点；重复连线由 handleConnect 去重。
+    const canvas = useCanvasStore.getState();
+    const source = canvas.nodes.find((node) => node.id === connection.source);
+    if (!source || !source.data.media) return false;
+    if (source.data.kind !== "image" && source.data.kind !== "video") return false;
+    return !(useAgentLinkStore.getState().linksByProject[canvas.projectId] ?? []).includes(
+      connection.source,
+    );
+  }
+  if (connection.source === AGENT_ANCHOR_NODE_ID) return false;
   if (
     connectionKeysFor(useCanvasStore.getState().edges).has(
       `${connection.source}\0${connection.target}`,
@@ -164,10 +193,12 @@ const canvasNodeClipDefinitions = (
   >
     <defs>
       <clipPath id="wc-imax-screen-clip" clipPathUnits="objectBoundingBox">
-        <path d="M0,0 Q.5,.18 1,0 L1,1 Q.5,.82 0,1 Z" />
+        {/* 弧幕的入场深度：原先是 .18/.82，上下各吃掉 9% 画面；收到 .06/.94 后
+            中间只让出 3%，弧线仍然读得出来，但图片不再被裁掉一条。 */}
+        <path d="M0,0 Q.5,.06 1,0 L1,1 Q.5,.94 0,1 Z" />
       </clipPath>
       <clipPath id="wc-imax-screen-inner-clip" clipPathUnits="objectBoundingBox">
-        <path d="M0,0 Q.5,.19 1,0 L1,1 Q.5,.81 0,1 Z" />
+        <path d="M0,0 Q.5,.07 1,0 L1,1 Q.5,.93 0,1 Z" />
       </clipPath>
     </defs>
   </svg>
@@ -244,6 +275,9 @@ export function CanvasWorkspace({
   const resizeNodeByFactor = useCanvasStore((state) => state.resizeNodeByFactor);
   const addCapturedImages = useCanvasStore((state) => state.addCapturedImages);
   const projectId = useCanvasStore((state) => state.projectId);
+  const agentLinkedNodeIds = useAgentLinkedNodeIds(projectId);
+  const toggleAgentLink = useAgentLinkStore((state) => state.toggle);
+  const pruneAgentLinks = useAgentLinkStore((state) => state.prune);
   const cloudLinked = useCloudProjectStore((state) => Boolean(state.links[projectId]));
   const updateNodeData = useCanvasStore((state) => state.updateNodeData);
   const setNodeMedia = useCanvasStore((state) => state.setNodeMedia);
@@ -260,12 +294,12 @@ export function CanvasWorkspace({
   const [menu, setMenu] = useState<CanvasMenuState | null>(null);
   const [pendingConnectionCreate, setPendingConnectionCreate] =
     useState<PendingConnectionCreate | null>(null);
-  // appearanceOpen 由顶部"设置"键（hover 弹 4 项 / 点击开面板）和底部 UI 设置按钮共用，
-  // 提升到 ui-shell-store 让 Agent 的 ui_* 动作也能开合同一批面板。
-  const appearanceOpen = useUiShellStore((state) => state.settingsOpen);
-  const toggleAppearance = useUiShellStore((state) => state.toggleSettings);
-  const closeAppearance = useUiShellStore((state) => state.closeSettings);
-  const appearanceTriggerRef = useRef<HTMLButtonElement>(null);
+  // 设置中心（API / 模型 / 本地 / 协作 / 插件）由顶栏「设置」键开合；
+  // 界面设置（视觉 / 交互）是独立面板，由 dock 的调色板键开合，状态都在 ui-shell-store。
+  const settingsOpen = useUiShellStore((state) => state.settingsOpen);
+  const toggleSettings = useUiShellStore((state) => state.toggleSettings);
+  const closeSettings = useUiShellStore((state) => state.closeSettings);
+  const settingsTriggerRef = useRef<HTMLButtonElement>(null);
   const [panMode, setPanMode] = useState(false);
   // 空格平移手势推给全局 AppCursor（它挂在 App 顶层，不再由工作区挂载）。
   useEffect(() => {
@@ -274,6 +308,7 @@ export function CanvasWorkspace({
     return () => setPanActive(false);
   }, [panMode]);
   const [miniMapOpen, setMiniMapOpen] = useState(readPersistedMiniMapOpen);
+  const [agentAnchorPosition, setAgentAnchorPosition] = useState<XYPosition>({ x: 0, y: 0 });
   const shortcutsOpen = useUiShellStore((state) => state.shortcutsOpen);
   const setShortcutsOpen = useUiShellStore((state) => state.setShortcutsOpen);
   const resourceOpen = useUiShellStore((state) => state.resourceOpen);
@@ -333,6 +368,63 @@ export function CanvasWorkspace({
     setViewport: setFlowViewport,
   } = useReactFlow<WeftcanvasNode, WeftcanvasEdge>();
   const flowStore = useStoreApi<WeftcanvasNode, WeftcanvasEdge>();
+  /**
+   * Agent 引用口贴着画布右缘（抽屉已经预留了列），缩放/平移后重新贴边。
+   * 用视口值直接换算，避免依赖 React Flow 内部 DOM 更新时序。
+   */
+  const placeAgentAnchor = useCallback(
+    (nextViewport: Viewport = getViewport()) => {
+      const rect = flowShellRef.current?.getBoundingClientRect();
+      if (!rect || rect.width < 240) return;
+      const zoom = nextViewport.zoom || 1;
+      setAgentAnchorPosition({
+        x: (rect.width - 202 - nextViewport.x) / zoom,
+        y: (120 - nextViewport.y) / zoom,
+      });
+    },
+    [getViewport],
+  );
+  useEffect(() => {
+    if (!agentOpen) return;
+    // 抽屉会让画布宽度发生变化；首帧与过渡结束各贴一次，避免停在 0,0。
+    const frame = window.requestAnimationFrame(() => placeAgentAnchor());
+    const retry = window.setTimeout(() => placeAgentAnchor(), 160);
+    const onResize = () => placeAgentAnchor();
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(retry);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [agentOpen, placeAgentAnchor, projectId]);
+  useEffect(() => {
+    if (!agentOpen) return;
+    // 引用连线依赖源节点已测量的 Handle 几何；打开 Agent 或连线变化时补测一次，
+    // 避免节点是恢复/粘贴来的、ResizeObserver 尚未回报时边被丢弃。
+    const measure = () => {
+      const state = flowStore.getState();
+      const updates = new Map<
+        string,
+        { id: string; nodeElement: HTMLDivElement; force: boolean }
+      >();
+      for (const id of state.nodeLookup.keys()) {
+        const element = state.domNode?.querySelector<HTMLDivElement>(
+          `.react-flow__node[data-id="${CSS.escape(id)}"]`,
+        );
+        if (element) updates.set(id, { id, nodeElement: element, force: true });
+      }
+      if (updates.size) state.updateNodeInternals(updates, { triggerFitView: false });
+    };
+    const frame = window.requestAnimationFrame(measure);
+    const retry = window.setTimeout(measure, 260);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(retry);
+    };
+  }, [agentLinkedNodeIds, agentOpen, flowStore, nodes.length]);
+  useEffect(() => {
+    pruneAgentLinks(projectId, new Set(nodes.map((node) => node.id)));
+  }, [nodes, projectId, pruneAgentLinks]);
   const incidentNodeIds = useMemo(() => {
     const ids = new Set<string>();
     for (const edge of edges) {
@@ -372,8 +464,28 @@ export function CanvasWorkspace({
     const state = flowStore.getState();
     state.setNodes(applyNodeChanges(changes, state.nodes));
   }, [flowStore]);
+  const handleEdgesChange = useCallback(
+    (changes: EdgeChange<WeftcanvasEdge>[]) => {
+      const persisted = changes.filter((change) => {
+        if (change.type === "add" || change.type === "replace") {
+          return !change.item.id.startsWith("agent-link:");
+        }
+        return !change.id.startsWith("agent-link:");
+      });
+      if (persisted.length) onEdgesChange(persisted);
+    },
+    [onEdgesChange],
+  );
   const handleNodesChange = useCallback(
-    (changes: NodeChange<WeftcanvasNode>[]) => {
+    (incomingChanges: NodeChange<WeftcanvasNode>[]) => {
+      // 虚拟的 Agent 引用口不写进画布 store。
+      const changes = incomingChanges.filter((change) => {
+        if (change.type === "add" || change.type === "replace") {
+          return change.item.id !== AGENT_ANCHOR_NODE_ID;
+        }
+        return change.id !== AGENT_ANCHOR_NODE_ID;
+      });
+      if (!changes.length) return;
       onNodesChange(changes);
       if (
         !changes.length ||
@@ -582,8 +694,9 @@ export function CanvasWorkspace({
       }
       pendingViewportRef.current = null;
       setStoredViewport(nextViewport);
+      if (agentOpen) placeAgentAnchor(nextViewport);
     },
-    [setStoredViewport],
+    [agentOpen, placeAgentAnchor, setStoredViewport],
   );
 
   const zoomCanvasAtPointer = useCallback(
@@ -825,6 +938,11 @@ export function CanvasWorkspace({
   const handleConnect = useCallback(
     (connection: Connection) => {
       setPendingConnectionCreate(null);
+      if (connection.target === AGENT_ANCHOR_NODE_ID && connection.source) {
+        toggleAgentLink(projectId, connection.source);
+        showConnectionSuccess(connection.source);
+        return;
+      }
       const edgeCount = useCanvasStore.getState().edges.length;
       onConnect(connection);
       if (useCanvasStore.getState().edges.length === edgeCount) return;
@@ -833,7 +951,7 @@ export function CanvasWorkspace({
         active?.nodeId === connection.source ? connection.target : connection.source;
       showConnectionSuccess(dropNodeId);
     },
-    [onConnect, showConnectionSuccess],
+    [onConnect, projectId, showConnectionSuccess, toggleAgentLink],
   );
 
   const handleConnectEnd = useCallback<OnConnectEnd>(
@@ -1025,6 +1143,7 @@ export function CanvasWorkspace({
   const openNodeMenu = useCallback<NodeMouseHandler<WeftcanvasNode>>(
     (event, node) => {
       event.preventDefault();
+      if (node.id === AGENT_ANCHOR_NODE_ID) return;
       const currentNodes = useCanvasStore.getState().nodes;
       if (!currentNodes.find((item) => item.id === node.id)?.selected) {
         onNodesChange(
@@ -1049,7 +1168,7 @@ export function CanvasWorkspace({
   const openEdgeMenu = useCallback<EdgeMouseHandler<WeftcanvasEdge>>(
     (event, edge) => {
       event.preventDefault();
-      selectEdge(edge.id);
+      if (!edge.id.startsWith("agent-link:")) selectEdge(edge.id);
       setMenu({
         clientX: event.clientX,
         clientY: event.clientY,
@@ -1063,47 +1182,52 @@ export function CanvasWorkspace({
 
   const ingestFiles = useCallback(
     async (files: File[], anchor: XYPosition) => {
-      // 产品规则：画布上传只收图片和视频；音频/文本/其他类型明确提示忽略。
-      const supported: Array<{ file: File; kind: "image" | "video" }> = [];
+      // 画布上传收图片、视频、音频（各落同类型节点）与文本（.txt/.md 落文本节点）；
+      // 其他类型明确提示忽略。文本内容直接读进来，媒体文件随后台并行上传。
+      const drafts: CanvasIngestDraft[] = [];
+      const uploads: Array<{ draftIndex: number; file: File; kind: CanvasUploadKind }> = [];
       let ignoredCount = 0;
       for (const file of files) {
         const kind = await inferCanvasFileKind(file);
-        if (kind === "image" || kind === "video") supported.push({ file, kind });
-        else ignoredCount++;
+        if (kind === "image" || kind === "video" || kind === "audio") {
+          uploads.push({ draftIndex: drafts.length, file, kind });
+          drafts.push({ kind, data: { media: null, uploading: true, status: "idle" } });
+          continue;
+        }
+        if (kind === "text") {
+          const body = (await file.text().catch(() => "")).slice(0, 100_000);
+          if (!body.trim()) {
+            ignoredCount++;
+            continue;
+          }
+          drafts.push({ kind: "text", data: { body, status: "success" } });
+          continue;
+        }
+        ignoredCount++;
       }
-      if (ignoredCount) showToast(`仅支持上传图片和视频，已忽略 ${ignoredCount} 个文件`, "error");
-      if (!supported.length) return;
+      if (ignoredCount)
+        showToast(`仅支持上传图片、视频、音频和文本，已忽略 ${ignoredCount} 个文件`, "error");
+      if (!drafts.length) return;
 
       // 先落节点：用户拖入/选完文件立刻看到卡片在长，再在后台上传，
       // 避免"点完没反应"的错觉。上传默认走服务端（元数据进数据库、字节进对象存储，
-      // 与工作台/生成结果同一条路径，跨设备可见）；服务端不可用时回退本地媒体库。
+      // 与工作台/生成结果同一条路径，跨设备可见）；服务端不可用时回退本地媒体库，
+      // 打开「只保存本地」时则完全不上云。音频与图片、视频走同一条。
       const nodeIds = addImportedNodes(
         layoutCanvasIngestDrafts(
-          supported.map(({ kind }) => ({
-            kind,
-            data: { media: null, uploading: true, status: "idle" },
-          })),
+          drafts,
           anchor,
           useUiPreferencesStore.getState().defaultNodeAspectRatio,
         ),
       );
 
       const results = await Promise.allSettled(
-        supported.map(async ({ file, kind }) => {
-          let media: CanvasMedia;
-          try {
-            media = await uploadMediaToServer(file, kind);
-          } catch (serverError) {
-            console.warn("[canvas] 服务端上传失败，回退本地媒体库", file.name, serverError);
-            media = await storeMedia(file, kind);
-          }
-          return media;
-        }),
+        uploads.map(({ file, kind }) => uploadCanvasFile(file, kind)),
       );
 
       const failures: Array<{ index: number; reason: unknown }> = [];
       results.forEach((result, index) => {
-        const nodeId = nodeIds[index];
+        const nodeId = nodeIds[uploads[index]!.draftIndex];
         if (!nodeId) return;
         if (result.status === "fulfilled") {
           setNodeMedia(nodeId, result.value, false);
@@ -1127,9 +1251,11 @@ export function CanvasWorkspace({
         );
       });
 
-      const succeeded = results.filter((result) => result.status === "fulfilled").length;
+      const succeeded =
+        results.filter((result) => result.status === "fulfilled").length +
+        drafts.filter((draft) => draft.kind === "text").length;
       if (succeeded)
-        showToast(succeeded === 1 ? "素材已加入画布" : `${succeeded} 个素材已加入画布`, "success");
+        showToast(succeeded === 1 ? "文件已加入画布" : `${succeeded} 个文件已加入画布`, "success");
       for (const failure of failures) console.error("[canvas] 文件无法加入画布", failure.reason);
       if (failures.length) {
         const reason = failures
@@ -1168,16 +1294,6 @@ export function CanvasWorkspace({
     onPasteFiles: ingestFiles,
     onPasteText: pasteText,
   });
-
-  const handleDrop = async (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    fileDragDepth.current = 0;
-    setFileDropActive(false);
-    const files = Array.from(event.dataTransfer.files);
-    if (!files.length) return;
-    const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
-    await ingestFiles(files, position);
-  };
 
   const importFilesAtCenter = useCallback(
     async (files: File[]) => {
@@ -1255,14 +1371,18 @@ export function CanvasWorkspace({
   );
 
   const insertResourceAsset = useCallback(
-    (asset: {
-      kind: CanvasNodeKind;
-      body: string;
-      media: Parameters<typeof setNodeMedia>[1] | null;
-      extraMedia?: Parameters<typeof setNodeMedia>[1][];
-    }) => {
+    (
+      asset: {
+        kind: CanvasNodeKind;
+        body: string;
+        media: Parameters<typeof setNodeMedia>[1] | null;
+        extraMedia?: Parameters<typeof setNodeMedia>[1][];
+      },
+      /** 拖拽落点（画布坐标）；缺省时插到视口中心。 */
+      anchor?: XYPosition,
+    ) => {
       const state = useCanvasStore.getState();
-      const center = screenToFlowPosition(getFlowCenterScreen());
+      const center = anchor ?? screenToFlowPosition(getFlowCenterScreen());
       const dimensions = nodeCreationDimensions(
         asset.kind,
         useUiPreferencesStore.getState().defaultNodeAspectRatio,
@@ -1284,6 +1404,37 @@ export function CanvasWorkspace({
       });
     },
     [getFlowCenterScreen, screenToFlowPosition],
+  );
+
+  // 卡片/资产拖入画布：drop 时才异步解析媒体（下载、签名、读本地库），
+  // 解析期间不阻塞拖拽；节点落在鼠标松开的位置，而不是视口中心。
+  const handleDrop = useCallback(
+    async (event: DragEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      fileDragDepth.current = 0;
+      setFileDropActive(false);
+      const dragPayload = takeCanvasAssetDrag(event.dataTransfer);
+      if (dragPayload) {
+        const anchor = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+        try {
+          const asset = await dragPayload.load();
+          if (!asset) {
+            showToast("这个资源暂时无法加入画布", "error");
+            return;
+          }
+          insertResourceAsset(asset, anchor);
+          showToast("已加入画布", "success");
+        } catch {
+          showToast("加入画布失败，请稍后再试", "error");
+        }
+        return;
+      }
+      const files = Array.from(event.dataTransfer.files);
+      if (!files.length) return;
+      const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+      await ingestFiles(files, position);
+    },
+    [ingestFiles, insertResourceAsset, screenToFlowPosition, showToast],
   );
 
   const handleToggleResource = useCallback(() => {
@@ -1337,6 +1488,10 @@ export function CanvasWorkspace({
   const handlePaneClick = useCallback(() => {
     setMenu(null);
     setPendingConnectionCreate(null);
+    // 点空白处要让焦点真正回到画布：否则上一次点过的工具按钮/节点输入框
+    // 仍握着焦点，Ctrl+V 会被当成往控件里粘贴而跳过画布粘贴。
+    const active = document.activeElement;
+    if (active instanceof HTMLElement) active.blur();
   }, []);
   // 点节点不再改伙伴的位置：她平常就在天上待着，不许挂到节点上
   // （用户：「大肥鱼不准挂节点上」）。她只在输入框打开时趴到输入框右上角。
@@ -1346,6 +1501,77 @@ export function CanvasWorkspace({
   }, [clearCanvas]);
 
   const dense = nodes.length >= DENSE_NODE_THRESHOLD;
+
+  // Agent 引用口与连线只存在于渲染层：项目 JSON、撤销栈和 Agent 画布摘要
+  // 都只看 store 里的 nodes/edges，不会把虚拟节点写成真实画布结构。
+  const agentAnchorNode = useMemo(
+    () =>
+      agentOpen
+        ? ({
+            id: AGENT_ANCHOR_NODE_ID,
+            type: "agent-anchor",
+            position: agentAnchorPosition,
+            data: { count: agentLinkedNodeIds.length },
+            // 固定尺寸必须显式给出：虚拟节点不经过画布 store 的 dimensions
+            // 变更，缺了 measured 时 React Flow 会跳过 Handle 测量，进而把
+            // 指向它的边全部丢弃。
+            width: 190,
+            height: 54,
+            initialWidth: 190,
+            initialHeight: 54,
+            measured: { width: 190, height: 54 },
+            // 声明 Handle 几何：Virtual node 不走 onNodesChange 的尺寸回写，
+            // 依赖 ResizeObserver 的 handleBounds 可能一直是空的，边就会被
+            // getEdgePosition 丢弃。声明后 React Flow 直接用这份几何。
+            handles: [
+              {
+                id: AGENT_ANCHOR_HANDLE_ID,
+                type: "target",
+                position: Position.Left,
+                x: 0,
+                y: 27,
+                width: 12,
+                height: 12,
+              },
+            ],
+            draggable: false,
+            selectable: true,
+            connectable: true,
+            deletable: false,
+            className: "wc-agent-anchor-node",
+          } as unknown as WeftcanvasNode)
+        : null,
+    [agentAnchorPosition, agentLinkedNodeIds.length, agentOpen],
+  );
+  const agentLinkEdges = useMemo<WeftcanvasEdge[]>(
+    () =>
+      agentOpen
+        ? agentLinkedNodeIds.map((nodeId) => ({
+            id: `agent-link:${nodeId}`,
+            source: nodeId,
+            // 节点右侧端口 ID 固定为 right-source；缺了它 React Flow 在
+            // 多端口节点上无法确定边从哪个 Handle 出发，会静默丢弃这条边。
+            sourceHandle: "right-source",
+            target: AGENT_ANCHOR_NODE_ID,
+            targetHandle: AGENT_ANCHOR_HANDLE_ID,
+            type: "default",
+            animated: true,
+            selectable: false,
+            deletable: false,
+            interactionWidth: 16,
+            className: "wc-agent-link-edge",
+          }))
+        : [],
+    [agentLinkedNodeIds, agentOpen],
+  );
+  const flowNodes = useMemo(
+    () => (agentAnchorNode ? [...nodes, agentAnchorNode] : nodes),
+    [agentAnchorNode, nodes],
+  );
+  const flowEdges = useMemo(
+    () => (agentLinkEdges.length ? [...edges, ...agentLinkEdges] : edges),
+    [agentLinkEdges, edges],
+  );
 
   // 专注模式：任一节点在生成即视为创作中，自动收起工具浮岛；Tab 随时手动开关，Esc 退出。
   const generatingActive = nodes.some(
@@ -1438,10 +1664,10 @@ export function CanvasWorkspace({
           onToggleTheme={onToggleTheme}
           onOpenShortcuts={handleOpenShortcuts}
           onToggleActivity={handleToggleActivity}
-          appearanceOpen={appearanceOpen}
-          appearanceTriggerRef={appearanceTriggerRef}
-          onToggleAppearance={toggleAppearance}
-          onCloseAppearance={closeAppearance}
+          settingsOpen={settingsOpen}
+          settingsTriggerRef={settingsTriggerRef}
+          onToggleSettings={toggleSettings}
+          onCloseSettings={closeSettings}
         />
       ) : null}
       {!agentOpen ? <StorageTipBanner /> : null}
@@ -1480,15 +1706,15 @@ export function CanvasWorkspace({
         <CanvasNodeRuntimeContext.Provider value={nodeRuntimeContext}>
           <CanvasEdgeRuntimeContext.Provider value={edgeRuntimeContext}>
             <ReactFlow<WeftcanvasNode, WeftcanvasEdge>
-              nodes={nodes}
-              edges={edges}
+              nodes={flowNodes}
+              edges={flowEdges}
               nodeTypes={nodeTypes}
               edgeTypes={edgeTypes}
               defaultViewport={viewport}
               defaultEdgeOptions={defaultEdgeOptions}
               onInit={handleFlowInit}
               onNodesChange={handleNodesChange}
-              onEdgesChange={onEdgesChange}
+              onEdgesChange={handleEdgesChange}
               onConnect={handleConnect}
               isValidConnection={isValidCanvasConnection}
               onConnectStart={handleConnectStart}
@@ -1512,10 +1738,12 @@ export function CanvasWorkspace({
               connectionLineStyle={connectionLineStyle}
               connectionLineComponent={WeftcanvasConnectionLine}
               selectionMode={SelectionMode.Partial}
+              // 触摸设备没有空格键：单指按住空白处就是平移（以前只有双指缩放，
+              // 想挪画面只能双指，手感像坏掉）。panMode 仍然优先，桌面端行为不变。
               selectionOnDrag={!panMode && !touchCanvasNavigation}
               selectionKeyCode="Shift"
               multiSelectionKeyCode={multiSelectionKeyCode}
-              panOnDrag={panMode}
+              panOnDrag={panMode || touchCanvasNavigation}
               panActivationKeyCode={panActivationKeyCode}
               panOnScroll
               panOnScrollMode={PanOnScrollMode.Free}
@@ -1586,10 +1814,9 @@ export function CanvasWorkspace({
                 onImport={handleImport}
                 onRequestClear={handleRequestClear}
                 getCanvasCenter={getFlowCenterScreen}
-                appearanceOpen={appearanceOpen}
-                appearanceTriggerRef={appearanceTriggerRef}
-                onToggleAppearance={toggleAppearance}
-                onCloseAppearance={closeAppearance}
+                settingsOpen={settingsOpen}
+                settingsTriggerRef={settingsTriggerRef}
+                onCloseSettings={closeSettings}
                 onInsertAsset={insertResourceAsset}
               />
               <ZoomControl miniMapOpen={miniMapOpen} onToggleMiniMap={handleToggleMiniMap} />

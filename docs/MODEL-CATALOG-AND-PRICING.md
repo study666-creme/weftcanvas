@@ -167,6 +167,44 @@ Transient inventory failure or a stale selectable list must not clear the
 last-known-good video catalog. Only an explicit `selectable: false` entry may
 hide an already-reviewed video model.
 
+## Reference-material pricing fields (2026-10-21)
+
+Per-second video models bill reference materials through two optional pricing
+fields. They are published by the live catalog; the quote layer reads them
+verbatim and never infers a rate from a model name or description.
+
+- `referenceVideoYuanMicrosPerSecond` / `referenceVideoCreditMicrosPerSecond`
+  (source: `reference_video_yuan_per_second` /
+  `reference_video_credits_per_second`) — the rate for each second of reference
+  video. When present, reference-video seconds are billed separately from the
+  output seconds at this rate, independent of the selected resolution. When
+  both are absent, reference-video seconds bill at the per-second rate of the
+  resolution tier the request hits, which is what the catalog descriptions
+  state for the H3 series, Wan 3.0 (线路八), and the Seedance 2.5 routes
+  («参考视频每秒按该模型的每秒价格计费» / «按当前档每秒价逐秒计收»).
+- `referenceImageOverage` (`freeCount`, `yuanMicrosEach`; source:
+  `reference_image_free_count`, `reference_image_overage_yuan`) — the first
+  `freeCount` reference images are free, and every further image costs
+  `yuanMicrosEach`. A model that does not publish the rule never gets an
+  overage charge: the rule belongs to the entries that state it and must not be
+  applied to every model that happens to accept reference videos.
+
+The Kling routes state their own flat reference-video rate in prose
+(`参考视频每秒另计 0.07 元`). Until the upstream catalog carries the field for
+them, the station overlay in
+`apps/api/src/catalog/weftcanvas-catalog-overlay.ts` pins the rate per exact model
+id — the same discipline as the per-second unit correction for MiniMax H3 — and
+pins the H3 reference-image overage the same way. A published field always wins
+over a pin, so both pins can be deleted once the catalog service publishes the
+fields, without touching the quote logic.
+
+Reference-video seconds themselves are always a published contract parameter
+(`referenceVideoDurations`, required together with `referenceVideos`, aligned
+with them, and capped by the catalog's declared total). The client declares the
+measured duration of each clip; the generation service falls back to the media
+metadata when a client cannot measure it, so the billable seconds never depend
+on the pricing fields above.
+
 ## Image catalog wire contract (2026-08-19)
 
 Image-capable catalog entries may advertise the provider-neutral `image.v1`

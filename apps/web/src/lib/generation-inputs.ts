@@ -12,6 +12,7 @@ import type { WeftcanvasEdge, WeftcanvasNode } from "../types";
 import { useCanvasStore } from "../state/canvas-store";
 import { useCloudProjectStore } from "../state/cloud-project-store";
 import {
+  CanvasApiError,
   createMediaUpload,
   createProviderMediaReference,
   mediaContentPath,
@@ -381,6 +382,7 @@ export function composeReferenceAwarePrompt(
 
 export async function prepareGenerationInputs(
   references: GenerationReferences,
+  options: { forceUpload?: boolean } = {},
 ): Promise<GenerationJobInput> {
   const cloudProject = activeCloudProject();
   const cache = new Map<string, Promise<string>>();
@@ -388,7 +390,7 @@ export async function prepareGenerationInputs(
     const key = `${reference.media.source}:${reference.media.id}`;
     const existing = cache.get(key);
     if (existing) return existing;
-    const pending = prepareReference(reference, cloudProject);
+    const pending = prepareReference(reference, cloudProject, options);
     cache.set(key, pending);
     return pending;
   };
@@ -435,9 +437,22 @@ async function preparePublicReference(
 ) {
   const mediaId = await prepareReference(reference, cloudProject);
   const projectId = cloudProject?.shared ? undefined : cloudProject?.projectId;
-  return projectId
-    ? createProviderMediaReference(mediaId, reference.kind, projectId)
-    : createProviderMediaReference(mediaId, reference.kind);
+  const request = (id: string) =>
+    projectId
+      ? createProviderMediaReference(id, reference.kind, projectId)
+      : createProviderMediaReference(id, reference.kind);
+  try {
+    return await request(mediaId);
+  } catch (error) {
+    // 素材挂在另一个项目名下时，provider-reference 只会回 404「没有找到这个素材」——
+    // 节点上明明连着图，用户却被告知素材不存在。只要本地还留着这份字节，就把它
+    // 重新上传成本项目的素材再取一次引用；取不到字节时仍然如实抛出原错误。
+    if (!(error instanceof CanvasApiError) || error.code !== "MEDIA_NOT_FOUND") throw error;
+    const stored = await readMedia(reference.media.id).catch(() => null);
+    if (!stored) throw error;
+    const reuploaded = await uploadPreparedReference(reference, stored, projectId, false);
+    return request(reuploaded);
+  }
 }
 
 function selectReferences(
@@ -473,9 +488,13 @@ function referenceSequenceLabel(label: string, count: number) {
 async function prepareReference(
   reference: MediaReference,
   cloudProject?: { projectId: string; shared: boolean },
+  options: { forceUpload?: boolean } = {},
 ) {
   const projectId = cloudProject?.projectId;
+  // forceUpload：服务端已经回过「素材不存在」（生成的素材归档未完成、或归属被换过），
+  // 不能再信 serverId 直接提交——本地还有字节就重新上传成当前项目的素材。
   if (
+    !options.forceUpload &&
     !cloudProject?.shared &&
     reference.media.serverId &&
     reference.media.serverId !== reference.media.id
@@ -507,6 +526,8 @@ async function prepareReference(
   // generation provider to re-open an older, potentially expired result URL.
   if (reference.media.source === "server" && !stored) {
     if (cloudProject?.shared) throw new Error(`${mediaLabel(reference.kind)}素材暂时无法读取`);
+    if (options.forceUpload)
+      throw new Error(`${mediaLabel(reference.kind)}素材在服务器上已不存在，请重新上传这个素材`);
     return reference.media.id;
   }
   if (!stored) throw new Error(`${mediaLabel(reference.kind)}素材已不在当前浏览器中`);

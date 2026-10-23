@@ -111,6 +111,26 @@ export const modelPricingSchema = z.object({
    */
   estimatedYuanMicrosPerSecond: z.number().int().nonnegative().optional(),
   estimateNote: z.string().min(1).optional(),
+  /**
+   * 参考视频单独发布的每秒费率（元/秒的微元）。站点发布它表示参考素材里的视频段
+   * 按这个费率逐秒另计，与本次命中的分辨率档无关；缺省表示按当前档的每秒价逐秒
+   * 计收（取站点描述原文的口径，如 H3 系列「参考视频每秒按该模型的每秒价格计费」）。
+   * 报价端据此把参考视频秒数与成片秒数分开计价，不再把二者乘同一档单价。
+   */
+  referenceVideoYuanMicrosPerSecond: z.number().int().nonnegative().optional(),
+  /** 与上同义的积分口径；只有一个时按 creditsPerYuan 换算另一个。 */
+  referenceVideoCreditMicrosPerSecond: z.number().int().nonnegative().optional(),
+  /**
+   * 参考图超量规则：前 freeCount 张免费，第 freeCount + 1 张起每张 yuanMicrosEach。
+   * 只有明确发布这条规则的模型才收超量费——站点的规则是逐模型写明的，不能按
+   * 「模型带参考视频参数」一刀切给所有模型加收。
+   */
+  referenceImageOverage: z
+    .object({
+      freeCount: z.number().int().nonnegative(),
+      yuanMicrosEach: z.number().int().nonnegative(),
+    })
+    .optional(),
 });
 export type ModelPricing = z.infer<typeof modelPricingSchema>;
 

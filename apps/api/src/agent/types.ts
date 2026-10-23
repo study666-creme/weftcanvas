@@ -7,6 +7,7 @@ import type {
   AgentExecutionPermission,
   AgentExecutionReceipt,
   AgentMessage,
+  AgentMessageAttachmentInput,
   AgentModelCatalog,
   AgentProposal,
   AgentProposalDraft,
@@ -80,6 +81,8 @@ export type AgentExecutionRequest = {
   executionPermission: AgentExecutionPermission;
   /** 本轮启用的技能（正文由 API 侧从技能库读出并裁剪）。 */
   skills: AgentSkillRunContext[];
+  /** 本轮用户显式附加的参考素材（仅本轮在内存中传递，不落库）。 */
+  attachments: AgentMessageAttachmentInput[];
   conversation: AgentConversation;
   messages: AgentMessage[];
   canvasContext: AgentCanvasContext;

@@ -141,6 +141,15 @@ const sourcePricingSchema = z
     groups: z.array(sourcePricingGroupSchema).optional(),
     estimated_yuan_per_second: z.number().nonnegative().optional(),
     estimate_note: z.string().min(1).optional(),
+    /**
+     * 参考素材单独计费的费率。站点此前只在描述里写这些规则，画布只能按描述猜
+     * （H3 系列的「同价加收」被套到了所有发布参考视频时长的模型上）；目录发布
+     * 这些字段后，报价按字段走，缺省才回落到描述口径。
+     */
+    reference_video_yuan_per_second: z.number().nonnegative().optional(),
+    reference_video_credits_per_second: z.number().nonnegative().optional(),
+    reference_image_free_count: z.number().int().nonnegative().optional(),
+    reference_image_overage_yuan: z.number().nonnegative().optional(),
   })
   .passthrough();
 

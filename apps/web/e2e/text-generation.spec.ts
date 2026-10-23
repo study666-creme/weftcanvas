@@ -228,6 +228,12 @@ test("文本节点可通过生成设置使用目录文本模型：报价、提�
   await page.route("**/api/v1/wallet", (route) =>
     route.fulfill({ json: { ok: true, data: summary(credits) } }),
   );
+  await page.route(/\/api\/v1\/announcements(?:\?.*)?$/, (route) =>
+    route.fulfill({ json: { ok: true, data: { items: [] } } }),
+  );
+  await page.route(/\/api\/v1\/agent\/connectors(?:\?.*)?$/, (route) =>
+    route.fulfill({ json: { ok: true, data: [] } }),
+  );
 
   await page.goto("/canvas");
   await expect(page.locator("[data-save-state]")).toBeVisible();
@@ -252,7 +258,7 @@ test("文本节点可通过生成设置使用目录文本模型：报价、提�
     .click();
   const dialog = page.getByRole("dialog", { name: "文本节点生成设置" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.locator("[data-generation-model-select]")).toHaveValue("e2e-text-model");
+  await expect(dialog.getByRole("button", { name: "模型" })).toContainText("全能文本模型");
 
   const prompt = "写一段雨夜站台的分镜描述";
   await dialog.locator(".wc-generation-prompt textarea").fill(prompt);
@@ -291,7 +297,7 @@ test("文本节点可通过生成设置使用目录文本模型：报价、提�
   await expect(textNode.locator(".wc-node-wrap")).toHaveAttribute("data-node-status", "success");
   await expect(textNode.locator(".wc-node-text-preview")).toContainText("夜色渐深，站台上的雨丝");
   await expect(page.getByLabel("文本节点提示词")).toContainText("夜色渐深，站台上的雨丝");
-  await expect(page.locator(".wc-credit-trigger")).toContainText("99");
+  await expect(page.getByRole("button", { name: /账号：.*积分 99/ })).toBeVisible();
 
   expect(network.unmocked, `unmocked /api requests: ${network.unmocked.join(", ")}`).toEqual([]);
   expect(network.external, `external network requests: ${network.external.join(", ")}`).toEqual([]);

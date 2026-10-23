@@ -142,13 +142,13 @@ test("dense canvas keeps pan feedback responsive and selected-edge energy bounde
   await expect(page.locator("html")).toHaveAttribute("data-node-style", "imax");
   await expect(page.locator("html")).toHaveAttribute("data-edge-path-style", "gravity");
   await expect(page.locator("html")).toHaveAttribute("data-edge-flow-style", "stardust");
-  await page.getByLabel("打开 UI 设置").click();
-  const settings = page.getByRole("dialog", { name: "UI 设置" });
+  await page.getByLabel("打开界面设置").click();
+  const settings = page.getByRole("dialog", { name: "界面设置" });
   await settings
     .getByRole("group", { name: "背景样式" })
     .getByRole("button", { name: "水面", exact: true })
     .click();
-  await page.getByLabel("收起 UI 设置").click();
+  await page.getByLabel("收起界面设置").click();
   const waterMaterial = page
     .getByTestId("canvas-water-surface")
     .locator(".wc-canvas-water-material");

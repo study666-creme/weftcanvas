@@ -53,17 +53,18 @@ export function agentModelVendorGroups(models: AgentModel[]): VendorGroup[] {
 }
 
 /**
- * Agent 模型选择器：分类复用模型广场的厂商口径，但面板不再挤在抽屉里竖排——
- * 它挂到 body 上用 portal 横向铺开（左侧厂商 tab + 右侧模型列表），并按可用
- * 视口自动向上/向下、左右夹取，避免被抽屉裁切。
+ * 模型选择器（Agent 抽屉与节点内共用同一套视觉）：分类复用模型广场的厂商口径，
+ * 面板挂到 body 上用 portal 横向铺开（左侧厂商 tab + 右侧模型列表），并按可用
+ * 视口自动向上/向下、左右夹取，避免被抽屉或节点裁切。
  */
-export function AgentModelSelect({
+export function ModelPickerSelect({
   value,
   models,
   disabled = false,
   onChange,
   ariaLabel,
   placeholder = "选择模型",
+  className = "",
 }: {
   value: string;
   models: AgentModel[];
@@ -71,6 +72,8 @@ export function AgentModelSelect({
   onChange: (modelId: string) => void;
   ariaLabel: string;
   placeholder?: string;
+  /** 追加到根节点的类名，用于按场景收紧触发器（如节点工具条）。 */
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [activeGroup, setActiveGroup] = useState<string>("");
@@ -182,7 +185,11 @@ export function AgentModelSelect({
   };
 
   return (
-    <div className="wc-cat-select wc-agent-model-select" ref={rootRef} data-value={value}>
+    <div
+      className={`wc-cat-select wc-agent-model-select${className ? ` ${className}` : ""}`}
+      ref={rootRef}
+      data-value={value}
+    >
       <button
         ref={triggerRef}
         type="button"
@@ -191,6 +198,10 @@ export function AgentModelSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         disabled={disabled || !models.length}
+        onPointerDown={(event) => {
+          // 节点 / 抽屉外层都有 pointerdown 收起逻辑，别让开面板这一下把它关掉。
+          event.stopPropagation();
+        }}
         onClick={() => setOpen((current) => !current)}
       >
         <Sparkles aria-hidden="true" className="wc-cat-select-icon" />
@@ -238,3 +249,6 @@ export function AgentModelSelect({
     </div>
   );
 }
+
+/** Agent 抽屉沿用的历史名字；节点内直接用 ModelPickerSelect。 */
+export const AgentModelSelect = ModelPickerSelect;

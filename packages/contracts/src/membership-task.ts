@@ -29,7 +29,14 @@ export const membershipTaskHubSchema = z
     dailyBonus: membershipDailyTaskSchema,
     memberDaily: membershipDailyTaskSchema
       .extend({
+        /** 原价口径的每日额度 */
         amount: z.number().finite().min(0),
+        /**
+         * 活动加赠：amount 是基础额度，bonus 是加赠部分，total 是实发合计。
+         * 旧版 Prompt Hub 只下发 amount，此时按「无加赠」处理。
+         */
+        bonus: z.number().finite().min(0).optional(),
+        total: z.number().finite().min(0).optional(),
       })
       .nullable(),
   })

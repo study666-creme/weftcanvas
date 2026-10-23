@@ -21,10 +21,10 @@ type TopBarProps = {
   onToggleTheme: () => void;
   onOpenShortcuts: () => void;
   onToggleActivity: () => void;
-  appearanceOpen: boolean;
-  appearanceTriggerRef: RefObject<HTMLButtonElement | null>;
-  onToggleAppearance: () => void;
-  onCloseAppearance: () => void;
+  settingsOpen: boolean;
+  settingsTriggerRef: RefObject<HTMLButtonElement | null>;
+  onToggleSettings: () => void;
+  onCloseSettings: () => void;
 };
 
 /**
@@ -35,8 +35,8 @@ type TopBarProps = {
  *               + 「设置」键（hover 弹 创作设置/项目协作，点击开设置面板）
  *
  * 功能分配（宝宝定稿）：
- *   · 设置 ≠ UI 设置：设置面板里是多类功能设置（含 UI 设置区），与底部 dock
- *     的 UI 设置键共存；
+ *   · 设置 ≠ 界面设置：顶栏「设置」是 API / 模型 / 本地 / 协作 / 插件；
+ *     界面设置（视觉 / 交互）是底部 dock 调色板键打开的独立面板；
  *   · 团队协作收进设置（下拉 + 面板功能组），不再单独占顶栏一位；
  *   · 账号不进设置下拉——头像+积分胶囊已经在外面。
  */
@@ -45,10 +45,10 @@ export const TopBar = memo(function TopBar({
   onToggleTheme,
   onOpenShortcuts,
   onToggleActivity,
-  appearanceOpen,
-  appearanceTriggerRef,
-  onToggleAppearance,
-  onCloseAppearance,
+  settingsOpen,
+  settingsTriggerRef,
+  onToggleSettings,
+  onCloseSettings,
 }: TopBarProps) {
   const projectName = useCanvasStore((state) => state.projectName);
   const setProjectName = useCanvasStore((state) => state.setProjectName);
@@ -176,14 +176,12 @@ export const TopBar = memo(function TopBar({
           <Keyboard aria-hidden="true" />
         </button>
 
-        {/* 设置键：hover 弹 创作设置/项目协作；点击开设置面板（含 UI 设置区） */}
+        {/* 设置键：hover 弹 创作设置/项目协作；点击开设置中心（不含界面设置） */}
         <TopBarSettings
-          appearanceOpen={appearanceOpen}
-          triggerRef={appearanceTriggerRef}
-          onOpenAppearance={() => {
-            if (appearanceOpen) onCloseAppearance();
-            else onToggleAppearance();
-          }}
+          settingsOpen={settingsOpen}
+          triggerRef={settingsTriggerRef}
+          onToggleSettings={onToggleSettings}
+          onCloseSettings={onCloseSettings}
         />
 
         {/* 任务记录与积分流水：保持在外部入口（设置键右、头像左），不进任何下拉 */}

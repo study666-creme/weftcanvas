@@ -1,0 +1,145 @@
+/*
+ * 糖彩（soda）配色方案 —— 第五套配色，走多巴胺路线。
+ *
+ * 多巴胺配色最常见的失败是把高饱和铺满屏幕：底色、面板、按钮全是糖果色，
+ * 结果画布里的图被底色带偏，界面也在抢内容。所以这一档把「糖」只放在三个
+ * 地方，其余全部安静下来：
+ *
+ *   1. 强调色 —— 玫红 #ef2a6a（深色下 #ff5c9e），按钮、选中、焦点环、滑块。
+ *      全站唯一的「大声」颜色，出现频率低所以每次都有效。
+ *   2. 语义色 —— 薄荷绿 / 电光蓝 / 橘 / 柠檬黄，各管一件事（成功、链接、
+ *      生成中、提醒）。它们是散布在界面里的糖粒，不参与大面积着色。
+ *   3. 阴影 —— 用带玫红的暖影（rgb(120 30 70 / 16%)）而不是中性灰。
+ *      这是最容易被忽略、但决定「甜不甜」的一层：灰影会把糖果色压回办公软件。
+ *
+ *   底色在浅色端是暖奶油 #fdf7f3，深色端是茄紫 #1a1023——不用灰、也不用纯黑。
+ *   媒体节点统一落在纯白（浅色）/ #241631（深色）上，图片颜色的判断不受影响。
+ *
+ * 只覆写颜色令牌，几何/间距/圆角一概不动，与节点样式（含敛锋）、界面样式、
+ * 背景样式全部正交。
+ */
+
+:root[data-theme="dark"][data-color-scheme="soda"] {
+  color: #f8eefb;
+  background: #1a1023;
+  --wc-canvas: #1a1023;
+  --wc-background-canvas: #1a1023;
+  --wc-background-surface: #241631;
+  --wc-background-grid: #4a3459;
+  --wc-surface: #241631;
+  --wc-surface-raised: #2d1c3c;
+  --wc-surface-muted: #1e1329;
+  --wc-surface-strong: #382350;
+  --wc-text: #f8eefb;
+  --wc-text-secondary: #c3b0d0;
+  --wc-text-tertiary: #8e7b9c;
+  /* 紫调描边：在茄紫底上比中性灰更「有颜色」，但不会跳出来抢视线。 */
+  --wc-border: #382845;
+  --wc-border-strong: #523a63;
+  --wc-selection: #ff5c9e;
+  --wc-jade: #ff5c9e;
+  --wc-jade-hover: #ff7db4;
+  --wc-jade-soft: #3d1f38;
+  --wc-accent: #ff5c9e;
+  --wc-accent-hover: #ff7db4;
+  --wc-accent-soft: #3d1f38;
+  /* 亮玫红上用深紫字，对比比白字高一倍。 */
+  --wc-on-accent: #24081a;
+  --wc-success: #3ddc97;
+  --wc-success-soft: #12322a;
+  --wc-blue: #6aa4ff;
+  --wc-blue-soft: #182741;
+  --wc-coral: #ff8a5c;
+  --wc-coral-soft: #3a2118;
+  --wc-amber: #ffc44d;
+  --wc-amber-soft: #392a10;
+  --wc-danger: #ff6b6b;
+  --wc-danger-soft: #3a1a20;
+  /* 深紫黑阴影：纯黑会把茄紫底压出一圈脏灰。 */
+  --wc-shadow-node:
+    inset 0 1px 0 rgb(255 255 255 / 6%), 0 2px 6px rgb(8 2 14 / 48%),
+    0 12px 26px -12px rgb(8 2 14 / 58%);
+  --wc-shadow-float:
+    inset 0 1px 0 rgb(255 255 255 / 8%), 0 2px 6px rgb(8 2 14 / 44%),
+    0 20px 46px -14px rgb(8 2 14 / 66%);
+  --wc-shadow-editor:
+    inset 0 1px 0 rgb(255 255 255 / 9%), 0 4px 12px rgb(8 2 14 / 50%),
+    0 30px 70px -18px rgb(8 2 14 / 72%);
+}
+
+/*
+ * 浅色下的糖彩：干净的粉白画布 + 糖果色按钮。
+ * 之前底色是奶油粉、网格是粉、连阴影都染了玫红，白卡片落上去整张画布像被
+ * 泡在粉色里，看久了很难受。现在粉色只留给强调色、状态色和选中态：
+ * 底色回到中性浅灰粉，网格与投影都收回中性冷灰，糖果感靠按钮和徽标给。
+ */
+:root[data-theme="light"][data-color-scheme="soda"] {
+  color: #2b1b2c;
+  background: #f7f3f5;
+  --wc-canvas: #f7f3f5;
+  --wc-background-canvas: #f7f3f5;
+  --wc-background-surface: #ffffff;
+  --wc-background-grid: #c9bec4;
+  --wc-surface: #ffffff;
+  --wc-surface-raised: #ffffff;
+  --wc-surface-muted: #fbf5f7;
+  --wc-surface-strong: #f3e6ec;
+  --wc-text: #2b1b2c;
+  --wc-text-secondary: #6b5a6c;
+  --wc-text-tertiary: #98879a;
+  --wc-border: #eadde3;
+  --wc-border-strong: #d8c2cb;
+  --wc-selection: #e11d5b;
+  --wc-jade: #e11d5b;
+  --wc-jade-hover: #c8134e;
+  --wc-jade-soft: #fde7ef;
+  --wc-accent: #e11d5b;
+  --wc-accent-hover: #c8134e;
+  --wc-accent-soft: #fde7ef;
+  --wc-on-accent: #ffffff;
+  --wc-success: #0b8a63;
+  --wc-success-soft: #dcf4ea;
+  --wc-blue: #2a6ef0;
+  --wc-blue-soft: #e3ecfd;
+  --wc-coral: #e8562a;
+  --wc-coral-soft: #fde8df;
+  --wc-amber: #b8730a;
+  --wc-amber-soft: #fdf0d6;
+  --wc-danger: #cf2b2b;
+  --wc-danger-soft: #fbe3e3;
+  /* 中性冷灰影：粉色影子叠在粉底上会把整片画布压脏。 */
+  --wc-shadow-node:
+    inset 0 1px 0 rgb(255 255 255 / 100%), 0 1px 2px rgb(58 38 48 / 7%),
+    0 10px 24px -12px rgb(58 38 48 / 13%);
+  --wc-shadow-float:
+    inset 0 1px 0 rgb(255 255 255 / 100%), 0 2px 6px rgb(58 38 48 / 9%),
+    0 20px 44px -14px rgb(58 38 48 / 16%);
+  --wc-shadow-editor:
+    inset 0 1px 0 rgb(255 255 255 / 100%), 0 4px 12px rgb(58 38 48 / 11%),
+    0 30px 68px -20px rgb(58 38 48 / 20%);
+}
+
+/* 敛锋档在糖彩下的边光：白边改粉白，压在茄紫/奶油底上才不发灰。 */
+:root[data-theme="dark"][data-color-scheme="soda"][data-node-style="facet"] {
+  --wc-facet-node-line: rgb(255 224 240 / 16%);
+  --wc-facet-node-line-hover: rgb(255 224 240 / 24%);
+  --wc-facet-node-line-strong: rgb(255 236 246 / 50%);
+  --wc-facet-surface-shadow:
+    inset 0 1px 0 rgb(255 224 240 / 16%), inset 0 -1px 0 rgb(8 2 14 / 52%),
+    0 2px 5px rgb(8 2 14 / 44%), 0 12px 26px -12px rgb(8 2 14 / 60%);
+  --wc-facet-surface-shadow-hover:
+    inset 0 1px 0 rgb(255 224 240 / 20%), inset 0 -1px 0 rgb(8 2 14 / 48%),
+    0 2px 6px rgb(8 2 14 / 42%), 0 16px 32px -14px rgb(8 2 14 / 66%);
+}
+
+:root[data-theme="light"][data-color-scheme="soda"][data-node-style="facet"] {
+  --wc-facet-node-line: rgb(70 22 46 / 13%);
+  --wc-facet-node-line-hover: rgb(70 22 46 / 22%);
+  --wc-facet-node-line-strong: rgb(70 22 46 / 42%);
+  --wc-facet-surface-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 100%), 0 1px 2px rgb(58 38 48 / 7%),
+    0 10px 22px -14px rgb(58 38 48 / 14%);
+  --wc-facet-surface-shadow-hover:
+    inset 0 1px 0 rgb(255 255 255 / 100%), 0 2px 5px rgb(58 38 48 / 9%),
+    0 16px 30px -16px rgb(58 38 48 / 18%);
+}

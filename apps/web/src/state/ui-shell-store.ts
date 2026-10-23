@@ -19,6 +19,11 @@ export type ResourceTab = "cards" | "assets";
 type UiShellState = {
   settingsOpen: boolean;
   settingsSection: SettingsSection;
+  /**
+   * 界面设置（视觉 / 交互）是独立面板，不再挂在设置中心里：设置中心只留
+   * API 配置 / 模型 / 本地保存 / 协作 / 插件。两个开关互不影响，各自有入口。
+   */
+  appearanceOpen: boolean;
   resourceOpen: boolean;
   resourceTab: ResourceTab;
   activityOpen: boolean;
@@ -35,6 +40,9 @@ type UiShellState = {
   closeSettings: () => void;
   toggleSettings: () => void;
   setSettingsSection: (section: SettingsSection) => void;
+  openAppearance: () => void;
+  closeAppearance: () => void;
+  toggleAppearance: () => void;
   openResource: (tab?: ResourceTab) => void;
   closeResource: () => void;
   setResourceTab: (tab: ResourceTab) => void;
@@ -46,17 +54,29 @@ type UiShellState = {
 
 export const useUiShellStore = create<UiShellState>((set, get) => ({
   settingsOpen: false,
-  settingsSection: "ui",
+  settingsSection: "apis",
+  appearanceOpen: false,
   resourceOpen: false,
   resourceTab: "assets",
   activityOpen: false,
   shortcutsOpen: false,
   promptAboveNodeId: null,
+  // 「界面」已从设置中心拆出去：Agent 或旧入口传 ui 时直接开界面设置面板。
   openSettings: (section) =>
-    set(section ? { settingsOpen: true, settingsSection: section } : { settingsOpen: true }),
+    section === "ui"
+      ? set({ appearanceOpen: true, settingsOpen: false })
+      : set({
+          settingsOpen: true,
+          appearanceOpen: false,
+          ...(section ? { settingsSection: section } : {}),
+        }),
   closeSettings: () => set({ settingsOpen: false }),
   toggleSettings: () => set({ settingsOpen: !get().settingsOpen }),
   setSettingsSection: (settingsSection) => set({ settingsSection }),
+  // 两个面板同时只开一个：都是贴右侧的浮层，叠着开会互相遮。
+  openAppearance: () => set({ appearanceOpen: true, settingsOpen: false }),
+  closeAppearance: () => set({ appearanceOpen: false }),
+  toggleAppearance: () => set({ appearanceOpen: !get().appearanceOpen, settingsOpen: false }),
   openResource: (tab) =>
     set(tab ? { resourceOpen: true, resourceTab: tab } : { resourceOpen: true }),
   closeResource: () => set({ resourceOpen: false }),

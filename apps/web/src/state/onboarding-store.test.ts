@@ -52,10 +52,11 @@ describe("新手教程状态", () => {
     useOnboardingStore.getState().alignToRoute("canvas");
     expect(currentStepId()).toBe("create-node");
 
-    // 同路由重复对齐不动进度。
+    // 同路由重复对齐不动进度（具体停在哪个 id 由步骤表决定，这里只钉住「不动」）。
     useOnboardingStore.getState().next();
+    const afterNext = currentStepId();
     useOnboardingStore.getState().alignToRoute("canvas");
-    expect(currentStepId()).toBe("space-pan");
+    expect(currentStepId()).toBe(afterNext);
   });
 
   it("重看从首屏第一步起：人在画布上不被快进，走到工作台后照常推进", async () => {

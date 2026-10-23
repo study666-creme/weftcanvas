@@ -20,6 +20,7 @@ import {
   type AgentAction,
   type AgentExecutionMode,
   type AgentExecutionPermission,
+  type AgentMessageAttachmentInput,
   type AgentModelCatalog,
   type AgentProposalDraft,
   type AgentRunError,
@@ -81,6 +82,7 @@ export class AgentServiceError extends Error {
       | "RUN_STATE_CONFLICT"
       | "EXECUTION_RECEIPT_INVALID"
       | "MODEL_NOT_AVAILABLE"
+      | "MODEL_MEDIA_UNSUPPORTED"
       | "MODEL_CATALOG_UNAVAILABLE"
       | "INSUFFICIENT_CREDITS"
       | "AGENT_UNAVAILABLE",
@@ -109,6 +111,7 @@ type AgentServiceOptions = {
       meta?: string;
       billing?: "request" | "token";
       thinking?: { levels: string[]; default: string };
+      mediaInput?: { images: boolean; videos: boolean };
     }>
   >;
   /**
@@ -136,6 +139,12 @@ export class AgentService {
   private readonly billing?: AgentBilling;
   private readonly skills?: AgentSkillReader;
   private readonly activeRuns = new Map<string, AbortController>();
+  /**
+   * 本轮附件字节只活在进程内存里：消息记录落库的是元数据 + 缩略图，
+   * 原始 data URL 用完即删。进程在排队期间重启时这一轮就不带素材，
+   * 不会留下一个无法解释的"图片已发送"幻觉。
+   */
+  private readonly pendingAttachments = new Map<string, AgentMessageAttachmentInput[]>();
 
   constructor(
     private readonly store: AgentStore,
@@ -256,6 +265,7 @@ export class AgentService {
       const thinking = sanitizeThinking(model.thinking);
       const meta = model.meta ? model.meta.slice(0, 64) : undefined;
       const billing = model.billing;
+      const mediaInput = model.mediaInput;
       const existing = merged.get(parsed.data);
       if (existing) {
         // 运行时目录里的同名模型保留自己的标签，但补上平台目录的分组/描述/思考强度，避免
@@ -266,6 +276,7 @@ export class AgentService {
           ...(detail && !existing.detail ? { detail } : {}),
           ...(thinking ? { thinking } : {}),
           ...(billing ? { billing } : {}),
+          ...(existing.mediaInput ? {} : mediaInput ? { mediaInput } : {}),
           ...(existing.meta ? {} : meta ? { meta } : { meta: "按 Token 计费" }),
         });
         continue;
@@ -277,6 +288,7 @@ export class AgentService {
         ...(detail ? { detail } : {}),
         ...(thinking ? { thinking } : {}),
         ...(billing ? { billing } : {}),
+        ...(mediaInput ? { mediaInput } : {}),
         meta: meta ?? "按 Token 计费",
       });
       if (merged.size >= MAX_AGENT_MODELS) break;
@@ -306,6 +318,15 @@ export class AgentService {
     }
     const modelId = await this.resolveModelId(input.modelId);
     const reasoningEffort = await this.resolveReasoningEffort(modelId, input.reasoningEffort);
+    const attachmentInputs = input.attachments ?? [];
+    if (attachmentInputs.length) {
+      // 多模态是硬前提：模型没声明图片输入时不扣费、不落消息，直接说明原因。
+      const catalog = await this.getModels();
+      const model = modelId ? catalog.models.find((item) => item.id === modelId) : null;
+      if (!model?.mediaInput?.images) {
+        throw new AgentServiceError("MODEL_MEDIA_UNSUPPORTED", "所选模型不支持图片输入");
+      }
+    }
     // 执行权限档随运行冻结：这一轮发出后再改设置，不会改变已经排队的这一轮。
     const executionPermission = input.executionPermission ?? "request_approval";
     const skills = await this.loadSkillContext(ownerId, input.skillIds ?? []);
@@ -317,12 +338,15 @@ export class AgentService {
     await this.chargeRun(ownerId, token, refId);
 
     const createdAt = this.timestamp();
+    // 原始字节不落库：消息里只留可回显的元数据，data URL 随本轮运行传给运行时。
+    const attachments = attachmentInputs.map(({ dataUrl: _dataUrl, ...metadata }) => metadata);
     const userMessage = agentMessageSchema.parse({
       schemaVersion: 1,
       id: this.createId(),
       conversationId,
       role: "user",
       content: input.content,
+      attachments,
       createdAt,
     });
     const run = {
@@ -387,6 +411,7 @@ export class AgentService {
       return this.getDetail(ownerId, conversationId);
     }
 
+    if (attachmentInputs.length) this.pendingAttachments.set(run.id, attachmentInputs);
     void this.execute(ownerId, run.id, conversationId, modelId!, reasoningEffort, token).catch(
       () => undefined,
     );
@@ -485,12 +510,14 @@ export class AgentService {
       const frozen = await this.store.getRun(ownerId, runId);
       const executionPermission = frozen?.executionPermission ?? "request_approval";
       const skills = await this.loadSkillContext(ownerId, frozen?.skillIds ?? []);
+      const attachments = this.pendingAttachments.get(runId) ?? [];
       const result = await this.executor!.execute(
         {
           modelId,
           ...(reasoningEffort ? { reasoningEffort } : {}),
           executionPermission,
           skills,
+          attachments,
           conversation: detail.conversation,
           messages: detail.messages,
           canvasContext: await this.runContext(ownerId, runId),
@@ -522,6 +549,7 @@ export class AgentService {
       }
     } finally {
       this.activeRuns.delete(runId);
+      this.pendingAttachments.delete(runId);
     }
   }
 

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { buildChatMessages, formatSkillsContext, permissionRule } from "./prompt.js";
+import {
+  buildChatMessages,
+  formatAttachmentNote,
+  formatSkillsContext,
+  permissionRule,
+} from "./prompt.js";
 import { agentCanvasContextSchema, type AgentMessage } from "@weftcanvas/contracts";
 
 const MESSAGE: AgentMessage = {
@@ -9,6 +14,7 @@ const MESSAGE: AgentMessage = {
   conversationId: "22222222-2222-4222-8222-222222222222",
   role: "user",
   content: "写一集开场",
+  attachments: [],
   createdAt: "2026-10-16T12:00:00.000Z",
 };
 
@@ -62,6 +68,48 @@ describe("创作产物落成节点", () => {
     const prompt = systemMessages([MESSAGE], context())[0]!;
     expect(prompt).toContain("默认以画布节点交付");
     expect(prompt).toContain("不要把整段设定只在 content 里贴一遍");
+  });
+});
+
+describe("多模态参考素材", () => {
+  const attachment = {
+    id: "attachment-1",
+    kind: "image" as const,
+    name: "参考图.png",
+    mimeType: "image/jpeg",
+    width: 640,
+    height: 480,
+    durationMs: null,
+    nodeId: "node-1",
+    dataUrl: "data:image/jpeg;base64,AAAA",
+  };
+
+  it("把本轮附件作为 image_url 内容附在最后一条用户消息上", () => {
+    const messages = buildChatMessages([MESSAGE], context(), "", "", [], "request_approval", [
+      attachment,
+    ]);
+    const last = messages.at(-1)!;
+    expect(Array.isArray(last.content)).toBe(true);
+    const parts = last.content as Array<{ type: string }>;
+    expect(parts[0]).toMatchObject({ type: "text" });
+    expect(parts.filter((part) => part.type === "image_url")).toHaveLength(1);
+    expect(parts[0]).toMatchObject({
+      text: expect.stringContaining("图片参考：参考图.png"),
+    });
+  });
+
+  it("附件说明区分图片与视频首帧，并写明来源节点", () => {
+    const note = formatAttachmentNote([
+      attachment,
+      { ...attachment, id: "attachment-2", kind: "video", name: "镜头.mp4" },
+    ]);
+    expect(note).toContain("图片参考：参考图.png（来自节点 node-1）");
+    expect(note).toContain("视频参考：镜头.mp4 的首帧");
+  });
+
+  it("没有附件时保持纯文本内容，不改变既有请求形状", () => {
+    const messages = buildChatMessages([MESSAGE], context());
+    expect(messages.at(-1)?.content).toBe("写一集开场");
   });
 });
 

@@ -96,6 +96,28 @@ describe("uploadMediaToServer fallback", () => {
     expect(mocks.createMediaUpload).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "image", mimeType: "image/png", size: 3 }),
     );
+    expect(mocks.createMediaUpload).not.toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: expect.anything() }),
+    );
+  });
+
+  it("forwards the cloud project scope into the upload intent", async () => {
+    mocks.validateImageBlob.mockResolvedValue({
+      blob: file,
+      mimeType: "image/png",
+      width: 1,
+      height: 1,
+    });
+    mocks.createMediaUpload.mockResolvedValue({
+      media: { id: "srv-3", status: "ready", error: null },
+      upload: null,
+    });
+
+    await uploadMediaToServer(file, "image", "project-cloud");
+
+    expect(mocks.createMediaUpload).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: "project-cloud" }),
+    );
   });
 
   it("surfaces the server-side failure message instead of a generic error", async () => {

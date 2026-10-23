@@ -5,6 +5,7 @@ import {
   type AgentCreativeGuidance,
   type AgentExecutionPermission,
   type AgentMessage,
+  type AgentMessageAttachmentInput,
   type AgentSkillRunContext,
 } from "@weftcanvas/contracts";
 
@@ -25,7 +26,7 @@ const SYSTEM_PROMPT_BASE = [
   "新节点必须使用简短 clientId，后续动作可以用该 clientId 引用它；已有节点只能使用画布摘要中真实存在的 id。",
   "不要删除节点，不要触发生成，不要上传媒体，不要输出任意代码，也不要虚构节点、镜头或对象 id。",
   "content 是给用户看的简洁中文。提出方案时应描述将做什么，不得声称操作已经完成；只有画布回执才代表操作已应用。",
-  "你不会收到媒体字节、下载地址、凭证、知识原始文件或来源身份；只根据有界画布摘要、对话历史和本轮裁剪知识作答。",
+  "默认不会收到媒体字节、下载地址、凭证或知识原始文件；只根据有界画布摘要、对话历史和本轮裁剪知识作答。本轮用户显式附加的参考图（以及视频首帧）会以多模态输入提供，可以描述和引用它们，但不要假装看过没有附加的画面。",
   "所有创作协作模式都应结合本轮相关知识。自由协作先判断项目当前进程和最小缺口，再给专业、可解释的辅助，但不强加工作流。",
   "专业辅助把先定基线作为第一阶段：必须先确认画面比例、画风和目标时长，并锁定已确认设定。三项未齐或尚未锁定时只帮助补齐或澄清基线，executionMode 必须为 none、actions 必须为空数组、proposal 必须为 null，不得推进后续创作方案或画布操作；三项齐全并锁定后再按清晰的专业阶段主动推进。",
   "旧版请求中的“先定基线”模式与专业辅助同义，必须遵守相同的基线优先规则。",
@@ -90,9 +91,12 @@ function systemPrompt(hasTools: boolean, permission: AgentExecutionPermission) {
   ].join("\n");
 }
 
+export type ChatContentPart =
+  { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
+
 export type ChatMessage = {
   role: "system" | "user" | "assistant";
-  content: string;
+  content: string | ChatContentPart[];
 };
 
 /**
@@ -126,9 +130,17 @@ export function buildChatMessages(
   toolCatalog = "",
   skills: readonly AgentSkillRunContext[] = [],
   permission: AgentExecutionPermission = "request_approval",
+  attachments: readonly AgentMessageAttachmentInput[] = [],
 ): ChatMessage[] {
   const hasTools = Boolean(toolCatalog.trim());
   const skillsContext = formatSkillsContext(skills);
+  // 只把本轮（最后一条用户消息）的素材作为多模态输入重发：历史附件已经
+  // 在当时的轮次里看过，重复附带只会把上下文和带宽越滚越大。
+  const lastUserIndex = messages.reduce(
+    (found, message, index) => (message.role === "user" ? index : found),
+    -1,
+  );
+  const attachmentNote = formatAttachmentNote(attachments);
   return [
     { role: "system", content: systemPrompt(hasTools, permission) },
     { role: "system", content: formatCanvasContext(canvasContext) },
@@ -142,11 +154,37 @@ export function buildChatMessages(
         ]
       : []),
     ...(skillsContext ? [{ role: "system" as const, content: skillsContext }] : []),
-    ...messages.map((message) => ({
-      role: message.role,
-      content: message.content,
-    })),
+    ...messages.map((message, index) => {
+      if (index !== lastUserIndex || !attachments.length) {
+        return { role: message.role, content: message.content };
+      }
+      return {
+        role: message.role,
+        content: [
+          {
+            type: "text" as const,
+            text: attachmentNote ? `${message.content}\n\n${attachmentNote}` : message.content,
+          },
+          ...attachments.map((attachment) => ({
+            type: "image_url" as const,
+            image_url: { url: attachment.dataUrl },
+          })),
+        ],
+      };
+    }),
   ];
+}
+
+/** 附件清单写进正文，让模型知道每张图来自哪个节点、是不是视频首帧。 */
+export function formatAttachmentNote(attachments: readonly AgentMessageAttachmentInput[]) {
+  if (!attachments.length) return "";
+  const lines = attachments.map((attachment) => {
+    const source = attachment.nodeId ? `（来自节点 ${attachment.nodeId}）` : "";
+    return attachment.kind === "video"
+      ? `- 视频参考：${attachment.name} 的首帧${source}`
+      : `- 图片参考：${attachment.name}${source}`;
+  });
+  return ["本轮用户附加的视觉参考（按顺序对应随消息提供的图像）：", ...lines].join("\n");
 }
 
 export function formatCanvasContext(context: AgentCanvasContext) {

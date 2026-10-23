@@ -101,7 +101,9 @@ function applyUiActions(actions: AgentAction[]): {
       case "ui_close_panel": {
         switch (action.panel) {
           case "settings":
+            // 「界面」已经从设置中心拆出去，关设置时两边一起收，别留下半开的面板。
             shell.closeSettings();
+            shell.closeAppearance();
             break;
           case "resource-drawer":
             shell.closeResource();
@@ -127,7 +129,10 @@ function applyUiActions(actions: AgentAction[]): {
         applied += 1;
         break;
       case "ui_set_color_scheme":
-        useUiPreferencesStore.getState().setColorScheme(action.scheme);
+        // 旧指令可能还带着已下线的 onyx，落库前归一成 ink，别让历史脚本失效。
+        useUiPreferencesStore
+          .getState()
+          .setColorScheme(action.scheme === "onyx" ? "ink" : action.scheme);
         applied += 1;
         break;
       default:

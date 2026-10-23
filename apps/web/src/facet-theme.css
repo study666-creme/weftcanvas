@@ -1,0 +1,99 @@
+/*
+ * 敛锋（facet）—— 连续曲率的收角档。
+ *
+ * 与其它档的差别只有一处，但它是几何层的：
+ * 1. 圆角用 `corner-shape: squircle`（超椭圆 n≈4），不是圆弧。同样 20px 半径，
+ *    圆弧在四角吃掉约 86px² 画面，squircle 只吃 29px²，而视觉圆润度接近
+ *    20px 圆弧。所以这个档可以把半径开大，仍保住图片的四个角。
+ * 2. 收角必须配一道边光才看得见。基线 7% 的白边在 20px 半径下会糊掉，这里
+ *    提到 14%，并在顶部加 1px 内高光；浅色主题反相（深边 + 白高光）。
+ *
+ * 只覆盖几何、边框与阴影，颜色一律走 --wc-* 令牌，深浅两套主题共用。
+ * 不支持 corner-shape 的浏览器（Chrome <139、Firefox）退回 14px 普通圆角——
+ * 宁可圆角小一点，也不让四角突然被啃掉一块。
+ */
+
+:root[data-node-style="facet"] {
+  --wc-facet-radius: 20px;
+  --wc-facet-node-line: rgb(255 255 255 / 14%);
+  --wc-facet-node-line-hover: rgb(255 255 255 / 22%);
+  --wc-facet-node-line-strong: rgb(255 255 255 / 46%);
+  --wc-facet-surface-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 14%), inset 0 -1px 0 rgb(0 0 0 / 50%),
+    0 1px 2px rgb(0 0 0 / 50%), 0 12px 28px -16px rgb(0 0 0 / 62%);
+  --wc-facet-surface-shadow-hover:
+    inset 0 1px 0 rgb(255 255 255 / 18%), inset 0 -1px 0 rgb(0 0 0 / 46%),
+    0 2px 4px rgb(0 0 0 / 46%), 0 16px 34px -18px rgb(0 0 0 / 66%);
+}
+
+:root[data-theme="light"][data-node-style="facet"] {
+  --wc-facet-node-line: rgb(26 34 31 / 20%);
+  --wc-facet-node-line-hover: rgb(26 34 31 / 30%);
+  --wc-facet-node-line-strong: rgb(26 34 31 / 48%);
+  --wc-facet-surface-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 95%), 0 1px 2px rgb(26 34 31 / 10%),
+    0 12px 26px -16px rgb(26 34 31 / 22%);
+  --wc-facet-surface-shadow-hover:
+    inset 0 1px 0 rgb(255 255 255 / 100%), 0 2px 5px rgb(26 34 31 / 12%),
+    0 18px 34px -18px rgb(26 34 31 / 26%);
+}
+
+/* ---------- 节点 ---------- */
+
+:root[data-node-style="facet"] .wc-node-surface {
+  border-color: var(--wc-facet-node-line);
+  border-radius: var(--wc-facet-radius);
+  corner-shape: squircle;
+  box-shadow: var(--wc-facet-surface-shadow);
+}
+
+/* 媒体帧自己也有 overflow:hidden，不跟着换形状的话会先把图裁成普通圆弧，
+   父级的 squircle 就白设了。 */
+:root[data-node-style="facet"] :is(.wc-node-media-body, .wc-node-media-frame, .wc-media-empty) {
+  corner-shape: squircle;
+}
+
+@supports not (corner-shape: squircle) {
+  :root[data-node-style="facet"] .wc-node-surface {
+    border-radius: 14px;
+  }
+}
+
+:root[data-node-style="facet"] .react-flow__node-weftcanvas:hover .wc-node-surface {
+  border-color: var(--wc-facet-node-line-hover);
+  box-shadow: var(--wc-facet-surface-shadow-hover);
+}
+
+:root[data-node-style="facet"] .react-flow__node-weftcanvas.selected .wc-node-surface {
+  border-color: var(--wc-facet-node-line-strong);
+  box-shadow:
+    0 0 0 1.5px color-mix(in srgb, var(--wc-facet-node-line-strong) 55%, transparent),
+    var(--wc-facet-surface-shadow-hover);
+}
+
+/* 密集画布仍要走基线的去阴影优化，否则几十个节点的模糊阴影会拖慢平移。 */
+:root[data-node-style="facet"] .wc-workspace.is-dense .wc-node-surface {
+  box-shadow: 0 1px 3px rgb(0 0 0 / 32%);
+}
+
+:root[data-theme="light"][data-node-style="facet"] .wc-workspace.is-dense .wc-node-surface {
+  box-shadow: 0 1px 2px rgb(26 34 31 / 14%);
+}
+
+/* 运行 / 出错状态的颜色提示不能被档位的边框覆盖掉。 */
+:root[data-node-style="facet"] .wc-node-wrap[data-node-status="running"] .wc-node-surface {
+  border-color: color-mix(in srgb, var(--node-accent) 48%, var(--wc-border-strong));
+}
+
+:root[data-node-style="facet"] .wc-node-wrap[data-node-status="error"] .wc-node-surface {
+  border-color: color-mix(in srgb, var(--wc-danger) 58%, var(--wc-border-strong));
+}
+
+:root[data-node-style="facet"] .wc-node-wrap--video[data-node-status="running"] .wc-node-surface {
+  border-color: color-mix(in srgb, var(--wc-text-secondary) 42%, var(--wc-border-strong));
+}
+
+/* 端口和快捷添加是「点」，保持基线圆度，不跟着收角。 */
+:root[data-node-style="facet"] .wc-node-quick-add {
+  border-radius: 10px;
+}

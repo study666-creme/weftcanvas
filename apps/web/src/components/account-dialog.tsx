@@ -57,6 +57,16 @@ type CreditGrantMode = "daily" | "bundle";
 type AccountView = "membership" | "tasks" | "wallet";
 type MembershipTier = "lite" | "basic" | "standard" | "pro";
 
+/**
+ * 会员档位卡文案。
+ *
+ * 积分口径的权威在 Prompt Hub：`server/src/lib/membership-pricing.ts`
+ * （价格表 + 基础倍率 0.6 / 0.5 + 活动加赠倍数），实发数由
+ * `server/src/lib/membership-credits.ts` 推导。这里是展示副本，数字必须与实发一致：
+ * 原价 每日 12 / 24 / 62 / 126，一次性 645 / 1595 / 3195；
+ * 当前活动加赠一倍后 每日 24 / 48 / 124 / 252，一次性 1290 / 3190 / 6390。
+ * 结束活动（加赠倍数改回 1）时，同步改这几行文案，否则会出现「买之前写 48、到账 24」。
+ */
 const MEMBERSHIP_PLANS: Array<{
   tier: MembershipTier;
   name: string;
@@ -68,7 +78,7 @@ const MEMBERSHIP_PLANS: Array<{
     name: "轻量会员",
     caption: "日常轻量创作",
     features: [
-      { label: "每日 10 积分" },
+      { label: "每日 24 积分（原 12 + 加赠 12）" },
       { label: "300MB + 2GB 云存储" },
       { label: "灵感抽卡 30 次/天" },
     ],
@@ -78,7 +88,7 @@ const MEMBERSHIP_PLANS: Array<{
     name: "基础会员",
     caption: "完整个人创作",
     features: [
-      { label: "每日 13 积分或一次性 130 积分" },
+      { label: "每日 48 积分或一次性 1290 积分" },
       { label: "300MB + 5GB 云存储" },
       { label: "全站云同步与资产工作台" },
     ],
@@ -88,7 +98,7 @@ const MEMBERSHIP_PLANS: Array<{
     name: "标准会员",
     caption: "进阶工作流",
     features: [
-      { label: "每日 32 积分或一次性 320 积分" },
+      { label: "每日 124 积分或一次性 3190 积分" },
       { label: "自定义 API", preview: true },
       { label: "300MB + 10GB 云存储" },
     ],
@@ -98,7 +108,7 @@ const MEMBERSHIP_PLANS: Array<{
     name: "专业会员",
     caption: "高阶专业创作",
     features: [
-      { label: "每日 64 积分或一次性 700 积分" },
+      { label: "每日 252 积分或一次性 6390 积分" },
       { label: "自定义 API" },
       { label: "多人协作（最多 5 人）", preview: true },
       { label: "300MB + 30GB 云存储" },
@@ -318,7 +328,7 @@ function MembershipBenefits({
         <div className="wc-membership-panel-heading">
           <div>
             <strong id="wc-membership-benefits-title">会员权益</strong>
-            <span>选择档位即可支付，权益即时生效</span>
+            <span>选择档位即可支付，权益即时生效 · 积分限时加赠 100%</span>
           </div>
           <BadgeCheck aria-hidden="true" />
         </div>
@@ -541,24 +551,34 @@ function MembershipTasksPanel({
     );
   }
 
+  const memberDaily = data.hub.memberDaily;
+  // 活动加赠：amount 是原价额度，bonus 是加赠，total 是实发。旧版上游只有 amount。
+  const memberDailyBonus = memberDaily?.bonus ?? 0;
+  const memberDailyTotal =
+    memberDaily?.total ?? (memberDaily ? memberDaily.amount + memberDailyBonus : 0);
   const dailyTasks = [
     {
       key: data.hub.dailyBonus.key,
       title: "每日免费积分",
       description: `今日领取 5 积分 · 连续签到 ${data.hub.signStreak} 天`,
       reward: "5 积分（今日有效）",
+      bonus: 0,
       claimed: data.hub.dailyBonus.claimed,
       ready: data.hub.dailyBonus.ready,
     },
-    ...(data.hub.memberDaily
+    ...(memberDaily
       ? [
           {
-            key: data.hub.memberDaily.key,
+            key: memberDaily.key,
             title: "会员每日积分",
-            description: "按当前会员档位领取，当日有效",
-            reward: `${formatCredits(data.hub.memberDaily.amount)} 积分`,
-            claimed: data.hub.memberDaily.claimed,
-            ready: data.hub.memberDaily.ready,
+            description:
+              memberDailyBonus > 0
+                ? `按当前会员档位领取，当日有效 · 实际到账 ${formatCredits(memberDailyTotal)} 积分`
+                : "按当前会员档位领取，当日有效",
+            reward: `${formatCredits(memberDaily.amount)} 积分`,
+            bonus: memberDailyBonus,
+            claimed: memberDaily.claimed,
+            ready: memberDaily.ready,
           },
         ]
       : []),
@@ -585,20 +605,27 @@ function MembershipTasksPanel({
                 <small>{task.description}</small>
                 <em>{task.reward}</em>
               </div>
-              <button
-                type="button"
-                disabled={task.claimed || !task.ready || Boolean(claimingKey)}
-                onClick={() => onClaim(task.key)}
-              >
-                {claimingKey === task.key ? (
-                  <LoaderCircle className="is-spinning" aria-hidden="true" />
-                ) : task.claimed ? (
-                  <Check aria-hidden="true" />
-                ) : (
-                  <Gift aria-hidden="true" />
-                )}
-                {task.claimed ? "今日已领" : "领取"}
-              </button>
+              <div className="wc-membership-daily-action">
+                {task.bonus > 0 ? (
+                  <span className="wc-membership-daily-bonus">
+                    加赠 +{formatCredits(task.bonus)}
+                  </span>
+                ) : null}
+                <button
+                  type="button"
+                  disabled={task.claimed || !task.ready || Boolean(claimingKey)}
+                  onClick={() => onClaim(task.key)}
+                >
+                  {claimingKey === task.key ? (
+                    <LoaderCircle className="is-spinning" aria-hidden="true" />
+                  ) : task.claimed ? (
+                    <Check aria-hidden="true" />
+                  ) : (
+                    <Gift aria-hidden="true" />
+                  )}
+                  {task.claimed ? "今日已领" : "领取"}
+                </button>
+              </div>
             </article>
           ))}
         </div>

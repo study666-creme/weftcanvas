@@ -295,6 +295,7 @@ function conversationDetail(): AgentConversationDetail {
         conversationId: "11111111-1111-4111-8111-111111111111",
         role: "user",
         content: "Existing history",
+        attachments: [],
         createdAt: "2026-07-22T00:00:00.000Z",
       },
     ],
