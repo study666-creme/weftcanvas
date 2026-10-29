@@ -220,7 +220,8 @@
 .wc-topbar-actions button,
 .wc-zoom-control button,
 .wc-create-rail button,
-.wc-edit-dock button {
+.wc-edit-dock button,
+.wc-agent-port button {
   display: inline-grid;
   place-items: center;
   border: 0;
@@ -253,7 +254,8 @@
 .wc-topbar-actions button:active,
 .wc-zoom-control button:active,
 .wc-create-rail button:active:not(:disabled),
-.wc-edit-dock button:active:not(:disabled) {
+.wc-edit-dock button:active:not(:disabled),
+.wc-agent-port button:active:not(:disabled) {
   transform: scale(0.94);
 }
 
@@ -3124,20 +3126,6 @@ body.is-canvas-connection-dragging .wc-node-config-shell {
   outline-offset: 1px;
 }
 
-.wc-create-rail-popover .wc-add-node svg {
-  width: 16px;
-  height: 16px;
-  flex: 0 0 auto;
-  stroke-width: 1.8;
-}
-
-.wc-create-rail-popover .wc-add-node-label {
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.2px;
-  white-space: nowrap;
-}
-
 .wc-create-rail-community svg {
   width: 16px;
   height: 16px;
@@ -3369,10 +3357,6 @@ body.is-canvas-connection-dragging .wc-node-config-shell {
   width: 16px;
   height: 16px;
   stroke-width: 1.8;
-}
-
-.wc-create-rail .wc-add-node {
-  color: var(--wc-text-secondary);
 }
 
 .wc-create-rail .wc-director-button {
@@ -4657,7 +4641,6 @@ body.is-canvas-connection-dragging .wc-node-config-shell {
   width: 100%;
   min-height: 36px;
   max-height: 112px;
-  field-sizing: content;
   resize: none;
   padding: 8px 5px;
   overflow-y: auto;
@@ -4851,11 +4834,6 @@ body.is-canvas-connection-dragging .wc-node-config-shell {
 
 .wc-agent-companion[data-reaction="thinking"] .wc-agent-companion-eyes {
   animation-duration: 1.8s;
-}
-
-.wc-create-rail .wc-add-node:hover {
-  color: var(--wc-text) !important;
-  background: rgb(255 255 255 / 8%) !important;
 }
 
 .wc-zoom-control button {
@@ -5198,6 +5176,278 @@ body.is-canvas-connection-dragging .wc-node-config-shell {
   height: 1px;
   margin: 4px 8px;
   background: color-mix(in srgb, var(--wc-text) 9%, transparent);
+}
+
+/* 「添加节点」面板：节点按类型做成带色标的卡片栅格。
+   右键空白处是最高频的建节点入口，纯文字行列表把七种节点压成同一个灰阶，
+   既看不出类型差异，也没有“能造什么”的暗示。卡片化后图标承担识别、
+   色标承担类型区分，菜单本身也有了自己的层次。 */
+.wc-context-menu--create {
+  width: 300px;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 18px;
+  background:
+    radial-gradient(
+      120% 80% at 0% 0%,
+      color-mix(in srgb, var(--wc-brand) 10%, transparent),
+      transparent 62%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--wc-surface-raised) 94%, transparent),
+      color-mix(in srgb, var(--wc-surface) 90%, transparent)
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--wc-text) 9%, transparent),
+    0 26px 68px rgb(0 0 0 / 32%),
+    0 4px 16px rgb(0 0 0 / 18%);
+}
+
+.wc-node-picker-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 4px;
+}
+
+.wc-node-picker-heading-mark {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--wc-on-accent);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--wc-text) 94%, transparent),
+    color-mix(in srgb, var(--wc-text) 70%, transparent)
+  );
+  box-shadow: 0 7px 16px -8px color-mix(in srgb, var(--wc-text) 80%, transparent);
+}
+
+.wc-node-picker-heading-mark svg {
+  width: 15px;
+  height: 15px;
+}
+
+.wc-node-picker-heading-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.25;
+}
+
+.wc-node-picker-heading-copy strong {
+  color: var(--wc-text);
+  font-size: 12.5px;
+  font-weight: 680;
+  letter-spacing: 0.01em;
+}
+
+.wc-node-picker-heading-copy small {
+  color: var(--wc-text-tertiary);
+  font-size: 10px;
+  font-weight: 520;
+}
+
+.wc-node-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.wc-node-picker-tile {
+  --tile-accent: var(--wc-text-secondary);
+  display: flex;
+  width: 100%;
+  height: 52px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, var(--wc-text) 8%, transparent);
+  border-radius: 12px;
+  color: var(--wc-text-secondary);
+  background: color-mix(in srgb, var(--wc-surface-raised) 64%, transparent);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  animation: wc-menu-tile-enter 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  transition:
+    transform 140ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease,
+    color 140ms ease;
+}
+
+.wc-node-picker-tile:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--tile-accent) 44%, transparent);
+  color: var(--wc-text);
+  background: color-mix(in srgb, var(--tile-accent) 10%, var(--wc-surface-raised));
+  box-shadow: 0 9px 20px -14px color-mix(in srgb, var(--tile-accent) 70%, transparent);
+  outline: none;
+}
+
+/* 菜单打开时会自动聚焦第一项供键盘导航；焦点只画一圈类型色细环，
+   不要复用 hover 的染色，否则第一张卡片看起来像已经被选中。 */
+.wc-node-picker-tile:focus-visible {
+  border-color: color-mix(in srgb, var(--tile-accent) 54%, transparent);
+  color: var(--wc-text);
+  background: color-mix(in srgb, var(--wc-surface-raised) 64%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tile-accent) 40%, transparent);
+  outline: none;
+}
+
+.wc-node-picker-tile-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  place-items: center;
+  border-radius: 9px;
+  color: color-mix(in srgb, var(--tile-accent) 86%, var(--wc-text));
+  background: color-mix(in srgb, var(--tile-accent) 13%, transparent);
+  transition:
+    background-color 140ms ease,
+    transform 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.wc-node-picker-tile-icon svg {
+  width: 14px;
+  height: 14px;
+  color: inherit;
+}
+
+.wc-node-picker-tile:hover .wc-node-picker-tile-icon {
+  transform: scale(1.06);
+  background: color-mix(in srgb, var(--tile-accent) 20%, transparent);
+}
+
+.wc-node-picker-tile-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 节点色标：沿用主题令牌，明暗两边都自动取到可读色。未登记的插件节点
+   落在默认的中性色上，不会因为拿不到映射而失去样式。 */
+.wc-node-picker-tile[data-kind="text"] {
+  --tile-accent: var(--wc-success);
+}
+
+.wc-node-picker-tile[data-kind="image"] {
+  --tile-accent: var(--wc-blue);
+}
+
+.wc-node-picker-tile[data-kind="video"] {
+  --tile-accent: var(--wc-coral);
+}
+
+.wc-node-picker-tile[data-kind="audio"] {
+  --tile-accent: var(--wc-amber);
+}
+
+.wc-node-picker-tile[data-kind="config"] {
+  --tile-accent: var(--wc-jade);
+}
+
+.wc-node-picker-tile[data-kind="edit"] {
+  --tile-accent: var(--wc-blue);
+}
+
+.wc-node-picker-tile[data-kind="split-list"] {
+  --tile-accent: var(--wc-success);
+}
+
+.wc-context-menu--create .wc-context-menu-divider {
+  margin: 1px 4px;
+}
+
+/* 卡片栅格之后的行操作（粘贴 / 上传 / 清空）保持轻量，不抢节点卡片的焦点。 */
+.wc-context-menu--create > button {
+  height: 32px;
+  padding: 0 9px;
+  border-radius: 9px;
+  font-size: 11.5px;
+}
+
+/* 左侧加号浮层与右键菜单共用同一套卡片栅格：面板同样加宽，换成同一张
+   渐变面，避免两个入口一个精致、一个还是窄条列表。 */
+.wc-create-rail-popover {
+  width: 300px;
+  min-width: 0;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 18px;
+  background:
+    radial-gradient(
+      120% 80% at 0% 0%,
+      color-mix(in srgb, var(--wc-brand) 10%, transparent),
+      transparent 62%
+    ),
+    linear-gradient(145deg, color-mix(in srgb, var(--wc-text) 5%, transparent), transparent 38%),
+    color-mix(in srgb, var(--wc-surface-raised) 92%, transparent);
+}
+
+/* rail 的通用 button 规则（.wc-create-rail button）会把尺寸锁成 34px、
+   布局改成 inline-grid，并把底色清成 transparent。这里用同层级以上的
+   选择器把卡片布局完整交还回来。 */
+.wc-create-rail-popover button.wc-node-picker-tile {
+  display: flex;
+  width: 100%;
+  height: 52px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, var(--wc-text) 8%, transparent);
+  border-radius: 12px;
+  color: var(--wc-text-secondary);
+  background: color-mix(in srgb, var(--wc-surface-raised) 64%, transparent);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.wc-create-rail-popover button.wc-node-picker-tile:hover {
+  border-color: color-mix(in srgb, var(--tile-accent) 44%, transparent);
+  color: var(--wc-text);
+  background: color-mix(in srgb, var(--tile-accent) 10%, var(--wc-surface-raised));
+}
+
+.wc-create-rail-popover button.wc-node-picker-tile:focus-visible {
+  border-color: color-mix(in srgb, var(--tile-accent) 54%, transparent);
+  color: var(--wc-text);
+  background: color-mix(in srgb, var(--wc-surface-raised) 64%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tile-accent) 40%, transparent);
+}
+
+@keyframes wc-menu-tile-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wc-node-picker-tile {
+    animation: none;
+    transition: none;
+  }
+
+  .wc-node-picker-tile:hover,
+  .wc-node-picker-tile:focus-visible {
+    transform: none;
+  }
 }
 
 .wc-selection-toolbar-count {
@@ -6602,6 +6852,151 @@ body.is-canvas-connection-dragging .wc-node-config-shell {
   font-size: 12px;
 }
 
+/* --- 批量选择 -------------------------------------------------------------- */
+
+.wc-project-select-toggle.is-active {
+  color: var(--wc-accent);
+  background: var(--wc-accent-soft);
+}
+
+.wc-project-select-bar {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 8px;
+  margin: 0 14px 6px;
+  padding: 4px 6px 4px 10px;
+  border: 1px solid color-mix(in srgb, var(--wc-text) 9%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--wc-canvas) 45%, transparent);
+}
+
+.wc-project-select-bar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--wc-text-secondary);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.wc-project-select-bar input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* 原生勾选框在深色底上是一块白方块：真 input 只留可访问性，视觉交给自绘方框。 */
+.wc-project-select-check {
+  display: grid;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  place-content: center;
+  border: 1px solid var(--wc-border-strong);
+  border-radius: 4px;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.wc-project-select-check::after {
+  width: 7px;
+  height: 4px;
+  border: solid var(--wc-on-accent);
+  border-width: 0 0 1.6px 1.6px;
+  content: "";
+  transform: rotate(-45deg) scale(0);
+  transition: transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.wc-project-select-bar input:checked + .wc-project-select-check {
+  border-color: var(--wc-accent);
+  background: var(--wc-accent);
+}
+
+.wc-project-select-bar input:checked + .wc-project-select-check::after {
+  transform: rotate(-45deg) scale(1);
+}
+
+.wc-project-select-bar input:focus-visible + .wc-project-select-check {
+  outline: 2px solid color-mix(in srgb, var(--wc-accent) 60%, transparent);
+  outline-offset: 2px;
+}
+
+.wc-project-select-count {
+  margin-left: auto;
+  color: var(--wc-text-tertiary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wc-project-select-bar > button {
+  display: inline-flex;
+  height: 26px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, var(--wc-text) 12%, transparent);
+  border-radius: 6px;
+  color: var(--wc-text-secondary);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 610;
+  cursor: pointer;
+}
+
+.wc-project-select-bar > button svg {
+  width: 12px;
+  height: 12px;
+}
+
+.wc-project-select-bar > button:hover:not(:disabled) {
+  color: var(--wc-text);
+  background: var(--wc-surface-strong);
+}
+
+.wc-project-select-bar > button.is-danger:hover:not(:disabled) {
+  color: var(--wc-danger);
+  background: var(--wc-danger-soft);
+}
+
+.wc-project-select-bar > button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.wc-project-row.is-selected {
+  background: color-mix(in srgb, var(--wc-accent) 9%, transparent);
+}
+
+/* 选择模式没有右侧进入箭头，收掉第三列让文字对齐勾选框。 */
+.wc-project-row.is-selecting .wc-project-open {
+  grid-template-columns: 20px minmax(0, 1fr);
+}
+
+.wc-project-select-mark {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  color: var(--wc-text-tertiary);
+}
+
+.wc-project-select-mark svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
+}
+
+.wc-project-row.is-selected .wc-project-select-mark {
+  color: var(--wc-selection);
+}
+
 .wc-project-cloud-section {
   display: grid;
   gap: 2px;
@@ -6894,6 +7289,31 @@ body.is-canvas-connection-dragging .wc-node-config-shell {
   color: var(--wc-text-tertiary);
   font-size: 12px;
   line-height: 1.65;
+}
+
+/* 批量删除列出前几个项目名，剩下的折成"等共 N 个"。 */
+.wc-project-delete-list {
+  display: grid;
+  max-height: 176px;
+  margin: 0;
+  padding: 18px 16px 6px;
+  overflow-y: auto;
+  gap: 4px;
+  color: var(--wc-text-secondary);
+  font-size: 12.5px;
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+.wc-project-delete-list li {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 列表和下面那句"只删本机…"分开，否则 5 行名字之后紧接着说明会糊在一起。 */
+.wc-project-delete-list + small {
+  padding-top: 12px;
 }
 
 .wc-project-delete-dialog footer {
@@ -9910,6 +10330,16 @@ body.is-canvas-connection-dragging .wc-node-config-shell {
   font-size: 9.5px;
 }
 
+.wc-wallet-product-copy .wc-wallet-product-bonus {
+  overflow: hidden;
+  color: color-mix(in srgb, var(--wc-accent) 76%, var(--wc-text));
+  font-size: 9.5px;
+  font-style: normal;
+  font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .wc-wallet-product > b {
   color: var(--wc-text);
   font-size: 11px;
@@ -10027,6 +10457,21 @@ body.is-canvas-connection-dragging .wc-node-config-shell {
   color: var(--wc-text-tertiary);
   font-size: 10.5px;
   white-space: nowrap;
+}
+
+.wc-membership-grant-hint {
+  margin: 7px 0 0;
+  color: var(--wc-text-tertiary);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.wc-membership-grant-hint.is-bundle {
+  color: var(--wc-text-secondary);
+}
+
+.wc-membership-grant-hint.is-required {
+  color: var(--wc-amber);
 }
 
 .wc-wallet-segmented {
@@ -11451,7 +11896,6 @@ body.is-canvas-connection-dragging .wc-node-config-shell {
   color: var(--wc-text);
   background: color-mix(in srgb, var(--wc-surface-raised) 62%, transparent);
   caret-color: var(--wc-accent);
-  field-sizing: fixed;
   font-size: 13px;
   line-height: 1.5;
   resize: none;
@@ -12776,6 +13220,23 @@ body.is-canvas-connection-dragging .wc-node-config-shell {
   background: var(--wc-chrome-surface-hover);
 }
 
+/* 添加节点卡片在 studio 面板上沿用 chrome 底，但 hover 仍保留节点色标，
+   否则通用的 chrome hover 会把七种类型的颜色一起抹平。 */
+:root[data-chrome-style="studio"] .wc-node-picker-tile {
+  border-color: var(--wc-chrome-border-soft);
+  background: color-mix(in srgb, var(--wc-chrome-surface-hover) 54%, transparent);
+}
+
+:root[data-chrome-style="studio"] .wc-node-picker-tile:hover {
+  background: color-mix(in srgb, var(--tile-accent) 14%, var(--wc-chrome-surface-hover));
+}
+
+:root[data-chrome-style="studio"] .wc-node-picker-tile:focus-visible {
+  border-color: color-mix(in srgb, var(--tile-accent) 54%, transparent);
+  background: color-mix(in srgb, var(--wc-chrome-surface-hover) 54%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tile-accent) 40%, transparent);
+}
+
 :root[data-chrome-style="studio"] .wc-selection-toolbar-count {
   border-right-color: var(--wc-chrome-border-soft);
 }
@@ -12812,6 +13273,23 @@ body.is-canvas-connection-dragging .wc-node-config-shell {
     inset 0 1px 0 var(--wc-chrome-highlight),
     0 6px 14px -8px rgb(0 0 0 / 52%);
   transform: translateY(-1px);
+}
+
+/* studio 的 chrome hover 会抹平节点色标，加号浮层里的卡片单独保留类型色。 */
+:root[data-chrome-style="studio"] .wc-create-rail-popover button.wc-node-picker-tile {
+  border-color: var(--wc-chrome-border-soft);
+  background: color-mix(in srgb, var(--wc-chrome-surface-hover) 54%, transparent);
+}
+
+:root[data-chrome-style="studio"] .wc-create-rail-popover button.wc-node-picker-tile:hover {
+  border-color: color-mix(in srgb, var(--tile-accent) 44%, transparent);
+  background: color-mix(in srgb, var(--tile-accent) 14%, var(--wc-chrome-surface-hover));
+}
+
+:root[data-chrome-style="studio"] .wc-create-rail-popover button.wc-node-picker-tile:focus-visible {
+  border-color: color-mix(in srgb, var(--tile-accent) 54%, transparent);
+  background: color-mix(in srgb, var(--wc-chrome-surface-hover) 54%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tile-accent) 40%, transparent);
 }
 
 :root[data-chrome-style="studio"] .wc-brand-mark:active,
@@ -15054,18 +15532,6 @@ body.is-canvas-connection-dragging .wc-node-config-shell {
   grid-template-rows: 58px minmax(0, 1fr) auto;
 }
 
-.wc-agent-drawer--refined .wc-agent-composer {
-  min-height: 0;
-  grid-template-rows: auto minmax(64px, auto) auto;
-}
-
-.wc-agent-drawer--refined .wc-agent-composer textarea {
-  height: auto;
-  min-height: 64px;
-  max-height: min(168px, 26vh);
-  field-sizing: content;
-}
-
 /* 文本节点里的模型选择器：和 Agent 抽屉是同一个面板（厂商 tab + 双列 + 价格），
    只把触发器收成 30px 胶囊塞进节点工具条；价格在展开后的列表里逐项给全。 */
 .wc-text-assist-model .wc-cat-select-trigger {
@@ -15105,7 +15571,10 @@ body.is-canvas-connection-dragging .wc-node-config-shell {
    分类模型菜单（CategorizedModelSelect）已经改成 body 级浮层，但它的材质仍写
    `var(--entry-surface)`。.wc-app 之外没有这组变量，背景声明整条失效，面板就
    变全透明（画布网格、节点直接从菜单里透出来）。这里用画布的 --wc-* 令牌补齐
-   同义变量，并统一成与 Agent 模型面板一致的圆角材质。 */
+   同义变量，并统一成与 Agent 模型面板一致的圆角材质。
+   变量映射对所有 body 级菜单生效；下面那组「扁平外观」只给 --floating 的分类
+   选择器——Agent 模型面板同样是 body 直系子节点，但它有自己的一整套路面与选中态，
+   被这组规则命中会出现浅灰描边和发白的选中底（廉价感的来源）。 */
 body > .wc-cat-select-menu {
   --entry-bg: var(--wc-canvas);
   --entry-band: var(--wc-surface-muted);
@@ -15129,32 +15598,32 @@ body > .wc-cat-select-menu {
     0 22px 48px rgb(0 0 0 / 22%);
 }
 
-body > .wc-cat-select-menu .wc-cat-select-tabs {
+body > .wc-cat-select-menu--floating .wc-cat-select-tabs {
   border-bottom-color: var(--wc-border);
 }
 
-body > .wc-cat-select-menu .wc-cat-select-tabs > button {
+body > .wc-cat-select-menu--floating .wc-cat-select-tabs > button {
   border-radius: 6px;
   border-color: transparent;
   background: transparent;
 }
 
-body > .wc-cat-select-menu .wc-cat-select-tabs > button.is-active {
+body > .wc-cat-select-menu--floating .wc-cat-select-tabs > button.is-active {
   border-color: var(--wc-border-strong);
   box-shadow: none;
   font-weight: 640;
 }
 
-body > .wc-cat-select-menu .wc-cat-select-options > button {
+body > .wc-cat-select-menu--floating .wc-cat-select-options > button {
   border-radius: 7px;
   border-top-color: transparent;
 }
 
-body > .wc-cat-select-menu .wc-cat-select-options > button:hover {
+body > .wc-cat-select-menu--floating .wc-cat-select-options > button:hover {
   background: var(--wc-surface-muted);
 }
 
-body > .wc-cat-select-menu .wc-cat-select-options > button.is-selected {
+body > .wc-cat-select-menu--floating .wc-cat-select-options > button.is-selected {
   background: color-mix(in srgb, var(--wc-accent) 10%, var(--wc-surface-raised));
 }
 
@@ -15462,4 +15931,1083 @@ body > .wc-cat-select-menu .wc-cat-select-options > button.is-selected {
   .wc-canvas-select-trigger[aria-expanded="true"] {
   color: var(--wc-text);
   border-color: color-mix(in srgb, var(--wc-accent) 40%, var(--wc-border-strong));
+}
+
+/* --- Agent 引用口（Agent 抽屉打开时贴着抽屉左缘的加号端口，节点同款样式） --- */
+/* 画布之上的固定浮层（工作区根节点的绝对定位子元素，不是节点），不跟着平移/缩放走；
+   从素材节点拖线到它、或把节点拖上来 = 引用素材。按钮外观并入上方工具栏按钮的
+   共享规则组（.wc-agent-port button），这里补落位、拖拽预告、角标与确认涟漪。
+
+   落位跟节点端口同一个逻辑——贴着所属面板的边缘、落在面板外面：抽屉占满右侧一列
+   （宽度与 --wc-agent-space 同式），端口就浮在那一列左缘的画布上，和节点的加号
+   悬在节点边缘外一样，不压住面板里的对话与输入区。 */
+.wc-agent-port {
+  position: absolute;
+  top: 50%;
+  right: calc(clamp(440px, 34vw, 620px) + 3px);
+  z-index: 73;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  transform: translateY(-50%);
+}
+
+/* ≤1200px 抽屉固定 440px 宽（styles.css），端口跟着收。 */
+@media (max-width: 1200px) {
+  .wc-agent-port {
+    right: calc(min(440px, 100vw - 24px) + 3px);
+  }
+}
+
+/* ≤720px 抽屉是全屏覆盖层，画布已经不在视野里，端口没有落点。 */
+@media (max-width: 720px) {
+  .wc-agent-port {
+    display: none;
+  }
+}
+
+/* 加号本身复用节点端口（.wc-node-port-zone--classic .wc-node-port-core）的
+   圆形质感：径向高光 + 纵向渐变 + 内阴影；hover 时放大到 40px 并套一圈
+   accent 光环，和画布上其他端口的手感一致。 */
+.wc-agent-port button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--wc-text-secondary) 30%, var(--wc-border));
+  border-radius: 50%;
+  color: color-mix(in srgb, var(--wc-text-secondary) 92%, transparent);
+  background:
+    radial-gradient(
+      circle at 34% 18%,
+      color-mix(in srgb, var(--wc-text) 18%, transparent),
+      transparent 42%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--wc-surface-raised) 86%, var(--wc-text) 14%) 0%,
+      color-mix(in srgb, var(--wc-surface-raised) 96%, var(--wc-canvas)) 46%,
+      color-mix(in srgb, var(--wc-surface-muted) 86%, var(--wc-canvas)) 100%
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--wc-text) 20%, transparent),
+    inset 0 -5px 9px rgb(0 0 0 / 13%),
+    inset 0 0 0 1px color-mix(in srgb, var(--wc-text) 5%, transparent),
+    0 2px 3px rgb(0 0 0 / 22%),
+    0 8px 16px -8px rgb(0 0 0 / 44%);
+  opacity: 0.94;
+}
+
+.wc-agent-port button:hover,
+.wc-agent-port.is-open button {
+  width: 40px;
+  height: 40px;
+  border-color: color-mix(in srgb, var(--wc-accent) 58%, var(--wc-border-strong));
+  color: var(--wc-text);
+  background:
+    radial-gradient(
+      circle at 34% 20%,
+      color-mix(in srgb, var(--wc-text) 15%, transparent),
+      transparent 43%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--wc-surface-raised) 82%, var(--wc-accent) 18%),
+      color-mix(in srgb, var(--wc-surface-muted) 94%, var(--wc-canvas))
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--wc-text) 16%, transparent),
+    inset 0 -7px 14px rgb(0 0 0 / 10%),
+    0 0 0 3px color-mix(in srgb, var(--wc-accent-soft) 72%, transparent),
+    0 9px 20px rgb(0 0 0 / 22%);
+  opacity: 1;
+}
+
+.wc-agent-port button svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+
+.wc-agent-port .wc-agent-port-icon-link {
+  display: none;
+}
+
+.wc-agent-port i {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 17px;
+  padding: 0 5px;
+  border: 1.5px solid var(--wc-canvas);
+  border-radius: 9px;
+  color: var(--wc-on-accent);
+  background: var(--wc-accent);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 650;
+  line-height: 14px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+/* 拖线 / 拖节点开始：能交给 Agent 的素材让引用口亮起一圈呼吸光环（只动
+   transform/opacity）；不能交的让它退成灰色，悬停时用提示说明原因。 */
+.wc-agent-port[data-drop="ready"] button {
+  width: 40px;
+  height: 40px;
+  border-color: color-mix(in srgb, var(--wc-accent) 70%, var(--wc-border-strong));
+  color: var(--wc-text);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--wc-text) 16%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--wc-accent-soft) 80%, transparent),
+    0 9px 20px rgb(0 0 0 / 22%);
+  opacity: 1;
+}
+
+.wc-agent-port[data-drop="ready"]::before {
+  position: absolute;
+  inset: -6px;
+  border: 1.5px solid color-mix(in srgb, var(--wc-accent) 55%, transparent);
+  border-radius: 50%;
+  content: "";
+  pointer-events: none;
+  animation: wc-agent-port-breathe 1.4s ease-in-out infinite;
+}
+
+.wc-agent-port[data-drop="ready"][data-drop-hover] button {
+  width: 44px;
+  height: 44px;
+  color: var(--wc-on-accent);
+  background: var(--wc-accent);
+  box-shadow:
+    0 0 0 5px color-mix(in srgb, var(--wc-accent-soft) 90%, transparent),
+    0 10px 24px rgb(0 0 0 / 26%);
+}
+
+.wc-agent-port[data-drop="ready"][data-drop-hover] .wc-agent-port-icon-add {
+  display: none;
+}
+
+.wc-agent-port[data-drop="ready"][data-drop-hover] .wc-agent-port-icon-link {
+  display: block;
+}
+
+.wc-agent-port[data-drop="blocked"] button {
+  opacity: 0.42;
+  filter: grayscale(1);
+}
+
+.wc-agent-port[data-drop="blocked"][data-drop-hover] button {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* 提示只在悬停到引用口上时出现，平时拖别的连线不打扰。 */
+.wc-agent-port-hint {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 12px);
+  padding: 5px 10px;
+  border: 1px solid color-mix(in srgb, var(--wc-border-strong) 70%, var(--wc-border));
+  border-radius: 999px;
+  color: var(--wc-text);
+  background: color-mix(in srgb, var(--wc-surface-raised) 96%, transparent);
+  box-shadow: var(--wc-shadow-float);
+  font-size: 11.5px;
+  font-weight: 560;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(6px, -50%);
+  transition:
+    opacity 120ms ease,
+    transform 160ms ease;
+}
+
+.wc-agent-port[data-drop-hover] .wc-agent-port-hint {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+
+.wc-agent-port[data-drop="ready"] .wc-agent-port-hint {
+  border-color: color-mix(in srgb, var(--wc-accent) 50%, var(--wc-border-strong));
+}
+
+.wc-agent-port[data-drop="blocked"] .wc-agent-port-hint {
+  color: var(--wc-text-secondary);
+}
+
+/* 引用成功：一次性向外扩散的确认环。 */
+.wc-agent-port-ripple {
+  position: absolute;
+  inset: 2px;
+  border: 2px solid var(--wc-accent);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: wc-agent-port-ripple 620ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes wc-agent-port-breathe {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.94);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes wc-agent-port-ripple {
+  from {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+
+/* 拖到 Agent 形象身上同样算引用：能引用时给她一圈柔光，作为落点反馈。 */
+.wc-workspace[data-agent-drop="ready"] .wc-agent-companion[data-drop-hover] {
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--wc-accent) 70%, transparent));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wc-agent-port[data-drop="ready"]::before,
+  .wc-agent-port-ripple {
+    animation: none;
+  }
+
+  .wc-agent-port-ripple {
+    opacity: 0;
+  }
+}
+
+.wc-agent-material-thumb {
+  display: inline-grid;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--wc-text-tertiary);
+  background: color-mix(in srgb, var(--wc-surface-strong) 70%, transparent);
+}
+
+.wc-agent-material-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.wc-agent-material-thumb svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* 抽屉素材条里的连线素材：和显式附件同样露出缩略图，一眼认出是哪张。 */
+.wc-agent-link-chip > .wc-agent-material-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+}
+
+/* --- Agent 引用素材选择面板（端口加号点开的弹层） ---------------------- */
+.wc-agent-material-popup {
+  position: fixed;
+  z-index: 2147483000;
+  max-height: 320px;
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--wc-border-strong) 70%, var(--wc-border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--wc-surface-raised) 96%, transparent);
+  box-shadow: var(--wc-shadow-float);
+}
+
+.wc-agent-material-popup header {
+  display: grid;
+  gap: 1px;
+  padding: 0 2px 8px;
+}
+
+.wc-agent-material-popup header strong {
+  color: var(--wc-text);
+  font-size: 12px;
+  font-weight: 640;
+}
+
+.wc-agent-material-popup header small {
+  color: var(--wc-text-tertiary);
+  font-size: 10px;
+}
+
+.wc-agent-material-list {
+  display: grid;
+  gap: 2px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.wc-agent-material-list button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 7px 5px 5px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--wc-text-secondary);
+  background: transparent;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wc-agent-material-list button:hover {
+  color: var(--wc-text);
+  background: color-mix(in srgb, var(--wc-surface-strong) 55%, transparent);
+}
+
+.wc-agent-material-list button[aria-selected="true"] {
+  color: var(--wc-text);
+  background: var(--wc-accent-soft);
+}
+
+.wc-agent-material-list button svg {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  color: var(--wc-text-tertiary);
+}
+
+.wc-agent-material-list button > span:not(.wc-agent-material-thumb) {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wc-agent-material-empty {
+  margin: 2px 2px 0;
+  color: var(--wc-text-tertiary);
+  font-size: 11px;
+}
+
+/* ==========================================================================
+   2026-10-26 画布层次梳理（浮层材质 / Agent 抽屉 / 模型选择器）
+   --------------------------------------------------------------------------
+   目标：同一张画布上区分「画布 → 常驻浮层 → 主操作 → 弹出面板」四级，
+   而不是所有浮层都用同一种白色。只用现有主题 token + color-mix 派生，
+   四套配色都成立；不引入常驻大模糊、装饰色块或新的硬编码主题色。
+   ========================================================================== */
+
+.wc-workspace {
+  --wc-chrome-surface: color-mix(in srgb, var(--wc-surface-raised) 92%, var(--wc-surface));
+  --wc-chrome-surface-muted: color-mix(in srgb, var(--wc-surface-raised) 68%, var(--wc-surface));
+  --wc-chrome-inset: color-mix(in srgb, var(--wc-surface-muted) 82%, var(--wc-surface));
+  --wc-chrome-border: color-mix(in srgb, var(--wc-border-strong) 72%, var(--wc-border));
+  --wc-chrome-hairline: color-mix(in srgb, var(--wc-text) 9%, transparent);
+  --wc-chrome-shadow:
+    0 1px 0 rgb(255 255 255 / 6%) inset, 0 10px 24px -12px rgb(0 0 0 / 32%),
+    0 30px 64px -40px rgb(0 0 0 / 46%);
+}
+
+.wc-app[data-theme="light"] .wc-workspace {
+  --wc-chrome-surface: color-mix(in srgb, var(--wc-surface-raised) 86%, #f4ead8 14%);
+  --wc-chrome-surface-muted: color-mix(
+    in srgb,
+    var(--wc-surface-raised) 48%,
+    var(--wc-surface) 38%,
+    #f1e7d7 14%
+  );
+  --wc-chrome-inset: color-mix(in srgb, var(--wc-surface-muted) 88%, #eae0d0 12%);
+  --wc-chrome-border: color-mix(in srgb, var(--wc-border-strong) 58%, #b8b0a2);
+  --wc-chrome-hairline: color-mix(in srgb, var(--wc-text) 8%, transparent);
+  --wc-chrome-shadow:
+    0 1px 0 rgb(255 255 255 / 92%) inset, 0 10px 24px -14px rgb(45 38 28 / 20%),
+    0 28px 56px -40px rgb(45 38 28 / 26%);
+}
+
+.wc-app[data-theme="dark"] .wc-workspace {
+  --wc-chrome-surface: color-mix(in srgb, var(--wc-surface-raised) 86%, var(--wc-surface-strong));
+  --wc-chrome-surface-muted: color-mix(in srgb, var(--wc-surface) 72%, var(--wc-surface-strong));
+  --wc-chrome-inset: color-mix(in srgb, var(--wc-surface-muted) 84%, var(--wc-surface-strong));
+  --wc-chrome-border: color-mix(in srgb, var(--wc-border-strong) 62%, var(--wc-border));
+  --wc-chrome-hairline: color-mix(in srgb, var(--wc-text) 10%, transparent);
+  --wc-chrome-shadow:
+    0 1px 0 rgb(255 255 255 / 5%) inset, 0 14px 28px -16px rgb(0 0 0 / 70%),
+    0 34px 70px -44px rgb(0 0 0 / 85%);
+}
+
+/* 顶栏：项目控制台是主操作面，右侧工具是次级面；两者不再同一材质。 */
+.wc-workspace .wc-project-console {
+  border: 1px solid var(--wc-chrome-border);
+  border-radius: 11px;
+  background: var(--wc-chrome-surface);
+  box-shadow: var(--wc-chrome-shadow);
+}
+
+.wc-workspace .wc-project-console-mark {
+  border-color: var(--wc-chrome-border);
+  color: var(--wc-text);
+  background: var(--wc-chrome-inset);
+}
+
+.wc-workspace .wc-project-name {
+  font-weight: 680;
+  letter-spacing: -0.012em;
+}
+
+.wc-workspace .wc-topbar-actions {
+  border: 1px solid var(--wc-chrome-border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--wc-chrome-surface-muted) 84%, transparent);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 7%) inset,
+    0 8px 20px -14px rgb(0 0 0 / 38%);
+  backdrop-filter: blur(10px) saturate(1.02);
+  -webkit-backdrop-filter: blur(10px) saturate(1.02);
+}
+
+.wc-workspace .wc-workspace-assets-trigger {
+  border-left-color: var(--wc-chrome-hairline);
+}
+
+/* 左栏 / 底部 dock：统一常驻浮层材质；加号是主操作，用实底强调。 */
+.wc-workspace .wc-create-rail,
+.wc-workspace .wc-edit-dock {
+  border: 1px solid var(--wc-chrome-border);
+  background: var(--wc-chrome-surface);
+  box-shadow: var(--wc-chrome-shadow);
+  backdrop-filter: blur(12px) saturate(1.02);
+  -webkit-backdrop-filter: blur(12px) saturate(1.02);
+}
+
+.wc-workspace .wc-create-rail {
+  border-radius: 15px;
+}
+
+.wc-workspace .wc-edit-dock {
+  border-radius: 15px;
+}
+
+.wc-workspace .wc-create-rail-divider,
+.wc-workspace .wc-edit-dock-divider {
+  background: var(--wc-chrome-hairline);
+}
+
+.wc-workspace .wc-create-rail-plus {
+  border: 1px solid color-mix(in srgb, var(--wc-text) 84%, var(--wc-border-strong));
+  color: var(--wc-canvas);
+  background: var(--wc-text);
+  box-shadow:
+    0 6px 14px -8px rgb(0 0 0 / 55%),
+    0 1px 0 rgb(255 255 255 / 16%) inset;
+}
+
+.wc-workspace .wc-create-rail-plus:hover,
+.wc-workspace .wc-create-rail-plus:focus-visible,
+.wc-workspace .wc-create-rail-plus-wrapper:hover .wc-create-rail-plus,
+.wc-workspace .wc-create-rail-plus-wrapper:focus-within .wc-create-rail-plus {
+  color: var(--wc-canvas);
+  background: var(--wc-text);
+  box-shadow:
+    0 9px 20px -10px rgb(0 0 0 / 62%),
+    0 0 0 3px color-mix(in srgb, var(--wc-text) 10%, transparent),
+    0 1px 0 rgb(255 255 255 / 18%) inset;
+  transform: translateY(-1px);
+}
+
+.wc-workspace .wc-create-rail-plus svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.1;
+}
+
+/* ---------------------------------------------------------------- Agent 抽屉 */
+
+/* 抽屉是最上一层：比画布略深/略亮，去掉常驻大模糊，改用实底 + 左侧硬边。 */
+.wc-workspace .wc-agent-drawer.wc-agent-drawer--refined {
+  grid-template-rows: auto minmax(0, 1fr) clamp(160px, 27vh, 250px);
+  border-left: 1px solid var(--wc-chrome-border);
+  background: linear-gradient(
+    180deg,
+    var(--wc-chrome-surface) 0%,
+    var(--wc-surface) 42%,
+    color-mix(in srgb, var(--wc-surface-muted) 72%, var(--wc-surface)) 100%
+  );
+  box-shadow:
+    -1px 0 0 var(--wc-chrome-hairline),
+    -30px 0 80px -44px rgb(0 0 0 / 55%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* 头部两层：第一行身份 + 主操作，第二行会话选择器。 */
+.wc-agent-drawer--refined .wc-agent-header {
+  display: grid;
+  min-height: 0;
+  grid-template-rows: auto auto;
+  gap: 7px;
+  padding: 9px 12px 10px;
+  border-bottom: 1px solid var(--wc-chrome-hairline);
+  background: color-mix(in srgb, var(--wc-chrome-surface) 78%, transparent);
+}
+
+.wc-agent-header-main {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.wc-agent-header-main .wc-agent-title {
+  margin-right: auto;
+}
+
+.wc-agent-drawer--refined .wc-agent-title strong {
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: -0.012em;
+}
+
+.wc-agent-drawer--refined .wc-agent-title small {
+  color: var(--wc-text-tertiary);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+
+.wc-agent-drawer--refined .wc-agent-title small i {
+  background: var(--wc-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--wc-accent) 12%, transparent);
+}
+
+.wc-agent-header-tools {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  border: 1px solid var(--wc-chrome-hairline);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--wc-surface-muted) 58%, transparent);
+}
+
+.wc-agent-header-tools .wc-agent-header-button {
+  width: 26px;
+  height: 26px;
+}
+
+.wc-agent-header-thread {
+  min-width: 0;
+}
+
+.wc-agent-header-thread .wc-agent-conversation-select {
+  width: 100%;
+  max-width: none;
+  height: auto;
+  margin: 0;
+}
+
+.wc-agent-header-thread .wc-canvas-select-trigger {
+  height: 34px;
+  border-color: var(--wc-chrome-border);
+  background: color-mix(in srgb, var(--wc-surface-raised) 62%, transparent);
+}
+
+/* 消息：Agent 是卡片，用户是气泡；两者不再共用同一层平面。 */
+.wc-agent-drawer--refined .wc-agent-message {
+  gap: 9px;
+  margin-bottom: 12px;
+}
+
+.wc-agent-drawer--refined .wc-agent-message-icon {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  margin-top: 2px;
+  place-items: center;
+  border: 1px solid var(--wc-chrome-border);
+  border-radius: 8px;
+  color: var(--wc-text);
+  background: var(--wc-chrome-surface);
+  box-shadow: 0 1px 0 var(--wc-chrome-hairline) inset;
+}
+
+.wc-agent-drawer--refined .wc-agent-message-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+.wc-agent-drawer--refined .wc-agent-message--assistant .wc-agent-message-body {
+  max-width: calc(100% - 33px);
+  padding: 10px 12px;
+  border: 1px solid var(--wc-chrome-border);
+  border-radius: 12px 12px 12px 4px;
+  background: color-mix(in srgb, var(--wc-surface-raised) 88%, transparent);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 5%) inset,
+    0 10px 22px -20px rgb(0 0 0 / 50%);
+}
+
+.wc-agent-drawer--refined .wc-agent-message--user .wc-agent-message-body {
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--wc-accent) 20%, var(--wc-border-strong));
+  border-radius: 12px 12px 4px 12px;
+  background: color-mix(in srgb, var(--wc-accent-soft) 54%, var(--wc-surface-raised));
+}
+
+/* 输入区：两行控制栏——上面模型/模式/技能，下面附件/提示/设置/发送。
+   文本域行用 auto 而不是 minmax(0,1fr)：fr 轨道在内容自适应高度的容器里做
+   内在尺寸计算时不采纳文本域的行内高度（Chromium 只按 rows 回退值贡献），
+   长文本会把文本域顶出 composer、叠到底栏上。auto 轨道按行内确定高度取值，
+   高度由 agent-drawer 的自动增高逻辑写入，封顶交给文本域的 max-height。 */
+.wc-agent-drawer--refined .wc-agent-composer {
+  grid-template-rows: auto auto;
+  border: 1px solid var(--wc-chrome-border);
+  border-radius: 13px;
+  background: var(--wc-chrome-surface);
+  box-shadow: var(--wc-chrome-shadow);
+}
+
+.wc-agent-drawer--refined .wc-agent-composer textarea {
+  height: auto;
+  min-height: 64px;
+  max-height: min(168px, 26vh);
+}
+
+.wc-agent-drawer--refined .wc-agent-composer-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  padding: 8px;
+  border-top: 1px solid var(--wc-chrome-hairline);
+}
+
+.wc-agent-composer-meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.wc-agent-composer-meta .wc-agent-model-field {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.wc-agent-composer-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.wc-agent-composer-hint {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: var(--wc-text-tertiary);
+  font-size: 10px;
+  font-weight: 540;
+  letter-spacing: 0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wc-agent-drawer--refined .wc-agent-model-select .wc-cat-select-trigger {
+  height: 34px;
+  border-color: var(--wc-chrome-border);
+  background: color-mix(in srgb, var(--wc-surface-raised) 68%, transparent);
+  box-shadow: 0 1px 0 var(--wc-chrome-hairline) inset;
+}
+
+.wc-agent-drawer--refined .wc-agent-model-select .wc-cat-select-meta {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--wc-text-tertiary);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wc-agent-drawer--refined .wc-agent-mode-select--footer .wc-canvas-select-trigger {
+  height: 34px;
+  border-color: var(--wc-chrome-border);
+  background: color-mix(in srgb, var(--wc-surface-raised) 68%, transparent);
+}
+
+/* 技能前置到输入区：与模型/模式同高的 chip，启用数量直接可见。 */
+.wc-workspace .wc-agent-skills {
+  flex: 0 0 auto;
+}
+
+.wc-workspace .wc-agent-skills-trigger {
+  display: flex;
+  height: 34px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  border: 1px solid var(--wc-chrome-border);
+  border-radius: 8px;
+  color: var(--wc-text-secondary);
+  background: color-mix(in srgb, var(--wc-surface-raised) 68%, transparent);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 620;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.wc-workspace .wc-agent-skills-trigger:hover:not(:disabled),
+.wc-workspace .wc-agent-skills-trigger[aria-expanded="true"] {
+  color: var(--wc-text);
+  border-color: color-mix(in srgb, var(--wc-accent) 40%, var(--wc-border-strong));
+  background: color-mix(in srgb, var(--wc-surface-raised) 88%, transparent);
+}
+
+.wc-workspace .wc-agent-skills[data-enabled]:not([data-enabled="0"]) .wc-agent-skills-trigger {
+  color: var(--wc-text);
+  border-color: color-mix(in srgb, var(--wc-accent) 34%, var(--wc-border-strong));
+  background: color-mix(in srgb, var(--wc-accent-soft) 62%, var(--wc-surface-raised));
+}
+
+.wc-workspace .wc-agent-skills-trigger svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.9;
+}
+
+.wc-agent-drawer--refined .wc-agent-send {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  border-radius: 10px;
+  box-shadow:
+    0 6px 14px -8px rgb(0 0 0 / 55%),
+    0 1px 0 rgb(255 255 255 / 16%) inset;
+}
+
+.wc-agent-drawer--refined .wc-agent-settings {
+  border: 1px solid var(--wc-chrome-border);
+  border-radius: 12px;
+  background: var(--wc-chrome-surface);
+  box-shadow: var(--wc-chrome-shadow);
+}
+
+/* ------------------------------------------------------------ 模型选择面板 */
+
+/* 面板是 portal 到 body 的：`--wc-chrome-*` 只定义在 .wc-workspace 上，到这里
+   已经是空值，`background: var(--wc-chrome-surface)` 会因「计算值无效」整条失效、
+   面板直接透明（画布和抽屉内容从面板里透出来）。所以每个 chrome 令牌都带一条
+   :root 级别的兜底（--wc-surface-raised / --wc-border-strong）。 */
+.wc-cat-select-menu.wc-agent-model-menu {
+  /* 面板内部统一用这条兜底发丝线：chrome 令牌取不到时退到正文色 9%。 */
+  --wc-panel-hairline: var(
+    --wc-chrome-hairline,
+    color-mix(in srgb, var(--wc-text) 9%, transparent)
+  );
+  border: 1px solid var(--wc-chrome-border, var(--wc-border-strong));
+  border-radius: 14px;
+  background: var(--wc-chrome-surface, var(--wc-surface-raised));
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 7%) inset,
+    0 28px 64px -28px rgb(0 0 0 / 55%),
+    0 10px 24px -14px rgb(0 0 0 / 34%);
+}
+
+.wc-cat-select-menu.wc-agent-model-menu .wc-agent-model-tabs {
+  width: 148px;
+  gap: 3px;
+  padding: 10px 8px;
+  background: color-mix(in srgb, var(--wc-surface-muted) 72%, transparent);
+}
+
+.wc-agent-model-menu .wc-agent-model-tabs > button {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--wc-text-secondary);
+}
+
+.wc-agent-model-menu .wc-agent-model-tabs > button:hover {
+  color: var(--wc-text);
+  background: color-mix(in srgb, var(--wc-surface-raised) 52%, transparent);
+}
+
+/* 厂商栏选中态同一套语言：抬起一级的表面 + 一圈中性细环，不描白边、不用单边竖线。 */
+.wc-agent-model-menu .wc-agent-model-tabs > button.is-active {
+  color: var(--wc-text);
+  background: var(--wc-surface-raised);
+  border-color: transparent;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--wc-text) 10%, transparent),
+    0 1px 0 var(--wc-panel-hairline) inset;
+}
+
+.wc-cat-select-menu.wc-agent-model-menu .wc-cat-select-options {
+  gap: 4px;
+  padding: 10px;
+}
+
+/* 选中态不用描边：1px 浅色边框在深色面板上像贴了一圈白胶带，一眼廉价。
+   改成「暖金薄雾 + 左侧 2px 金线 + 顶部内高光」——层次靠材质，不靠边框。 */
+.wc-agent-model-menu .wc-cat-select-options > button {
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+}
+
+/* 悬停用一层同色半透明覆盖：浅色主题里变深、深色主题里变浅，两边都和「选中 = 抬起」
+   形成一致的明度台阶，不会出现悬停比选中还重的倒挂。 */
+.wc-agent-model-menu .wc-cat-select-options > button:hover {
+  background: color-mix(in srgb, var(--wc-text) 4%, transparent);
+}
+
+.wc-agent-model-menu .wc-cat-select-options > button.is-selected,
+.wc-agent-model-menu .wc-cat-select-options > button.is-selected:hover {
+  /* 纯明度聚焦：抬一级的表面 + 一圈中性细环 + 极轻的外投影。不用彩色高亮——
+     香槟金在这种小面积深色卡片上会发黄发脏，中性灰阶反而更像成品质感。 */
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--wc-text) 6%, var(--wc-surface-strong)),
+    var(--wc-surface-strong)
+  );
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--wc-text) 11%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--wc-text) 16%, transparent),
+    0 10px 24px -16px rgb(0 0 0 / 55%);
+}
+
+/* 浅色主题不能照搬深色的灰底——一块中灰在浅色面板上像没上色的占位块。这里改成
+   接近白面的轻抬 + 一层向下投影，层级交给阴影而不是明度差。 */
+:root[data-theme="light"] .wc-agent-model-menu .wc-cat-select-options > button.is-selected,
+:root[data-theme="light"] .wc-agent-model-menu .wc-cat-select-options > button.is-selected:hover {
+  background: color-mix(in srgb, var(--wc-text) 3%, var(--wc-surface-raised));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--wc-text) 9%, transparent),
+    0 12px 24px -18px color-mix(in srgb, var(--wc-text) 70%, transparent);
+}
+
+/* 价格不再是「白底小方块」：一个带描边的浅色 chip 会把行切成两截，还会在
+   深色下比模型名更抢眼。退成次级文字，用字号和颜色分出层级就够了。 */
+.wc-agent-model-menu .wc-cat-select-option-price {
+  padding: 0;
+  border: 0;
+  color: var(--wc-text-tertiary);
+  background: none;
+  font-size: 10.5px;
+  font-weight: 560;
+  letter-spacing: 0.01em;
+}
+
+.wc-agent-model-menu .wc-cat-select-options > button.is-selected .wc-cat-select-option-price {
+  color: var(--wc-text-secondary);
+}
+
+.wc-agent-model-menu .wc-cat-select-check {
+  color: var(--wc-text-secondary);
+}
+
+.wc-cat-select-menu-head {
+  display: flex;
+  min-width: 0;
+  grid-column: 1 / -1;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 2px 2px;
+  padding: 2px 6px 10px;
+  /* 这里不用 --wc-panel-hairline：分类选择器（CategorizedModelSelect）也用这一块，
+     它不在 .wc-agent-model-menu 里，拿不到那条兜底变量。 */
+  border-bottom: 1px solid
+    var(--wc-chrome-hairline, color-mix(in srgb, var(--wc-text) 9%, transparent));
+}
+
+.wc-cat-select-menu-head strong {
+  color: var(--wc-text);
+  font-size: 12.5px;
+  font-weight: 680;
+}
+
+.wc-cat-select-menu-head span {
+  color: var(--wc-text-tertiary);
+  font-size: 10px;
+  font-weight: 540;
+}
+
+.wc-cat-select-option-stack {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.wc-cat-select-option-title {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.wc-cat-select-option-detail {
+  overflow: hidden;
+  color: var(--wc-text-tertiary);
+  font-size: 10.5px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------- 厂商商标（模型选择器） */
+
+/* 商标色 = 品牌色与正文色混合：浅色主题（深正文）自动压深，深色主题自动提亮，
+   同一份品牌色两边都能看清，不必为深浅主题各维护一套色值。 */
+.wc-vendor-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  inline-size: var(--wc-vendor-size, 16px);
+  block-size: var(--wc-vendor-size, 16px);
+  align-items: center;
+  justify-content: center;
+  color: color-mix(in srgb, var(--wc-vendor-brand, var(--wc-text-secondary)) 76%, var(--wc-text));
+}
+
+.wc-vendor-icon > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* 自有 API / 其他没有商标，用同尺寸的线性图标兜底，视觉重量不至于突然塌下去。 */
+.wc-vendor-icon-fallback {
+  width: 88%;
+  height: 88%;
+}
+
+/* 选项行：22px 品牌方底 + 14px 字形，扫列表时像一排 app 图标，比首字母方块好认。 */
+.wc-vendor-icon--tile {
+  box-sizing: border-box;
+  inline-size: calc(var(--wc-vendor-size, 16px) + 8px);
+  block-size: calc(var(--wc-vendor-size, 16px) + 8px);
+  padding: 4px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--wc-vendor-brand) 13%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wc-vendor-brand) 20%, transparent);
+}
+
+/* 选项行改三列：商标 / 文案 / 选中勾。 */
+.wc-agent-model-menu .wc-cat-select-options > button {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+/* 厂商栏：图标 + 名称 + 数量。名称吃掉中间余量并左对齐（按钮默认 text-align:
+   center，不写死会变成「一行一个居中标题」），数量始终贴右。这里必须排除商标
+   那个 span：它也满足 `> span`，一起加 flex-grow 会把图标撑成一列居中的散点。 */
+.wc-agent-model-menu .wc-agent-model-tabs > button > span:not(.wc-vendor-icon) {
+  flex: 1 1 auto;
+  text-align: start;
+}
+
+/* 触发器左侧的商标替掉原来的通用星标；抽屉的两行布局里它占满高度。 */
+.wc-agent-drawer--refined .wc-agent-model-select .wc-cat-select-vendor {
+  grid-row: 1 / span 2;
+}
+
+/* 文本节点工具条只有 30px 高，留给模型名的宽度更金贵——那里不重复画商标。 */
+.wc-text-assist-model .wc-cat-select-vendor {
+  display: none;
+}
+
+/* 模型 chip 两行：第一行模型名，第二行厂商 · 计费；比单行更清楚，也不再和
+   模式/技能挤在同一条基线上。 */
+.wc-workspace .wc-agent-drawer.wc-agent-drawer--refined {
+  grid-template-rows: auto minmax(0, 1fr) clamp(170px, 22vh, 210px);
+}
+
+.wc-agent-drawer--refined .wc-agent-model-select .wc-cat-select-trigger {
+  display: grid;
+  height: 38px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  align-content: center;
+  column-gap: 6px;
+  row-gap: 1px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+.wc-agent-drawer--refined .wc-agent-model-select .wc-cat-select-icon {
+  grid-row: 1 / span 2;
+  width: 15px;
+  height: 15px;
+}
+
+.wc-agent-drawer--refined .wc-agent-model-select .wc-cat-select-value {
+  grid-row: 1;
+  grid-column: 2;
+  font-size: 12px;
+  font-weight: 680;
+  line-height: 1.15;
+}
+
+.wc-agent-drawer--refined .wc-agent-model-select .wc-cat-select-meta {
+  grid-row: 2;
+  grid-column: 2;
+  font-size: 9.5px;
+  line-height: 1.15;
+}
+
+.wc-agent-drawer--refined .wc-agent-model-select .wc-cat-select-caret {
+  grid-row: 1 / span 2;
+  grid-column: 3;
+}
+
+.wc-agent-drawer--refined .wc-agent-mode-select--footer .wc-canvas-select-trigger,
+.wc-workspace .wc-agent-skills-trigger {
+  height: 38px;
+}
+
+.wc-agent-drawer--refined .wc-agent-model-select .wc-cat-select-trigger {
+  text-align: left;
+}
+
+/* 状态点只承担语义色：就绪绿 / 思考琥珀 / 出错红 / 连接灰。 */
+.wc-agent-drawer--refined[data-status="ready"] .wc-agent-title small i {
+  background: #3f8f6f;
+  box-shadow: 0 0 0 3px rgb(63 143 111 / 14%);
+}
+
+.wc-agent-drawer--refined[data-status="working"] .wc-agent-title small i,
+.wc-agent-drawer--refined[data-status="loading"] .wc-agent-title small i {
+  background: #b9852f;
+  box-shadow: 0 0 0 3px rgb(185 133 47 / 14%);
+}
+
+.wc-agent-drawer--refined[data-status="error"] .wc-agent-title small i {
+  background: #bd554d;
+  box-shadow: 0 0 0 3px rgb(189 85 77 / 14%);
+}
+
+.wc-agent-drawer--refined[data-status="locked"] .wc-agent-title small i {
+  background: var(--wc-text-tertiary);
+  box-shadow: none;
+}
+
+.wc-agent-drawer--refined .wc-agent-model-select .wc-cat-select-trigger {
+  align-items: center;
 }

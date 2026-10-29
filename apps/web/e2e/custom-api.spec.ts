@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 
+import { skipOnboardingTour } from "./onboarding.fixture";
 import { expect, test } from "./zero-cost-test";
 
 const originA = "https://images-a.example.test";
@@ -381,14 +382,18 @@ test("blocks an image model that explicitly requires a reference image when none
 
 test("workbench (/generate) lists custom models and runs them without login or credits", async ({
   page,
-}) => {
+}, testInfo) => {
   let generationRequests = 0;
+  const payloads: Array<Record<string, unknown>> = [];
   await page.route(`${originA}/v1/images/generations`, (route) => {
     expect(route.request().headers().authorization).toBe(`Bearer ${apiKeyA}`);
     generationRequests += 1;
+    payloads.push(route.request().postDataJSON());
     return route.fulfill({ json: { data: [{ b64_json: pixel }] } });
   });
 
+  // 新手教程卡片会盖住提示词下方的参数区；本用例测的是 BYOK 参数本身。
+  await skipOnboardingTour(page);
   await page.goto("/generate/image");
   await openCreationSettings(page);
   const dialog = page.getByRole("dialog", { name: "设置" });
@@ -402,12 +407,27 @@ test("workbench (/generate) lists custom models and runs them without login or c
   await expect(customOption).toHaveCount(1);
   await customOption.click();
 
-  // 直连分支：不报价、不扣积分、不要求登录。
+  // 目录没声明画幅/分辨率时，按固定常用档位给出可选项（BYOK 兼容参数）。
+  // 不点就不下发：先断言未选时不带这两个字段。
   await expect(page.locator(".wc-direct-price")).toContainText("不消耗积分");
   await expect(page.getByRole("button", { name: "登录画布账号" })).toBeVisible();
+  const aspectGroup = page.getByRole("group", { name: "画面比例" });
+  await expect(aspectGroup.getByRole("radio")).toHaveCount(8);
+  await aspectGroup.getByRole("radio", { name: "16:9", exact: true }).click();
+  await page
+    .getByRole("group", { name: "分辨率" })
+    .getByRole("radio", { name: "2K", exact: true })
+    .click();
+  await expect(
+    page.getByRole("group", { name: "分辨率" }).getByRole("radio", { name: "2K", exact: true }),
+  ).toHaveAttribute("aria-checked", "true");
   await page.getByLabel(/提示词/).fill("雨夜站台，电影感构图");
+  await page.locator(".wc-direct-parameters").screenshot({
+    path: testInfo.outputPath("workbench-byok-parameters.png"),
+  });
   await page.getByRole("button", { name: "生成", exact: true }).click();
   await expect.poll(() => generationRequests).toBe(1);
+  expect(payloads[0]).toMatchObject({ aspect_ratio: "16:9", resolution: "2K" });
   await expect(page.locator(".wc-direct-result-gallery img")).toBeVisible();
 });
 

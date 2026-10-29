@@ -1,0 +1,10 @@
+/* xyflow 基础样式放进 cascade layer：未分层的产品样式（styles.css 及工作台样式）
+   对同一属性恒定胜出，与特异性和加载顺序都无关。
+
+   2026-10-12 首屏 CSS 拆包把 xyflow 样式从 main.tsx（在 styles.css 之前）挪进
+   画布路由懒加载后，它排到了 styles.css 之后，同特异性的 xyflow 默认值随之反压
+   产品规则：隐藏的经典端口被 `.react-flow__handle.connectionindicator
+   { pointer-events: all }` 重新变成可命中（短连线整条点不到）、连线描边退回
+   xyflow 默认灰、画布底色与渲染层 z-index 变化。用 layer 固定胜负，以后再调整
+   分包也不会翻转。只由 canvas-route.tsx 引入（见 src/css-chunking.test.ts）。 */
+@import "@xyflow/react/dist/style.css" layer(xyflow);

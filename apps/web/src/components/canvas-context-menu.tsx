@@ -8,6 +8,7 @@ import {
   FolderPlus,
   Group,
   Link2,
+  Plus,
   Puzzle,
   Trash2,
   Ungroup,
@@ -96,12 +97,17 @@ export function CanvasContextMenu({
         selectionActionCount +
         1 +
         Number(Boolean(onRequestUpload));
+  // 纯「添加节点」面板用卡片栅格，比其它操作菜单更宽更高；首次定位先按这个
+  // 尺寸夹取，真正绘制完成后 useLayoutEffect 会按实际尺寸再校正。
+  const createMode = !menu.edgeId && !menu.nodeId && !selectedCount;
+  const estimatedWidth = createMode ? 300 : 196;
+  const estimatedHeight = createMode ? 420 : itemCount * 38 + 32;
   const estimatedPosition = useMemo(
     () => ({
-      left: clamp(menu.clientX, 12, window.innerWidth - 196),
-      top: clamp(menu.clientY, 12, window.innerHeight - (itemCount * 38 + 32)),
+      left: clamp(menu.clientX, 12, window.innerWidth - estimatedWidth),
+      top: clamp(menu.clientY, 12, window.innerHeight - estimatedHeight),
     }),
-    [itemCount, menu.clientX, menu.clientY],
+    [estimatedHeight, estimatedWidth, menu.clientX, menu.clientY],
   );
   const [position, setPosition] = useState(estimatedPosition);
 
@@ -156,7 +162,7 @@ export function CanvasContextMenu({
   return (
     <div
       ref={menuRef}
-      className="wc-context-menu"
+      className={`wc-context-menu${createMode ? " wc-context-menu--create" : ""}`}
       role="menu"
       aria-label={menu.edgeId ? "连线操作" : menu.nodeId ? "节点操作" : "画布操作"}
       data-wc-block-canvas-shortcuts
@@ -355,8 +361,59 @@ export function CanvasContextMenu({
               <span className="wc-context-menu-divider" aria-hidden="true" />
             </>
           ) : null}
+          {createMode ? (
+            <>
+              <header className="wc-node-picker-heading">
+                <span className="wc-node-picker-heading-mark" aria-hidden="true">
+                  <Plus />
+                </span>
+                <span className="wc-node-picker-heading-copy">
+                  <strong>添加节点</strong>
+                  <small>双击空白处也能新建</small>
+                </span>
+              </header>
+              <div className="wc-node-picker-grid" role="group" aria-label="节点类型">
+                {creatableNodes.map((definition, index) => {
+                  const Icon = definition.icon ?? Puzzle;
+                  return (
+                    <button
+                      role="menuitem"
+                      key={definition.kind}
+                      type="button"
+                      className="wc-node-picker-tile"
+                      data-kind={definition.kind}
+                      aria-label={`添加${definition.label()}`}
+                      style={{ animationDelay: `${Math.min(index, 8) * 16}ms` }}
+                      onClick={() => add(definition.kind)}
+                    >
+                      <span className="wc-node-picker-tile-icon" aria-hidden="true">
+                        <Icon />
+                      </span>
+                      <span className="wc-node-picker-tile-label">{definition.label()}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            creatableNodes.map((definition) => {
+              const Icon = definition.icon ?? Puzzle;
+              return (
+                <button
+                  role="menuitem"
+                  key={definition.kind}
+                  type="button"
+                  onClick={() => add(definition.kind)}
+                >
+                  <Icon aria-hidden="true" />
+                  添加{definition.label()}
+                </button>
+              );
+            })
+          )}
           {canPaste ? (
             <>
+              <span className="wc-context-menu-divider" aria-hidden="true" />
               <button
                 role="menuitem"
                 type="button"
@@ -368,23 +425,8 @@ export function CanvasContextMenu({
                 <ClipboardPaste aria-hidden="true" />
                 粘贴到此处
               </button>
-              <span className="wc-context-menu-divider" aria-hidden="true" />
             </>
           ) : null}
-          {creatableNodes.map((definition) => {
-            const Icon = definition.icon ?? Puzzle;
-            return (
-              <button
-                role="menuitem"
-                key={definition.kind}
-                type="button"
-                onClick={() => add(definition.kind)}
-              >
-                <Icon aria-hidden="true" />
-                添加{definition.label()}
-              </button>
-            );
-          })}
           {onRequestUpload ? (
             <>
               <span className="wc-context-menu-divider" aria-hidden="true" />

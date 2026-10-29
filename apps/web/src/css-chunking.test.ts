@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -18,6 +18,8 @@ const MAIN = read("./main.tsx");
 const CANVAS_ROUTE = read("./components/canvas-route.tsx");
 const GENERATE_PAGE = read("./components/direct-generation-page.tsx");
 const WORKBENCH_STYLES = read("./workbench-styles.css");
+const XYFLOW_BASE = read("./xyflow-base.css");
+const XYFLOW_STYLESHEET = /@xyflow\/react\/dist\/(?:style|base)\.css/;
 
 describe("CSS 分包契约", () => {
   it("入口只引入首屏需要的样式表", () => {
@@ -34,8 +36,22 @@ describe("CSS 分包契约", () => {
   });
 
   it("xyflow 基础样式只由画布路由引入", () => {
-    expect(MAIN).not.toMatch(/@xyflow\/react\/dist\/style\.css/);
-    expect(CANVAS_ROUTE).toMatch(/import\s+["']@xyflow\/react\/dist\/style\.css["']/);
+    expect(MAIN).not.toMatch(/xyflow-base\.css/);
+    expect(CANVAS_ROUTE).toMatch(/import\s+["']\.\.\/xyflow-base\.css["']/);
+  });
+
+  it("xyflow 基础样式只经 cascade layer 进入页面", () => {
+    // 不分层直接引入时，xyflow 的同特异性默认值会按加载顺序压过 styles.css
+    // （2026-10-12 拆包后隐藏端口重新可命中，见 xyflow-base.css）。
+    expect(XYFLOW_BASE).toMatch(
+      /@import\s+["']@xyflow\/react\/dist\/style\.css["']\s+layer\(xyflow\)\s*;/,
+    );
+    const sourceDir = fileURLToPath(new URL("./", import.meta.url));
+    const unlayered = readdirSync(sourceDir, { recursive: true, encoding: "utf8" })
+      .filter((file) => /\.(?:css|tsx?)$/.test(file) && !/(?:^|[\\/])xyflow-base\.css$/.test(file))
+      .filter((file) => file !== "css-chunking.test.ts")
+      .filter((file) => XYFLOW_STYLESHEET.test(read(`./${file.replace(/\\/g, "/")}`)));
+    expect(unlayered).toEqual([]);
   });
 
   it("画布专属样式块留在工作台样式表里，没有被挪回入口", () => {

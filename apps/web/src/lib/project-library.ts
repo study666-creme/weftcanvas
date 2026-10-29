@@ -71,20 +71,38 @@ export function loadProjectLibrary(storage: StorageLike = localStorage) {
   if (!projects.length) {
     const legacy = parseProject(storage.getItem(LEGACY_PROJECT_STORAGE_KEY));
     if (legacy) {
-      writeProject(legacy, storage, true);
-      storage.removeItem(LEGACY_PROJECT_STORAGE_KEY);
+      try {
+        writeProject(legacy, storage, true);
+        storage.removeItem(LEGACY_PROJECT_STORAGE_KEY);
+      } catch {
+        // 迁移写不进去（配额满/隐私模式）时仍返回旧项目，且不删除旧键：
+        // 旧项目只有在这一份遗留记录里，删了就真的没了。
+      }
       projects = [legacy];
     }
   }
   const summaries = sortSummaries(projects.map(projectSummary));
-  persistIndex(storage, summaries);
+  // 索引与当前项目只是加速/记忆层，项目文档本身才是数据。配额已满时
+  // `setItem` 会抛 QuotaExceededError——以前它会把 loadProjectLibrary 整个
+  // 打挂，主页于是显示「一个项目都没有」，看起来像数据被清空。读库不能因为
+  // 写不进索引而失败。
+  persistBookkeeping(() => persistIndex(storage, summaries));
   const requestedActiveId = storage.getItem(ACTIVE_PROJECT_STORAGE_KEY);
   const activeProject =
     projects.find((project) => project.id === requestedActiveId) ??
     projects.find((project) => project.id === summaries[0]?.id) ??
     null;
-  if (activeProject) storage.setItem(ACTIVE_PROJECT_STORAGE_KEY, activeProject.id);
+  if (activeProject)
+    persistBookkeeping(() => storage.setItem(ACTIVE_PROJECT_STORAGE_KEY, activeProject.id));
   return { projects: summaries, activeProject };
+}
+
+function persistBookkeeping(write: () => void) {
+  try {
+    write();
+  } catch {
+    // 见 loadProjectLibrary：索引/当前项目写失败不影响本次读取结果。
+  }
 }
 
 export function readProject(projectId: string, storage: StorageLike = localStorage) {

@@ -24,3 +24,21 @@ commercial release.
 
 No source from these packages is copied into product modules. Their normal
 package distributions and required license notices remain intact.
+
+## Vendored skill content
+
+`apps/web/src/content/curated-skills/` carries six MIT-licensed Agent Skills as
+plain text (no code, no scripts, no archives). They are not dependencies and are
+never executed: the user must explicitly import one into their own skill library.
+Each upstream LICENSE is stored under `licenses/`, and the source repository,
+pinned commit, and upstream/local SHA-256 are recorded in that directory's
+`ATTRIBUTION.md`.
+
+| Source repository                   | License | Local directory              |
+| ----------------------------------- | ------- | ---------------------------- |
+| `blader/humanizer`                  | MIT     | `humanizer/`                 |
+| `coreyhaines31/marketingskills`     | MIT     | `image-prompts/`             |
+| `arnabbagxd/Brand-building-skills`  | MIT     | `brand-voice/`               |
+| `kaomei/hand-drawn-video-prompts`   | MIT     | `hand-drawn-video/`          |
+| `content-designer/ux-writing-skill` | MIT     | `ux-writing/`                |
+| `wshobson/agents`                   | MIT     | `visual-design-foundations/` |

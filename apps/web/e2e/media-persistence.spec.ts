@@ -19,8 +19,9 @@ test("cached server media survives a refresh when the media API is unavailable",
   let mediaReads = 0;
   let unavailableReads = 0;
 
-  await seedServerImageProject(page, mediaId);
-  await page.route(`**/api/v1/media/${mediaId}/content`, (route) => {
+  await seedImageNodeProject(page, mediaId);
+  // 画布读服务端素材时带 ?projectId=…，路由要连查询串一起匹配。
+  await page.route(`**/api/v1/media/${mediaId}/content**`, (route) => {
     mediaReads += 1;
     if (!mediaAvailable) {
       unavailableReads += 1;
@@ -60,8 +61,8 @@ test("completed server media shows an explicit loading state and appears without
     releaseMedia = resolve;
   });
 
-  await seedServerImageProject(page, mediaId);
-  await page.route(`**/api/v1/media/${mediaId}/content`, async (route) => {
+  await seedImageNodeProject(page, mediaId);
+  await page.route(`**/api/v1/media/${mediaId}/content**`, async (route) => {
     await mediaGate;
     await route.fulfill({ body: PIXEL, contentType: "image/png" });
   });
@@ -86,15 +87,14 @@ test("completed server media shows an explicit loading state and appears without
 test("replaced local media remains available to undo history and the canvas clipboard", async ({
   page,
 }) => {
-  await page.addInitScript(() => {
-    localStorage.clear();
-    sessionStorage.clear();
-  });
+  // 新项目默认是空画布：先放一个空图片节点，再走节点自己的「上传图片」入口。
+  await seedImageNodeProject(page, null);
   await page.goto("/canvas");
 
   const imageNodes = page.locator(
     '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="image"])',
   );
+  await expect(imageNodes).toHaveCount(1);
   const originalNode = imageNodes.first();
   const input = originalNode.locator('input[type="file"]');
   await input.setInputFiles({ name: "undo-source.png", mimeType: "image/png", buffer: PIXEL });
@@ -154,7 +154,9 @@ async function activeImageMediaId(page: Page) {
 async function readCachedMedia(page: Page, mediaId: string) {
   return page.evaluate(async (id) => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("weftcanvas-media", 1);
+      // 与 media-database.ts 的 DATABASE_VERSION 保持一致：用更低的版本打开
+      // 已存在的库会直接抛 VersionError。
+      const request = indexedDB.open("weftcanvas-media", 2);
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
@@ -185,7 +187,8 @@ async function readCachedMedia(page: Page, mediaId: string) {
 async function ageCachedMedia(page: Page, mediaId: string) {
   await page.evaluate(async (id) => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("weftcanvas-media", 1);
+      // 版本号同上，必须跟 media-database.ts 一致。
+      const request = indexedDB.open("weftcanvas-media", 2);
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
@@ -207,7 +210,8 @@ async function ageCachedMedia(page: Page, mediaId: string) {
   }, mediaId);
 }
 
-async function seedServerImageProject(page: Page, mediaId: string) {
+/** 单图片节点的项目；`mediaId` 为 null 时是还没放素材的空图片节点。 */
+async function seedImageNodeProject(page: Page, mediaId: string | null) {
   await page.addInitScript(
     ({ id, size }) => {
       localStorage.clear();
@@ -230,19 +234,21 @@ async function seedServerImageProject(page: Page, mediaId: string) {
               kind: "image",
               body: "",
               accent: "blue",
-              status: "success",
+              status: id ? "success" : "idle",
               progress: null,
-              media: {
-                id,
-                name: "server-result.png",
-                mimeType: "image/png",
-                size,
-                source: "server",
-                serverId: id,
-                width: 1,
-                height: 1,
-                durationMs: null,
-              },
+              media: id
+                ? {
+                    id,
+                    name: "server-result.png",
+                    mimeType: "image/png",
+                    size,
+                    source: "server",
+                    serverId: id,
+                    width: 1,
+                    height: 1,
+                    durationMs: null,
+                  }
+                : null,
               directorCapture: null,
               config: null,
               generation: {

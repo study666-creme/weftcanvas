@@ -2353,6 +2353,195 @@
   scrollbar-color: var(--entry-w16) transparent;
 }
 
+/* 结果排列：单列是「一格作品」——图片按原比例完整落在格里（不裁切、不滚），
+   四周的留白用这张图自己的虚化放大铺满，看上去整格都是这幅画，而不是一张
+   小图浮在白底上；提示词与复用 / 加入画布 / 下载 收成图片下方一行。
+   （用户 2026-10-27：要瀑布流那种铺满感，又要整张图看得全、不用滚。） */
+.wc-direct-result-gallery[data-result-layout="2"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.wc-direct-result-gallery[data-result-layout="1"] {
+  /* 单张作品的高度上限。窄屏（整页滚动、结果区高度由 min/max 决定）沿用视口公式；
+     桌面端在下面的 min-width 媒体查询里换成舞台高度的百分比（容器查询单位）——
+     面板高度现在由左栏参数决定，舞台高度会随目录/视口变化，vh 公式会在参数少的
+     模型上把图撑出舞台。 */
+  --wc-single-media-max: max(200px, calc(100dvh - 388px));
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  padding: 0;
+}
+
+/* 桌面端：舞台是单列大图的尺寸容器，图片按它真实高度的 84% 封顶（余下给标签行
+   与底部操作条）。container-type:size 只停掉"内容撑大舞台"，舞台高度仍由右侧
+   flex 列给出；窄屏不启用，那边结果区本身就是内容高度。 */
+@media (min-width: 1081px) {
+  .wc-direct-result-stage {
+    container-type: size;
+  }
+
+  .wc-direct-result-gallery[data-result-layout="1"] {
+    --wc-single-media-max: min(760px, 84cqh);
+  }
+}
+
+.wc-direct-result-gallery[data-result-layout="1"] .wc-direct-result-tile {
+  /* 虚化底图要压在这张卡自己的底色之上、内容之下。 */
+  position: relative;
+  isolation: isolate;
+  padding: 8px 10px 6px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 16px;
+  background: var(--entry-surface-muted);
+  box-shadow: none;
+  content-visibility: visible;
+}
+
+/* 底图 = 这张作品自己（组件把 url 写进 --wc-result-ambient）：放大裁切 + 重虚化。
+   宽图会整片盖住底图，只有方块 / 竖图两侧的留白里才看得见。 */
+.wc-direct-result-gallery[data-result-layout="1"] .wc-direct-result-tile::before {
+  content: "";
+  position: absolute;
+  inset: -24%;
+  z-index: -2;
+  background-image: var(--wc-result-ambient, none);
+  background-position: center;
+  background-size: cover;
+  filter: blur(46px) saturate(1.35);
+  opacity: 0.72;
+}
+
+/* 上薄下厚的同色渐变：顶部让模型标签读得清，底部托住提示词那行，中间留出画面本身的颜色。 */
+.wc-direct-result-gallery[data-result-layout="1"] .wc-direct-result-tile::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--entry-surface) 58%, transparent) 0,
+    color-mix(in srgb, var(--entry-surface) 2%, transparent) 24%,
+    color-mix(in srgb, var(--entry-surface) 6%, transparent) 58%,
+    color-mix(in srgb, var(--entry-surface) 88%, transparent) 100%
+  );
+}
+
+.wc-direct-result-gallery[data-result-layout="1"] .wc-direct-result-tile:hover {
+  border-color: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+/* 单列不要悬停放大：整张图完整可见是这个排列的前提，放大 4% 会裁掉四边。 */
+.wc-direct-result-gallery[data-result-layout="1"]
+  .wc-direct-result-tile:hover
+  .wc-direct-result-media
+  > img {
+  transform: none;
+}
+
+/* 卡片头收成一行轻标签：不描边、不垫底色。 */
+.wc-direct-result-gallery[data-result-layout="1"] .wc-direct-result-head {
+  justify-content: flex-start;
+  padding: 2px 6px 6px;
+  border-bottom: 0;
+  background: transparent;
+}
+
+.wc-direct-result-gallery[data-result-layout="1"] .wc-direct-result-media {
+  aspect-ratio: auto;
+  /* 读取中/失败时没有固有尺寸：留一个地板，加载态与错误态不会塌成 0 高。 */
+  min-height: 160px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: transparent;
+}
+
+.wc-direct-result-gallery[data-result-layout="1"] .wc-direct-result-media--video {
+  min-height: clamp(180px, 30vh, 320px);
+}
+
+/* 宽图铺满宽度；方块 / 竖图收到高度上限内居中——整张图始终完整可见。 */
+.wc-direct-result-gallery[data-result-layout="1"] .wc-direct-result-media > img,
+.wc-direct-result-gallery[data-result-layout="1"] .wc-direct-result-media > video {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: var(--wc-single-media-max);
+  aspect-ratio: auto;
+  object-fit: contain;
+}
+
+/* 单列不放「示例预览」那行说明：徽标已经标了「示例」，省下一行让作品更高。
+   没有作品可放时才留它（音频页没有示例图，这行说明是右侧唯一的引导）。 */
+.wc-direct-result-gallery[data-result-layout="1"]:has(.wc-direct-result-tile)
+  .wc-direct-sample-note {
+  display: none;
+}
+
+.wc-direct-result-gallery[data-result-layout="1"] .wc-direct-sample-note {
+  padding: 20px 12px;
+}
+
+/* 示例结果按自己声明的画幅展示（1:1 / 16:9 / 9:16 / 4:3 …）：盒子同时受
+   宽高约束，竖图缩到高度上限内居中，不会把按钮顶出屏幕。 */
+.wc-direct-result-gallery[data-result-layout="1"] .wc-direct-result-media[data-sample-ratio] {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: var(--wc-single-media-max);
+  margin-inline: auto;
+}
+
+.wc-direct-result-gallery[data-result-layout="1"] .wc-direct-result-media[data-sample-ratio] > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 提示词 + 操作收成图片下方一行：不再是一条横贯面板的按钮栏，也不垫底色、不画分割线。 */
+.wc-direct-result-gallery[data-result-layout="1"] .wc-direct-result-body {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 6px 2px;
+  border-top: 0;
+  background: transparent;
+}
+
+.wc-direct-result-gallery[data-result-layout="1"] .wc-direct-result-caption {
+  flex: 1 1 auto;
+  -webkit-line-clamp: 1;
+}
+
+.wc-direct-result-gallery[data-result-layout="1"] .wc-direct-result-controls {
+  flex: 0 0 auto;
+  width: auto;
+  gap: 2px;
+  margin-top: 0;
+}
+
+.wc-direct-result-gallery[data-result-layout="1"] .wc-direct-result-controls > :is(a, button) {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 28px;
+  border-color: transparent;
+  background: transparent;
+}
+
+/* 生成中占位与音频播放条不用原比例：前者铺满固定高度，后者本身是横条。 */
+.wc-direct-result-gallery[data-result-layout="1"] .wc-direct-result-media--generating {
+  min-height: clamp(180px, 30vh, 320px);
+}
+
+.wc-direct-result-gallery[data-result-layout="1"] .wc-direct-result-media--audio {
+  display: flex;
+  min-height: 0;
+  background: var(--wc-surface-muted);
+}
+
 /* 放大入口：点击卡片任意位置即可放大。图片卡片里它是包住 img 的块级按钮，
    视频卡片里铺满静音首帧（见下面 frame 内的覆盖规则）。 */
 /* 图片/视频媒体容器：正方形，相对定位，悬浮角标按钮默认隐藏。
@@ -3036,9 +3225,9 @@
 
 .wc-param-chips {
   display: flex;
-  margin-bottom: 14px;
+  margin-bottom: 6px;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .wc-param-chips-label {
@@ -3055,9 +3244,9 @@
 
 .wc-param-chips-row > button {
   display: inline-flex;
-  min-width: 44px;
-  height: 32px;
-  padding: 0 12px;
+  min-width: 40px;
+  height: 30px;
+  padding: 0 10px;
   align-items: center;
   justify-content: center;
   border: 1px solid var(--entry-w8);
@@ -3175,7 +3364,7 @@
   left: 0;
   z-index: 60;
   display: flex;
-  width: min(560px, calc(100vw - 16px));
+  width: min(640px, calc(100vw - 16px));
   max-height: 320px;
   flex-direction: column;
   overflow: hidden;
@@ -3268,15 +3457,14 @@
   }
 }
 
-/* 分类标签条：方形直角、全名展示、数量徽标已移除；放不下时横向滚动 */
+/* 分类标签条：方形直角、全名展示、数量徽标已移除。放不下时换行——曾经是
+   横向滚动条，标签被切掉半截、还要先滚一下；菜单宽度已经够 9 个视频分类
+   一行放下，换行只作为窄视口的兜底。 */
 .wc-cat-select-tabs {
   display: flex;
   padding: 6px;
   gap: 4px;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--entry-scrollbar) transparent;
+  flex-wrap: wrap;
   border-bottom: 1px solid var(--entry-border);
   background: var(--entry-surface-muted);
 }
@@ -3643,8 +3831,14 @@
   position: fixed;
   inset: 0;
   z-index: 200;
-  overflow-x: hidden;
-  overflow-y: auto;
+  display: flex;
+  height: 100vh;
+  height: 100dvh;
+  flex-direction: column;
+  /* 单屏工作台：页面本身不滚动，视口高度在顶栏 / 标题条 / 工作台之间分配，
+     超出部分由生成台左栏与结果画廊各自内部滚动（用户 2026-10-26：一页看完，
+     不要频繁上下滚动）。窄屏（≤1080px）在底部媒体查询里退回整页滚动。 */
+  overflow: hidden;
   isolation: isolate;
   color: var(--entry-text);
   background: var(--entry-bg);
@@ -3664,17 +3858,16 @@
 }
 
 .wc-direct-page .wc-entry-section--generate {
-  min-height: calc(100vh - 64px);
-  /* 工作台是页面重点：压缩上方留白，让标题与工作台尽快进入视口 */
-  padding-top: clamp(22px, 3vh, 40px);
-  padding-bottom: clamp(36px, 5vh, 60px);
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  /* 工作台是页面重点：上下留白只做呼吸感，不再占掉一屏 */
+  padding: clamp(8px, 1.6vh, 16px) clamp(16px, 3vw, 34px) clamp(8px, 1.6vh, 16px);
 }
 
-.wc-direct-page .wc-entry-section-heading--generate {
-  margin-bottom: 16px;
-}
-
-.wc-direct-page .wc-entry-section-heading--generate,
+.wc-direct-page .wc-direct-workbench-head,
 .wc-direct-page .wc-direct-studio {
   margin-right: auto;
   margin-left: auto;
@@ -3687,45 +3880,64 @@
   background: linear-gradient(180deg, var(--entry-w2) 0%, transparent 24%), var(--entry-bg);
 }
 
-.wc-entry-section-heading--generate {
-  display: grid;
+/* 标题条：一行解决"这是什么"与"怎么用"，把纵向空间全部让给生成台。
+   排版仍沿入口页的语言（等宽小字眉标 + 轻字重标题），只是不再占一屏。 */
+.wc-direct-workbench-head {
+  display: flex;
   width: 100%;
-  margin-bottom: 30px;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
-  align-items: end;
-  gap: 72px;
+  max-width: 1440px;
+  flex: 0 0 auto;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 12px;
 }
 
-/* 与首屏同一套排版语言：等宽小字眉标 + 细字重大标题，摆脱原生文字感。 */
-.wc-entry-section-heading--generate .wc-entry-kicker {
-  display: block;
-  margin-bottom: 20px;
+.wc-direct-workbench-title {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.wc-direct-workbench-title .wc-entry-kicker {
+  margin-bottom: 0;
   color: color-mix(in srgb, var(--entry-text) 42%, transparent);
   font-family: ui-monospace, "Cascadia Mono", "JetBrains Mono", "SF Mono", Consolas, monospace;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 500;
-  letter-spacing: 0.26em;
-  line-height: 1;
+  letter-spacing: 0.22em;
+  white-space: nowrap;
 }
 
-.wc-entry-section-heading--generate h2 {
+.wc-direct-workbench-title h2 {
   margin: 0;
   color: var(--entry-text);
-  font-size: clamp(30px, 3.8vw, 46px);
-  font-weight: 280;
-  letter-spacing: 0.08em;
-  line-height: 1.22;
+  font-size: 17px;
+  font-weight: 520;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
-.wc-entry-section-heading--generate > p {
-  margin: 0 0 6px;
-  color: var(--entry-muted);
-  font-size: 13px;
-  line-height: 1.95;
+.wc-direct-workbench-head > p {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--entry-faint);
+  font-size: 11.5px;
+  line-height: 1.6;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .wc-direct-studio {
-  width: min(1180px, 100%);
+  display: flex;
+  width: min(1440px, 100%);
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--entry-border-strong);
   border-radius: 8px;
@@ -3738,11 +3950,12 @@
 .wc-direct-studio-tabs {
   display: flex;
   min-width: 0;
+  flex: 0 0 auto;
   /* 生成类型是切换器，不是版块（用户 2026-10-16：「功能选项太长了，占据屏幕，
      每次都要往下翻很多」）。三张 118px 高卡片收成一行 48px 窄条，当前项的描述
      挪到同一行右侧，纵向空间还给提示词、模型与结果。 */
-  min-height: 48px;
-  padding: 7px 14px;
+  min-height: 42px;
+  padding: 5px 14px;
   align-items: center;
   gap: 12px;
   border-bottom: 1px solid var(--entry-border);
@@ -3812,21 +4025,39 @@
 .wc-direct-studio-body {
   display: grid;
   min-width: 0;
-  /* 行高由左栏自然内容决定：左侧参数一页内全部展示；
-     右侧用绝对定位与左栏严格等高，结果再多也在画廊内滚动。 */
+  min-height: 0;
+  /* 工作台内部两栏严格等高：高度由外层一屏布局给出，左栏参数超出时自己滚动，
+     右侧结果再多也只在画廊内滚动，不把整页撑高。
+     非对称分栏（用户 2026-10-27）：左栏参数区 46%，右栏作品区 54%；
+     单列/单张图更大、图里的字才看得清，同时左栏仍够放下两排比例芯片与提交条。 */
   position: relative;
-  grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
+  flex: 1 1 auto;
+  grid-template-columns: minmax(0, 0.96fr) minmax(0, 1.04fr);
 }
 
 .wc-direct-composer,
 .wc-direct-result {
   min-width: 0;
   min-height: 0;
-  padding: 20px 26px 22px;
 }
 
 .wc-direct-composer {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   border-right: 1px solid var(--entry-border);
+}
+
+/* 正文区独占滚动：提交条在它下面固定，矮屏也只滚模型/素材/参数。 */
+.wc-direct-composer-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 10px 18px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--entry-w16) transparent;
+  scrollbar-width: thin;
 }
 
 .wc-direct-composer-header,
@@ -3841,7 +4072,14 @@
 }
 
 .wc-direct-composer-header {
-  margin-bottom: 16px;
+  margin-bottom: 4px;
+}
+
+/* 左栏标题收成一行：编号 + 名称同一基线，省下的高度让参数区少滚一截。 */
+.wc-direct-composer-header > div {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
 }
 
 .wc-direct-index,
@@ -3854,9 +4092,9 @@
 }
 
 .wc-direct-composer-header h3 {
-  margin: 8px 0 0;
+  margin: 0;
   color: var(--entry-text);
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 570;
   letter-spacing: 0;
 }
@@ -3882,7 +4120,7 @@
 .wc-direct-prompt-field {
   position: relative;
   display: block;
-  margin-bottom: 16px;
+  margin-bottom: 6px;
 }
 
 .wc-direct-prompt-field > span,
@@ -3896,9 +4134,12 @@
 .wc-direct-prompt-field textarea {
   display: block;
   width: 100%;
-  min-height: 104px;
-  margin-top: 8px;
-  padding: 12px 15px 24px;
+  /* 提示词是这一栏里最该给足的地方（用户 2026-10-27：框又有点太小了）。
+     118px ≈ 3.8 行，比之前的 82px（2.3 行）能多写一倍的量；仍可手动往下拉。 */
+  height: 118px;
+  min-height: 96px;
+  margin-top: 6px;
+  padding: 10px 14px 20px;
   resize: vertical;
   border: 1px solid var(--entry-w8);
   border-radius: 18px;
@@ -3999,7 +4240,7 @@
 }
 
 .wc-direct-field-group {
-  margin-bottom: 18px;
+  margin-bottom: 8px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -4048,8 +4289,8 @@
 
 .wc-direct-materials {
   position: relative;
-  margin: 0 0 16px;
-  padding: 10px;
+  margin: 0 0 6px;
+  padding: 5px;
   border: 1px dashed var(--entry-w7);
   border-radius: 14px;
   background: transparent;
@@ -4065,7 +4306,7 @@
 }
 
 .wc-direct-material-drop-hint {
-  margin: 10px 0 0;
+  margin: 4px 0 0;
   color: var(--entry-faint);
   font-size: 10px;
   line-height: 1.45;
@@ -4084,8 +4325,8 @@
 .wc-direct-material-actions > label {
   position: relative;
   display: inline-flex;
-  min-width: 112px;
-  height: 36px;
+  min-width: 100px;
+  height: 30px;
   padding: 0 12px;
   align-items: center;
   gap: 7px;
@@ -4290,9 +4531,15 @@
 
 .wc-direct-parameters {
   display: grid;
-  margin: 2px 0 14px;
+  margin: 0 0 4px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 13px;
+  /* 长枚举芯片（16 档画面比例）独占整行，dense 让后面的短枚举回填空位。 */
+  grid-auto-flow: row dense;
+  gap: 7px;
+}
+
+.wc-direct-parameters .wc-param-chips[data-wide] {
+  grid-column: 1 / -1;
 }
 
 .wc-direct-parameters .wc-generation-field,
@@ -4314,10 +4561,16 @@
   background: var(--entry-band);
 }
 
+/* 提交条钉在左栏底部：单屏布局里参数再多，价格与「生成」也始终可见，
+   只有上面的模型/素材/参数区滚动。 */
 .wc-direct-submit-row {
-  min-height: 58px;
-  padding-top: 18px;
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
+  min-height: 50px;
+  padding: 9px 18px 11px;
   border-top: 1px solid var(--entry-border);
+  background: var(--entry-surface);
 }
 
 .wc-direct-price {
@@ -4392,14 +4645,11 @@
 }
 
 .wc-direct-result {
-  /* 与左栏严格等高：定位到网格右列（49%），行高由左栏撑出，超出的结果在画廊内滚动 */
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 49%;
+  /* 与左栏严格等高：两栏都是网格项，行高由外层一屏布局给出，
+     超出的结果在画廊内滚动（此前靠绝对定位 + 49% 宽度对齐左栏行高）。 */
   display: flex;
   min-height: 0;
+  padding: 18px 26px;
   flex-direction: column;
   overflow: hidden;
   background:
@@ -4414,7 +4664,14 @@
   border-bottom: 1px solid var(--entry-w7);
 }
 
-.wc-direct-result-topline > span:last-child {
+.wc-direct-result-tools {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.wc-direct-result-status {
   display: inline-flex;
   min-width: 0;
   align-items: center;
@@ -4426,16 +4683,67 @@
   white-space: nowrap;
 }
 
-.wc-direct-result-topline > span:last-child > svg {
+.wc-direct-result-status > svg {
   width: 12px;
   height: 12px;
+  flex: 0 0 auto;
   color: var(--entry-jade);
+}
+
+/* 结果排列切换（1/2/3 列）：与卡片库同一交互，选择写在本机 localStorage。 */
+/* 结果排列切换：只留图标与一层淡底，不做描边胶囊——面板里其余控件都是
+   安静的一行，这里再套个边框会显得突兀（用户 2026-10-27）。 */
+.wc-direct-result-layout {
+  display: inline-flex;
+  flex: 0 0 auto;
+  padding: 0;
+  gap: 1px;
+  border: 0;
+  background: transparent;
+}
+
+.wc-direct-result-layout > button {
+  display: inline-grid;
+  width: 26px;
+  height: 24px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  color: var(--entry-faint);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    background-color 160ms ease;
+}
+
+.wc-direct-result-layout > button:hover {
+  color: var(--entry-text);
+}
+
+.wc-direct-result-layout > button.is-active {
+  color: var(--entry-text);
+  background: var(--entry-w8);
+}
+
+.wc-direct-result-layout > button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--entry-text) 62%, transparent);
+  outline-offset: 1px;
+}
+
+.wc-direct-result-layout > button > svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 1.7;
 }
 
 .wc-direct-result-stage {
   position: relative;
   display: grid;
-  min-height: 320px;
+  /* 舞台高度跟着视口走：单屏布局下它是剩余空间的填充项，短视口也不能用固定
+     320px 地板把操作条挤出面板。 */
+  min-height: clamp(180px, 34vh, 320px);
   /* 不再用 calc(100vh - ...) 封顶：右侧被两栏 grid 拉高后，封顶会让舞台撑不满
      而底部留出空白。高度交给 flex 填满，滚动由内部画廊自己承担。 */
   flex: 1;
@@ -4480,7 +4788,7 @@
   display: block;
   width: 100%;
   height: 100%;
-  min-height: 320px;
+  min-height: clamp(180px, 34vh, 320px);
   border-radius: 14px;
   object-fit: contain;
 }
@@ -4902,24 +5210,55 @@
 }
 
 @media (max-width: 1080px) {
-  .wc-entry-section-heading--generate {
-    grid-template-columns: 1fr;
-    gap: 24px;
+  /* 窄屏不再强行单屏：生成台回到文档流，参数与结果上下堆叠、整页正常滚动。 */
+  .wc-direct-page {
+    display: block;
+    height: auto;
+    overflow-y: auto;
+  }
+
+  .wc-direct-page .wc-entry-section--generate {
+    display: block;
+    min-height: 0;
+  }
+
+  .wc-direct-workbench-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+    margin-bottom: 14px;
+  }
+
+  .wc-direct-workbench-head > p {
+    text-align: left;
+    white-space: normal;
+  }
+
+  .wc-direct-studio {
+    display: block;
+    flex: 0 0 auto;
   }
 
   .wc-direct-studio-body {
+    display: grid;
+    flex: 0 0 auto;
     grid-template-columns: 1fr;
   }
 
   .wc-direct-composer {
+    display: block;
+    overflow: visible;
     border-right: 0;
     border-bottom: 1px solid var(--entry-border);
   }
 
+  /* 窄屏整页滚动，正文区不再自己滚。 */
+  .wc-direct-composer-body {
+    overflow: visible;
+  }
+
   .wc-direct-result {
     /* 单列自然堆叠：参数在上、结果在下，结果栏不再依赖左栏行高 */
-    position: static;
-    width: auto;
     min-height: 430px;
     max-height: 680px;
   }
@@ -4931,13 +5270,21 @@
     padding-bottom: 64px;
   }
 
-  .wc-entry-section-heading--generate {
-    margin-bottom: 20px;
+  /* 窄屏优先保住生成区：标题条只留眉标与短标题，说明文字让位。 */
+  .wc-direct-workbench-head > p {
+    display: none;
   }
 
-  .wc-direct-composer,
+  .wc-direct-composer-body {
+    padding: 20px;
+  }
+
   .wc-direct-result {
     padding: 24px 20px 26px;
+  }
+
+  .wc-direct-submit-row {
+    padding: 14px 20px 20px;
   }
 
   .wc-direct-studio-tabs {
@@ -5001,14 +5348,15 @@
   }
 
   .wc-direct-page .wc-entry-section--generate {
-    padding-top: 58px;
-    padding-bottom: 72px;
+    padding: 14px clamp(12px, 3vw, 18px) 28px;
   }
 }
 
 @media (max-width: 520px) {
-  /* 手机上三列会挤到 60px 以下，降为两列 */
-  .wc-direct-result-gallery {
+  /* 手机上三列会挤到 60px 以下，降为两列（用户手动选的三列在这里也让位，
+     单列/两列的选择仍然生效）。 */
+  .wc-direct-result-gallery,
+  .wc-direct-result-gallery[data-result-layout="3"] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

@@ -1,31 +1,18 @@
 import type { AgentModel, PublicModel } from "@weftcanvas/contracts";
 
 import { isCustomModelKey } from "./custom-api";
+import { modelVendorLabelOf } from "./model-vendor";
 
 /**
  * 厂商口径与 API 侧 `agentTextModelGroup` 保持一致（GLM 归一个 tab、
  * DeepSeek 归一个 tab），这样节点里的文本模型选择器和 Agent 抽屉里的
  * 选择器就是同一套分类，而不是按「按次 / 按量」把同一家拆开。
  *
- * 规则按顺序匹配，先命中的优先；未知厂商落到「其他」。
+ * 规则与品牌图标都收在 lib/model-vendor.ts（一张表同时喂分组和图标），
+ * 这里只保留历史入口名。
  */
-const VENDOR_RULES: ReadonlyArray<{ label: string; match: RegExp }> = [
-  { label: "OpenAI", match: /gpt|^o[0-9]|全能模型|dall|openai|astra/i },
-  { label: "Claude", match: /claude|anthropic/i },
-  { label: "Gemini", match: /gemini|google/i },
-  { label: "GLM", match: /glm|chatglm|智谱|zhipu/i },
-  { label: "DeepSeek", match: /deepseek/i },
-  { label: "Kimi", match: /kimi|moonshot/i },
-  { label: "Minimax", match: /minimax|mini-?h3/i },
-  { label: "Qwen", match: /qwen|通义/i },
-  { label: "Grok", match: /grok|xai/i },
-  { label: "混元", match: /hunyuan|^hy[0-9]|腾讯/i },
-  { label: "小米", match: /mimo|xiaomi|小米/i },
-];
-
 export function modelVendorLabel(id: string, label = "") {
-  const haystack = `${id} ${label}`.toLowerCase();
-  return VENDOR_RULES.find((rule) => rule.match.test(haystack))?.label ?? "其他";
+  return modelVendorLabelOf(id, label);
 }
 
 function formatCredits(value: number) {

@@ -7,12 +7,14 @@ import {
   Copy,
   Download,
   House,
+  ListChecks,
   LoaderCircle,
   MoreHorizontal,
   Package,
   Pencil,
   Plus,
   Search,
+  Square,
   Trash2,
   Upload,
   X,
@@ -44,6 +46,7 @@ export const ProjectSidebar = memo(function ProjectSidebar() {
   const renameProject = useProjectLibraryStore((state) => state.renameProject);
   const duplicateProject = useProjectLibraryStore((state) => state.duplicateProject);
   const deleteProject = useProjectLibraryStore((state) => state.deleteProject);
+  const deleteProjects = useProjectLibraryStore((state) => state.deleteProjects);
   const importProject = useProjectLibraryStore((state) => state.importProject);
   const persistCurrent = useProjectLibraryStore((state) => state.persistCurrent);
   const activeProjectId = useCanvasStore((state) => state.projectId);
@@ -71,6 +74,10 @@ export const ProjectSidebar = memo(function ProjectSidebar() {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [deleteCandidate, setDeleteCandidate] = useState<{ id: string; name: string } | null>(null);
+  const [batchDeleteCandidate, setBatchDeleteCandidate] = useState<string[] | null>(null);
+  /** 批量选择模式：勾选多个本地项目后一次性删除。 */
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [cloudDeleteCandidate, setCloudDeleteCandidate] = useState<{
     id: string;
     title: string;
@@ -85,14 +92,43 @@ export const ProjectSidebar = memo(function ProjectSidebar() {
         setCloudDeleteCandidate(null);
         return;
       }
+      if (batchDeleteCandidate) {
+        setBatchDeleteCandidate(null);
+        return;
+      }
       if (deleteCandidate) setDeleteCandidate(null);
       else if (renamingId) setRenamingId(null);
       else if (menuId) setMenuId(null);
-      else setOpen(false);
+      else if (selecting) {
+        setSelecting(false);
+        setSelectedIds([]);
+      } else setOpen(false);
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [cloudDeleteCandidate, deleteCandidate, menuId, open, renamingId, setOpen]);
+  }, [
+    batchDeleteCandidate,
+    cloudDeleteCandidate,
+    deleteCandidate,
+    menuId,
+    open,
+    renamingId,
+    selecting,
+    setOpen,
+  ]);
+
+  // 收起项目库时退出批量选择，下次打开回到普通列表。
+  useEffect(() => {
+    if (open) return;
+    setSelecting(false);
+    setSelectedIds([]);
+    setBatchDeleteCandidate(null);
+  }, [open]);
+
+  // 搜索词变化后清空勾选：避免删掉已经被搜索结果藏起来的项目。
+  useEffect(() => {
+    setSelectedIds((current) => (current.length ? [] : current));
+  }, [query]);
 
   useEffect(() => {
     if (renamingId) renameInput.current?.focus();
@@ -115,6 +151,21 @@ export const ProjectSidebar = memo(function ProjectSidebar() {
   );
   const activeCloudLinked = Boolean(cloudLinks[activeProjectId]);
   const cloudBusy = cloudStatus === "syncing";
+
+  const filteredIds = useMemo(() => new Set(filtered.map((project) => project.id)), [filtered]);
+  // 搜索会临时藏起一部分项目：勾选与全选都只认当前可见的这批。
+  const visibleSelectedIds = selectedIds.filter((id) => filteredIds.has(id));
+  const allSelected = filtered.length > 0 && visibleSelectedIds.length === filtered.length;
+  const toggleSelected = (projectId: string) =>
+    setSelectedIds((current) =>
+      current.includes(projectId)
+        ? current.filter((id) => id !== projectId)
+        : [...current, projectId],
+    );
+  const exitSelecting = () => {
+    setSelecting(false);
+    setSelectedIds([]);
+  };
 
   const commitRename = () => {
     if (!renamingId) return;
@@ -265,33 +316,83 @@ export const ProjectSidebar = memo(function ProjectSidebar() {
             <Plus aria-hidden="true" />
             <span>新建</span>
           </button>
+          {projects.length ? (
+            <button
+              type="button"
+              className={`wc-project-select-toggle${selecting ? " is-active" : ""}`}
+              aria-label={selecting ? "退出批量选择" : "批量选择项目"}
+              aria-pressed={selecting}
+              title={selecting ? "退出批量选择" : "批量选择"}
+              onClick={() => {
+                setMenuId(null);
+                if (selecting) exitSelecting();
+                else setSelecting(true);
+              }}
+            >
+              <ListChecks aria-hidden="true" />
+            </button>
+          ) : null}
           <button type="button" aria-label="关闭项目栏" title="关闭" onClick={() => setOpen(false)}>
             <X aria-hidden="true" />
           </button>
         </header>
 
-        <label className="wc-project-search">
-          <Search aria-hidden="true" />
-          <input
-            value={query}
-            aria-label="搜索项目"
-            placeholder="搜索项目"
-            onChange={(event) => setQuery(event.target.value)}
-          />
-          {query ? (
-            <button type="button" aria-label="清空搜索" title="清空" onClick={() => setQuery("")}>
-              <X aria-hidden="true" />
-            </button>
+        {/* 搜索与批量选择工具条包在同一格里：侧栏是固定行数的 grid，
+            多一个直接子元素会把下面的列表挤进隐式行。 */}
+        <div className="wc-project-filters">
+          <label className="wc-project-search">
+            <Search aria-hidden="true" />
+            <input
+              value={query}
+              aria-label="搜索项目"
+              placeholder="搜索项目"
+              onChange={(event) => setQuery(event.target.value)}
+            />
+            {query ? (
+              <button type="button" aria-label="清空搜索" title="清空" onClick={() => setQuery("")}>
+                <X aria-hidden="true" />
+              </button>
+            ) : null}
+          </label>
+
+          {selecting ? (
+            <div className="wc-project-select-bar">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  aria-label={allSelected ? "取消全选" : "全选"}
+                  onChange={() =>
+                    setSelectedIds(allSelected ? [] : filtered.map((project) => project.id))
+                  }
+                />
+                <span className="wc-project-select-check" aria-hidden="true" />
+                <span>{allSelected ? "取消全选" : "全选"}</span>
+              </label>
+              <span className="wc-project-select-count" aria-live="polite">
+                已选 {visibleSelectedIds.length}
+              </span>
+              <button
+                type="button"
+                className="is-danger"
+                disabled={!visibleSelectedIds.length}
+                onClick={() => setBatchDeleteCandidate(visibleSelectedIds)}
+              >
+                <Trash2 aria-hidden="true" />
+                删除
+              </button>
+            </div>
           ) : null}
-        </label>
+        </div>
 
         <div className="wc-project-list" role="list">
           {filtered.map((project) => {
             const active = project.id === activeProjectId;
+            const selected = selectedIds.includes(project.id);
             return (
               <div
                 key={project.id}
-                className={`wc-project-row ${active ? "is-active" : ""}`}
+                className={`wc-project-row ${active ? "is-active" : ""} ${selected ? "is-selected" : ""} ${selecting ? "is-selecting" : ""}`}
                 role="listitem"
               >
                 <div className="wc-project-row-main">
@@ -313,35 +414,51 @@ export const ProjectSidebar = memo(function ProjectSidebar() {
                     <button
                       type="button"
                       className="wc-project-open"
-                      aria-current={active ? "page" : undefined}
-                      onClick={() => switchProject(project.id)}
+                      aria-current={!selecting && active ? "page" : undefined}
+                      aria-pressed={selecting ? selected : undefined}
+                      onClick={() => {
+                        if (selecting) toggleSelected(project.id);
+                        else switchProject(project.id);
+                      }}
                     >
-                      <span className="wc-project-active-mark" aria-hidden="true">
-                        {active ? <Check /> : null}
-                      </span>
+                      {selecting ? (
+                        <span className="wc-project-select-mark" aria-hidden="true">
+                          {selected ? <Check /> : <Square />}
+                        </span>
+                      ) : (
+                        <span className="wc-project-active-mark" aria-hidden="true">
+                          {active ? <Check /> : null}
+                        </span>
+                      )}
                       <span className="wc-project-copy">
                         <strong>{project.name}</strong>
                         <small>
                           {project.nodeCount} 个节点 · {formatProjectTime(project.updatedAt)}
                         </small>
                       </span>
-                      <span className="wc-project-enter-cue" aria-hidden="true">
-                        <ArrowRight />
-                      </span>
+                      {selecting ? null : (
+                        <span className="wc-project-enter-cue" aria-hidden="true">
+                          <ArrowRight />
+                        </span>
+                      )}
                     </button>
                   )}
-                  <button
-                    type="button"
-                    className="wc-project-more"
-                    aria-label={`${project.name}的更多操作`}
-                    title="更多操作"
-                    aria-expanded={menuId === project.id}
-                    onClick={() => setMenuId((value) => (value === project.id ? null : project.id))}
-                  >
-                    <MoreHorizontal aria-hidden="true" />
-                  </button>
+                  {selecting ? null : (
+                    <button
+                      type="button"
+                      className="wc-project-more"
+                      aria-label={`${project.name}的更多操作`}
+                      title="更多操作"
+                      aria-expanded={menuId === project.id}
+                      onClick={() =>
+                        setMenuId((value) => (value === project.id ? null : project.id))
+                      }
+                    >
+                      <MoreHorizontal aria-hidden="true" />
+                    </button>
+                  )}
                 </div>
-                {menuId === project.id ? (
+                {menuId === project.id && !selecting ? (
                   <div className="wc-project-row-menu">
                     <button
                       type="button"
@@ -536,6 +653,52 @@ export const ProjectSidebar = memo(function ProjectSidebar() {
                 }}
               >
                 删除
+              </button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
+
+      {batchDeleteCandidate ? (
+        <div
+          className="wc-project-delete-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="批量删除项目"
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget) setBatchDeleteCandidate(null);
+          }}
+        >
+          <section className="wc-project-delete-dialog">
+            <header>
+              <strong>删除 {batchDeleteCandidate.length} 个项目</strong>
+              <button type="button" aria-label="关闭" onClick={() => setBatchDeleteCandidate(null)}>
+                <X aria-hidden="true" />
+              </button>
+            </header>
+            <ul className="wc-project-delete-list">
+              {batchDeleteCandidate.slice(0, 5).map((id) => (
+                <li key={id}>{projects.find((project) => project.id === id)?.name ?? id}</li>
+              ))}
+              {batchDeleteCandidate.length > 5 ? (
+                <li>等共 {batchDeleteCandidate.length} 个项目</li>
+              ) : null}
+            </ul>
+            <small>只删除本机项目，云端副本与本机媒体不会一起清理；删除后无法撤销。</small>
+            <footer>
+              <button type="button" onClick={() => setBatchDeleteCandidate(null)}>
+                取消
+              </button>
+              <button
+                type="button"
+                className="is-danger"
+                onClick={() => {
+                  deleteProjects(batchDeleteCandidate);
+                  setBatchDeleteCandidate(null);
+                  exitSelecting();
+                }}
+              >
+                全部删除
               </button>
             </footer>
           </section>

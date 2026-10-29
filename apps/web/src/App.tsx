@@ -61,8 +61,13 @@ const DirectGenerationPage = lazy(async () => ({
 const CanvasEntryLoaderLazy = lazy(async () => ({
   default: (await import("./components/canvas-entry-loader")).CanvasEntryLoader,
 }));
-// 首页入口整页懒加载：index.html 的启动屏先亮，入口模块与首屏渲染并行下载，
-// 避免整包 entry 被入口的模型选择/参数控件依赖图拖大。
+// 首页整页懒加载：index.html 的启动屏先亮，首页模块与首屏渲染并行下载，
+// 避免整包 entry 被首页的模型选择/参数控件依赖图拖大。
+// 默认首页是工作台式主页（侧栏 + 项目 / 创作历史 / 资产 / 模板）；原营销落地页
+// 保留在 `/?view=landing`，供推广预览使用。
+const HomeDashboardLazy = lazy(async () => ({
+  default: (await import("./components/home/home-dashboard")).HomeDashboard,
+}));
 const EntryGateLazy = lazy(async () => ({
   default: (await import("./components/entry-gate")).EntryGate,
 }));
@@ -484,8 +489,12 @@ export function App() {
         ) : homeAuthLoading ? (
           <RouteLoadingState label="正在校验登录状态" />
         ) : (
-          <Suspense fallback={null}>
-            <EntryGateLazy onEnter={enterCanvas} theme={theme} onToggleTheme={toggleTheme} />
+          <Suspense fallback={<RouteLoadingState label="正在打开主页" />}>
+            {forceLanding ? (
+              <EntryGateLazy onEnter={enterCanvas} theme={theme} onToggleTheme={toggleTheme} />
+            ) : (
+              <HomeDashboardLazy onEnter={enterCanvas} theme={theme} onToggleTheme={toggleTheme} />
+            )}
           </Suspense>
         )
       ) : null}

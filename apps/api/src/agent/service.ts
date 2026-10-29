@@ -244,6 +244,11 @@ export class AgentService {
   /**
    * 把平台文本模型合并到运行时目录：运行时目录的默认模型优先，其次是平台目录顺序。
    * 平台目录读取失败时退回运行时目录，避免模型选择器整体不可用。
+   *
+   * 运行时上报了 `upstreamModelIds`（其上游网关当前真实可服务的模型）时，平台模型
+   * 先与它取交集：选择器只开「一发就能成」的模型，上游分组没覆盖的条目不进入
+   * 目录，而不是让用户选中后才收到上游报错。运行时自己的 allowlist 条目（含默认
+   * 模型）是运维显式配置，不做这层过滤。
    */
   private async mergeTextModels(runtimeCatalog: AgentModelCatalog): Promise<AgentModelCatalog> {
     if (!this.textModels) return runtimeCatalog;
@@ -253,6 +258,9 @@ export class AgentService {
     } catch {
       return runtimeCatalog;
     }
+    const upstreamServed = runtimeCatalog.upstreamModelIds?.length
+      ? new Set(runtimeCatalog.upstreamModelIds)
+      : null;
     const merged = new Map<string, AgentModelCatalog["models"][number]>();
     for (const model of runtimeCatalog.models) {
       merged.set(model.id, model);
@@ -260,6 +268,7 @@ export class AgentService {
     for (const model of platformModels) {
       const parsed = agentModelIdSchema.safeParse(model.id);
       if (!parsed.success) continue;
+      if (upstreamServed && !upstreamServed.has(parsed.data)) continue;
       const group = model.group ? model.group.slice(0, 64) : undefined;
       const detail = model.description ? model.description.slice(0, 240) : undefined;
       const thinking = sanitizeThinking(model.thinking);

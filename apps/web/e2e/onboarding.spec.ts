@@ -4,7 +4,10 @@ import { addCanvasNode } from "./canvas-ui.fixture";
 
 /**
  * 新手教程：首屏「去简易工作台」→ 工作台（认识工作台 → 点右上角「打开画布」）
- * → 画布上创建节点 / 空格平移 / Ctrl 缩放。
+ * → 画布上创建节点 / 点中节点 Ctrl 滚轮缩放 / 空格平移 / 左下角缩放条，共 7 步。
+ *
+ * 首屏是工作台式主页：宽屏时第一步的锚点在左侧栏「快速生成」，卡片落在锚点右侧；
+ * 窄屏（≤960px）侧栏收进抽屉，锚点改挂首页的快速开始卡。
  *
  * 教程只在"从首屏首访"或"直接落在 /generate/*"这两条路上自动开跑，所以这里必须
  * 让入口门真的渲染出来（mock 一个已登录会话；匿名会话在本机会被登录优先页整个替掉）。
@@ -99,18 +102,31 @@ test("a first-time visitor is walked from the workbench into the canvas and thro
 
   const card = page.locator(CARD);
 
-  // 首屏第一步：引导用户点顶部生成入口去简易工作台（不再从首屏直接进画布）。
+  // 首屏第一步：引导用户点左侧栏「快速生成」去简易工作台（不再从首屏直接进画布）。
   await expect(card).toBeVisible();
   await expect(card).toHaveAttribute("data-step", "goto-workbench");
   await expect(card).toContainText("简易工作台");
-  await expect(card).toContainText("1/6");
+  await expect(card).toContainText("1/7");
+  const anchor = page.locator('[data-wc-tour="goto-workbench"]').first();
+  await expect(anchor).toHaveAttribute("href", "/generate/image");
+  expect(await anchor.evaluate((element) => Boolean(element.closest(".wc-home-sidebar")))).toBe(
+    true,
+  );
   await expectSpotlightOver(page, '[data-wc-tour="goto-workbench"]');
+  // 侧栏贴着视口左缘，卡片放在锚点右侧，不压住侧栏本身。
+  await expect(card).toHaveAttribute("data-placement", "right");
+  const sidebarRight = await page
+    .locator(".wc-home-sidebar")
+    .evaluate((element) => element.getBoundingClientRect().right);
+  expect(await card.evaluate((element) => element.getBoundingClientRect().left)).toBeGreaterThan(
+    sidebarRight,
+  );
   await page.screenshot({ path: testInfo.outputPath("tour-1-goto-workbench.png") });
 
   // 用户点的是被高亮的真入口（不是卡片上的按钮）：三个生成入口都挂这个锚点，
   // 教程环套住第一个「图片生成」，这里同样点它。整页跳到工作台后，
   // 教程应当在工作台上自动接跑「认识工作台」那一步。
-  await page.locator('[data-wc-tour="goto-workbench"]').first().click();
+  await anchor.click();
   await expect(page).toHaveURL(/\/generate\/image$/);
   await expect(card).toHaveAttribute("data-step", "workbench", { timeout: 15_000 });
   await expectSpotlightOver(page, '[data-wc-tour="workbench"]');
@@ -135,30 +151,41 @@ test("a first-time visitor is walked from the workbench into the canvas and thro
 
   // 真的去创建一个节点：教程应当自己往前走。
   await addCanvasNode(page, "添加文本节点");
-  await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(1);
+  const node = page.locator(".react-flow__node-weftcanvas");
+  await expect(node).toHaveCount(1);
+  await expect(card).toHaveAttribute("data-step", "node-zoom");
+  await expectSpotlightOver(page, ".react-flow__node");
+  await page.screenshot({ path: testInfo.outputPath("tour-5-node-zoom.png") });
+
+  // 点中节点，再按住 Ctrl 滚一次滚轮：自动前进到空格平移。
+  const nodeBox = (await node.boundingBox())!;
+  await page.mouse.click(nodeBox.x + nodeBox.width / 2, nodeBox.y + 12);
+  await page.mouse.move(nodeBox.x + nodeBox.width / 2, nodeBox.y + nodeBox.height / 2);
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, -240);
+  await page.keyboard.up("Control");
   await expect(card).toHaveAttribute("data-step", "space-pan");
   await expect(card).toContainText("空格");
 
-  // 真按住空格拖动一次：自动前进到缩放那一步。
-  await page.screenshot({ path: testInfo.outputPath("tour-5-space-pan.png") });
-  // 起手点刻意选在画面右侧：居中的教程卡占着视口中下方。
+  // 真按住空格拖动一次：自动前进到缩放条那一步。
+  await page.screenshot({ path: testInfo.outputPath("tour-6-space-pan.png") });
+  // 起手点刻意选在画面右侧：居中的教程卡占着视口中上方。
+  const before = await canvasZoom(page);
   await page.mouse.move(1_080, 300);
   await page.keyboard.down("Space");
   await page.mouse.down();
   await page.mouse.move(960, 380, { steps: 6 });
   await page.mouse.up();
   await page.keyboard.up("Space");
-  await expect(card).toHaveAttribute("data-step", "ctrl-zoom");
+  await expect(card).toHaveAttribute("data-step", "zoom-bar");
 
-  // Ctrl + 滚轮：既真的缩放画布，也让教程收尾。
+  // 最后一步指向左下角缩放条，点「完成」收尾；平移不改变缩放比例。
   await expectSpotlightOver(page, '[data-wc-tour="zoom"]');
-  await page.screenshot({ path: testInfo.outputPath("tour-6-ctrl-zoom.png") });
-  const before = await canvasZoom(page);
-  await page.keyboard.down("Control");
-  await page.mouse.wheel(0, -240);
-  await page.keyboard.up("Control");
+  await expect(card).toContainText("7/7");
+  await page.screenshot({ path: testInfo.outputPath("tour-7-zoom-bar.png") });
+  expect(await canvasZoom(page)).toBeCloseTo(before, 5);
+  await card.getByRole("button", { name: "完成" }).click();
   await expect(card).toHaveCount(0);
-  expect(await canvasZoom(page)).toBeGreaterThan(before);
 
   // 看过一次就不再自动弹：刷新后画布上不该再有教程。
   expect(await page.evaluate(() => localStorage.getItem("weftcanvas:onboarding:v1"))).toBe("done");
@@ -204,6 +231,31 @@ test("the tour card stays legible in the dark theme", async ({ page }, testInfo)
   await page.waitForTimeout(700);
   await page.screenshot({ path: testInfo.outputPath("tour-dark-theme.png") });
   await card.screenshot({ path: testInfo.outputPath("tour-dark-theme-card.png") });
+});
+
+test("on a narrow screen the first step points at the quick-start cards, not the hidden drawer", async ({
+  page,
+}, testInfo) => {
+  await mockSignedInGate(page);
+  await page.setViewportSize({ width: 768, height: 1_024 });
+  await page.goto("/");
+
+  const card = page.locator(CARD);
+  await expect(card).toHaveAttribute("data-step", "goto-workbench");
+  // 侧栏在抽屉里（屏幕外），锚点只挂在首页快速开始的三个生成卡上。
+  await expect(page.locator('.wc-home-sidebar [data-wc-tour="goto-workbench"]')).toHaveCount(0);
+  const anchor = page.locator('[data-wc-tour="goto-workbench"]').first();
+  expect(await anchor.evaluate((element) => element.closest(".wc-home-quick") !== null)).toBe(true);
+  await expectSpotlightOver(page, '[data-wc-tour="goto-workbench"]');
+  // 卡片完整留在视口里。
+  const box = (await card.boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(768);
+  await page.screenshot({ path: testInfo.outputPath("tour-1-goto-workbench-narrow.png") });
+
+  await anchor.click();
+  await expect(page).toHaveURL(/\/generate\/image$/);
+  await expect(card).toHaveAttribute("data-step", "workbench", { timeout: 15_000 });
 });
 
 test("the tour can be replayed from the shortcuts panel and skipped for good", async ({

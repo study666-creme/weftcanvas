@@ -11,7 +11,13 @@
 
 export const MODEL_MENU_GAP = 8;
 export const MODEL_MENU_MARGIN = 8;
-export const MODEL_MENU_MAX_WIDTH = 560;
+/**
+ * 菜单宽度。视频分类标签有 9 个（2.5 / 2.0 / 2.0fast / 2.0mini / Minimax /
+ * 可灵 / Wan / Grok / Seedance），560px 差一点点就能一行放下，结果硬生生多出
+ * 一条横向滚动条：标签被切掉一半，用户还得先滚一下才能看全分类。640px 让整行
+ * 完整可见；更窄的视口仍按视口宽度夹回，标签不够时就换行（不横向滚动）。
+ */
+export const MODEL_MENU_MAX_WIDTH = 640;
 export const MODEL_MENU_MAX_HEIGHT = 400;
 
 export type ModelMenuPlacement = {

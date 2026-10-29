@@ -1,25 +1,3 @@
-.wc-direct-page-nav > nav a {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.wc-direct-page-nav > nav a > svg {
-  width: 14px;
-  height: 14px;
-  color: var(--entry-jade);
-  stroke-width: 1.7;
-}
-
-.wc-direct-page-nav > nav a.is-active {
-  color: var(--entry-text);
-}
-
-.wc-direct-page-nav > nav a.is-active::after {
-  opacity: 0.82;
-  transform: scaleX(1);
-}
-
 .wc-activity-header {
   display: flex;
   padding: 12px 12px 12px 16px;
@@ -338,8 +316,603 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* 单屏工作台：顶栏留在文档流，主区吃掉剩余高度，生成台内部滚动。 */
 .wc-direct-page > main {
   position: relative;
   z-index: 4;
-  min-height: calc(100% - 64px);
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+/* 窄屏退回整页滚动：生成台不再压进一屏里。 */
+@media (max-width: 1080px) {
+  .wc-direct-page > main {
+    display: block;
+    flex: 0 0 auto;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * 生成工作台视觉返工（2026-10-28）
+ *
+ * 用户反馈：布局与边框「单薄、廉价」，边角和文字拥挤，顶栏一排按钮没有主次。
+ * 三条原则：
+ *   1. 顶栏只留一个实心主按钮；其余项目取消独立描边与底色，统一成一个间距值，
+ *      不分组、不加分隔线——分组间隔本身就被指为「莫名加个间隔，更丑」。
+ *   2. 面板外框加厚一层（描边 + 外环 + 柔和投影），圆角统一到 14px；内部分栏
+ *      靠一层浅底标签带区分，不再靠一叠 1px 细线。
+ *   3. 字号与行距整体抬一档：9–10px 的小字是「平庸」感的主要来源。
+ *
+ * 全部规则都限定在 .wc-direct-page 下：入口首屏的顶栏（.wc-entry-nav）与画布
+ * 不受影响，材质令牌的深浅翻转也仍走 --entry-*。
+ * ------------------------------------------------------------------------- */
+
+.wc-direct-page {
+  /* 主按钮（打开画布 / 生成）共用一套实心配色。浅色主题下白底白按钮只能靠
+     投影硬撑，正是「单薄」的来源；深色主题保持浅色胶囊，两边都有明确主次。 */
+  --wc-workbench-cta-bg: #dfe2da;
+  --wc-workbench-cta-fg: #12140f;
+  --wc-workbench-cta-bg-hover: #eef0e9;
+  --wc-workbench-cta-icon: #101211;
+  --wc-workbench-cta-shadow: rgb(0 0 0 / 28%);
+}
+
+.wc-app[data-theme="light"] .wc-direct-page {
+  --wc-workbench-cta-bg: #1c1f1b;
+  --wc-workbench-cta-fg: #f7f8f4;
+  --wc-workbench-cta-bg-hover: #2b302a;
+  --wc-workbench-cta-icon: #cfd6ca;
+  --wc-workbench-cta-shadow: rgb(24 30 22 / 22%);
+}
+
+/* --- 顶栏 --------------------------------------------------------------- */
+
+.wc-direct-page-nav {
+  height: 76px;
+  /* 顶栏是页眉，不该被下面的生成区挤矮：.wc-direct-page 是定高 flex 列，
+     默认 flex-shrink:1 会把它压到 61–68px（矮屏尤其明显），设成 76px 也白设。 */
+  flex: 0 0 auto;
+  padding: 0 clamp(20px, 3vw, 38px);
+  /* 三个生成类型入口已经收进生成台内部的切换条（SPA 切换、不整页刷新），
+     顶栏只剩品牌与动作区，改两列栅格，动作区不再被推到中间。 */
+  grid-template-columns: minmax(0, 1fr) auto;
+  /* 工作台现在允许整页滚动：吸顶栏必须是实色，否则滚上来的标题会从 88%
+     透明底里透出来，看起来像叠影。 */
+  background: var(--entry-bg);
+  border-bottom: 1px solid var(--entry-border);
+}
+
+.wc-direct-page-nav .wc-entry-brand {
+  gap: 12px;
+}
+
+.wc-direct-page-nav .wc-entry-brand-mark {
+  width: 38px;
+  height: 38px;
+  flex-basis: 38px;
+  border-radius: 9px;
+  box-shadow: 0 6px 16px rgb(0 0 0 / 22%);
+}
+
+.wc-direct-page-nav .wc-entry-brand strong {
+  font-size: 15px;
+  font-weight: 660;
+  letter-spacing: 0.01em;
+}
+
+.wc-direct-page-nav .wc-entry-brand small {
+  margin-top: 5px;
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+}
+
+/* 一排安静的项目：同一个间距、没有独立描边、没有分组间隔或分隔线。 */
+.wc-direct-page .wc-entry-nav-actions {
+  gap: 4px;
+}
+
+.wc-direct-page .wc-entry-nav-actions > a,
+.wc-direct-page .wc-entry-nav-actions > button {
+  height: 40px;
+  padding: 0 12px;
+  gap: 7px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--entry-muted);
+  background: transparent;
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 560;
+}
+
+.wc-direct-page .wc-entry-nav-actions > a:hover,
+.wc-direct-page .wc-entry-nav-actions > button:hover {
+  border-color: transparent;
+  color: var(--entry-text);
+  background: var(--entry-w5);
+  box-shadow: none;
+  transform: none;
+}
+
+.wc-direct-page .wc-entry-nav-actions > button:active {
+  background: var(--entry-w8);
+  transform: none;
+}
+
+/* 图标键（设置 / 日夜）：正方形热区，图标居中。 */
+.wc-direct-page .wc-entry-nav-actions > .wc-direct-api-action,
+.wc-direct-page .wc-entry-nav-actions > .wc-entry-theme-action {
+  width: 40px;
+  padding: 0;
+  justify-content: center;
+}
+
+/* 积分是读数，不是动作：一层淡底让它比相邻图标键更容易扫到，仍不做描边。 */
+.wc-direct-page .wc-entry-nav-actions > .wc-direct-credits-action {
+  padding: 0 12px;
+  border-radius: 9px;
+  background: var(--entry-w4);
+  color: var(--entry-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.wc-direct-page .wc-entry-nav-actions > .wc-direct-credits-action:hover {
+  background: var(--entry-w8);
+}
+
+.wc-direct-page .wc-entry-nav-actions > .wc-entry-account-action {
+  border-color: transparent;
+  color: var(--entry-text);
+  background: transparent;
+  box-shadow: none;
+  font-weight: 600;
+}
+
+.wc-direct-page .wc-entry-nav-actions > .wc-entry-account-action:hover {
+  border-color: transparent;
+  background: var(--entry-w5);
+  box-shadow: none;
+}
+
+.wc-direct-page .wc-entry-nav-actions > .wc-entry-primary-action {
+  padding: 0 16px;
+  border-color: transparent;
+  color: var(--wc-workbench-cta-fg);
+  background: var(--wc-workbench-cta-bg);
+  box-shadow: 0 4px 14px var(--wc-workbench-cta-shadow);
+  font-weight: 620;
+}
+
+.wc-direct-page .wc-entry-nav-actions > .wc-entry-primary-action > svg {
+  color: var(--wc-workbench-cta-icon);
+}
+
+.wc-direct-page .wc-entry-nav-actions > .wc-entry-primary-action:hover {
+  color: var(--wc-workbench-cta-fg);
+  background: var(--wc-workbench-cta-bg-hover);
+  box-shadow: 0 8px 20px var(--wc-workbench-cta-shadow);
+  transform: translateY(-1px);
+}
+
+/* 浅色主题另有一组 .wc-app[data-theme="light"] .wc-direct-page-action 与
+   …> .wc-entry-primary-action 规则（入口样式表末尾），特异性比基类高一档，
+   会把上面「无描边」和主按钮实心底色盖回白底浅灰。这里按同一档特异性重写，
+   顺序在后，浅色下才真的安静下来。 */
+.wc-app[data-theme="light"] .wc-direct-page .wc-entry-nav-actions > a,
+.wc-app[data-theme="light"] .wc-direct-page .wc-entry-nav-actions > button {
+  border-color: transparent;
+  background: transparent;
+}
+
+.wc-app[data-theme="light"] .wc-direct-page .wc-entry-nav-actions > a:hover,
+.wc-app[data-theme="light"] .wc-direct-page .wc-entry-nav-actions > button:hover {
+  background: var(--entry-w5);
+}
+
+.wc-app[data-theme="light"] .wc-direct-page .wc-entry-nav-actions > .wc-direct-credits-action {
+  background: var(--entry-w4);
+}
+
+.wc-app[data-theme="light"]
+  .wc-direct-page
+  .wc-entry-nav-actions
+  > .wc-direct-credits-action:hover {
+  background: var(--entry-w8);
+}
+
+.wc-app[data-theme="light"] .wc-direct-page .wc-entry-nav-actions > .wc-entry-primary-action {
+  border-color: transparent;
+  background: var(--wc-workbench-cta-bg);
+}
+
+.wc-app[data-theme="light"] .wc-direct-page .wc-entry-nav-actions > .wc-entry-primary-action:hover {
+  background: var(--wc-workbench-cta-bg-hover);
+}
+
+/* --- 标题行 ------------------------------------------------------------- */
+
+.wc-direct-page .wc-entry-section--generate {
+  padding: clamp(14px, 2vh, 22px) clamp(20px, 3vw, 40px) clamp(12px, 1.8vh, 20px);
+}
+
+/* 工作台高度跟着左栏参数走（用户 2026-10-28：右边不能比左边高这么多、点生成要
+   滚下去半天；左边比参数占的位置再长一点、不逼仄就够）。做法是让左栏正文按内容
+   取高、不再自己滚动，面板的高度下限就是"左栏内容 + 提交条"，两栏同高；视口更高
+   时面板继续填满，多出来的高度给右侧作品区。
+   .wc-direct-page 是 fixed 视口盒，所以放开纵向滚动，超出视口的部分由整页接管。 */
+.wc-direct-page {
+  overflow-y: auto;
+}
+
+/* 主区跟内容走、不压缩：面板的内容高度要真的换成高度，而不是被 flex 挤回去。 */
+.wc-direct-page > main {
+  flex: 1 0 auto;
+}
+
+.wc-direct-page .wc-direct-studio {
+  /* 高度下限 = 左栏内容；不用固定像素，避免右侧白长一大截。 */
+  min-height: min-content;
+}
+
+/* 右栏不参与面板的固有高度：面板由左栏参数决定，右栏填满同一格、自己的画廊
+   内部滚动。否则两行作品卡会把面板撑得比左栏高（用户 2026-10-28：右边不能比
+   左边高这么多）。contain:size 只影响固有尺寸，不影响实际布局与滚动。 */
+@media (min-width: 1081px) {
+  .wc-direct-page .wc-direct-result {
+    contain: size;
+  }
+}
+
+.wc-direct-page .wc-direct-workbench-head {
+  align-items: flex-end;
+  gap: 36px;
+  margin-bottom: 18px;
+  padding: 0 2px;
+}
+
+.wc-direct-page .wc-direct-workbench-title {
+  gap: 14px;
+}
+
+.wc-direct-page .wc-direct-workbench-title .wc-entry-kicker {
+  color: color-mix(in srgb, var(--entry-text) 68%, transparent);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+}
+
+.wc-direct-page .wc-direct-workbench-title h2 {
+  font-size: 21px;
+  font-weight: 560;
+  letter-spacing: 0.01em;
+}
+
+.wc-direct-page .wc-direct-workbench-head > p {
+  color: var(--entry-muted);
+  font-size: 12px;
+}
+
+/* --- 面板外壳 ----------------------------------------------------------- */
+
+.wc-direct-page .wc-direct-studio {
+  border: 1px solid var(--entry-border-strong);
+  border-radius: 14px;
+  background: var(--entry-surface);
+  box-shadow:
+    0 0 0 1px var(--entry-w3),
+    inset 0 1px 0 var(--entry-w8),
+    0 2px 4px rgb(0 0 0 / 4%),
+    0 28px 64px -32px rgb(0 0 0 / 34%);
+}
+
+/* 标签带用浅一档的底色分层；切换项本身不再是一个个描边小方块。 */
+.wc-direct-page .wc-direct-studio-tabs {
+  min-height: 54px;
+  padding: 9px clamp(14px, 1.6vw, 20px);
+  gap: 16px;
+  border-bottom: 1px solid var(--entry-border);
+  background: var(--entry-surface-muted);
+}
+
+.wc-direct-page .wc-direct-studio-tablist {
+  padding: 0;
+  gap: 4px;
+  border-radius: 0;
+  background: transparent;
+}
+
+.wc-direct-page .wc-direct-studio-tablist > button {
+  height: 34px;
+  padding: 0 13px;
+  gap: 7px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--entry-muted);
+  font-size: 12.5px;
+  font-weight: 560;
+}
+
+.wc-direct-page .wc-direct-studio-tablist > button:hover {
+  color: var(--entry-text);
+  background: var(--entry-w5);
+}
+
+.wc-direct-page .wc-direct-studio-tablist > button.is-active {
+  color: var(--entry-text);
+  border-color: var(--entry-border);
+  background: var(--entry-surface-strong);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
+  font-weight: 620;
+}
+
+.wc-direct-page .wc-direct-studio-tab-hint {
+  color: var(--entry-muted);
+  font-size: 11.5px;
+}
+
+/* --- 左栏：间距、字号、输入控件 ----------------------------------------- */
+
+.wc-direct-page .wc-direct-composer {
+  border-right: 1px solid var(--entry-border);
+}
+
+.wc-direct-page .wc-direct-composer-body {
+  /* 左栏正文按内容取高、不再自己滚：面板高度 = 参数真正需要的空间 + 一点余量，
+     左右两栏同高（用户 2026-10-28）。视口不够高时由整页接管滚动，不再在这里
+     压成小窗。 */
+  flex: 1 0 auto;
+  min-height: auto;
+  overflow: visible;
+  padding: 16px clamp(18px, 1.8vw, 26px) 28px;
+}
+
+.wc-direct-page .wc-direct-composer-header {
+  margin-bottom: 8px;
+}
+
+.wc-direct-page .wc-direct-index,
+.wc-direct-page .wc-direct-result-topline > span:first-child {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.wc-direct-page .wc-direct-composer-header h3 {
+  font-size: 19px;
+  font-weight: 570;
+}
+
+.wc-direct-page .wc-direct-live-dot {
+  font-size: 10px;
+}
+
+.wc-direct-page .wc-direct-prompt-field {
+  margin-bottom: 14px;
+}
+
+.wc-direct-page .wc-direct-prompt-field > span,
+.wc-direct-page .wc-direct-field-label > span {
+  font-size: 12px;
+  font-weight: 620;
+}
+
+.wc-direct-page .wc-direct-prompt-field textarea {
+  height: 124px;
+  margin-top: 8px;
+  padding: 13px 15px 24px;
+  border-color: var(--entry-w10);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 5%);
+  font-size: 13.5px;
+  line-height: 1.7;
+}
+
+/* 聚焦改成内阴影 + 一圈极淡的外环：原来那块 40px 的大投影在浅色底上像污渍。 */
+.wc-direct-page .wc-direct-prompt-field textarea:focus {
+  border-color: var(--entry-border-strong);
+  box-shadow:
+    inset 0 1px 2px rgb(0 0 0 / 4%),
+    0 0 0 3px var(--entry-w4);
+}
+
+.wc-direct-page .wc-direct-prompt-field > small {
+  right: 14px;
+  bottom: 10px;
+  font-size: 10px;
+}
+
+.wc-direct-page .wc-direct-field-group {
+  margin-bottom: 16px;
+}
+
+.wc-direct-page .wc-direct-field-label {
+  margin-bottom: 10px;
+}
+
+.wc-direct-page .wc-direct-field-label > small {
+  font-size: 10.5px;
+}
+
+.wc-direct-page .wc-direct-studio .wc-canvas-select-trigger {
+  min-height: 42px;
+  border-radius: 10px;
+}
+
+.wc-direct-page .wc-direct-model-description {
+  padding-right: 4px;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.wc-direct-page .wc-direct-materials {
+  padding: 8px;
+  border-radius: 12px;
+}
+
+.wc-direct-page .wc-direct-material-drop-hint {
+  font-size: 10.5px;
+}
+
+.wc-direct-page .wc-direct-material-actions > label {
+  height: 34px;
+  border-radius: 9px;
+  font-size: 11px;
+}
+
+/* --- 提交条 ------------------------------------------------------------- */
+
+.wc-direct-page .wc-direct-submit-row {
+  min-height: 58px;
+  padding: 11px clamp(18px, 1.8vw, 26px) 13px;
+}
+
+.wc-direct-page .wc-direct-price > span,
+.wc-direct-page .wc-direct-price > small {
+  font-size: 10px;
+}
+
+.wc-direct-page .wc-direct-submit {
+  min-width: 132px;
+  height: 44px;
+  border-color: transparent;
+  border-radius: 10px;
+  color: var(--wc-workbench-cta-fg);
+  background: var(--wc-workbench-cta-bg);
+  box-shadow: 0 8px 20px var(--wc-workbench-cta-shadow);
+  font-size: 12px;
+  font-weight: 640;
+}
+
+.wc-direct-page .wc-direct-submit > svg {
+  color: var(--wc-workbench-cta-icon);
+}
+
+.wc-direct-page .wc-direct-submit:hover:not(:disabled) {
+  color: var(--wc-workbench-cta-fg);
+  background: var(--wc-workbench-cta-bg-hover);
+  box-shadow: 0 12px 26px var(--wc-workbench-cta-shadow);
+}
+
+/* 禁用态必须重新写一遍：上面那条 .wc-direct-page .wc-direct-submit 特异性
+   更高，会盖掉基础表的 :disabled 规则，让不可用的按钮看起来能点。 */
+.wc-direct-page .wc-direct-submit:disabled {
+  border-color: var(--entry-disabled-border);
+  color: var(--entry-disabled-text);
+  background: var(--entry-disabled-fill);
+  box-shadow: none;
+  transform: none;
+}
+
+/* --- 右栏 --------------------------------------------------------------- */
+
+.wc-direct-page .wc-direct-result {
+  padding: 20px clamp(20px, 1.8vw, 28px);
+  background:
+    radial-gradient(120% 90% at 82% 0%, var(--entry-w4) 0%, transparent 58%),
+    linear-gradient(180deg, var(--entry-surface) 0%, var(--entry-band) 100%);
+}
+
+.wc-direct-page .wc-direct-result-topline {
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--entry-border);
+}
+
+.wc-direct-page .wc-direct-result-status {
+  font-size: 10px;
+}
+
+/* --- 窄屏：上面的高特异性规则会盖掉基础表里的媒体查询，这里逐条接回来 --- */
+
+@media (max-width: 1080px) {
+  .wc-direct-page .wc-direct-workbench-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .wc-direct-page .wc-direct-workbench-head > p {
+    text-align: left;
+    white-space: normal;
+  }
+
+  .wc-direct-page .wc-direct-composer {
+    border-right: 0;
+    border-bottom: 1px solid var(--entry-border);
+  }
+
+  /* 窄屏本来就是整页滚动、内容自然更高，不需要 880px 保底。 */
+  .wc-direct-page .wc-direct-studio {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 780px) {
+  /* 顶栏在窄屏回到 58px、内边距 14px（基类里的 76px 是针对桌面留白的）。 */
+  .wc-direct-page-nav {
+    height: 58px;
+    padding: 0 14px;
+  }
+
+  .wc-direct-page-nav .wc-entry-brand-mark {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+  }
+
+  .wc-direct-page-nav .wc-entry-brand strong {
+    font-size: 14px;
+  }
+
+  .wc-direct-page .wc-entry-section--generate {
+    padding: 16px clamp(12px, 3vw, 18px) 24px;
+  }
+
+  .wc-direct-page .wc-direct-composer-body {
+    padding: 18px 16px;
+  }
+
+  .wc-direct-page .wc-direct-studio-tabs {
+    padding: 7px 12px;
+    gap: 10px;
+  }
+
+  .wc-direct-page .wc-direct-studio-tablist {
+    flex: 1 1 auto;
+  }
+
+  .wc-direct-page .wc-direct-studio-tablist > button {
+    flex: 1 1 0;
+    padding: 0 8px;
+    font-size: 12px;
+  }
+
+  .wc-direct-page .wc-direct-studio-tab-hint {
+    display: none;
+  }
+
+  .wc-direct-page .wc-direct-submit-row {
+    padding: 12px 16px 14px;
+  }
+}
+
+@media (max-width: 520px) {
+  /* 手机上动作区只留图标：任务记录与账号名称收起后，品牌名才不会被动作区
+     压住（390px 下原来两个标签合计多占 87px，品牌文字直接叠进了「积分」键）。 */
+  .wc-direct-page .wc-entry-nav-actions {
+    gap: 2px;
+  }
+
+  .wc-direct-page .wc-entry-nav-actions > .wc-direct-activity-action,
+  .wc-direct-page .wc-entry-nav-actions > .wc-entry-account-action {
+    width: 40px;
+    padding: 0;
+    justify-content: center;
+    font-size: 0;
+  }
+
+  .wc-direct-page .wc-entry-nav-actions > .wc-direct-activity-action > span,
+  .wc-direct-page .wc-entry-nav-actions > .wc-entry-account-action > span {
+    display: none;
+  }
 }

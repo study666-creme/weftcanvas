@@ -8,7 +8,9 @@ import {
   composeModelParameters,
   defaultModelParameters,
   estimateInputTokens,
+  fixedMultiOutputImageCount,
   generationRequestQuantity,
+  isModelInternalParameter,
   isModelMediaReferenceParameter,
   isRequestPricedFixedMultiOutputImageModel,
   isUserFacingParameter,
@@ -433,14 +435,26 @@ describe("generation config", () => {
     });
   });
 
-  it("recognizes only request-priced fixed multi-output image models as one-call billing", () => {
+  it("separates the fixed multi-output contract from the per-call billing unit", () => {
     const mj = requestPricedMultiOutputImageModel();
     expect(isRequestPricedFixedMultiOutputImageModel(mj)).toBe(true);
     expect(requestPricedFixedOutputCount(mj)).toBe(5);
+    expect(fixedMultiOutputImageCount(mj)).toBe(5);
+
+    // 稳定/特惠 MJ 在线上按张计价，但同样是一次调用固定回 5/4 张：
+    // 展示与请求张数都必须读输出契约，而不是计价单位。
+    const perImageFixed = {
+      ...mj,
+      pricing: { ...mj.pricing, unit: "image" as const },
+    };
+    expect(fixedMultiOutputImageCount(perImageFixed)).toBe(5);
+    expect(isRequestPricedFixedMultiOutputImageModel(perImageFixed)).toBe(false);
+    expect(requestPricedFixedOutputCount(perImageFixed)).toBeNull();
 
     const perImage = imageModel();
     expect(isRequestPricedFixedMultiOutputImageModel(perImage)).toBe(false);
     expect(requestPricedFixedOutputCount(perImage)).toBeNull();
+    expect(fixedMultiOutputImageCount(perImage)).toBeNull();
 
     const requestSingle = {
       ...imageModel(),
@@ -457,6 +471,7 @@ describe("generation config", () => {
 
     expect(isRequestPricedFixedMultiOutputImageModel(null)).toBe(false);
     expect(requestPricedFixedOutputCount(null)).toBeNull();
+    expect(fixedMultiOutputImageCount(null)).toBeNull();
   });
 
   it("batches image and video models that return a single output without a usable n range", () => {
@@ -504,10 +519,15 @@ describe("generation config", () => {
     ).toBe(false);
   });
 
-  it("always sends quantity 1 for request-priced fixed multi-output image models", () => {
+  it("always sends quantity 1 for fixed multi-output image models", () => {
     const mj = requestPricedMultiOutputImageModel();
     expect(generationRequestQuantity(mj, false, 5)).toBe(1);
     expect(generationRequestQuantity(mj, true, 5)).toBe(1);
+
+    // 按张计价的固定多图（线上稳定/特惠 MJ）同样只发一次调用，张数由输出契约决定。
+    const perImageFixed = { ...mj, pricing: { ...mj.pricing, unit: "image" as const } };
+    expect(generationRequestQuantity(perImageFixed, false, 5)).toBe(1);
+    expect(generationRequestQuantity(perImageFixed, true, 5)).toBe(1);
 
     const perImage = imageModel();
     expect(generationRequestQuantity(perImage, false, 4)).toBe(4);
@@ -539,6 +559,36 @@ describe("generation config", () => {
     expect(
       autoPickGenerationSettings({ model, remembered: null, defaultAspectRatio: "3:4" }),
     ).toMatchObject({ size: "9:16" });
+  });
+
+  it("hides transport-only and un-editable audio parameters from every generation surface", () => {
+    const parameter = (
+      name: string,
+      type: ModelParameter["type"],
+      extra: Partial<ModelParameter> = {},
+    ): ModelParameter => ({
+      name,
+      label: name,
+      type,
+      required: false,
+      mutuallyExclusiveWith: [],
+      ...extra,
+    });
+
+    // 打开 stream 会让上游返回 SSE，执行侧按 JSON 解析必然失败，服务端也会直接
+    // 拒绝；responseModalities 是固定通道；speech_metadata 需要专用多说话人编辑器。
+    expect(isModelInternalParameter(parameter("stream", "boolean", { default: false }))).toBe(true);
+    expect(
+      isModelInternalParameter(parameter("responseModalities", "array", { fixed: ["AUDIO"] })),
+    ).toBe(true);
+    expect(isModelInternalParameter(parameter("speech_metadata", "object"))).toBe(true);
+    // 真正的创作开关仍然可见。
+    expect(isModelInternalParameter(parameter("instrumental", "boolean", { default: false }))).toBe(
+      false,
+    );
+    expect(
+      isModelInternalParameter(parameter("speechConfig", "object", { options: ["Kore"] })),
+    ).toBe(false);
   });
 });
 

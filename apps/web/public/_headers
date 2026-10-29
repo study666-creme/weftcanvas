@@ -15,9 +15,12 @@
 /mediapipe/*
   Cache-Control: public, max-age=31536000, immutable
 
+# frame-ancestors 允许 Prompt Hub 控制台内嵌（prompt-hubs.com/canvas/，契约见
+# prompt-hub 仓库 docs/CANVAS-INTEGRATION.md）、prompt-hubs.com 的各个子站
+# （如 API 站 newapi.prompt-hubs.com 的站内画布）与本地主站开发端口；
+# 不能用 X-Frame-Options 表达允许列表（ALLOW-FROM 已废弃），故不再发送该头。
 /*
-  Content-Security-Policy: base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'
-  X-Frame-Options: DENY
+  Content-Security-Policy: base-uri 'self'; object-src 'none'; frame-ancestors 'self' https://prompt-hubs.com https://*.prompt-hubs.com http://localhost:* http://127.0.0.1:*; form-action 'self'
   X-Content-Type-Options: nosniff
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   Referrer-Policy: strict-origin-when-cross-origin

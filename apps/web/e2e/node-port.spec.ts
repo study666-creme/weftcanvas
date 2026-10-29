@@ -203,6 +203,13 @@ test("node plus styles switch, persist, and share quick add behavior", async ({
     addedConfigBounds!.y + addedConfigBounds!.height > imageBounds!.y;
   expect(overlapsImage).toBe(false);
 
+  // Quick add selects the new configuration node, and its below-only composer
+  // overlays the bottom dock. Click empty canvas to close it, as a user would,
+  // before reaching for the dock.
+  const configComposer = page.locator("[data-node-configuration-composer]");
+  await expect(configComposer).toBeVisible();
+  await page.locator(".react-flow__pane").click({ position: { x: 1_200, y: 300 } });
+  await expect(configComposer).toHaveCount(0);
   await page.getByLabel("打开界面设置").click();
   await page.getByRole("tab", { name: "交互" }).click();
   await page

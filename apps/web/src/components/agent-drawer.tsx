@@ -13,7 +13,6 @@ import {
   FilePlus2,
   History,
   ImagePlus,
-  Link2,
   Maximize2,
   LoaderCircle,
   LogIn,
@@ -83,6 +82,7 @@ import { useUiPreferencesStore } from "../state/ui-preferences-store";
 import { useIdentityStore } from "../state/identity-store";
 import { useToastStore, type ToastTone } from "../state/toast-store";
 import { AgentConnectorsPanel } from "./agent-connectors-panel";
+import { AgentMaterialThumb } from "./agent-material-port";
 import { AgentModelSelect } from "./agent-model-select";
 import { AgentSkillsMenu } from "./agent-skills-menu";
 import { CanvasSelect } from "./canvas-select";
@@ -324,6 +324,14 @@ export const AgentDrawer = memo(function AgentDrawer() {
   );
   const selectedModel = models.find((model) => model.id === selectedModelId) ?? null;
   const supportsMedia = selectedModel?.mediaInput?.images === true;
+  // 只连了素材、没写字也能发（发送时由 store 补一句「请参考这些素材。」）。
+  const hasLinkedMedia =
+    supportsMedia &&
+    linkedNodes.some(
+      (node) => node.data.media && (node.data.kind === "image" || node.data.kind === "video"),
+    );
+  // 发送前要先把连线素材编码成附件，这段时间 busy 还没亮；用它挡住连按 Enter 的重复发送。
+  const submittingRef = useRef(false);
   const thinkingLevels = useMemo(
     () => models.find((model) => model.id === selectedModelId)?.thinking?.levels ?? [],
     [models, selectedModelId],
@@ -400,6 +408,28 @@ export const AgentDrawer = memo(function AgentDrawer() {
     }, 180);
     return () => window.clearTimeout(timeoutId);
   }, [isAuthenticated, open]);
+
+  // field-sizing: content 的高度不参与 grid 轨道尺寸计算（Chromium 缺陷）：轨道按
+  // rows 回退尺寸取值，长文本会把文本域顶出 composer、叠到底栏上。改为行内确定
+  // 高度——轨道按确定高度取值；封顶仍交给 CSS max-height，超出部分靠 overflow 滚动。
+  useLayoutEffect(() => {
+    const field = textareaRef.current;
+    if (!field) return;
+    const resize = () => {
+      field.style.height = "auto";
+      field.style.height = `${field.scrollHeight}px`;
+    };
+    resize();
+    let lastWidth = field.getBoundingClientRect().width;
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width ?? 0;
+      if (Math.abs(width - lastWidth) < 0.5) return;
+      lastWidth = width;
+      resize();
+    });
+    observer.observe(field);
+    return () => observer.disconnect();
+  }, [activeBaselineStep, draft]);
 
   useEffect(() => {
     if (!open) return;
@@ -638,24 +668,40 @@ export const AgentDrawer = memo(function AgentDrawer() {
         (node.data.kind === "image" || node.data.kind === "video") &&
         !attachments.some((attachment) => attachment.nodeId === node.id),
     );
-    const remaining = AGENT_MESSAGE_ATTACHMENT_LIMITS.maxPerMessage - attachments.length;
-    const fromLinks: AgentMessageAttachmentInput[] = [];
-    for (const node of mediaNodes.slice(0, Math.max(0, remaining))) {
-      if (!node.data.media) continue;
-      try {
-        const attachment = await createAgentAttachmentFromMedia(node.data.media, {
-          projectId,
-          cloudLinked,
-          nodeId: node.id,
-        });
-        if (attachment) fromLinks.push(attachment);
-      } catch (cause) {
-        showToast(
-          cause instanceof Error ? cause.message : `节点 ${node.id} 的素材读取失败`,
-          "error",
-        );
-      }
+    const remaining = Math.max(
+      0,
+      AGENT_MESSAGE_ATTACHMENT_LIMITS.maxPerMessage - attachments.length,
+    );
+    if (mediaNodes.length > remaining) {
+      const limit = AGENT_MESSAGE_ATTACHMENT_LIMITS.maxPerMessage;
+      showToast(
+        remaining
+          ? `每轮最多发送 ${limit} 个参考素材，这次先发前 ${remaining} 个连线素材`
+          : `本轮已附加 ${limit} 个素材，连线素材这次不会发送`,
+        "info",
+      );
     }
+    // 各素材互不依赖，并行读取与压缩；结果按连线顺序排列。
+    const fromLinks = (
+      await Promise.all(
+        mediaNodes.slice(0, remaining).map(async (node) => {
+          if (!node.data.media) return null;
+          try {
+            return await createAgentAttachmentFromMedia(node.data.media, {
+              projectId,
+              cloudLinked,
+              nodeId: node.id,
+            });
+          } catch (cause) {
+            showToast(
+              cause instanceof Error ? cause.message : `节点 ${node.id} 的素材读取失败`,
+              "error",
+            );
+            return null;
+          }
+        }),
+      )
+    ).filter((attachment): attachment is AgentMessageAttachmentInput => Boolean(attachment));
     const outgoing = [...attachments, ...fromLinks];
     try {
       assertAgentAttachmentsWithinLimits(outgoing);
@@ -671,22 +717,34 @@ export const AgentDrawer = memo(function AgentDrawer() {
       openAccount("login");
       return;
     }
-    if (busy || (!draft.trim() && !attachments.length)) return;
+    if (busy || submittingRef.current || (!draft.trim() && !attachments.length && !hasLinkedMedia))
+      return;
     if (activeBaselineStep) {
       await submitBaselineAnswer(draft);
       return;
     }
-    const outgoing = await collectOutgoingAttachments();
-    if (outgoing === null) return;
-    const completed = await send(
-      projectId,
-      draft,
-      readCurrentAgentCanvasContext(creativeGuidance),
-      outgoing,
-    );
-    if (completed) {
-      setDraft("");
-      setAttachments([]);
+    submittingRef.current = true;
+    try {
+      if (hasLinkedMedia) setAttachmentBusy(true);
+      let outgoing: AgentMessageAttachmentInput[] | null;
+      try {
+        outgoing = await collectOutgoingAttachments();
+      } finally {
+        if (hasLinkedMedia) setAttachmentBusy(false);
+      }
+      if (outgoing === null) return;
+      const completed = await send(
+        projectId,
+        draft,
+        readCurrentAgentCanvasContext(creativeGuidance),
+        outgoing,
+      );
+      if (completed) {
+        setDraft("");
+        setAttachments([]);
+      }
+    } finally {
+      submittingRef.current = false;
     }
   };
 
@@ -785,97 +843,107 @@ export const AgentDrawer = memo(function AgentDrawer() {
     >
       <div className="wc-agent-disc">
         <header className="wc-agent-header">
-          <span className="wc-agent-mark" aria-hidden="true" data-companion-style={companionStyle}>
-            {companionStyle === "whale" ? (
-              <img
-                className="wc-agent-mark-whale"
-                src="/agent/whale-girl/head.png"
-                alt=""
-                draggable={false}
-              />
-            ) : (
-              <Sparkles />
-            )}
-          </span>
-          <span className="wc-agent-title">
-            <strong>画布 Agent</strong>
-            <small>
-              <i aria-hidden="true" />
-              {panelStatus.label}
-            </small>
-          </span>
-          <AgentThreadMenu
-            authenticated={isAuthenticated}
-            projectName={projectName}
-            conversations={conversations}
-            activeConversationId={activeConversationId}
-            disabled={agentStatus === "loading" || agentStatus === "sending"}
-            creating={agentStatus === "loading"}
-            busy={busy}
-            onSelect={(next) => void selectConversation(next)}
-            onCreate={() => void createConversation(projectId)}
-          />
-          {isAuthenticated ? (
+          <div className="wc-agent-header-main">
+            <span
+              className="wc-agent-mark"
+              aria-hidden="true"
+              data-companion-style={companionStyle}
+            >
+              {companionStyle === "whale" ? (
+                <img
+                  className="wc-agent-mark-whale"
+                  src="/agent/whale-girl/head.png"
+                  alt=""
+                  draggable={false}
+                />
+              ) : (
+                <Sparkles />
+              )}
+            </span>
+            <span className="wc-agent-title">
+              <strong>画布 Agent</strong>
+              <small>
+                <i aria-hidden="true" />
+                {panelStatus.label}
+              </small>
+            </span>
+            <div className="wc-agent-header-tools">
+              {isAuthenticated ? (
+                <button
+                  type="button"
+                  className="wc-agent-header-button"
+                  aria-label="外部连接"
+                  title="外部连接：Codex 操作画布 / Agent 操作 Blender"
+                  aria-pressed={connectorsOpen}
+                  onClick={() => setConnectorsOpen((value) => !value)}
+                >
+                  <Plug aria-hidden="true" />
+                </button>
+              ) : null}
+              {isAuthenticated && detail ? (
+                <button
+                  type="button"
+                  className="wc-agent-header-button"
+                  aria-label="导出当前对话"
+                  title="导出当前对话为 JSON（已脱敏）"
+                  onClick={() => {
+                    try {
+                      downloadAgentConversationExport(detail);
+                      showToast("已导出当前对话", "success");
+                    } catch {
+                      showToast("导出失败，请稍后再试", "error");
+                    }
+                  }}
+                >
+                  <Download aria-hidden="true" />
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="wc-agent-header-button"
+                aria-label={`切换伙伴形象（当前：${companionStyleLabel(companionStyle)}）`}
+                title={`伙伴形象：${companionStyleLabel(companionStyle)}（点击切换为${companionStyleLabel(nextCompanionStyle(companionStyle))}）`}
+                aria-pressed={companionStyle === "whale"}
+                onClick={() => setCompanionStyle(nextCompanionStyle(companionStyle))}
+              >
+                <Bot aria-hidden="true" />
+              </button>
+            </div>
+            {isAuthenticated ? (
+              <button
+                type="button"
+                className="wc-agent-header-button"
+                aria-label="新建 Agent 对话"
+                title="新建对话"
+                onClick={() => void createConversation(projectId)}
+                disabled={agentStatus === "loading" || busy}
+              >
+                <Plus aria-hidden="true" />
+              </button>
+            ) : null}
             <button
               type="button"
               className="wc-agent-header-button"
-              aria-label="新建 Agent 对话"
-              title="新建对话"
-              onClick={() => void createConversation(projectId)}
-              disabled={agentStatus === "loading" || busy}
+              aria-label="收起 Agent"
+              title="收起"
+              onClick={close}
             >
-              <Plus aria-hidden="true" />
+              <X aria-hidden="true" />
             </button>
-          ) : null}
-          {isAuthenticated ? (
-            <button
-              type="button"
-              className="wc-agent-header-button"
-              aria-label="外部连接"
-              title="外部连接：Codex 操作画布 / Agent 操作 Blender"
-              aria-pressed={connectorsOpen}
-              onClick={() => setConnectorsOpen((value) => !value)}
-            >
-              <Plug aria-hidden="true" />
-            </button>
-          ) : null}
-          {isAuthenticated && detail ? (
-            <button
-              type="button"
-              className="wc-agent-header-button"
-              aria-label="导出当前对话"
-              title="导出当前对话为 JSON（已脱敏）"
-              onClick={() => {
-                try {
-                  downloadAgentConversationExport(detail);
-                  showToast("已导出当前对话", "success");
-                } catch {
-                  showToast("导出失败，请稍后再试", "error");
-                }
-              }}
-            >
-              <Download aria-hidden="true" />
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="wc-agent-header-button"
-            aria-label={`切换伙伴形象（当前：${companionStyleLabel(companionStyle)}）`}
-            title={`伙伴形象：${companionStyleLabel(companionStyle)}（点击切换为${companionStyleLabel(nextCompanionStyle(companionStyle))}）`}
-            aria-pressed={companionStyle === "whale"}
-            onClick={() => setCompanionStyle(nextCompanionStyle(companionStyle))}
-          >
-            <Bot aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className="wc-agent-header-button"
-            aria-label="收起 Agent"
-            title="收起"
-            onClick={close}
-          >
-            <X aria-hidden="true" />
-          </button>
+          </div>
+          <div className="wc-agent-header-thread">
+            <AgentThreadMenu
+              authenticated={isAuthenticated}
+              projectName={projectName}
+              conversations={conversations}
+              activeConversationId={activeConversationId}
+              disabled={agentStatus === "loading" || agentStatus === "sending"}
+              creating={agentStatus === "loading"}
+              busy={busy}
+              onSelect={(next) => void selectConversation(next)}
+              onCreate={() => void createConversation(projectId)}
+            />
+          </div>
         </header>
 
         {!isAuthenticated ? (
@@ -1089,7 +1157,7 @@ export const AgentDrawer = memo(function AgentDrawer() {
                         : "该节点没有可发送的图片或视频"
                     }
                   >
-                    <Link2 aria-hidden="true" />
+                    <AgentMaterialThumb media={node.data.media} kind={node.data.kind} />
                     <span>{linkedNodeLabel(node.id, node.data.kind, node.data.media?.name)}</span>
                     <button
                       type="button"
@@ -1129,23 +1197,7 @@ export const AgentDrawer = memo(function AgentDrawer() {
             onPaste={onComposerPaste}
           />
           <div className="wc-agent-composer-footer">
-            <div className="wc-agent-composer-row">
-              <button
-                type="button"
-                className="wc-agent-attach-button"
-                aria-label="添加参考图片或视频"
-                title={
-                  supportsMedia ? "添加参考图片或视频（也可以直接粘贴）" : "当前模型不支持图片输入"
-                }
-                disabled={busy || !supportsMedia}
-                onClick={() => attachInputRef.current?.click()}
-              >
-                {attachmentBusy ? (
-                  <LoaderCircle className="is-spinning" aria-hidden="true" />
-                ) : (
-                  <Paperclip aria-hidden="true" />
-                )}
-              </button>
+            <div className="wc-agent-composer-meta">
               <div
                 className={`wc-agent-model-field${modelStatus === "error" ? " wc-agent-model-error" : ""}`}
                 role={modelStatus === "error" ? "status" : undefined}
@@ -1191,12 +1243,34 @@ export const AgentDrawer = memo(function AgentDrawer() {
                 variant="compact"
                 menuMinWidth={180}
               />
+              <AgentSkillsMenu disabled={busy} />
+            </div>
+            <div className="wc-agent-composer-row">
+              <button
+                type="button"
+                className="wc-agent-attach-button"
+                aria-label="添加参考图片或视频"
+                title={
+                  supportsMedia ? "添加参考图片或视频（也可以直接粘贴）" : "当前模型不支持图片输入"
+                }
+                disabled={busy || !supportsMedia}
+                onClick={() => attachInputRef.current?.click()}
+              >
+                {attachmentBusy ? (
+                  <LoaderCircle className="is-spinning" aria-hidden="true" />
+                ) : (
+                  <Paperclip aria-hidden="true" />
+                )}
+              </button>
+              <span className="wc-agent-composer-hint" aria-hidden="true">
+                Enter 发送 · Shift+Enter 换行
+              </span>
               <button
                 ref={settingsButtonRef}
                 type="button"
                 className={`wc-agent-settings-button${settingsOpen ? " is-active" : ""}`}
                 aria-label="对话设置"
-                title="对话设置：执行权限、思考强度、技能"
+                title="对话设置：执行权限、思考强度"
                 aria-haspopup="dialog"
                 aria-expanded={settingsOpen}
                 onClick={() => setSettingsOpen((value) => !value)}
@@ -1209,7 +1283,7 @@ export const AgentDrawer = memo(function AgentDrawer() {
                 aria-label="发送给 Agent"
                 title="发送"
                 disabled={
-                  (!draft.trim() && !attachments.length) ||
+                  (!draft.trim() && !attachments.length && !hasLinkedMedia) ||
                   busy ||
                   agentStatus === "loading" ||
                   !modelReady
@@ -1270,10 +1344,6 @@ export const AgentDrawer = memo(function AgentDrawer() {
                     variant="compact"
                     menuMinWidth={180}
                   />
-                </div>
-                <div className="wc-agent-settings-field wc-agent-settings-field--inline">
-                  <span>技能</span>
-                  <AgentSkillsMenu disabled={busy} />
                 </div>
               </div>
             ) : null}

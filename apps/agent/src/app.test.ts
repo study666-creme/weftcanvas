@@ -8,7 +8,16 @@ import { MemoryConnectorSettingsStore } from "./connectors/settings.js";
 const TOKEN = "test-token";
 const AUTHORIZATION = { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" };
 
-function buildApp(queue = new CanvasControlQueue({ waitMs: 2_000 })) {
+function buildApp(
+  queue = new CanvasControlQueue({ waitMs: 2_000 }),
+  modelDeps?: {
+    getCatalog: () => {
+      defaultModelId: string;
+      models: Array<{ id: string; label: string }>;
+    };
+    getUpstreamModelIds?: () => Promise<string[] | undefined>;
+  },
+) {
   const provision = {
     codex: vi.fn(async () => ({
       ok: true,
@@ -30,7 +39,7 @@ function buildApp(queue = new CanvasControlQueue({ waitMs: 2_000 })) {
   });
   const app = createAgentApp({
     token: TOKEN,
-    models: {
+    models: modelDeps ?? {
       getCatalog: () => ({
         defaultModelId: "gpt-test",
         models: [{ id: "gpt-test", label: "Test" }],
@@ -72,6 +81,46 @@ const canvasContext = {
   groups: [],
   directorStage: null,
 };
+
+describe("agent model catalog surface", () => {
+  it("reports the upstream model ids when the upstream list is available", async () => {
+    const { app } = buildApp(new CanvasControlQueue({ waitMs: 2_000 }), {
+      getCatalog: () => ({
+        defaultModelId: "gpt-test",
+        models: [{ id: "gpt-test", label: "Test" }],
+      }),
+      getUpstreamModelIds: async () => ["gpt-test", "glm-5.3"],
+    });
+
+    const response = await app.request("/internal/v1/models", { headers: AUTHORIZATION });
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.data.upstreamModelIds).toEqual(["gpt-test", "glm-5.3"]);
+  });
+
+  it("keeps the catalog clean when the upstream list is unavailable or throws", async () => {
+    for (const getUpstreamModelIds of [
+      async () => undefined,
+      async () => {
+        throw new Error("upstream down");
+      },
+    ]) {
+      const { app } = buildApp(new CanvasControlQueue({ waitMs: 2_000 }), {
+        getCatalog: () => ({
+          defaultModelId: "gpt-test",
+          models: [{ id: "gpt-test", label: "Test" }],
+        }),
+        getUpstreamModelIds,
+      });
+
+      const response = await app.request("/internal/v1/models", { headers: AUTHORIZATION });
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.data.models.map((model: { id: string }) => model.id)).toEqual(["gpt-test"]);
+      expect("upstreamModelIds" in body.data).toBe(false);
+    }
+  });
+});
 
 describe("agent connector HTTP surface", () => {
   it("requires the runtime bearer token", async () => {

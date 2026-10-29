@@ -1,6 +1,7 @@
 import { ReactFlowProvider } from "@xyflow/react";
 import { useEffect } from "react";
-import "@xyflow/react/dist/style.css";
+// xyflow 基础样式经 cascade layer 引入，产品样式恒定胜出（见 xyflow-base.css）。
+import "../xyflow-base.css";
 
 import type { ThemeMode } from "../App";
 import type { CanvasBootIdentityStatus } from "../lib/canvas-boot";

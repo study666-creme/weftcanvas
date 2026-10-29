@@ -1391,8 +1391,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const nodes = state.nodes.map((node) => {
       if (!targetIds.has(node.id)) return node;
       // 自动写入的模型默认参数（自动选模型、能力 reconcile）不得改写创建者的
-      // 默认画幅：空节点只在用户显式配置过画幅或媒体落地后才跟随参数比例。
-      if (!node.data.media && !node.data.generation.aspectExplicit && !options?.force) return node;
+      // 选择：只有用户显式配置过画幅（aspectExplicit）或调用方强制要求时才跟随
+      // 参数比例。媒体节点同样适用——否则点开生成面板时，自动补上的模型默认
+      // 16:9 会把 9:16 的成品节点当场压扁，产出的画面也被裁掉。
+      if (!node.data.generation.aspectExplicit && !options?.force) return node;
       const next = resizeMediaNodeToAspectRatio(node, aspectRatio);
       if (next !== node) changed = true;
       return next;

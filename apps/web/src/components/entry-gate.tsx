@@ -1,13 +1,4 @@
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type ClipboardEvent,
-  type DragEvent,
-  type KeyboardEvent,
-} from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   CircleUserRound,
@@ -26,40 +17,18 @@ import {
 } from "lucide-react";
 
 import canvasWidePreview from "../assets/product-canvas-wide-1600.jpg";
+import { DIRECT_COMPOSER_PROMPT_MAX, useDirectComposer } from "../hooks/use-direct-composer";
 import {
   ACTIVE_PROJECT_STORAGE_KEY,
   readProjectSummaryIndex,
 } from "../lib/project-summary-storage";
-import { createMediaUpload, createRequestKey, uploadMediaBlob } from "../lib/api-client";
-import {
-  directMentionCandidates,
-  insertDirectMention,
-  mentionQueryAtCursor,
-  type DirectMentionCandidate,
-} from "../lib/direct-generation-mentions";
-import { validateImageBlob, validateMediaBlob } from "../lib/media-validation";
-import { inferMaterialKind } from "../lib/media-kind";
 import { WEFTCANVAS_API_SITE_URL } from "../lib/custom-api";
 
 /** 卡片库站点由部署注入（custom-api 的 VITE_WEFTCANVAS_API_BASE_URL）；为空不渲染外链。 */
 const CARD_LIBRARY_SITE_URL = WEFTCANVAS_API_SITE_URL;
-import {
-  defaultModelParameters,
-  isModelBoundTextParameter,
-  isModelCompatibilityParameterHidden,
-  isModelInternalParameter,
-  isModelMediaReferenceParameter,
-  isUserFacingParameter,
-  reconcileModelParameters,
-} from "../lib/generation-config";
-import { getReferenceImagePurposes } from "../lib/generation-inputs";
-import { useDirectReferenceStore, type DirectReference } from "../state/direct-reference-store";
-import { useGenerationStore } from "../state/generation-store";
 import { useIdentityStore } from "../state/identity-store";
-import { directMaterialControls } from "../lib/direct-material-controls";
 import type { DirectModality } from "./direct-generation-studio";
 import { CategorizedModelSelect } from "./categorized-model-select";
-import { pickDefaultModel } from "./generation-model-select";
 import { GenerationParameterField } from "./generation-parameter-field";
 
 const MODES: { value: DirectModality; label: string; icon: typeof ImageIcon }[] = [
@@ -79,8 +48,6 @@ const INSPIRATIONS: Record<DirectModality, string[]> = {
     "Lo-fi 学习节奏",
   ],
 };
-
-const PROMPT_MAX = 4000;
 
 const SHOWCASE: { tone: string; kind: "image" | "video"; prompt: string; span?: boolean }[] = [
   {
@@ -126,293 +93,36 @@ export function EntryGate({
   const openAccount = useIdentityStore((state) => state.openDialog);
   const recentProjects = projects.slice(0, 3);
 
-  const [mode, setMode] = useState<DirectModality>("image");
-  const [prompt, setPrompt] = useState("");
-  const [modelId, setModelId] = useState("");
-  const [parameters, setParameters] = useState<Record<string, unknown>>({});
+  // 生成框的状态与行为与工作台式主页共用（模式 / 模型 / 参数 / 参考素材 / @ 引用 / 提交）。
+  const composer = useDirectComposer();
+  const {
+    mode,
+    changeMode,
+    prompt,
+    updatePrompt,
+    promptRef,
+    fileInputRef,
+    mentionRange,
+    mentionIndex,
+    visibleMentionCandidates,
+    chooseMention,
+    mentionReference,
+    references,
+    removeReference,
+    dragActive,
+    uploadError,
+    models,
+    model,
+    setModelId,
+    parameters,
+    setParameter,
+    editableParameters,
+    materialControls,
+    acceptedMimes,
+    goGenerate,
+    submit,
+  } = composer;
   const inspirations = useMemo(() => INSPIRATIONS[mode], [mode]);
-  const promptRef = useRef<HTMLTextAreaElement>(null);
-  const [mentionRange, setMentionRange] = useState<{
-    start: number;
-    end: number;
-    query: string;
-  } | null>(null);
-  const [mentionIndex, setMentionIndex] = useState(0);
-
-  const references = useDirectReferenceStore((state) => state.references[mode]);
-  const addReferences = useDirectReferenceStore((state) => state.addReferences);
-  const updateReference = useDirectReferenceStore((state) => state.updateReference);
-  const removeReference = useDirectReferenceStore((state) => state.removeReference);
-  const [dragActive, setDragActive] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const catalog = useGenerationStore((state) => state.catalogs[mode]);
-  const loadCatalog = useGenerationStore((state) => state.loadCatalog);
-
-  useEffect(() => {
-    void loadCatalog(mode);
-  }, [mode, loadCatalog]);
-
-  const models = useMemo(
-    () => (catalog.data?.models ?? []).filter((item) => item.modality === mode),
-    [catalog.data, mode],
-  );
-
-  const model = useMemo(
-    () => models.find((item) => item.id === modelId) ?? pickDefaultModel(models),
-    [models, modelId],
-  );
-
-  useEffect(() => {
-    if (!models.length) {
-      if (modelId) {
-        setModelId("");
-        setParameters({});
-      }
-      return;
-    }
-    const selected = models.find((item) => item.id === modelId) ?? pickDefaultModel(models)!;
-    if (selected.id !== modelId) {
-      setModelId(selected.id);
-      setParameters(defaultModelParameters(selected));
-      return;
-    }
-    setParameters((current) => {
-      const reconciled = reconcileModelParameters(selected, current);
-      return JSON.stringify(reconciled) === JSON.stringify(current) ? current : reconciled;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [models, modelId]);
-
-  const editableParameters = useMemo(
-    () =>
-      model?.parameters.filter(
-        (parameter) =>
-          !isModelBoundTextParameter(model, parameter) &&
-          !isModelInternalParameter(parameter) &&
-          !isModelMediaReferenceParameter(model, parameter) &&
-          !isModelCompatibilityParameterHidden(model, parameter) &&
-          isUserFacingParameter(parameter),
-      ) ?? [],
-    [model],
-  );
-
-  const changeMode = (next: DirectModality) => {
-    if (next === mode) return;
-    setMode(next);
-    setModelId("");
-    setParameters({});
-  };
-
-  const mentionCandidates = useMemo(() => directMentionCandidates(references), [references]);
-  const visibleMentionCandidates = useMemo(() => {
-    if (!mentionRange) return [];
-    const query = mentionRange.query.toLocaleLowerCase("zh-CN");
-    return mentionCandidates.filter((candidate) =>
-      `${candidate.label} ${candidate.name}`.toLocaleLowerCase("zh-CN").includes(query),
-    );
-  }, [mentionCandidates, mentionRange]);
-
-  const updatePrompt = (value: string, cursor: number) => {
-    setPrompt(value);
-    setMentionRange(mentionQueryAtCursor(value, cursor));
-    setMentionIndex(0);
-  };
-
-  const chooseMention = (candidate: DirectMentionCandidate) => {
-    if (!mentionRange) return;
-    const next = insertDirectMention(prompt, mentionRange, candidate);
-    updatePrompt(next.value, next.cursor);
-    requestAnimationFrame(() => {
-      const textarea = promptRef.current;
-      if (!textarea) return;
-      textarea.focus();
-      textarea.setSelectionRange(next.cursor, next.cursor);
-    });
-  };
-
-  const mentionReference = (reference: DirectReference) => {
-    if (reference.status !== "ready") return;
-    const candidate = mentionCandidates.find((item) => item.id === reference.id);
-    if (!candidate) return;
-    const textarea = promptRef.current;
-    const cursor = textarea?.selectionStart ?? prompt.length;
-    const next = insertDirectMention(prompt, { start: cursor, end: cursor }, candidate);
-    updatePrompt(next.value, next.cursor);
-    requestAnimationFrame(() => {
-      textarea?.focus();
-      textarea?.setSelectionRange(next.cursor, next.cursor);
-    });
-  };
-
-  const materialControls = useMemo(
-    () => directMaterialControls(model, references),
-    [model, references],
-  );
-  const acceptedMimes = useMemo(
-    () => materialControls.map((control) => control.accept).join(","),
-    [materialControls],
-  );
-  const supportedKinds = useMemo(
-    () => new Set(materialControls.map((control) => control.kind)),
-    [materialControls],
-  );
-  const maxFor = (kind: "image" | "video" | "audio") =>
-    materialControls.find((control) => control.kind === kind)?.max ?? 0;
-
-  const uploadFiles = async (files: File[]) => {
-    if (!files.length || !model) return;
-    setUploadError(null);
-    // 按文件内容分类（MIME → 扩展名 → 魔数）：下载素材的 file.type 常为空，
-    // 只按 MIME 分组会让这些文件在拖入/粘贴后无声消失。
-    const grouped: Record<"image" | "video" | "audio", File[]> = {
-      image: [],
-      video: [],
-      audio: [],
-    };
-    for (const file of files) {
-      const kind = await inferMaterialKind(file);
-      if (kind) grouped[kind].push(file);
-    }
-    const imageFiles = grouped.image;
-    const videoFiles = grouped.video;
-    const audioFiles = grouped.audio;
-    const groups: { kind: "image" | "video" | "audio"; items: File[] }[] = [];
-    if (imageFiles.length && supportedKinds.has("image"))
-      groups.push({ kind: "image", items: imageFiles });
-    if (videoFiles.length && supportedKinds.has("video"))
-      groups.push({ kind: "video", items: videoFiles });
-    if (audioFiles.length && supportedKinds.has("audio"))
-      groups.push({ kind: "audio", items: audioFiles });
-    if (!groups.length) {
-      setUploadError("当前模型不支持该类型素材");
-      return;
-    }
-    await Promise.all(groups.map(({ kind, items }) => uploadKind(kind, items)));
-  };
-
-  const uploadKind = async (kind: "image" | "video" | "audio", files: File[]) => {
-    const max = maxFor(kind);
-    const existing = references.filter((reference) => reference.kind === kind).length;
-    const available = Math.max(0, max - existing);
-    if (!available) {
-      setUploadError(
-        kind === "image"
-          ? `图片素材最多 ${max} 个`
-          : kind === "video"
-            ? `视频素材最多 ${max} 个`
-            : `音频素材最多 ${max} 个`,
-      );
-      return;
-    }
-    const imagePurposes = model ? getReferenceImagePurposes(model) : [];
-    const accepted = files.slice(0, available);
-    const pending: DirectReference[] = accepted.map((file) => ({
-      id: crypto.randomUUID(),
-      kind,
-      name: (file.name || "参考素材").slice(0, 255),
-      previewUrl: null,
-      serverId: null,
-      status: "uploading",
-      error: null,
-      uploadKey: createRequestKey("entry-material"),
-      imagePurpose: kind === "image" ? (imagePurposes[0] ?? null) : null,
-      durationMs: null,
-    }));
-    addReferences(mode, pending);
-    await Promise.all(
-      pending.map(async (reference, index) => {
-        try {
-          const file = accepted[index]!;
-          const validated =
-            kind === "image" ? await validateImageBlob(file) : await validateMediaBlob(file, kind);
-          if (kind === "image" && validated.mimeType === "image/svg+xml")
-            throw new Error("暂不支持 SVG，请上传 PNG、JPEG 或 WebP");
-          const previewUrl = URL.createObjectURL(validated.blob);
-          updateReference(mode, reference.id, { previewUrl });
-          const intent = await createMediaUpload({
-            kind,
-            name: reference.name,
-            mimeType: validated.mimeType,
-            size: validated.blob.size,
-            idempotencyKey: reference.uploadKey,
-          });
-          const ready = intent.upload
-            ? await uploadMediaBlob(intent.media, intent.upload, validated.blob)
-            : intent.media;
-          if (ready.status !== "ready") throw new Error(ready.error?.message ?? "素材处理失败");
-          updateReference(mode, reference.id, {
-            serverId: ready.id,
-            status: "ready",
-            error: null,
-            // 上传回包里就带探测出的时长（视频/音频才有）：H3 的参考视频必须成对
-            // 声明时长，拿到就不必再查一次素材元数据。
-            durationMs: kind === "image" ? null : (ready.durationMs ?? null),
-          });
-        } catch (cause) {
-          updateReference(mode, reference.id, {
-            status: "error",
-            error: cause instanceof Error ? cause.message : "素材上传失败",
-          });
-        }
-      }),
-    );
-  };
-
-  const onFileInput = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.currentTarget.files ?? []);
-    event.currentTarget.value = "";
-    void uploadFiles(files);
-  };
-
-  const onDrop = (event: DragEvent<HTMLDivElement>) => {
-    const files = Array.from(event.dataTransfer?.files ?? []);
-    if (!files.length) return;
-    event.preventDefault();
-    setDragActive(false);
-    void uploadFiles(files);
-  };
-
-  const onDragOver = (event: DragEvent<HTMLDivElement>) => {
-    if (event.dataTransfer?.types.includes("Files")) {
-      event.preventDefault();
-      setDragActive(true);
-    }
-  };
-
-  const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
-    const files = Array.from(event.clipboardData?.files ?? []);
-    if (files.length) void uploadFiles(files);
-  };
-
-  const goGenerate = (modality: DirectModality, text: string) => {
-    // 工作台对游客开放：未配置 API / 未登录时由工作台内诚实拦截并指向设置。
-    const query = new URLSearchParams();
-    const trimmed = text.trim();
-    if (trimmed) query.set("prompt", trimmed);
-    if (model?.id) query.set("model", model.id);
-    for (const parameter of editableParameters) {
-      const value = parameters[parameter.name];
-      if (value !== undefined && value !== null && value !== "")
-        query.set(`p_${parameter.name}`, JSON.stringify(value));
-    }
-    // Mark this as an intentional handoff: the workbench reads the shared
-    // reference store for uploaded materials and auto-submits once with the
-    // prompt + mentions the user already composed on the gate.
-    query.set("autosubmit", "1");
-    const suffix = query.toString();
-    window.location.assign(`/generate/${modality}${suffix ? `?${suffix}` : ""}`);
-  };
-
-  const submit = () => goGenerate(mode, prompt);
-
-  const onPromptKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      submit();
-    }
-  };
 
   const enterProject = async (projectId: string) => {
     const { useProjectLibraryStore } = await import("../state/project-library-store");
@@ -591,19 +301,16 @@ export function EntryGate({
 
                 <div
                   className={`wc-entry-composer-body${dragActive ? " is-drag-active" : ""}`}
-                  onDragOver={onDragOver}
-                  onDragLeave={(event) => {
-                    if (!event.currentTarget.contains(event.relatedTarget as Node | null))
-                      setDragActive(false);
-                  }}
-                  onDrop={onDrop}
+                  onDragOver={composer.onDragOver}
+                  onDragLeave={composer.onDragLeave}
+                  onDrop={composer.onDrop}
                 >
                   <div className="wc-entry-prompt-wrap">
                     <textarea
                       ref={promptRef}
                       className="wc-entry-prompt"
                       rows={2}
-                      maxLength={PROMPT_MAX}
+                      maxLength={DIRECT_COMPOSER_PROMPT_MAX}
                       placeholder={
                         mode === "image"
                           ? "描述主体、环境、光线和画面气质…"
@@ -617,40 +324,8 @@ export function EntryGate({
                           event.target.selectionStart ?? event.target.value.length,
                         )
                       }
-                      onKeyDown={(event) => {
-                        if (mentionRange && visibleMentionCandidates.length) {
-                          if (event.key === "ArrowDown") {
-                            event.preventDefault();
-                            setMentionIndex(
-                              (current) => (current + 1) % visibleMentionCandidates.length,
-                            );
-                            return;
-                          }
-                          if (event.key === "ArrowUp") {
-                            event.preventDefault();
-                            setMentionIndex(
-                              (current) =>
-                                (current - 1 + visibleMentionCandidates.length) %
-                                visibleMentionCandidates.length,
-                            );
-                            return;
-                          }
-                          if (event.key === "Enter" || event.key === "Tab") {
-                            event.preventDefault();
-                            chooseMention(
-                              visibleMentionCandidates[mentionIndex] ??
-                                visibleMentionCandidates[0]!,
-                            );
-                            return;
-                          }
-                          if (event.key === "Escape") {
-                            setMentionRange(null);
-                            return;
-                          }
-                        }
-                        onPromptKeyDown(event);
-                      }}
-                      onPaste={onPaste}
+                      onKeyDown={composer.handlePromptKeyDown}
+                      onPaste={composer.onPaste}
                     />
                     {mentionRange && visibleMentionCandidates.length ? (
                       <div className="wc-entry-mention-menu" role="listbox" aria-label="引用素材">
@@ -724,10 +399,7 @@ export function EntryGate({
                           <button
                             type="button"
                             aria-label={`移除素材 ${reference.name}`}
-                            onClick={() => {
-                              if (reference.previewUrl) URL.revokeObjectURL(reference.previewUrl);
-                              removeReference(mode, reference.id);
-                            }}
+                            onClick={() => removeReference(reference)}
                           >
                             <X aria-hidden="true" />
                           </button>
@@ -757,7 +429,7 @@ export function EntryGate({
                         accept={acceptedMimes || "image/*,video/*,audio/*"}
                         multiple
                         hidden
-                        onChange={onFileInput}
+                        onChange={composer.onFileInput}
                         aria-hidden="true"
                         tabIndex={-1}
                       />
@@ -792,12 +464,7 @@ export function EntryGate({
                               value={parameters[parameter.name]}
                               disabled={false}
                               boundedDuration={mode === "video"}
-                              onChange={(value) =>
-                                setParameters((current) => ({
-                                  ...current,
-                                  [parameter.name]: value,
-                                }))
-                              }
+                              onChange={(value) => setParameter(parameter.name, value)}
                               onValidityChange={() => undefined}
                               menuClassName="wc-entry-select-menu"
                             />

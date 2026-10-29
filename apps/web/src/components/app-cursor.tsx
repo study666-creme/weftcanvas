@@ -121,9 +121,9 @@ export const AppCursor = memo(function AppCursor() {
     };
     syncModeRef.current = syncMode;
 
-    // 位置写入合并到每帧一次。一帧内可能收到几十条指针事件（高刷鼠标 + coalesced
-    // 采样能到上千 Hz），每条都写 transform 就是让主线程在这个高频回调里排队——
-    // 这正是「光标追不上手」的来源。写入合并后，一帧只有一次合成器属性更新。
+    // 位置写入合并到每帧一次（pointermove 回退路径）。一帧内可能收到几十条指针
+    // 事件（高刷鼠标 + coalesced 采样能到上千 Hz），每条都写 transform 就是让
+    // 主线程在这个高频回调里排队。写入合并后，一帧只有一次合成器属性更新。
     let pendingX = 0;
     let pendingY = 0;
     let frame = 0;
@@ -140,18 +140,24 @@ export const AppCursor = memo(function AppCursor() {
     };
 
     // Chromium 的 pointerrawupdate 拿得到不受显示刷新节流的高频样本，比
-    // pointermove 更早、更密，是"跟手"的关键；其它内核继续走 pointermove。
-    // （事件名不在标准 DOM 类型里，所以按 Event 收再收窄。）
+    // pointermove 更早、更密。这里直写 transform 而不是排进 rAF：rawupdate
+    // 在浏览器把它交给当前帧的样式阶段前触发，直写能让位置赶上一个 rAF 节拍，
+    // 也就是自绘光标最容易背锅的那「慢一帧」。非 Chromium 内核没有这个事件，
+    // 继续走上面的 rAF 合并路径。
     const supportsRawUpdate = "onpointerrawupdate" in window;
     const rawMove = (event: Event) => {
-      const pointer = event as PointerEvent;
-      if (!isFinePointerEvent(pointer)) return;
-      queuePosition(pointer);
+      const raw = event as PointerEvent;
+      if (!isFinePointerEvent(raw)) return;
+      const samples = raw.getCoalescedEvents?.() ?? [];
+      const latest = samples.at(-1) ?? raw;
+      pointer.style.transform = `translate3d(${latest.clientX - 4}px, ${latest.clientY - 3}px, 0)`;
     };
 
     const move = (event: PointerEvent) => {
       if (!isFinePointerEvent(event)) return;
-      queuePosition(event);
+      // 有 rawupdate 时位置只由它写：pointermove 是按帧对齐的旧样本，再排一次
+      // rAF 写入会在同一帧里把更新的 raw 位置盖回去，光标就会往回跳一下。
+      if (!supportsRawUpdate) queuePosition(event);
       if (lastTarget !== event.target) {
         const nextInsideCanvas =
           event.target instanceof Element && Boolean(event.target.closest(".react-flow"));

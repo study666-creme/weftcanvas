@@ -1131,12 +1131,18 @@ function geminiCandidateParts(value: unknown): Array<Record<string, unknown>> {
   });
 }
 
-/** 音色下拉发的是裸选项值（"Kore"），Gemini 的 speechConfig 要对象形态。 */
+/**
+ * 音色下拉发的是裸选项值（"Kore"），Gemini 原生 generateContent 要求
+ * `speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName`。以前包成
+ * `{ voiceConfig: { voice } }` 并不是 Gemini 的字段，上游会直接按无效参数拒绝。
+ */
 function normalizeAudioRequestPayload(payload: Record<string, unknown>) {
   const generationConfig = recordOf(payload.generationConfig);
   if (!generationConfig) return;
   if (typeof generationConfig.speechConfig === "string")
-    generationConfig.speechConfig = { voiceConfig: { voice: generationConfig.speechConfig } };
+    generationConfig.speechConfig = {
+      voiceConfig: { prebuiltVoiceConfig: { voiceName: generationConfig.speechConfig.trim() } },
+    };
 }
 
 function audioUnparseable() {

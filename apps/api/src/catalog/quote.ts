@@ -138,6 +138,19 @@ function normalizeParameters(model: PublicModel, submitted: Record<string, unkno
 }
 
 function validateParameter(parameter: ModelParameter, value: unknown) {
+  // 发布了枚举选项的参数以选项值为准，与底层传输类型无关：用户看到并提交的
+  // 就是选项本身（例如 Gemini TTS 的音色 `Kore`，执行侧才包成 speechConfig
+  // 对象）。以前这里按 `object` 类型把裸音色判成格式错误，导致托管 TTS 在
+  // 报价阶段就永远无法提交。
+  if (parameter.options?.length) {
+    if (!parameter.options.some((option) => sameValue(option, value))) {
+      throw new QuoteValidationError(
+        "INVALID_PARAMETER_OPTION",
+        `${parameter.label}不支持这个选项`,
+      );
+    }
+    return;
+  }
   if (parameter.type === "string" && typeof value !== "string") invalidType(parameter);
   if (parameter.type === "boolean" && typeof value !== "boolean") invalidType(parameter);
   if ((parameter.type === "number" || parameter.type === "integer") && typeof value !== "number")
@@ -149,9 +162,6 @@ function validateParameter(parameter: ModelParameter, value: unknown) {
   if (parameter.type === "array" && !Array.isArray(value)) invalidType(parameter);
   if (parameter.type === "object" && (!value || typeof value !== "object" || Array.isArray(value)))
     invalidType(parameter);
-  if (parameter.options && !parameter.options.some((option) => sameValue(option, value))) {
-    throw new QuoteValidationError("INVALID_PARAMETER_OPTION", `${parameter.label}不支持这个选项`);
-  }
   if (typeof value === "number") {
     if (parameter.min !== undefined && value < parameter.min)
       throw new QuoteValidationError(

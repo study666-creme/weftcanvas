@@ -47,6 +47,9 @@ const PARAMETER_META: Record<string, GenerationParameterMeta> = {
   index: { hint: "对四宫格中的第几张执行（1–4）" },
   custom_id: { hint: "高级：上游任务返回的按钮 ID（如 U1、V2）。填写后优先于「动作 + 序号」组合" },
   zoom_ratio: { hint: "扩图倍数：大于 1 时主体缩小、四周补全内容" },
+  // 音频：音乐与语音合成只有这两个真正的创作选择，其余目录参数都是传输细节。
+  instrumental: { hint: "开启后生成无人声的纯音乐；关闭则按提示词生成带人声的歌曲" },
+  speechconfig: { hint: "选择预置演播室音色；不同音色的性别、语气与适用场景不同" },
 };
 
 /** Midjourney 后续动作参数名：它是对已完成任务的二次操作，与直接生成分属两种流程。 */

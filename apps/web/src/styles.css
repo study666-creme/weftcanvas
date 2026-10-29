@@ -1,7 +1,18 @@
 :root {
-  font-family:
-    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC", "Microsoft YaHei",
-    sans-serif;
+  /* 字体栈：系统 UI 字体优先（不下载 webfont，首屏零字体阻塞）。中文依次落到
+     苹方 / HarmonyOS Sans / MiSans / 微软雅黑 UI（UI 版字形与雅黑一致、行高更适合
+     控件）/ 思源黑体；拉丁字母在 Windows 11 上用 Segoe UI Variable 的正文光学尺寸。 */
+  --wc-font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI",
+    "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei UI", "Microsoft YaHei",
+    "Noto Sans SC", "Source Han Sans SC", system-ui, sans-serif;
+  --wc-font-mono:
+    ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  /* 品牌强调色（香槟金）：只用于小面积状态——选中指示、焦点环、进度/用量条、
+     当前项目标记。独立令牌，不复用 --wc-accent / --entry-jade（见 AGENTS.md）。 */
+  --wc-brand: #8a6420;
+  --wc-brand-soft: rgb(138 100 32 / 12%);
+  font-family: var(--wc-font-sans);
   color: #1d2321;
   background: #e7e8e5;
   font-synthesis: none;
@@ -49,6 +60,8 @@
 :root[data-theme="dark"] {
   color: #eef1f2;
   background: #141414;
+  --wc-brand: #d4b26a;
+  --wc-brand-soft: rgb(212 178 106 / 16%);
   --wc-canvas: #141414;
   --wc-background-canvas: #141414;
   --wc-background-surface: #1c1c1c;
@@ -751,8 +764,10 @@ textarea:focus-visible {
   pointer-events: stroke;
 }
 
+/* 跟随主题文字色：深色主题仍是近白 70%，浅色主题不再是浅底上的白线
+   （以前浅色下靠 xyflow 的聚焦描边盖过这条，xyflow 进 layer 后由这里负责）。 */
 .react-flow__edge.selected .react-flow__edge-path {
-  stroke: rgb(255 255 255 / 70%);
+  stroke: color-mix(in srgb, var(--wc-text) 70%, transparent);
   stroke-width: 2;
 }
 
@@ -2432,49 +2447,6 @@ textarea:focus-visible {
   bottom: -10px;
   left: -14px;
   width: 18px;
-}
-
-.wc-create-rail-popover .wc-add-node {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  gap: 9px;
-  padding: 0 10px;
-  height: 34px;
-  border-radius: 9px;
-  color: var(--wc-text-secondary);
-  background: transparent;
-  transition:
-    transform 120ms ease,
-    background-color 140ms ease,
-    color 120ms ease;
-}
-
-.wc-create-rail-popover .wc-add-node:hover {
-  transform: translateY(-0.5px);
-  color: var(--wc-text);
-  background: color-mix(in srgb, var(--wc-surface-strong) 60%, transparent);
-}
-
-.wc-create-rail-popover .wc-add-node--image:hover {
-  color: var(--wc-blue);
-  background: var(--wc-blue-soft);
-}
-
-.wc-create-rail-popover .wc-add-node--video:hover {
-  color: var(--wc-coral);
-  background: var(--wc-coral-soft);
-}
-
-.wc-create-rail-popover .wc-add-node--audio:hover,
-.wc-create-rail-popover .wc-add-node--config:hover {
-  color: var(--wc-jade);
-  background: var(--wc-jade-soft);
-}
-
-.wc-create-rail-popover .wc-add-node--text:hover {
-  color: var(--wc-amber);
-  background: var(--wc-amber-soft);
 }
 
 /* 弱机降级：不放 blur；保留位置但降低透明度开销 */
@@ -4213,11 +4185,6 @@ textarea:focus-visible {
   .wc-agent-drawer {
     right: 16px;
     width: 320px;
-  }
-
-  /* 窄桌面下只调整底部工具锚点，画布和视口仍保持原位。 */
-  .wc-workspace.is-agent-open .wc-edit-dock {
-    left: min(50%, calc(100% - var(--wc-agent-space) - 28px - 176px));
   }
 
   .wc-shortcuts-grid {
@@ -6472,7 +6439,7 @@ textarea:focus-visible {
 
 .wc-wallet-products {
   display: grid;
-  max-height: 208px;
+  max-height: 276px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
   overflow-y: auto;
@@ -7389,11 +7356,6 @@ textarea:focus-visible {
   transition:
     background-color 140ms ease,
     transform 140ms ease;
-}
-
-/* Opening Agent never repositions persistent canvas tools. */
-.wc-workspace.is-agent-open .wc-edit-dock {
-  left: 50%;
 }
 
 @media (max-width: 1200px) {
@@ -8315,6 +8277,39 @@ textarea:focus-visible {
   width: calc(100% - var(--wc-agent-space));
 }
 
+/* 画布变窄后 dock 仍在画布里居中，但不能压到左下角的缩放控件（16px + 260px）：
+   居中会压上时右移到缩放控件右侧 16px。left 是 dock 中心，172px 取 dock 半宽
+   （默认 / classic 外观实测宽 336px，studio 340px），留出几像素余量。 */
+.wc-workspace.is-agent-open .wc-edit-dock {
+  left: max(50%, calc(16px + 260px + 16px + 172px));
+}
+
+@media (max-width: 1200px) {
+  /* 1200px 以下缩放控件收窄到 230px。 */
+  .wc-workspace.is-agent-open .wc-edit-dock {
+    left: max(50%, calc(16px + 230px + 16px + 172px));
+  }
+}
+
+/* 再窄一行就放不下缩放控件 + dock（1024 宽时画布只剩 584px）：dock 回到居中，
+   缩放控件与小地图整体上移一行，叠在 dock 上方。720px 以下抽屉是覆盖式全屏，
+   底部工具沿用移动端自己的上下排布。 */
+@media (max-width: 1079px) {
+  .wc-workspace.is-agent-open .wc-edit-dock {
+    left: 50%;
+  }
+}
+
+@media (max-width: 1079px) and (min-width: 721px) {
+  .wc-workspace.is-agent-open .wc-zoom-control {
+    bottom: 84px;
+  }
+
+  .wc-workspace.is-agent-open .wc-mini-map.react-flow__minimap {
+    bottom: 150px;
+  }
+}
+
 @media (max-width: 720px) {
   .wc-workspace.is-agent-open {
     --wc-agent-space: 0px;
@@ -8323,81 +8318,6 @@ textarea:focus-visible {
   .wc-workspace.is-agent-open > .wc-flow-shell {
     width: 100%;
   }
-}
-
-/* --- Agent 引用口与连线（渲染层虚拟节点，不写进项目文档） ------------- */
-.wc-agent-anchor-node {
-  z-index: 1000 !important;
-  pointer-events: auto;
-}
-
-.wc-agent-anchor {
-  display: flex;
-  width: 190px;
-  min-height: 54px;
-  align-items: center;
-  gap: 9px;
-  padding: 9px 12px;
-  border: 1px dashed color-mix(in srgb, var(--wc-accent) 52%, var(--wc-border-strong));
-  border-radius: 10px;
-  color: var(--wc-text-secondary);
-  background: color-mix(in srgb, var(--wc-surface-raised) 88%, var(--wc-canvas));
-  box-shadow: 0 8px 22px rgb(0 0 0 / 12%);
-}
-
-.wc-agent-anchor.is-selected {
-  border-color: var(--wc-accent);
-}
-
-.wc-agent-anchor-icon {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: 8px;
-  color: var(--wc-accent);
-  background: var(--wc-accent-soft);
-}
-
-.wc-agent-anchor-icon svg {
-  width: 15px;
-  height: 15px;
-}
-
-.wc-agent-anchor-copy {
-  display: grid;
-  min-width: 0;
-  gap: 2px;
-}
-
-.wc-agent-anchor-copy strong {
-  color: var(--wc-text);
-  font-size: 12px;
-  font-weight: 620;
-  line-height: 1.1;
-}
-
-.wc-agent-anchor-copy small {
-  overflow: hidden;
-  color: var(--wc-text-tertiary);
-  font-size: 10px;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.wc-agent-anchor .wc-agent-anchor-handle {
-  width: 12px;
-  height: 12px;
-  border: 1.5px solid color-mix(in srgb, var(--wc-accent) 66%, var(--wc-border-strong));
-  background: var(--wc-surface-raised);
-}
-
-.wc-agent-link-edge .react-flow__edge-path {
-  stroke: color-mix(in srgb, var(--wc-accent) 72%, var(--wc-border-strong));
-  stroke-dasharray: 5 4;
-  stroke-width: 1.5;
 }
 
 /* --- Agent composer：附件托盘 + 两行控制区 ---------------------------- */
@@ -8458,6 +8378,7 @@ textarea:focus-visible {
   gap: 6px;
   padding: 9px 10px 2px;
   overflow-x: auto;
+  overflow-y: hidden;
   scrollbar-width: thin;
 }
 
@@ -8507,9 +8428,16 @@ textarea:focus-visible {
   width: 20px;
   height: 20px;
   flex: 0 0 auto;
+  /* 必须显式清掉浏览器默认按钮外观：否则这里只有 border-radius，
+     UA 的 2px outset 描边、ButtonFace 底和默认 padding 会原样漏出来，
+     移除按钮就会像一块错位的立体小方块浮在芯片上。 */
+  appearance: none;
+  border: 0;
+  padding: 0;
   place-items: center;
   border-radius: 4px;
   color: var(--wc-text-tertiary);
+  background: transparent;
 }
 
 .wc-agent-attachment button:hover:not(:disabled),

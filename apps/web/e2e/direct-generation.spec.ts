@@ -156,6 +156,15 @@ function omniVideoModel() {
   };
 }
 
+/** 用真实目录参数形状替换音频模型的参数表（与 api 快照里的 Suno / TTS 一致）。 */
+function audioModelWithParameters(
+  id: string,
+  label: string,
+  parameters: Array<Record<string, unknown>>,
+): ReturnType<typeof model> {
+  return { ...model("audio"), id, label, description: "", parameters } as ReturnType<typeof model>;
+}
+
 async function mockDirectApis(
   page: Page,
   catalogOverrides: Partial<Record<"image" | "video" | "audio", ReturnType<typeof model>[]>> = {},
@@ -447,23 +456,28 @@ async function mockDirectApis(
   };
 }
 
-test("homepage keeps direct generation out of the entry page and exposes sticky generation links", async ({
+test("the home page keeps the studio out of the first screen and pins the generation links", async ({
   page,
 }) => {
   await mockDirectApis(page);
   await skipOnboardingTour(page);
   await page.goto("/");
 
-  const gate = page.locator(".wc-entry-gate");
-  await expect(gate).toBeVisible();
-  await expect(gate.locator("[data-direct-generation]")).toHaveCount(0);
+  const home = page.locator(".wc-home");
+  await expect(home).toBeVisible();
+  await expect(home.locator("[data-direct-generation]")).toHaveCount(0);
 
-  const nav = gate.locator(".wc-entry-nav");
-  await expect(nav).toHaveCSS("position", "sticky");
-  const imageLink = page.getByRole("link", { name: "图片生成" });
-  const videoLink = page.getByRole("link", { name: "视频生成" });
+  // 生成入口在侧栏「快速生成」里：主区滚到底，侧栏不跟着滚，入口一直可点。
+  const nav = page.getByRole("navigation", { name: "生成入口" });
+  const imageLink = nav.getByRole("link", { name: "图片生成" });
+  const videoLink = nav.getByRole("link", { name: "视频生成" });
   await expect(imageLink).toHaveAttribute("href", "/generate/image");
   await expect(videoLink).toHaveAttribute("href", "/generate/video");
+  const linkTop = () => imageLink.evaluate((element) => element.getBoundingClientRect().top);
+  const before = await linkTop();
+  await page.locator(".wc-home-main").evaluate((main) => main.scrollTo({ top: main.scrollHeight }));
+  expect(await linkTop()).toBe(before);
+  await expect(imageLink).toBeInViewport();
 
   await imageLink.click();
   await expect(page).toHaveURL(/\/generate\/image$/);
@@ -543,6 +557,8 @@ test("model picker shows aggregated success rate and description per option", as
     },
   ];
   await mockDirectApis(page, { image: imageModels });
+  // 新手教程卡片会压在模型选择器上；本用例测的是模型列表，不是教程。
+  await skipOnboardingTour(page);
   await page.goto("/generate/image");
 
   await page.getByRole("button", { name: "模型" }).click();
@@ -678,6 +694,77 @@ test("standalone image generation submits without canvas nodes and previews the 
   });
 });
 
+test("workbench sizes to the composer and remembers the result column arrangement", async ({
+  page,
+}, testInfo) => {
+  await mockDirectApis(page);
+  // 教程浮层会盖住结果栏，这里测的是工作台本身的几何。
+  await skipOnboardingTour(page);
+  await page.goto("/generate/image");
+  const studio = page.locator("[data-direct-generation]");
+  await expect(studio.getByRole("button", { name: "模型" })).toContainText("首页图片模型");
+
+  // 2026-10-28：面板高度由左栏参数决定（右栏 contain:size 不参与固有高度），
+  // 左右两栏严格等高；参数不在内层滚动条里，屏幕不够高时整页滚一点。
+  const composerMetrics = await studio.locator(".wc-direct-composer-body").evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+  }));
+  expect(composerMetrics.scrollHeight).toBeLessThanOrEqual(composerMetrics.clientHeight + 1);
+  const columnHeights = await studio.evaluate((element) => ({
+    composer: element.querySelector(".wc-direct-composer")!.getBoundingClientRect().height,
+    result: element.querySelector(".wc-direct-result")!.getBoundingClientRect().height,
+  }));
+  expect(Math.abs(columnHeights.composer - columnHeights.result)).toBeLessThanOrEqual(1);
+
+  // 1080p 全屏仍是一屏：参数高度小于可用高度，页面不出现纵向滚动。
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  const hdMetrics = await page.locator(".wc-direct-page").evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+  }));
+  expect(hdMetrics.scrollHeight).toBeLessThanOrEqual(hdMetrics.clientHeight + 1);
+  await page.setViewportSize({ width: 1440, height: 900 });
+
+  const gallery = studio.locator(".wc-direct-result-gallery").first();
+  // repeat(N, minmax(0,1fr)) 解析成 N 段像素值，段数即列数。
+  const columnCount = () =>
+    gallery.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length);
+  const tileFillsRow = () =>
+    gallery.evaluate((element) => {
+      const tile = element.querySelector(".wc-direct-result-tile");
+      if (!tile) return false;
+      const padding = Number.parseFloat(getComputedStyle(element).paddingLeft) * 2;
+      return Math.abs(tile.getBoundingClientRect().width - (element.clientWidth - padding)) <= 2;
+    });
+
+  await expect(studio.getByRole("radio", { name: "三列排列" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  expect(await columnCount()).toBe(3);
+
+  await studio.getByRole("radio", { name: "单列排列" }).click();
+  await expect.poll(columnCount).toBe(1);
+  await expect.poll(tileFillsRow).toBe(true);
+  expect(
+    await page.evaluate(() => localStorage.getItem("weftcanvas:direct:result-layout:v1")),
+  ).toBe("1");
+  await page.screenshot({ path: testInfo.outputPath("direct-result-layout-single.png") });
+
+  await studio.getByRole("radio", { name: "两列排列" }).click();
+  await expect.poll(columnCount).toBe(2);
+  await page.screenshot({ path: testInfo.outputPath("direct-result-layout-two.png") });
+
+  // 选择落在本机：刷新后仍是两列。
+  await page.reload();
+  await expect(studio.getByRole("radio", { name: "两列排列" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await expect.poll(columnCount).toBe(2);
+});
+
 test("standalone audio generation submits a hosted job and renders a playable result", async ({
   page,
 }) => {
@@ -713,6 +800,278 @@ test("standalone audio generation submits a hosted job and renders a playable re
   expect(submission?.projectId).toBe("home-direct-generation");
   expect(submission?.nodeId).toBe("home-direct-audio");
   expect(submission?.modality).toBe("audio");
+});
+
+test("music and TTS models expose only creative audio controls", async ({ page }) => {
+  const suno = audioModelWithParameters("suno-v6", "Suno v6 音乐生成", [
+    {
+      name: "messages",
+      label: "消息",
+      type: "array",
+      required: true,
+      minItems: 1,
+      items: { type: "object" },
+      mutuallyExclusiveWith: [],
+    },
+    {
+      name: "instrumental",
+      label: "纯音乐",
+      type: "boolean",
+      required: false,
+      default: false,
+      mutuallyExclusiveWith: [],
+    },
+    {
+      name: "n",
+      label: "音乐任务数",
+      type: "integer",
+      required: false,
+      default: 1,
+      fixed: 1,
+      mutuallyExclusiveWith: [],
+    },
+    {
+      name: "stream",
+      label: "流式输出",
+      type: "boolean",
+      required: false,
+      default: false,
+      mutuallyExclusiveWith: [],
+    },
+  ]);
+  const tts = audioModelWithParameters("gemini-3.8-flash-tts", "Gemini 语音合成 TTS", [
+    {
+      name: "contents",
+      label: "对话内容",
+      type: "array",
+      required: true,
+      minItems: 1,
+      items: { type: "object" },
+      mutuallyExclusiveWith: [],
+    },
+    {
+      name: "speech_metadata",
+      label: "逐轮语音风格",
+      type: "object",
+      required: false,
+      mutuallyExclusiveWith: [],
+    },
+    {
+      name: "responseModalities",
+      label: "响应模态",
+      type: "array",
+      required: true,
+      fixed: ["AUDIO"],
+      mutuallyExclusiveWith: [],
+    },
+    {
+      name: "speechConfig",
+      label: "语音配置",
+      type: "object",
+      required: true,
+      // 真实目录里是 30 个预置音色：超过芯片上限，必须回落成下拉，不能铺成几十个按钮。
+      options: [
+        "Zephyr",
+        "Puck",
+        "Kore",
+        "Charon",
+        "Leda",
+        "Fenrir",
+        "Orus",
+        "Aoede",
+        "Callirrhoe",
+        "Autonoe",
+        "Enceladus",
+        "Iapetus",
+        "Umbriel",
+        "Algieba",
+        "Despina",
+        "Erinome",
+        "Algenib",
+        "Rasalgethi",
+        "Laomedeia",
+        "Achernar",
+        "Alnilam",
+        "Schedar",
+        "Gacrux",
+        "Pulcherrima",
+        "Achird",
+        "Zubenelgenubi",
+        "Vindemiatrix",
+        "Sadachbia",
+        "Sadaltager",
+        "Sulafat",
+      ],
+      mutuallyExclusiveWith: [],
+    },
+  ]);
+  const { readQuoteRequest } = await mockDirectApis(page, { audio: [suno, tts] });
+  // 新手教程卡片会压在模型选择器上；本用例测的是音频参数面，不是教程。
+  await skipOnboardingTour(page);
+  await page.goto("/generate/audio");
+
+  const studio = page.locator("[data-direct-generation]");
+  await expect(studio.getByRole("button", { name: "模型" })).toContainText("Suno v6 音乐生成");
+  // 音乐模型只留「纯音乐」这一个创作开关；stream / n 是传输细节，不出现。
+  await expect(studio.getByText("纯音乐", { exact: true })).toBeVisible();
+  await expect(studio.getByText("流式输出")).toHaveCount(0);
+  await expect(studio.getByText("音乐任务数")).toHaveCount(0);
+
+  await studio.locator("[data-direct-prompt]").fill("一段轻快的钢琴曲");
+  await expect
+    .poll(() => {
+      const parameters = readQuoteRequest()?.parameters as Record<string, unknown> | undefined;
+      return parameters && Array.isArray(parameters.messages) ? parameters : null;
+    })
+    .not.toBeNull();
+  const sunoQuote = readQuoteRequest();
+  expect(sunoQuote?.parameters).toMatchObject({ n: 1, instrumental: false });
+  expect((sunoQuote?.parameters as Record<string, unknown>).stream).not.toBe(true);
+
+  // TTS：音色是下拉（长枚举），不是几十个芯片；JSON 形态的字段不暴露。
+  await studio.getByRole("button", { name: "模型" }).click();
+  const menu = page.locator(".wc-cat-select-menu");
+  await menu.getByRole("option", { name: /Gemini 语音合成 TTS/ }).click();
+  const voice = studio.getByRole("button", { name: "语音配置" });
+  await expect(voice).toBeVisible();
+  await expect(voice).toContainText("Zephyr");
+  await expect(studio.locator(".wc-param-chips", { hasText: "语音配置" })).toHaveCount(0);
+  await expect(studio.getByText("逐轮语音风格")).toHaveCount(0);
+  await expect(studio.getByText("响应模态")).toHaveCount(0);
+
+  await expect
+    .poll(
+      () => (readQuoteRequest()?.parameters as Record<string, unknown> | undefined)?.speechConfig,
+    )
+    .toBe("Zephyr");
+  const ttsQuote = readQuoteRequest();
+  expect(ttsQuote?.modelId).toBe("gemini-3.8-flash-tts");
+  expect(ttsQuote?.parameters).toMatchObject({
+    speechConfig: "Zephyr",
+    responseModalities: ["AUDIO"],
+  });
+  expect((ttsQuote?.parameters as Record<string, unknown>).speech_metadata).toBeUndefined();
+});
+
+test("single-column results show the whole artwork with prompt and actions in view", async ({
+  page,
+}) => {
+  await mockDirectApis(page);
+  await skipOnboardingTour(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/generate/image");
+
+  const studio = page.locator("[data-direct-generation]");
+  await studio.getByRole("radio", { name: "单列排列" }).click();
+  // 示例卡自带声明画幅；真实结果是原图比例，这里把示例画幅撤掉来模拟真实结果。
+  await studio
+    .locator(".wc-direct-result-media")
+    .first()
+    .evaluate((media) => {
+      media.removeAttribute("data-sample-ratio");
+      (media as HTMLElement).style.aspectRatio = "";
+    });
+  const image = studio.locator(".wc-direct-result-media img").first();
+  await expect(image).toBeVisible();
+
+  // 换成 3:4 竖图：高图要按可用高度收敛，整张图与按钮同屏。
+  await image.evaluate(async (element) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 900;
+    canvas.height = 1200;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("2D context unavailable");
+    context.fillStyle = "#23343f";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    (element as HTMLImageElement).src = canvas.toDataURL("image/png");
+    await (element as HTMLImageElement).decode();
+  });
+  await page.waitForTimeout(200);
+
+  const metrics = await studio.evaluate((root) => {
+    const stage = root.querySelector(".wc-direct-result-stage")!.getBoundingClientRect();
+    const tile = root.querySelector(".wc-direct-result-tile")!;
+    const element = tile.querySelector<HTMLImageElement>(".wc-direct-result-media img")!;
+    const body = tile.querySelector(".wc-direct-result-body")!.getBoundingClientRect();
+    const rect = element.getBoundingClientRect();
+    return {
+      naturalRatio: element.naturalWidth / element.naturalHeight,
+      renderedRatio: rect.width / rect.height,
+      imageInsideStage: rect.top >= stage.top - 1 && rect.bottom <= stage.bottom + 1,
+      bodyBelowImage: body.top >= rect.bottom - 1,
+      bodyInsideStage: body.bottom <= stage.bottom + 1,
+      // 单列每张作品都是一整格：卡片铺满面板宽度，留白由作品自身的虚化底图填满
+      // （组件把图地址写进 --wc-result-ambient），而不是一张小图浮在白底上。
+      tileWidth: tile.getBoundingClientRect().width,
+      stageWidth: stage.width,
+      ambient: getComputedStyle(tile).getPropertyValue("--wc-result-ambient").trim(),
+      pageScroll: document.documentElement.scrollHeight - window.innerHeight,
+    };
+  });
+
+  // 整张图（不裁切、按原比例）与提示词/操作条同屏可见。
+  expect(metrics.renderedRatio).toBeCloseTo(metrics.naturalRatio, 1);
+  expect(metrics.imageInsideStage).toBe(true);
+  expect(metrics.bodyBelowImage).toBe(true);
+  expect(metrics.bodyInsideStage).toBe(true);
+  expect(metrics.tileWidth).toBeGreaterThanOrEqual(metrics.stageWidth - 4);
+  expect(metrics.ambient).toContain("url(");
+  expect(metrics.pageScroll).toBe(0);
+
+  const tile = studio.locator(".wc-direct-result-tile").first();
+  await expect(tile.locator(".wc-direct-result-caption")).toBeVisible();
+  await expect(tile.locator(".wc-direct-result-controls button")).toHaveCount(3);
+  await expect(tile.locator(".wc-direct-result-controls button").first()).toBeVisible();
+});
+
+test("single-column wide results fill the panel width", async ({ page }) => {
+  await mockDirectApis(page);
+  await skipOnboardingTour(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/generate/image");
+
+  const studio = page.locator("[data-direct-generation]");
+  await studio.getByRole("radio", { name: "单列排列" }).click();
+  // 第二个示例是 16:9：宽图应当铺满面板宽度，同时整张可见。
+  const wide = studio.locator('.wc-direct-result-media[data-sample-ratio="16 / 9"]').first();
+  await wide.scrollIntoViewIfNeeded();
+  await expect(wide).toBeVisible();
+
+  const metrics = await studio.evaluate((root) => {
+    const stage = root.querySelector(".wc-direct-result-stage")!.getBoundingClientRect();
+    const media = root.querySelector('.wc-direct-result-media[data-sample-ratio="16 / 9"]')!;
+    const rect = media.getBoundingClientRect();
+    return {
+      widthRatio: rect.width / stage.width,
+      heightRatio: rect.height / stage.height,
+    };
+  });
+  expect(metrics.widthRatio).toBeGreaterThan(0.9);
+  expect(metrics.heightRatio).toBeLessThan(1);
+});
+
+test("single-column samples preview the common aspect ratios", async ({ page }) => {
+  await mockDirectApis(page);
+  await skipOnboardingTour(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/generate/image");
+
+  const studio = page.locator("[data-direct-generation]");
+  await studio.getByRole("radio", { name: "单列排列" }).click();
+  await expect(studio.locator(".wc-direct-result-media[data-sample-ratio]").first()).toBeVisible();
+
+  const ratios = await studio
+    .locator(".wc-direct-result-media[data-sample-ratio]")
+    .evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const rect = node.getBoundingClientRect();
+        return Number((rect.width / rect.height).toFixed(2));
+      }),
+    );
+  // 常见画幅都要能看到：1:1、16:9、9:16、4:3、3:4、3:2。
+  for (const expected of [1, 1.78, 0.56, 1.33, 0.75, 1.5]) {
+    expect(ratios.some((ratio) => Math.abs(ratio - expected) < 0.03)).toBe(true);
+  }
 });
 
 async function hasCachedMedia(page: Page, mediaId: string) {
@@ -1051,7 +1410,7 @@ test("leaving the workbench clears the uploaded materials session", async ({ pag
 
   // 通过品牌链接返回首页（离开工作台），会话存储应被清空。
   await page.getByRole("link", { name: "返回纬线首页" }).click();
-  await expect(page.locator(".wc-entry-gate")).toBeVisible();
+  await expect(page.locator(".wc-home")).toBeVisible();
   expect(
     await page.evaluate(() => sessionStorage.getItem("weftcanvas:direct-reference-session:v1")),
   ).toBeNull();
@@ -1212,6 +1571,12 @@ test("standalone video generation opens in video mode and stays within the mobil
 }, testInfo) => {
   await mockDirectApis(page);
   await page.setViewportSize({ width: 390, height: 844 });
+  // 主按钮的配色随主题翻转（浅色主题近黑实心 + 浅色图标，深色主题浅色胶囊 +
+  // 深色图标），这条断言必须先把主题钉成白天，否则跑到几点就测哪套颜色。
+  await page.addInitScript(() => {
+    localStorage.setItem("weftcanvas:theme", "light");
+    localStorage.setItem("weftcanvas:theme-mode", "manual");
+  });
   await page.goto("/generate/video");
   await expect(page).toHaveURL(/\/generate\/video$/);
   await expect(page.locator(".wc-direct-page")).toHaveAttribute("aria-label", "视频生成页面");
@@ -1234,7 +1599,8 @@ test("standalone video generation opens in video mode and stays within the mobil
   const canvasLinkIcon = canvasLink.locator("svg");
   await expect(canvasLinkIcon).toBeVisible();
   await expect(canvasLinkIcon).toHaveCSS("display", "block");
-  await expect(canvasLinkIcon).toHaveCSS("color", "rgb(16, 18, 17)");
+  // 浅色主题下主按钮是近黑实心，图标用浅色（--wc-workbench-cta-icon 的白天值）。
+  await expect(canvasLinkIcon).toHaveCSS("color", "rgb(207, 214, 202)");
 
   const imageTab = studio.getByRole("tab", { name: /图片生成/ });
   await expect(imageTab).toBeVisible();

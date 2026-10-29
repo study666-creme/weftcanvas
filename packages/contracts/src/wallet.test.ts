@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { walletLedgerResponseSchema, walletLedgerUpstreamResponseSchema } from "./wallet.js";
+import {
+  walletLedgerResponseSchema,
+  walletLedgerUpstreamResponseSchema,
+  walletProductsResponseSchema,
+} from "./wallet.js";
 
 const NOW = "2026-08-10T08:00:00.000Z";
 
@@ -248,5 +252,46 @@ describe("wallet ledger public contract", () => {
   it("stays stable for canonical ledger responses", () => {
     const parsed = walletLedgerResponseSchema.parse(envelope({ items: [item()] }));
     expect(parsed.data.items).toEqual([item()]);
+  });
+});
+
+describe("wallet product catalog contract", () => {
+  const pack = (overrides: Record<string, unknown> = {}) => ({
+    kind: "credits",
+    id: "points-1000",
+    amount: 1000,
+    credits: 103_000,
+    ...overrides,
+  });
+
+  it("keeps the limited-bonus marker so the canvas can label the pack", () => {
+    const parsed = walletProductsResponseSchema.parse({
+      ok: true,
+      data: [pack({ bonusPercent: 3 })],
+    });
+    expect(parsed.data[0]).toMatchObject({ id: "points-1000", credits: 103_000, bonusPercent: 3 });
+  });
+
+  it("accepts a pack without a promo marker and drops unrelated upstream fields", () => {
+    const parsed = walletProductsResponseSchema.parse({
+      ok: true,
+      data: [pack({ id: "points-300", amount: 300, credits: 30_000, internal_note: "hidden" })],
+    });
+    expect(parsed.data[0]).toEqual({
+      kind: "credits",
+      id: "points-300",
+      amount: 300,
+      credits: 30_000,
+    });
+  });
+
+  it("rejects a nonsensical bonus percentage", () => {
+    for (const bonusPercent of [-3, 0, 250]) {
+      expect(
+        walletProductsResponseSchema.safeParse({ ok: true, data: [pack({ bonusPercent })] })
+          .success,
+        `bonus ${bonusPercent}`,
+      ).toBe(false);
+    }
   });
 });

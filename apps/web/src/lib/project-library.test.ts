@@ -36,6 +36,32 @@ describe("project library", () => {
     expect(readProject("project-old", storage)?.nodes[0]?.data.body).toBe("第一幕");
   });
 
+  it("stays readable when quota blocks the index and active-project bookkeeping", () => {
+    const storage = new MemoryStorage();
+    writeProject(fixtureProject("project-a", "A", 10), storage);
+    // 配额满时所有 setItem 都可能抛 QuotaExceededError；读库不能因此返回空列表，
+    // 否则主页看起来像「项目全没了」。
+    storage.failSetItem = () => true;
+
+    const library = loadProjectLibrary(storage);
+
+    expect(library.projects.map((project) => project.id)).toEqual(["project-a"]);
+    expect(library.activeProject?.name).toBe("A");
+    expect(readProject("project-a", storage)?.nodes).toHaveLength(2);
+  });
+
+  it("keeps the legacy record when migration cannot be written", () => {
+    const storage = new MemoryStorage();
+    storage.setItem(LEGACY_PROJECT_STORAGE_KEY, JSON.stringify(fixtureProject("old", "旧画布")));
+    storage.failSetItem = () => true;
+
+    const library = loadProjectLibrary(storage);
+
+    expect(library.projects.map((project) => project.id)).toEqual(["old"]);
+    // 写不进去可以（下次再迁移），删掉就真的丢了。
+    expect(storage.getItem(LEGACY_PROJECT_STORAGE_KEY)).not.toBeNull();
+  });
+
   it("tracks active projects and removes snapshots independently", () => {
     const storage = new MemoryStorage();
     writeProject(fixtureProject("project-a", "A", 10), storage);
@@ -318,6 +344,8 @@ function richProject(): CanvasProject {
 
 class MemoryStorage implements Storage {
   private readonly values = new Map<string, string>();
+  /** 模拟配额满：返回 true 的键写入时抛 QuotaExceededError。 */
+  failSetItem: (key: string) => boolean = () => false;
   get length() {
     return this.values.size;
   }
@@ -334,6 +362,8 @@ class MemoryStorage implements Storage {
     this.values.delete(key);
   }
   setItem(key: string, value: string) {
+    if (this.failSetItem(key))
+      throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
     this.values.set(key, String(value));
   }
 }

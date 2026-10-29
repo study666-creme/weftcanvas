@@ -16,6 +16,8 @@ import {
   ArrowRight,
   AtSign,
   Check,
+  Columns2,
+  Columns3,
   FileImage,
   FileVideo,
   Image as ImageIcon,
@@ -26,12 +28,14 @@ import {
   RefreshCw,
   RotateCcw,
   Sparkles,
+  Square,
   Trash2,
   Upload,
   Video,
   X,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 
 import { useBoundedImage } from "../hooks/use-bounded-image";
 import { useMediaUrl, useMediaThumbUrl } from "../hooks/use-media-url";
@@ -63,6 +67,7 @@ import {
 import {
   composeModelParameters,
   defaultModelParameters,
+  fixedMultiOutputImageCount,
   generationRequestQuantity,
   isModelBoundTextParameter,
   isModelCompatibilityParameterHidden,
@@ -72,7 +77,6 @@ import {
   quoteTokenFields,
   reconcileModelParameters,
   removeModelParameter,
-  requestPricedFixedOutputCount,
   setExclusiveParameter,
 } from "../lib/generation-config";
 import { validateImageBlob, validateMediaBlob } from "../lib/media-validation";
@@ -130,7 +134,7 @@ import {
   isGenerationParameterLocked,
   normalizeBoundedDurationValue,
 } from "./generation-parameter-field";
-import { ParameterChips } from "./parameter-chips";
+import { ParameterChips, supportsInlineOptionChips } from "./parameter-chips";
 import { CanvasSelect } from "./canvas-select";
 import { MiniAudioPlayer } from "./mini-audio-player";
 import { ResultLightbox, type ResultLightboxItem } from "./result-lightbox";
@@ -207,6 +211,40 @@ const MODALITIES: {
   },
 ];
 
+// 结果排列：与卡片库同一种交互——单列时一张图直接占满整行，两列/三列逐级收紧。
+// 选择只存在本机（和主页项目视图一样），刷新与切换模态都保留。
+type ResultLayout = "1" | "2" | "3";
+
+const RESULT_LAYOUT_STORAGE_KEY = "weftcanvas:direct:result-layout:v1";
+
+const RESULT_LAYOUTS: { value: ResultLayout; label: string; icon: typeof Square }[] = [
+  { value: "3", label: "三列", icon: Columns3 },
+  { value: "2", label: "两列", icon: Columns2 },
+  { value: "1", label: "单列", icon: Square },
+];
+
+function readResultLayout(): ResultLayout {
+  try {
+    const value = localStorage.getItem(RESULT_LAYOUT_STORAGE_KEY);
+    return value === "1" || value === "2" || value === "3" ? value : "3";
+  } catch {
+    return "3";
+  }
+}
+
+function writeResultLayout(value: ResultLayout) {
+  try {
+    localStorage.setItem(RESULT_LAYOUT_STORAGE_KEY, value);
+  } catch {
+    // 排列偏好写不进去不影响生成，本次会话内仍然生效。
+  }
+}
+
+/** 示例结果底图：卡片里的图与单列虚化底图（--wc-result-ambient）共用同一个地址。 */
+function samplePoster(img: string) {
+  return `/film/auth-film-poster-${img}.webp`;
+}
+
 export function DirectGenerationStudio({
   modality,
   onModalityChange,
@@ -256,6 +294,11 @@ export function DirectGenerationStudio({
   const [mentionIndex, setMentionIndex] = useState(0);
   // 放大查看的结果序号；null 表示关闭。存序号而非 id，便于左右切换。
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [resultLayout, setResultLayout] = useState<ResultLayout>(readResultLayout);
+  const changeResultLayout = (value: ResultLayout) => {
+    setResultLayout(value);
+    writeResultLayout(value);
+  };
 
   const updateDraft = (target: DirectModality, patch: Partial<DirectDraft>) => {
     setDrafts((current) => ({ ...current, [target]: { ...current[target], ...patch } }));
@@ -492,7 +535,7 @@ export function DirectGenerationStudio({
           )
         : clampInteger(draft.quantity, outputRange.min, outputRange.max)
       : 1;
-  const requestFixedOutputCount = requestPricedFixedOutputCount(model);
+  const fixedOutputCount = fixedMultiOutputImageCount(model);
   const requestQuantity =
     modality === "image"
       ? generationRequestQuantity(model, Boolean(outputParameter), selectedQuantity)
@@ -519,8 +562,14 @@ export function DirectGenerationStudio({
     [draft.jobs, hiddenArtifactKeys, modality],
   );
   const locked = Boolean(draft.submitting);
+  const catalogSettled = catalogState.status === "ready" || catalogState.status === "error";
 
   useEffect(() => {
+    // 目录还没到（冷缓存首帧 models 为空，或只有自有 API 模型）时，草稿里目录尚不认识的
+    // 模型先原样保留：首页交接 / 分享链接带来的 model 与 p_* 要等目录到了再对齐，
+    // 否则会被当成无效值清空，退回默认模型和默认参数。
+    if (!catalogSettled && draft.modelId && !models.some((item) => item.id === draft.modelId))
+      return;
     if (!models.length) {
       if (draft.modelId)
         updateDraft(modality, { modelId: "", parameters: {}, quote: null, quoteState: "idle" });
@@ -566,7 +615,7 @@ export function DirectGenerationStudio({
         },
       };
     });
-  }, [modality, models]);
+  }, [modality, models, catalogSettled]);
 
   const quoteSequence = useRef(0);
   useEffect(() => {
@@ -1575,14 +1624,14 @@ export function DirectGenerationStudio({
       className="wc-entry-section wc-entry-section--generate"
       aria-label="快速生成"
     >
-      <div className="wc-entry-section-heading wc-entry-section-heading--generate">
-        <div>
+      {/* 标题只占一行：工作台本身要在一屏内落地，营销式大标题（此前 46px 三行）
+          会把生成区推到折叠线以下，用户每次都得先滚一下才能开始。 */}
+      <div className="wc-direct-workbench-head">
+        <div className="wc-direct-workbench-title">
           <span className="wc-entry-kicker">不打开画布也能开始</span>
-          <h2>把一个想法，直接变成画面。</h2>
+          <h2>快速生成</h2>
         </div>
-        <p>
-          选择图片、视频或音频模型，写下提示词，确认价格后立即生成。完成结果会留在这里，也可以下载后继续进入画布。
-        </p>
+        <p>选模型、写提示词、确认价格后立即生成；结果留在右侧，可放大、复用、下载或加入画布。</p>
       </div>
 
       <div className="wc-direct-studio" data-direct-generation data-direct-modality={modality}>
@@ -1610,9 +1659,6 @@ export function DirectGenerationStudio({
         <div className="wc-direct-studio-body">
           <form
             className="wc-direct-composer"
-            // 新手教程「这里是生成工作台」那一步的锚点：教程从入口首屏
-            // （去简易工作台）走进来之后落在这里。
-            data-wc-tour="workbench"
             onSubmit={(event) => {
               event.preventDefault();
               void submit();
@@ -1624,384 +1670,411 @@ export function DirectGenerationStudio({
               void addInferredMaterials(files);
             }}
           >
-            <header className="wc-direct-composer-header">
-              <div>
-                <span className="wc-direct-index">
-                  01 / {modality === "image" ? "STILL" : modality === "video" ? "MOTION" : "SOUND"}
+            {/* 左栏拆成「可滚动正文 + 钉底提交条」两段：矮屏（720px 高）下
+                模型、素材、参数超出时只滚动正文，价格与「生成」始终在视口内。 */}
+            <div className="wc-direct-composer-body">
+              <header className="wc-direct-composer-header">
+                <div>
+                  <span className="wc-direct-index">
+                    01 /{" "}
+                    {modality === "image" ? "STILL" : modality === "video" ? "MOTION" : "SOUND"}
+                  </span>
+                  <h3>{activeOption.label}</h3>
+                </div>
+                <span className="wc-direct-live-dot">
+                  <i aria-hidden="true" />
+                  直连模型
                 </span>
-                <h3>{activeOption.label}</h3>
-              </div>
-              <span className="wc-direct-live-dot">
-                <i aria-hidden="true" />
-                直连模型
-              </span>
-            </header>
+              </header>
 
-            <label className="wc-direct-prompt-field">
-              <span>提示词{promptRequired ? " · 必填" : ""}</span>
-              <textarea
-                data-direct-prompt
-                ref={promptRef}
-                value={draft.prompt}
-                disabled={locked}
-                placeholder={activeOption.placeholder}
-                rows={6}
-                maxLength={4_000}
-                onChange={(event) =>
-                  updatePrompt(
-                    event.target.value,
-                    event.target.selectionStart ?? event.target.value.length,
-                  )
-                }
-                onKeyDown={(event) => {
-                  if (!mentionRange || !visibleMentionCandidates.length) return;
-                  if (event.key === "ArrowDown") {
-                    event.preventDefault();
-                    setMentionIndex((current) => (current + 1) % visibleMentionCandidates.length);
-                  } else if (event.key === "ArrowUp") {
-                    event.preventDefault();
-                    setMentionIndex(
-                      (current) =>
-                        (current - 1 + visibleMentionCandidates.length) %
-                        visibleMentionCandidates.length,
-                    );
-                  } else if (event.key === "Enter" || event.key === "Tab") {
-                    event.preventDefault();
-                    chooseMention(
-                      visibleMentionCandidates[mentionIndex] ?? visibleMentionCandidates[0]!,
-                    );
-                  } else if (event.key === "Escape") {
-                    event.preventDefault();
-                    setMentionRange(null);
+              {/* 新手教程「这里是生成工作台」那一步的锚点（从入口首屏走进来后落在这里）。
+                锚提示词区而不是整个表单：表单在单屏布局里占满一列，卡片按"下方"
+                放不下就会翻到右侧、盖住结果栏，用户正要看的结果点不到。 */}
+              <label className="wc-direct-prompt-field" data-wc-tour="workbench">
+                <span>提示词{promptRequired ? " · 必填" : ""}</span>
+                <textarea
+                  data-direct-prompt
+                  ref={promptRef}
+                  value={draft.prompt}
+                  disabled={locked}
+                  placeholder={activeOption.placeholder}
+                  rows={5}
+                  maxLength={4_000}
+                  onChange={(event) =>
+                    updatePrompt(
+                      event.target.value,
+                      event.target.selectionStart ?? event.target.value.length,
+                    )
                   }
-                }}
-              />
-              {mentionRange && visibleMentionCandidates.length ? (
-                <div className="wc-direct-mention-menu" role="listbox" aria-label="引用素材">
-                  {visibleMentionCandidates.map((candidate, index) => (
-                    <button
-                      key={candidate.id}
-                      type="button"
-                      role="option"
-                      aria-selected={index === mentionIndex}
-                      className={index === mentionIndex ? "is-active" : undefined}
-                      onMouseDown={(event) => {
-                        event.preventDefault();
-                        chooseMention(candidate);
-                      }}
-                    >
-                      <span className="wc-direct-mention-label">@{candidate.label}</span>
-                      <span>{candidate.name}</span>
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-              <small>{draft.prompt.length.toLocaleString("zh-CN")} / 4,000</small>
-            </label>
-
-            <div className="wc-direct-field-group">
-              <label className="wc-direct-field-label">
-                <span>模型</span>
-                <small>{models.length ? `${models.length} 个可用模型` : "正在读取目录"}</small>
-              </label>
-              <CategorizedModelSelect
-                value={draft.modelId}
-                models={models}
-                disabled={locked || !models.length}
-                onChange={chooseModel}
-                ariaLabel="模型"
-              />
-              {model?.description ? (
-                <p className="wc-direct-model-description">{model.description}</p>
-              ) : null}
-            </div>
-
-            {materialControls.length ? (
-              <div
-                className={`wc-direct-materials${materialDropActive ? " is-drag-active" : ""}`}
-                role="group"
-                aria-label="上传素材"
-                data-direct-material-dropzone
-                tabIndex={0}
-                onDragEnter={(event) => {
-                  if (!hasFiles(event.dataTransfer)) return;
-                  event.preventDefault();
-                  if (!locked) setMaterialDropActive(true);
-                }}
-                onDragOver={(event) => {
-                  if (!hasFiles(event.dataTransfer)) return;
-                  event.preventDefault();
-                  event.dataTransfer.dropEffect = "copy";
-                }}
-                onDragLeave={(event) => {
-                  if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
-                  setMaterialDropActive(false);
-                }}
-                onDrop={(event) => {
-                  const files = filesFromDataTransfer(event.dataTransfer);
-                  if (!files.length) return;
-                  event.preventDefault();
-                  setMaterialDropActive(false);
-                  void addInferredMaterials(files);
-                }}
-              >
-                <div className="wc-direct-field-label">
-                  <span>上传素材</span>
-                  <div className="wc-direct-field-label-actions">
-                    <small>
-                      {draft.references.filter((reference) => reference.status === "ready").length}{" "}
-                      个已就绪
-                    </small>
-                    {draft.references.length ? (
+                  onKeyDown={(event) => {
+                    if (!mentionRange || !visibleMentionCandidates.length) return;
+                    if (event.key === "ArrowDown") {
+                      event.preventDefault();
+                      setMentionIndex((current) => (current + 1) % visibleMentionCandidates.length);
+                    } else if (event.key === "ArrowUp") {
+                      event.preventDefault();
+                      setMentionIndex(
+                        (current) =>
+                          (current - 1 + visibleMentionCandidates.length) %
+                          visibleMentionCandidates.length,
+                      );
+                    } else if (event.key === "Enter" || event.key === "Tab") {
+                      event.preventDefault();
+                      chooseMention(
+                        visibleMentionCandidates[mentionIndex] ?? visibleMentionCandidates[0]!,
+                      );
+                    } else if (event.key === "Escape") {
+                      event.preventDefault();
+                      setMentionRange(null);
+                    }
+                  }}
+                />
+                {mentionRange && visibleMentionCandidates.length ? (
+                  <div className="wc-direct-mention-menu" role="listbox" aria-label="引用素材">
+                    {visibleMentionCandidates.map((candidate, index) => (
                       <button
+                        key={candidate.id}
                         type="button"
-                        className="wc-direct-clear-materials"
-                        disabled={locked}
-                        onClick={() => void clearAllMaterials()}
+                        role="option"
+                        aria-selected={index === mentionIndex}
+                        className={index === mentionIndex ? "is-active" : undefined}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          chooseMention(candidate);
+                        }}
                       >
-                        <Trash2 aria-hidden="true" />
-                        清空上传素材
+                        <span className="wc-direct-mention-label">@{candidate.label}</span>
+                        <span>{candidate.name}</span>
                       </button>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="wc-direct-material-actions">
-                  {materialControls.map((control) => {
-                    const selected = draft.references.filter(
-                      (reference) => reference.kind === control.kind,
-                    ).length;
-                    const disabled = locked || control.max <= selected;
-                    return (
-                      <label key={control.kind} className={disabled ? "is-disabled" : undefined}>
-                        <input
-                          data-direct-material-input={control.kind}
-                          type="file"
-                          accept={control.accept}
-                          multiple={control.multiple}
-                          disabled={disabled}
-                          onChange={(event) => {
-                            const files = Array.from(event.currentTarget.files ?? []);
-                            event.currentTarget.value = "";
-                            setMaterialInputFeedback(null);
-                            void addMaterials(control.kind, files);
-                          }}
-                        />
-                        <Upload aria-hidden="true" />
-                        <span>{control.label}</span>
-                        <small>{control.max ? `${selected}/${control.max}` : "不支持"}</small>
-                      </label>
-                    );
-                  })}
-                </div>
-                <p className="wc-direct-material-drop-hint" aria-live="polite">
-                  {materialDropActive
-                    ? "松开即可上传当前模型支持的素材"
-                    : `可拖入${acceptedMaterialLabels || "素材"}，也可复制文件后粘贴`}
-                </p>
-                {draft.references.length ? (
-                  <div className="wc-direct-material-list">
-                    {draft.references.map((reference) => (
-                      <div
-                        key={reference.id}
-                        className={`wc-direct-material-item is-${reference.status}${reference.kind === "image" && imagePurposes.length > 1 ? " has-purpose-select" : ""}`}
-                      >
-                        <span className="wc-direct-material-preview">
-                          {reference.kind === "image" && reference.previewUrl ? (
-                            <img src={reference.previewUrl} alt="" />
-                          ) : (
-                            <MaterialKindIcon kind={reference.kind} />
-                          )}
-                        </span>
-                        <span className="wc-direct-material-copy">
-                          <strong title={reference.name}>{reference.name}</strong>
-                          <small>
-                            {reference.status === "uploading"
-                              ? "正在上传"
-                              : reference.status === "ready"
-                                ? "已上传"
-                                : (reference.error ?? "上传失败")}
-                          </small>
-                        </span>
-                        {reference.kind === "image" && imagePurposes.length > 1 ? (
-                          <CanvasSelect
-                            value={
-                              reference.imagePurpose &&
-                              imagePurposes.includes(reference.imagePurpose)
-                                ? reference.imagePurpose
-                                : "__unassigned__"
-                            }
-                            options={imagePurposeOptions}
-                            ariaLabel={`${reference.name}的参考用途`}
-                            disabled={locked}
-                            variant="compact"
-                            menuMinWidth={150}
-                            onChange={(value) =>
-                              updateReference(modality, reference.id, {
-                                imagePurpose: imagePurposes.includes(value as ReferenceImagePurpose)
-                                  ? (value as ReferenceImagePurpose)
-                                  : null,
-                              })
-                            }
-                          />
-                        ) : null}
-                        {reference.status === "ready" ? (
-                          <button
-                            type="button"
-                            className="wc-direct-material-mention"
-                            aria-label={`引用${reference.name}到提示词`}
-                            title="引用到提示词"
-                            onClick={() => mentionReference(reference)}
-                          >
-                            <AtSign aria-hidden="true" />
-                          </button>
-                        ) : null}
-                        {reference.status === "uploading" ? (
-                          <LoaderCircle className="is-spinning" aria-hidden="true" />
-                        ) : (
-                          <button
-                            type="button"
-                            aria-label={`移除${reference.name}`}
-                            title="移除素材"
-                            onClick={() => removeMaterial(reference)}
-                          >
-                            <X aria-hidden="true" />
-                          </button>
-                        )}
-                      </div>
                     ))}
                   </div>
                 ) : null}
-                {materialInputFeedback ? (
-                  <p className="wc-direct-material-error" role="alert">
-                    <AlertCircle aria-hidden="true" />
-                    {materialInputFeedback}
-                  </p>
-                ) : null}
-                {draft.referenceError ? (
-                  <p className="wc-direct-material-error" role="status">
-                    <AlertCircle aria-hidden="true" />
-                    {draft.referenceError}
-                  </p>
+                <small>{draft.prompt.length.toLocaleString("zh-CN")} / 4,000</small>
+              </label>
+
+              <div className="wc-direct-field-group">
+                <label className="wc-direct-field-label">
+                  <span>模型</span>
+                  <small>{models.length ? `${models.length} 个可用模型` : "正在读取目录"}</small>
+                </label>
+                <CategorizedModelSelect
+                  value={draft.modelId}
+                  models={models}
+                  disabled={locked || !models.length}
+                  onChange={chooseModel}
+                  ariaLabel="模型"
+                />
+                {model?.description ? (
+                  <p className="wc-direct-model-description">{model.description}</p>
                 ) : null}
               </div>
-            ) : null}
 
-            {editableParameters.length ||
-            hasStandaloneTokenMaximum ||
-            (modality === "image" &&
-              (requestFixedOutputCount !== null ||
-                outputParameter?.fixed !== undefined ||
-                outputRange.max > outputRange.min)) ? (
-              <div className="wc-direct-parameters" aria-label="生成参数">
-                {modality === "image" && requestFixedOutputCount !== null ? (
-                  <div className="wc-generation-field wc-direct-count-field">
-                    <span>本次产出</span>
-                    <output>每次调用生成 {requestFixedOutputCount} 张图片</output>
-                    <small>按次计费，单次调用返回全部图片</small>
-                  </div>
-                ) : modality === "image" &&
-                  (outputParameter?.fixed !== undefined || outputRange.max > outputRange.min) ? (
-                  <div className="wc-param-chips" role="group" aria-label="生成张数">
-                    <span className="wc-param-chips-label">生成张数</span>
-                    <div className="wc-param-chips-row">
-                      {Array.from(
-                        { length: outputRange.max - outputRange.min + 1 },
-                        (_, index) => outputRange.min + index,
-                      ).map((count) => (
+              {materialControls.length ? (
+                <div
+                  className={`wc-direct-materials${materialDropActive ? " is-drag-active" : ""}`}
+                  role="group"
+                  aria-label="上传素材"
+                  data-direct-material-dropzone
+                  tabIndex={0}
+                  onDragEnter={(event) => {
+                    if (!hasFiles(event.dataTransfer)) return;
+                    event.preventDefault();
+                    if (!locked) setMaterialDropActive(true);
+                  }}
+                  onDragOver={(event) => {
+                    if (!hasFiles(event.dataTransfer)) return;
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "copy";
+                  }}
+                  onDragLeave={(event) => {
+                    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+                    setMaterialDropActive(false);
+                  }}
+                  onDrop={(event) => {
+                    const files = filesFromDataTransfer(event.dataTransfer);
+                    if (!files.length) return;
+                    event.preventDefault();
+                    setMaterialDropActive(false);
+                    void addInferredMaterials(files);
+                  }}
+                >
+                  <div className="wc-direct-field-label">
+                    <span>上传素材</span>
+                    <div className="wc-direct-field-label-actions">
+                      <small>
+                        {
+                          draft.references.filter((reference) => reference.status === "ready")
+                            .length
+                        }{" "}
+                        个已就绪
+                      </small>
+                      {draft.references.length ? (
                         <button
-                          key={count}
                           type="button"
-                          role="radio"
-                          aria-checked={selectedQuantity === count}
-                          disabled={
-                            locked ||
-                            outputParameter?.fixed !== undefined ||
-                            outputRange.max === outputRange.min
-                          }
-                          className={selectedQuantity === count ? "is-active" : undefined}
-                          onClick={() => updateQuantity(count)}
+                          className="wc-direct-clear-materials"
+                          disabled={locked}
+                          onClick={() => void clearAllMaterials()}
                         >
-                          {count}
+                          <Trash2 aria-hidden="true" />
+                          清空上传素材
                         </button>
-                      ))}
+                      ) : null}
                     </div>
                   </div>
-                ) : null}
-                {editableParameters.map((parameter) => {
-                  const chipOptions = generationParameterScalarOptions(
-                    parameter,
-                    generationParameterDisplayValue(parameter, draft.parameters[parameter.name]),
-                  );
-                  if (chipOptions) {
-                    return (
-                      <ParameterChips
-                        key={`${model?.id ?? "model"}:${parameter.name}`}
-                        parameter={parameter}
-                        value={draft.parameters[parameter.name]}
-                        disabled={locked}
-                        onChange={(value) => updateParameter(parameter.name, value)}
-                      />
-                    );
-                  }
-                  if (modality === "video" && boundedDurationOptions(parameter)?.length) {
-                    return (
-                      <DurationChips
-                        key={`${model?.id ?? "model"}:${parameter.name}`}
-                        parameter={parameter}
-                        value={draft.parameters[parameter.name]}
-                        disabled={locked}
-                        onChange={(value) => updateParameter(parameter.name, value)}
-                      />
-                    );
-                  }
-                  return (
-                    <GenerationParameterField
-                      key={`${model?.id ?? "model"}:${parameter.name}`}
-                      parameter={parameter}
-                      value={draft.parameters[parameter.name]}
-                      disabled={locked}
-                      boundedDuration={modality === "video"}
-                      onChange={(value) => updateParameter(parameter.name, value)}
-                      onValidityChange={(valid) =>
-                        updateDraft(modality, {
-                          invalidParameters: new Set(
-                            valid
-                              ? [...draft.invalidParameters].filter(
-                                  (name) => name !== parameter.name,
-                                )
-                              : [...draft.invalidParameters, parameter.name],
+                  <div className="wc-direct-material-actions">
+                    {materialControls.map((control) => {
+                      const selected = draft.references.filter(
+                        (reference) => reference.kind === control.kind,
+                      ).length;
+                      const disabled = locked || control.max <= selected;
+                      return (
+                        <label key={control.kind} className={disabled ? "is-disabled" : undefined}>
+                          <input
+                            data-direct-material-input={control.kind}
+                            type="file"
+                            accept={control.accept}
+                            multiple={control.multiple}
+                            disabled={disabled}
+                            onChange={(event) => {
+                              const files = Array.from(event.currentTarget.files ?? []);
+                              event.currentTarget.value = "";
+                              setMaterialInputFeedback(null);
+                              void addMaterials(control.kind, files);
+                            }}
+                          />
+                          <Upload aria-hidden="true" />
+                          <span>{control.label}</span>
+                          <small>{control.max ? `${selected}/${control.max}` : "不支持"}</small>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="wc-direct-material-drop-hint" aria-live="polite">
+                    {materialDropActive
+                      ? "松开即可上传当前模型支持的素材"
+                      : `可拖入${acceptedMaterialLabels || "素材"}，也可复制文件后粘贴`}
+                  </p>
+                  {draft.references.length ? (
+                    <div className="wc-direct-material-list">
+                      {draft.references.map((reference) => (
+                        <div
+                          key={reference.id}
+                          className={`wc-direct-material-item is-${reference.status}${reference.kind === "image" && imagePurposes.length > 1 ? " has-purpose-select" : ""}`}
+                        >
+                          <span className="wc-direct-material-preview">
+                            {reference.kind === "image" && reference.previewUrl ? (
+                              <img src={reference.previewUrl} alt="" />
+                            ) : (
+                              <MaterialKindIcon kind={reference.kind} />
+                            )}
+                          </span>
+                          <span className="wc-direct-material-copy">
+                            <strong title={reference.name}>{reference.name}</strong>
+                            <small>
+                              {reference.status === "uploading"
+                                ? "正在上传"
+                                : reference.status === "ready"
+                                  ? "已上传"
+                                  : (reference.error ?? "上传失败")}
+                            </small>
+                          </span>
+                          {reference.kind === "image" && imagePurposes.length > 1 ? (
+                            <CanvasSelect
+                              value={
+                                reference.imagePurpose &&
+                                imagePurposes.includes(reference.imagePurpose)
+                                  ? reference.imagePurpose
+                                  : "__unassigned__"
+                              }
+                              options={imagePurposeOptions}
+                              ariaLabel={`${reference.name}的参考用途`}
+                              disabled={locked}
+                              variant="compact"
+                              menuMinWidth={150}
+                              onChange={(value) =>
+                                updateReference(modality, reference.id, {
+                                  imagePurpose: imagePurposes.includes(
+                                    value as ReferenceImagePurpose,
+                                  )
+                                    ? (value as ReferenceImagePurpose)
+                                    : null,
+                                })
+                              }
+                            />
+                          ) : null}
+                          {reference.status === "ready" ? (
+                            <button
+                              type="button"
+                              className="wc-direct-material-mention"
+                              aria-label={`引用${reference.name}到提示词`}
+                              title="引用到提示词"
+                              onClick={() => mentionReference(reference)}
+                            >
+                              <AtSign aria-hidden="true" />
+                            </button>
+                          ) : null}
+                          {reference.status === "uploading" ? (
+                            <LoaderCircle className="is-spinning" aria-hidden="true" />
+                          ) : (
+                            <button
+                              type="button"
+                              aria-label={`移除${reference.name}`}
+                              title="移除素材"
+                              onClick={() => removeMaterial(reference)}
+                            >
+                              <X aria-hidden="true" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  {materialInputFeedback ? (
+                    <p className="wc-direct-material-error" role="alert">
+                      <AlertCircle aria-hidden="true" />
+                      {materialInputFeedback}
+                    </p>
+                  ) : null}
+                  {draft.referenceError ? (
+                    <p className="wc-direct-material-error" role="status">
+                      <AlertCircle aria-hidden="true" />
+                      {draft.referenceError}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {editableParameters.length ||
+              hasStandaloneTokenMaximum ||
+              (modality === "image" &&
+                (fixedOutputCount !== null ||
+                  outputParameter?.fixed !== undefined ||
+                  outputRange.max > outputRange.min)) ? (
+                <div className="wc-direct-parameters" aria-label="生成参数">
+                  {modality === "image" && fixedOutputCount !== null ? (
+                    <div className="wc-generation-field wc-direct-count-field">
+                      <span>本次产出</span>
+                      <output>每次调用生成 {fixedOutputCount} 张图片</output>
+                      <small>
+                        {model?.pricing.unit === "image"
+                          ? `按张计费，本次共 ${fixedOutputCount} 张`
+                          : "按次计费，单次调用返回全部图片"}
+                      </small>
+                    </div>
+                  ) : modality === "image" &&
+                    (outputParameter?.fixed !== undefined || outputRange.max > outputRange.min) ? (
+                    <div className="wc-param-chips" role="group" aria-label="生成张数">
+                      <span className="wc-param-chips-label">生成张数</span>
+                      <div className="wc-param-chips-row">
+                        {Array.from(
+                          { length: outputRange.max - outputRange.min + 1 },
+                          (_, index) => outputRange.min + index,
+                        ).map((count) => (
+                          <button
+                            key={count}
+                            type="button"
+                            role="radio"
+                            aria-checked={selectedQuantity === count}
+                            disabled={
+                              locked ||
+                              outputParameter?.fixed !== undefined ||
+                              outputRange.max === outputRange.min
+                            }
+                            className={selectedQuantity === count ? "is-active" : undefined}
+                            onClick={() => updateQuantity(count)}
+                          >
+                            {count}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  {editableParameters.map((parameter) => {
+                    // 短枚举用芯片平铺；长枚举（TTS 的 30 个音色）回落成下拉，
+                    // 否则参数区会被一行几十个按钮撑爆。
+                    const chipOptions = supportsInlineOptionChips(
+                      parameter,
+                      draft.parameters[parameter.name],
+                    )
+                      ? generationParameterScalarOptions(
+                          parameter,
+                          generationParameterDisplayValue(
+                            parameter,
+                            draft.parameters[parameter.name],
                           ),
-                          quote: null,
-                          quoteState: "idle",
-                          quoteRevision: draft.quoteRevision + 1,
-                        })
-                      }
-                    />
-                  );
-                })}
-                {hasStandaloneTokenMaximum ? (
-                  <label className="wc-generation-field">
-                    <span>最大输出</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={1_000_000}
-                      step={128}
-                      value={draft.maxOutputTokens ?? 1_024}
-                      disabled={locked}
-                      onChange={(event) =>
-                        updateDraft(modality, {
-                          maxOutputTokens: Math.max(1, Number(event.target.value) || 1),
-                          quote: null,
-                          quoteState: "idle",
-                          quoteRevision: draft.quoteRevision + 1,
-                        })
-                      }
-                    />
-                  </label>
-                ) : null}
-              </div>
-            ) : null}
+                        )
+                      : null;
+                    if (chipOptions) {
+                      return (
+                        <ParameterChips
+                          key={`${model?.id ?? "model"}:${parameter.name}`}
+                          parameter={parameter}
+                          value={draft.parameters[parameter.name]}
+                          disabled={locked}
+                          onChange={(value) => updateParameter(parameter.name, value)}
+                        />
+                      );
+                    }
+                    if (modality === "video" && boundedDurationOptions(parameter)?.length) {
+                      return (
+                        <DurationChips
+                          key={`${model?.id ?? "model"}:${parameter.name}`}
+                          parameter={parameter}
+                          value={draft.parameters[parameter.name]}
+                          disabled={locked}
+                          onChange={(value) => updateParameter(parameter.name, value)}
+                        />
+                      );
+                    }
+                    return (
+                      <GenerationParameterField
+                        key={`${model?.id ?? "model"}:${parameter.name}`}
+                        parameter={parameter}
+                        value={draft.parameters[parameter.name]}
+                        disabled={locked}
+                        boundedDuration={modality === "video"}
+                        onChange={(value) => updateParameter(parameter.name, value)}
+                        onValidityChange={(valid) =>
+                          updateDraft(modality, {
+                            invalidParameters: new Set(
+                              valid
+                                ? [...draft.invalidParameters].filter(
+                                    (name) => name !== parameter.name,
+                                  )
+                                : [...draft.invalidParameters, parameter.name],
+                            ),
+                            quote: null,
+                            quoteState: "idle",
+                            quoteRevision: draft.quoteRevision + 1,
+                          })
+                        }
+                      />
+                    );
+                  })}
+                  {hasStandaloneTokenMaximum ? (
+                    <label className="wc-generation-field">
+                      <span>最大输出</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={1_000_000}
+                        step={128}
+                        value={draft.maxOutputTokens ?? 1_024}
+                        disabled={locked}
+                        onChange={(event) =>
+                          updateDraft(modality, {
+                            maxOutputTokens: Math.max(1, Number(event.target.value) || 1),
+                            quote: null,
+                            quoteState: "idle",
+                            quoteRevision: draft.quoteRevision + 1,
+                          })
+                        }
+                      />
+                    </label>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
 
             <div className="wc-direct-submit-row">
               <div className="wc-direct-price" aria-live="polite">
@@ -2050,16 +2123,34 @@ export function DirectGenerationStudio({
           <aside className="wc-direct-result" aria-label={`${activeOption.label}结果`}>
             <div className="wc-direct-result-topline">
               <span>02 / RESULT</span>
-              <span>
-                {status.tone === "ready" ? <Check aria-hidden="true" /> : null}
-                {status.text}
-              </span>
+              <div className="wc-direct-result-tools">
+                <span className="wc-direct-result-status">
+                  {status.tone === "ready" ? <Check aria-hidden="true" /> : null}
+                  {status.text}
+                </span>
+                <div className="wc-direct-result-layout" role="radiogroup" aria-label="结果排列">
+                  {RESULT_LAYOUTS.map(({ value, label, icon: Icon }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={resultLayout === value}
+                      aria-label={`${label}排列`}
+                      title={`${label}排列`}
+                      className={resultLayout === value ? "is-active" : undefined}
+                      onClick={() => changeResultLayout(value)}
+                    >
+                      <Icon aria-hidden="true" />
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
             <div
               className={`wc-direct-result-stage ${completedArtifacts.length ? "has-media" : ""}`}
             >
               {completedArtifacts.length ? (
-                <div className="wc-direct-result-gallery">
+                <div className="wc-direct-result-gallery" data-result-layout={resultLayout}>
                   {activeJobs.map((job) => (
                     <GeneratingTile
                       key={job.id}
@@ -2092,14 +2183,22 @@ export function DirectGenerationStudio({
               ) : modality === "audio" ? (
                 // 音频没有可供展示的静态示例图，也不再借用视频示例卡
                 // （示例卡上是视频模型与成片，挂在音频页属于误导）。
-                <div className="wc-direct-result-gallery" aria-label="音频结果">
+                <div
+                  className="wc-direct-result-gallery"
+                  aria-label="音频结果"
+                  data-result-layout={resultLayout}
+                >
                   <p className="wc-direct-sample-note">
                     音频结果会以播放器形式出现在这里，可直接试听 / 下载 / 加入画布。
                     提示词可写音乐风格与情绪，也可以直接写要朗读的文字。
                   </p>
                 </div>
               ) : (
-                <div className="wc-direct-result-gallery" aria-label="示例结果">
+                <div
+                  className="wc-direct-result-gallery"
+                  aria-label="示例结果"
+                  data-result-layout={resultLayout}
+                >
                   <p className="wc-direct-sample-note">
                     示例预览 · 生成完成后这里换成你的真实成品，每张可放大 / 复用 / 下载 / 加入画布
                   </p>
@@ -2107,47 +2206,92 @@ export function DirectGenerationStudio({
                     ? [
                         {
                           img: "docking",
+                          ratio: "1 / 1",
                           model: "GPT Image 2.5 · 1:1",
                           prompt: "赛博朋克城市夜景，霓虹与雨雾",
                         },
                         {
                           img: "ocean",
+                          ratio: "16 / 9",
                           model: "Gemini 3 Pro Image · 16:9",
                           prompt: "清晨海面薄雾，金色晨光",
                         },
                         {
                           img: "blackhole",
-                          model: "Seedream 4.0 · 1:1",
-                          prompt: "黑洞吸积盘，电影级科幻",
+                          ratio: "9 / 16",
+                          model: "Seedream 4.0 · 9:16",
+                          prompt: "黑洞吸积盘，竖版手机壁纸",
+                        },
+                        {
+                          img: "ocean",
+                          ratio: "4 / 3",
+                          model: "GPT Image 2.5 · 4:3",
+                          prompt: "阴天亮光的海面，广角构图",
+                        },
+                        {
+                          img: "docking",
+                          ratio: "3 / 4",
+                          model: "Seedream 4.0 · 3:4",
+                          prompt: "空间站维修舱，竖构图特写",
+                        },
+                        {
+                          img: "blackhole",
+                          ratio: "3 / 2",
+                          model: "Gemini 3 Pro Image · 3:2",
+                          prompt: "吸积盘边缘，横向电影感",
                         },
                       ]
                     : [
                         {
                           img: "docking",
+                          ratio: "16 / 9",
                           model: "Veo 3.1 · 8 秒",
                           prompt: "星舰缓缓接近空间站，环绕运镜",
                         },
                         {
                           img: "ocean",
+                          ratio: "9 / 16",
                           model: "可灵 Kling 2.5 · 5 秒",
-                          prompt: "海浪拍打礁石，慢镜头",
+                          prompt: "竖版浪花特写，慢镜头",
                         },
                         {
                           img: "blackhole",
+                          ratio: "1 / 1",
                           model: "Seedance 1.1 · 10 秒",
-                          prompt: "黑洞潮汐撕裂，多镜头叙事",
+                          prompt: "黑洞潮汐撕裂，方画幅",
+                        },
+                        {
+                          img: "ocean",
+                          ratio: "4 / 3",
+                          model: "Veo 3.1 · 4 秒",
+                          prompt: "礁石与晨雾，4:3 画幅",
                         },
                       ]
                   ).map((tile, index) => (
-                    <figure className="wc-direct-result-tile" key={index}>
+                    <figure
+                      className="wc-direct-result-tile"
+                      key={index}
+                      // 单列拿这张示例图自己当虚化底图，把画幅两侧的留白铺满。
+                      style={
+                        {
+                          "--wc-result-ambient": `url("${samplePoster(tile.img)}")`,
+                        } as CSSProperties
+                      }
+                    >
                       <header className="wc-direct-result-head">
                         <span className="wc-direct-result-model" title={tile.model}>
                           {tile.model}
                         </span>
                       </header>
-                      <div className="wc-direct-result-media">
+                      {/* 单列按示例声明的比例展示，方便对比 1:1 / 16:9 / 9:16 / 4:3 等
+                          常见画幅；二列三列仍是紧凑方图，真实结果始终按原图比例。 */}
+                      <div
+                        className="wc-direct-result-media"
+                        data-sample-ratio={resultLayout === "1" ? tile.ratio : undefined}
+                        style={resultLayout === "1" ? { aspectRatio: tile.ratio } : undefined}
+                      >
                         <img
-                          src={`/film/auth-film-poster-${tile.img}.webp`}
+                          src={samplePoster(tile.img)}
                           alt="示例结果"
                           draggable={false}
                           loading="lazy"
@@ -2583,6 +2727,10 @@ function DirectImageResultContent({
     <figure
       className={`wc-direct-result-tile ${failed ? "is-error" : ""}`}
       aria-busy={loading ? "true" : undefined}
+      // 单列用成品图自己当虚化底图，把画幅两侧的留白铺满（见 entry-gate.css）。
+      style={
+        readyUrl ? ({ "--wc-result-ambient": `url("${readyUrl}")` } as CSSProperties) : undefined
+      }
     >
       <header className="wc-direct-result-head">
         <span className="wc-direct-result-model" title={job.modelLabel}>

@@ -34,6 +34,13 @@ const shortcutGroups = [
     ],
   },
   {
+    title: "面板",
+    items: [
+      { keys: ["Ctrl", "K"], label: "打开 / 收起资产库" },
+      { keys: ["Ctrl", "Shift", "K"], label: "打开 / 收起工作资产库" },
+    ],
+  },
+  {
     title: "历史",
     items: [
       { keys: ["Ctrl", "Z"], label: "撤销" },

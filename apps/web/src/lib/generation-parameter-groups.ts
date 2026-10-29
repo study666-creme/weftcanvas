@@ -30,7 +30,10 @@ const QUICK_PARAMETER_PRIORITY: Record<ModelModality, readonly string[]> = {
     "size",
   ],
   text: ["temperature", "max_tokens", "max_output_tokens"],
-  audio: ["voice", "duration", "format"],
+  // 音乐模型的创作开关只有「纯音乐/含人声」（instrumental），TTS 的核心选择
+  // 就是音色（speechConfig，30 个预置音色）。它们是音频页签最该先看到的选项，
+  // 不能埋在「更多参数」里。
+  audio: ["speechConfig", "voice", "instrumental", "duration", "format"],
 };
 
 /** 同一组是同义字段；旧目录也只渲染并提交选定的规范字段。 */
@@ -87,6 +90,11 @@ export function partitionGenerationParameters(model: PublicModel): GenerationPar
   };
 }
 
+/**
+ * 无选项的数组/对象只能靠 JSON 文本框编辑，放不进紧凑参数条；但带枚举选项的
+ * 结构化参数（Gemini TTS 的 speechConfig 音色）在界面上就是一个普通下拉，
+ * 必须允许它进快选区，否则用户永远看不到音色选择。
+ */
 function isStructuredParameter(parameter: ModelParameter) {
-  return parameter.type === "array" || parameter.type === "object";
+  return (parameter.type === "array" || parameter.type === "object") && !parameter.options?.length;
 }

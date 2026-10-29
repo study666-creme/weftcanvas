@@ -105,10 +105,10 @@ export function mediaMetadataEqual(left: CanvasMedia | null, right: CanvasMedia)
 export function restoreNodeDimensions(node: WeftcanvasNode) {
   const media = node.data.media;
   const configuredAspectRatio = generationParametersAspectRatio(node.data.generation.parameters);
-  if (configuredAspectRatio !== null) {
-    // 面板自动写入的模型默认画幅参数不代表创建者的选择：空节点保持创建时
-    // 由默认画幅决定的几何，只有显式配置过画幅或媒体已落地才跟随参数比例。
-    if (!media && !node.data.generation.aspectExplicit) return node;
+  // 面板自动写入的模型默认画幅参数不代表创建者的选择：只有用户显式配置过
+  // 画幅才让节点几何跟随参数比例。已有媒体的节点以媒体本身为准——否则刷新后
+  // 自动补上的 16:9 会把 9:16 的成品节点改形。
+  if (configuredAspectRatio !== null && node.data.generation.aspectExplicit) {
     const restored =
       media && !hasUsableDimensions(node) ? resizeNodeForMedia({ ...node }, media) : node;
     return resizeMediaNodeToAspectRatio(restored, configuredAspectRatio);

@@ -802,7 +802,7 @@ describe("Weftcanvas generation provider", () => {
       contents: [{ role: "user", parts: [{ text: "你好，这是一段语音合成测试。" }] }],
       generationConfig: {
         responseModalities: ["AUDIO"],
-        speechConfig: { voiceConfig: { voice: "Kore" } },
+        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } } },
       },
     });
     const staged = await stagedResult(staging, result);

@@ -213,11 +213,7 @@ test("抽屉里启用技能、切换执行权限并导出对话", async ({ page 
   const drawer = page.getByRole("dialog", { name: "画布 Agent" });
   await expect(drawer).toBeVisible();
 
-  // 技能 / 权限收在「对话设置」弹层里：先展开设置面板
-  await drawer.getByRole("button", { name: "对话设置" }).click();
-  await expect(drawer.getByRole("dialog", { name: "对话设置" })).toBeVisible();
-
-  // 技能触发键 → 面板列出两个技能
+  // 技能入口在输入区；执行权限仍在「对话设置」弹层里。
   const trigger = drawer.getByRole("button", { name: "Agent 技能" });
   await trigger.click();
   const menu = page.getByRole("menu", { name: "Agent 技能" });
@@ -252,6 +248,10 @@ test("抽屉里启用技能、切换执行权限并导出对话", async ({ page 
   await expect(menu).toBeHidden();
   await expect(drawer).toBeVisible();
 
+  // 技能面板收起后，从「对话设置」切执行权限。
+  await drawer.getByRole("button", { name: "对话设置" }).click();
+  await expect(drawer.getByRole("dialog", { name: "对话设置" })).toBeVisible();
+
   // 执行权限档：三档可选，切到自动执行后写进 localStorage
   const permissionSelect = drawer.getByLabel("执行权限", { exact: true });
   await expect(permissionSelect.locator(".wc-canvas-select-label")).toHaveText("请求审批");
@@ -266,6 +266,9 @@ test("抽屉里启用技能、切换执行权限并导出对话", async ({ page 
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem("weftcanvas:agent-permission:v1")))
     .toBe("auto");
+
+  await drawer.getByLabel("关闭对话设置").click();
+  await expect(drawer.getByRole("dialog", { name: "对话设置" })).toBeHidden();
 
   // 头部导出按钮：下载文件名符合 agent-conversation-<id>-<timestamp>.json
   const downloadPromise = page.waitForEvent("download");
@@ -337,6 +340,9 @@ test("抽屉里启用技能、切换执行权限并导出对话", async ({ page 
       return box ? Math.round(box.x + box.width) : -1;
     })
     .toBeLessThanOrEqual(383);
+  // 技能面板收起后，设置弹层会因外部点击关闭；窄屏检查前重新展开。
+  await lightDrawer.getByRole("button", { name: "对话设置" }).click();
+  await expect(lightDrawer.getByRole("dialog", { name: "对话设置" })).toBeVisible();
   await expect(lightDrawer.getByLabel("执行权限", { exact: true })).toBeVisible();
   const narrowTriggerBox = await lightDrawer
     .getByRole("button", { name: "Agent 技能" })

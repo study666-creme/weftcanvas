@@ -56,19 +56,23 @@ export function canRecoverUnavailableModelSelection(input: {
   );
 }
 
-// Request-priced image models with a fixed multi-artifact output (Midjourney is
-// the current example) bill one provider call even though the response contains
-// multiple single-image artifacts. The browser must never multiply
-// those artifacts into repeated calls: the quote/job quantity stays 1 and the
+// Fixed multi-artifact image models (Midjourney is the current example) bill
+// one provider call even though the response contains multiple images: five for
+// the stable series (cover grid + four singles) and four for the 特惠 series.
+// The browser must never multiply those artifacts into repeated calls; the
 // delivered artifact count comes from the catalog output contract.
-export function isRequestPricedFixedMultiOutputImageModel(model: PublicModel | null): boolean {
-  return Boolean(
-    model &&
+export function fixedMultiOutputImageCount(model: PublicModel | null): number | null {
+  return model &&
     model.modality === "image" &&
-    model.pricing.unit === "request" &&
     model.output.minCount === model.output.maxCount &&
-    model.output.minCount > 1,
-  );
+    model.output.minCount > 1
+    ? model.output.minCount
+    : null;
+}
+
+/** Whether the fixed multi-artifact contract is billed per provider call rather than per image. */
+export function isRequestPricedFixedMultiOutputImageModel(model: PublicModel | null): boolean {
+  return Boolean(model && model.pricing.unit === "request" && fixedMultiOutputImageCount(model));
 }
 
 /** The number of artifacts one call returns for a request-priced fixed multi-output image model, else null. */
@@ -96,17 +100,19 @@ export function supportsClientBatchGeneration(
 }
 
 /**
- * Quote/job quantity for a generation request. Request-priced fixed
- * multi-output image models always send quantity 1; otherwise the model's own
- * output-count parameter (when present) carries the count and the quantity stays
- * 1, and only a standalone quantity-less image model sends its selected quantity.
+ * Quote/job quantity for a generation request. A fixed multi-output image model
+ * already declares how many artifacts one call returns, so it always sends
+ * quantity 1 regardless of whether it is billed per call or per image;
+ * otherwise the model's own output-count parameter (when present) carries the
+ * count and the quantity stays 1, and only a standalone quantity-less image
+ * model sends its selected quantity.
  */
 export function generationRequestQuantity(
   model: PublicModel | null,
   hasOutputCountParameter: boolean,
   configuredQuantity: number,
 ): number {
-  if (isRequestPricedFixedMultiOutputImageModel(model)) return 1;
+  if (fixedMultiOutputImageCount(model) !== null) return 1;
   return hasOutputCountParameter ? 1 : configuredQuantity;
 }
 
@@ -149,11 +155,32 @@ export function isModelMediaReferenceParameter(model: PublicModel, parameter: Mo
   );
 }
 
+/**
+ * 只影响传输/响应形态、不是创作选择，而且一旦露出来就会把任务做坏：
+ * - `stream` 打开后上游返回 SSE，执行侧按 JSON 解析必然失败（服务端也会直接
+ *   拒绝），可它一直是目录里的一个普通开关，点在界面上等于点了「让任务失败」；
+ * - `responseModalities` 是固定输出通道（TTS 的 `["AUDIO"]`），用户改不了。
+ * 两者都不在任何入口展示；固定值仍由 composeModelParameters 原样下发。
+ */
+const TRANSPORT_ONLY_PARAMETER_NAMES = new Set([
+  "stream",
+  "response_modalities",
+  "responsemodalities",
+]);
+
+/**
+ * 需要专用结构化编辑器、暂时不放进通用参数面板的字段。`speech_metadata`
+ * 是 Gemini TTS 的逐轮语气/说话人声明：它必须与 multiSpeakerVoiceConfig 里的
+ * 说话人一一对应，单给一个 JSON 文本框既配不出多说话人，也容易让用户以为
+ * 「随手写点 JSON」就能用。服务端仍接受这个参数，等有了多说话人编辑器再露出。
+ */
+const NOT_YET_EXPOSED_PARAMETER_NAMES = new Set(["speech_metadata"]);
+
 export function isModelInternalParameter(parameter: ModelParameter) {
-  return (
-    parameter.fixed !== undefined &&
-    INTERNAL_PARAMETER_NAMES.has(parameter.name.trim().toLowerCase())
-  );
+  const name = parameter.name.trim().toLowerCase();
+  if (TRANSPORT_ONLY_PARAMETER_NAMES.has(name) || NOT_YET_EXPOSED_PARAMETER_NAMES.has(name))
+    return true;
+  return parameter.fixed !== undefined && INTERNAL_PARAMETER_NAMES.has(name);
 }
 
 export function isModelCompatibilityParameterHidden(model: PublicModel, parameter: ModelParameter) {

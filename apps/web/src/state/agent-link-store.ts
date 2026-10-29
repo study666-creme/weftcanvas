@@ -15,6 +15,8 @@ type LinkMap = Record<string, string[]>;
 type AgentLinkState = {
   linksByProject: LinkMap;
   toggle: (projectId: string, nodeId: string) => void;
+  /** 只加不减（已引用或已满时什么都不做），拖线/拖节点这类「引用」动作用它。 */
+  add: (projectId: string, nodeId: string) => void;
   remove: (projectId: string, nodeId: string) => void;
   prune: (projectId: string, validNodeIds: ReadonlySet<string>) => void;
   clear: (projectId: string) => void;
@@ -73,6 +75,12 @@ export const useAgentLinkStore = create<AgentLinkState>((set) => ({
         );
       }
       if (current.length >= MAX_AGENT_LINKED_NODES) return state;
+      return update(state, projectId, [...current, nodeId]);
+    }),
+  add: (projectId, nodeId) =>
+    set((state) => {
+      const current = state.linksByProject[projectId] ?? [];
+      if (current.includes(nodeId) || current.length >= MAX_AGENT_LINKED_NODES) return state;
       return update(state, projectId, [...current, nodeId]);
     }),
   remove: (projectId, nodeId) =>

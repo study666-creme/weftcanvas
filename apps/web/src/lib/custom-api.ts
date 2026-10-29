@@ -987,19 +987,26 @@ function geminiImageGenerationConfig(parameters: Record<string, unknown>) {
   };
 }
 
-/** 音色下拉发裸选项值时，包成 Gemini 要求的 speechConfig 对象形态。 */
+/**
+ * 音色下拉发裸选项值时，包成 Gemini 原生要求的对象形态：
+ * `speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName`。
+ */
 function normalizeAudioSpeechConfig(payload: Record<string, unknown>) {
   const generationConfig =
     payload.generationConfig && typeof payload.generationConfig === "object"
       ? (payload.generationConfig as Record<string, unknown>)
       : null;
   if (generationConfig && typeof generationConfig.speechConfig === "string")
-    generationConfig.speechConfig = { voiceConfig: { voice: generationConfig.speechConfig } };
+    generationConfig.speechConfig = geminiVoiceSpeechConfig(generationConfig.speechConfig);
+}
+
+function geminiVoiceSpeechConfig(voice: string) {
+  return { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice.trim() } } };
 }
 
 function geminiSpeechConfig(parameters: Record<string, unknown>) {
   const value = parameters.speechConfig ?? parameters.voice;
-  if (typeof value === "string" && value.trim()) return { voiceConfig: { voice: value.trim() } };
+  if (typeof value === "string" && value.trim()) return geminiVoiceSpeechConfig(value);
   if (value && typeof value === "object" && !Array.isArray(value))
     return value as Record<string, unknown>;
   return null;

@@ -91,6 +91,11 @@ export function AppearanceToolbar({
   const appearanceMode = mode === "appearance";
   const panelRef = useRef<HTMLDivElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
+  // 面板的 portal 一直挂着（靠 inert 收起来），所以这个 effect 在挂载时也会跑。
+  // 只有「真的打开过、现在关掉」才该把焦点还给触发器；否则首屏一加载就把焦点
+  // 塞进顶栏「设置」按钮，focus-visible 外框和 tooltip 会一直亮着，看起来像
+  // 页面莫名多画了一个方块。
+  const openedOnceRef = useRef(false);
   const [internalSection, setInternalSection] = useState<SettingsSection>(initialSection);
   const requestedSection = controlledSection ?? internalSection;
   const section: SettingsSection = appearanceMode
@@ -142,6 +147,7 @@ export function AppearanceToolbar({
     if (open) {
       // 记住真正打开面板的那个控件（顶栏「设置」和 dock 的「UI 设置」是两个按钮，
       // 共用同一个面板）。关闭时必须还给它，否则焦点会跑到另一个按钮上。
+      openedOnceRef.current = true;
       const opener = document.activeElement;
       restoreFocusRef.current =
         opener instanceof HTMLElement && !panel.contains(opener) ? opener : triggerRef.current;
@@ -154,6 +160,8 @@ export function AppearanceToolbar({
       return () => window.cancelAnimationFrame(frame);
     }
 
+    if (!openedOnceRef.current) return;
+    openedOnceRef.current = false;
     const target = restoreFocusRef.current ?? triggerRef.current;
     restoreFocusRef.current = null;
     // 下一帧再交还：同一帧里面板还要挂 inert，浏览器会因为子树失效把焦点抹回

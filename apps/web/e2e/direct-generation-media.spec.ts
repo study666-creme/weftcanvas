@@ -292,7 +292,9 @@ async function submitImage(page: Page) {
 async function hasCachedMedia(page: Page, mediaId: string) {
   return page.evaluate(async (id) => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("weftcanvas-media", 1);
+      // 与 media-database.ts 的 DATABASE_VERSION 保持一致：用更低的版本打开
+      // 已存在的库会直接抛 VersionError。
+      const request = indexedDB.open("weftcanvas-media", 2);
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });

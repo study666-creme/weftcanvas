@@ -54,6 +54,7 @@ import {
   canonicalPlatformModelId,
   composeModelParameters,
   defaultModelParameters,
+  fixedMultiOutputImageCount,
   generationRequestQuantity,
   isModelBoundTextParameter,
   isModelCompatibilityParameterHidden,
@@ -63,7 +64,6 @@ import {
   quoteTokenFields,
   reconcileModelParameters,
   removeModelParameter,
-  requestPricedFixedOutputCount,
   setExclusiveParameter,
   supportsClientBatchGeneration,
 } from "../lib/generation-config";
@@ -98,7 +98,7 @@ import {
   findConfigurationSourceWithIndex,
   getSharedConfigurationIndex,
 } from "../lib/node-configuration";
-import { isMediaAspectRatioParameterName } from "../lib/node-size";
+import { isMediaAspectRatioParameterName, parseMediaAspectRatio } from "../lib/node-size";
 import {
   generationReferenceMentionNodeIds,
   stripReferenceMentionTokens,
@@ -344,7 +344,7 @@ export function NodeGenerationPanel({
     modality === "image" &&
     Boolean(outputCountParameter) &&
     (outputCountParameter?.fixed !== undefined || outputCountRange.max > outputCountRange.min);
-  const requestFixedOutputCount = requestPricedFixedOutputCount(model);
+  const fixedOutputCount = fixedMultiOutputImageCount(model);
   // 浏览器侧批量：模型自己一次只回一条（n 固定或压根没有 n）时，用连点多次的
   // 方式凑出用户要的张数/条数（图片与视频都适用）。Midjourney 这类「一次固定回
   // 多张」的模型不参与，它的张数由目录的输出契约决定。
@@ -488,17 +488,33 @@ export function NodeGenerationPanel({
     });
     if (modelId && !recoverUnavailable) return;
     // 新建节点优先恢复创建者上一次使用的模型；默认画幅在播种时覆盖模型
-    // 出厂默认比例，保证默认画幅设置对新建节点真正生效。
+    // 出厂默认比例，保证默认画幅设置对新建节点真正生效。已有节点（有媒体、
+    // 保存过参数或显式画幅）在点开面板 / 失效模型恢复时保留自己的画幅：
+    // 默认画幅只服务新建与上传，不能因为一次点击改写已经存在的成品几何。
+    const storedParameters = settingsData.generation.parameters;
+    const existingNode =
+      Boolean(settingsData.media) ||
+      settingsData.generation.aspectExplicit === true ||
+      Object.keys(storedParameters).length > 0;
     const remembered = useUiPreferencesStore.getState().lastMediaGeneration[modality] ?? null;
     const preferred =
       models.find((item) => item.id === remembered?.modelId) ?? pickDefaultModel(models)!;
+    const existingAspect = existingNode
+      ? existingNodeAspectParameters(preferred, storedParameters, settingsData.media)
+      : null;
     const nextParameters =
       preferred.id === settingsData.generation.modelId
-        ? { ...defaultModelParameters(preferred), ...settingsData.generation.parameters }
+        ? { ...defaultModelParameters(preferred), ...storedParameters }
         : autoPickGenerationSettings({
             model: preferred,
-            remembered,
-            defaultAspectRatio: useUiPreferencesStore.getState().defaultNodeAspectRatio,
+            remembered: existingNode
+              ? existingAspect
+                ? { parameters: existingAspect }
+                : null
+              : remembered,
+            defaultAspectRatio: existingNode
+              ? null
+              : useUiPreferencesStore.getState().defaultNodeAspectRatio,
           });
     const nextMaximum =
       preferred.pricing.mode === "token" && !hasModelMaximumTokenParameter(preferred)
@@ -509,10 +525,9 @@ export function NodeGenerationPanel({
     setMaxOutputTokens(nextMaximum);
     setInvalidParameters(new Set());
     persistConfig(settingsNodeId, preferred.id, nextParameters, nextMaximum, {
-      // Only sync node geometry when a stale selection is being recovered. For a
-      // fresh node (no model chosen yet) the creator's default aspect ratio must
-      // win; auto-picking a model must not silently rewrite the media geometry.
-      resize: recoverUnavailable,
+      // Auto-picking a model never rewrites node geometry, including stale-model
+      // recovery: the node keeps the shape its own image/aspect already has.
+      resize: false,
       recordResize: false,
     });
   }, [
@@ -795,11 +810,21 @@ export function NodeGenerationPanel({
   const chooseModel = (nextId: string) => {
     const nextModel = models.find((item) => item.id === nextId);
     if (!nextModel) return;
-    // 创建者显式选模型：出厂默认比例让位于默认画幅设置，其余参数用模型默认。
+    // 创建者显式选模型：新节点让出厂默认比例让位于默认画幅设置，其余参数用
+    // 模型默认；已有节点保留自己的画幅，只换模型，不改动已完成作品的构图。
+    const existingNode =
+      Boolean(settingsData.media) ||
+      settingsData.generation.aspectExplicit === true ||
+      Object.keys(parameters).length > 0;
+    const existingAspect = existingNode
+      ? existingNodeAspectParameters(nextModel, parameters, settingsData.media)
+      : null;
     const nextParameters = autoPickGenerationSettings({
       model: nextModel,
-      remembered: null,
-      defaultAspectRatio: useUiPreferencesStore.getState().defaultNodeAspectRatio,
+      remembered: existingAspect ? { parameters: existingAspect } : null,
+      defaultAspectRatio: existingNode
+        ? null
+        : useUiPreferencesStore.getState().defaultNodeAspectRatio,
     });
     const nextMaximum =
       nextModel.pricing.mode === "token" && !hasModelMaximumTokenParameter(nextModel)
@@ -1188,11 +1213,11 @@ export function NodeGenerationPanel({
   const effectiveBatchCount = batchEligible ? batchCount : 1;
   const outputCountControl = !model
     ? null
-    : requestFixedOutputCount !== null
+    : fixedOutputCount !== null
       ? {
-          value: requestFixedOutputCount,
-          min: requestFixedOutputCount,
-          max: requestFixedOutputCount,
+          value: fixedOutputCount,
+          min: fixedOutputCount,
+          max: fixedOutputCount,
           step: 1,
           label: "出图张数",
           unit: "张",
@@ -2362,6 +2387,39 @@ function isAmbiguousSubmissionFailure(error: unknown) {
     );
   }
   return true;
+}
+
+/**
+ * 已有节点自己的画幅：优先用保存过的合法画幅值，其次用媒体本身的真实比例
+ * 匹配模型发布的比例选项。创建者的默认画幅不能出现在这里——它只服务新建与
+ * 上传，不能因为点开节点或恢复失效模型而改写已经存在的作品。
+ */
+function existingNodeAspectParameters(
+  model: PublicModel,
+  parameters: Record<string, unknown>,
+  media: CanvasNodeData["media"],
+) {
+  for (const [name, value] of Object.entries(parameters)) {
+    if (!isMediaAspectRatioParameterName(name) || typeof value !== "string" || !value.trim())
+      continue;
+    const parameter = model.parameters.find((item) => item.name === name);
+    if (parameter?.fixed !== undefined) continue;
+    if (parameter?.options?.some((option) => option === value)) return { [name]: value };
+  }
+  const width = media?.width;
+  const height = media?.height;
+  if (!width || !height) return null;
+  const ratio = width / height;
+  for (const parameter of model.parameters) {
+    if (parameter.fixed !== undefined || !isMediaAspectRatioParameterName(parameter.name)) continue;
+    const option = parameter.options?.find((candidate) => {
+      if (typeof candidate !== "string") return false;
+      const parsed = parseMediaAspectRatio(candidate);
+      return parsed !== null && Math.abs(parsed / ratio - 1) <= 0.01;
+    });
+    if (typeof option === "string") return { [parameter.name]: option };
+  }
+  return null;
 }
 
 function persistConfig(

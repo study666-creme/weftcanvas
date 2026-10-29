@@ -33,7 +33,7 @@ function createService(options: {
       thinking?: { levels: string[]; default: string };
     }>
   >;
-  models?: typeof runtimeCatalog;
+  models?: AgentModelCatalog;
 }) {
   const executor: AgentExecutor = {
     getModels: async () => options.models ?? runtimeCatalog,
@@ -98,6 +98,48 @@ describe("AgentService model catalog", () => {
       meta: "420/2100 积分 · 每M",
       billing: "token",
     });
+  });
+
+  it("drops platform text models the runtime upstream does not actually serve", async () => {
+    const service = createService({
+      textModels: async () => [
+        { id: "gemini-4-argon", label: "Gemini 4 Argon", meta: "2 积分/次", billing: "request" },
+        { id: "glm-5.3", label: "GLM-5.3", meta: "2 积分/次", billing: "request" },
+        { id: "gpt-5.4", label: "GPT-5.4", meta: "25/150 积分 · 每M", billing: "token" },
+      ],
+      models: {
+        // 运行时上报：上游分组只服务 glm-5.3；gemini-4-argon 不在其中。
+        defaultModelId: "gpt-5-mini",
+        models: [
+          { id: "gpt-5-mini", label: "GPT-5 Mini" },
+          { id: "gpt-5.4", label: "GPT-5.4" },
+        ],
+        upstreamModelIds: ["glm-5.3", "gpt-5.4", "gpt-5-mini"],
+      },
+    });
+
+    const catalog = await service.getModels();
+
+    // 运行时自己的条目（含默认模型）不做上游过滤；平台条目只留上游真实可服务的。
+    expect(catalog.models.map((model) => model.id)).toEqual(["gpt-5-mini", "gpt-5.4", "glm-5.3"]);
+    // 交集过滤是合并方的内部行为，不向浏览器转发上游清单。
+    expect(catalog.upstreamModelIds).toBeUndefined();
+  });
+
+  it("keeps the full platform merge when the runtime does not report an upstream list", async () => {
+    const service = createService({
+      textModels: async () => [
+        { id: "gemini-4-argon", label: "Gemini 4 Argon", meta: "2 积分/次", billing: "request" },
+      ],
+    });
+
+    const catalog = await service.getModels();
+
+    expect(catalog.models.map((model) => model.id)).toEqual([
+      "gpt-5-mini",
+      "gpt-5.4",
+      "gemini-4-argon",
+    ]);
   });
 
   it("drops malformed thinking metadata instead of failing the catalog", async () => {

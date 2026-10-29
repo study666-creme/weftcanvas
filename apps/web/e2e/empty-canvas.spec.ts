@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { addCanvasNode } from "./canvas-ui.fixture";
+
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/v1/auth/session", (route) =>
     route.fulfill({ json: { ok: true, data: null } }),
@@ -83,9 +85,8 @@ test("creation tools work on the empty canvas and place one selected node at a r
   await cleanBrowser(page);
   await page.goto("/canvas");
 
-  const creation = page.getByRole("navigation", { name: "创建工具" });
   await expect(page.locator(".wc-empty-canvas-hint")).toHaveCount(1);
-  await creation.getByRole("button", { name: "添加文本节点" }).click();
+  await addCanvasNode(page, "添加文本节点");
 
   await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(1);
   await expect(page.locator(".react-flow__node-weftcanvas.selected")).toHaveCount(1);
@@ -103,7 +104,7 @@ test("creation tools work on the empty canvas and place one selected node at a r
   await expect(page.locator(".react-flow__edge")).toHaveCount(0);
   await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
 
-  await creation.getByRole("button", { name: "添加图片节点" }).click();
+  await addCanvasNode(page, "添加图片节点");
   await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(2);
   await expect(
     page.locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="image"])'),
@@ -119,8 +120,7 @@ test("new project starts at zero after preserving the previous project", async (
   await cleanBrowser(page);
   await page.goto("/canvas");
 
-  const creation = page.getByRole("navigation", { name: "创建工具" });
-  await creation.getByRole("button", { name: "添加文本节点" }).click();
+  await addCanvasNode(page, "添加文本节点");
   await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(1);
   const projectName = page.getByLabel("项目名称");
   await projectName.fill("保留项目");
@@ -144,7 +144,7 @@ test("new project starts at zero after preserving the previous project", async (
   expect(resetViewport.x).toBeCloseTo(720, 0);
   expect(resetViewport.y).toBeCloseTo(450, 0);
 
-  await creation.getByRole("button", { name: "添加文本节点" }).click();
+  await addCanvasNode(page, "添加文本节点");
   await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(1);
 });
 
@@ -155,9 +155,8 @@ test("switching back preserves the prior graph built on an empty start", async (
   const projectName = page.getByLabel("项目名称");
   await projectName.fill("第一幕");
   await projectName.blur();
-  const creation = page.getByRole("navigation", { name: "创建工具" });
-  await creation.getByRole("button", { name: "添加文本节点" }).click();
-  await creation.getByRole("button", { name: "添加图片节点" }).click();
+  await addCanvasNode(page, "添加文本节点");
+  await addCanvasNode(page, "添加图片节点");
   await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(2);
 
   let sidebar = await openProjectLibrary(page);
@@ -181,8 +180,7 @@ test("deleting the last project creates an empty replacement", async ({ page }) 
   await cleanBrowser(page);
   await page.goto("/canvas");
 
-  const creation = page.getByRole("navigation", { name: "创建工具" });
-  await creation.getByRole("button", { name: "添加文本节点" }).click();
+  await addCanvasNode(page, "添加文本节点");
   await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(1);
 
   const sidebar = await openProjectLibrary(page);
@@ -199,7 +197,7 @@ test("deleting the last project creates an empty replacement", async ({ page }) 
   await expect(page.getByLabel("项目名称")).toHaveValue("纬线 1");
   await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
 
-  await creation.getByRole("button", { name: "添加文本节点" }).click();
+  await addCanvasNode(page, "添加文本节点");
   await expect(page.locator(".react-flow__node-weftcanvas")).toHaveCount(1);
 });
 

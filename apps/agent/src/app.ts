@@ -49,7 +49,11 @@ export type AgentCanvasControlApi = {
 
 export type AgentAppDependencies = {
   token: string;
-  models: { getCatalog(): AgentModelCatalog };
+  models: {
+    getCatalog(): AgentModelCatalog;
+    /** 上游当前可服务的模型 id；失败/未配置时返回 undefined（目录不携带该字段）。 */
+    getUpstreamModelIds?: () => Promise<string[] | undefined>;
+  };
   runs: Pick<AgentRunHandler, "handle">;
   connectors?: AgentConnectorApi;
   canvasControl?: AgentCanvasControlApi;
@@ -77,7 +81,7 @@ export function createAgentApp(dependencies: AgentAppDependencies) {
 
   app.get("/healthz", (context) => context.json({ ok: true, service: "canvas-agent" }));
 
-  app.get("/internal/v1/models", (context) => {
+  app.get("/internal/v1/models", async (context) => {
     if (!authorize(context.req.header("authorization"))) {
       return context.json(
         { ok: false, error: { code: "UNAUTHORIZED", message: "Unauthorized" } },
@@ -85,8 +89,22 @@ export function createAgentApp(dependencies: AgentAppDependencies) {
       );
     }
     context.header("Cache-Control", "no-store");
+    const catalog = dependencies.models.getCatalog();
+    // 上游列表拿不到时保持缺省字段：目录照常下发，合并方按「未上报」处理。
+    let upstreamModelIds: string[] | undefined;
+    try {
+      upstreamModelIds = (await dependencies.models.getUpstreamModelIds?.()) ?? undefined;
+    } catch {
+      upstreamModelIds = undefined;
+    }
     return context.json(
-      agentModelCatalogResponseSchema.parse({ ok: true, data: dependencies.models.getCatalog() }),
+      agentModelCatalogResponseSchema.parse({
+        ok: true,
+        data: {
+          ...catalog,
+          ...(upstreamModelIds?.length ? { upstreamModelIds } : {}),
+        },
+      }),
     );
   });
 

@@ -50,12 +50,13 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
     id: "goto-workbench",
     routes: ["home"],
     // 三个生成入口（图片 / 视频 / 音频）都挂这个锚点，教程环套第一个命中的
-    // 「图片生成」；文案说明旁边的入口同样可行。
+    // 「图片生成」；文案说明旁边的入口同样可行。主页的入口在左侧栏「快速生成」，
+    // 卡片放在锚点右侧；`/?view=landing` 的旧落地页入口在顶栏，落位算法会自动翻面。
     target: '[data-wc-tour="goto-workbench"]',
-    surface: ".wc-entry-gate",
-    placement: "below",
+    surface: ".wc-home, .wc-entry-gate",
+    placement: "right",
     title: "先去简易工作台",
-    body: "生成图片、视频、音频都从简易工作台开始，不用打开画布。点顶部任意一个生成入口进去看看。",
+    body: "生成图片、视频、音频都从简易工作台开始，不用打开画布。点左侧「快速生成」里任意一个入口进去看看。",
     primaryLabel: "去简易工作台",
     action: "goto-workbench",
   },

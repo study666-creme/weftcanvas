@@ -158,24 +158,38 @@ export const BottomToolbar = memo(function BottomToolbar({
             <Plus aria-hidden="true" />
           </button>
           <div className="wc-create-rail-popover" role="menu" aria-label="节点类型">
-            {creatableNodes.map((definition) => {
-              const Icon = definition.icon ?? Puzzle;
-              const label = definition.label();
-              return (
-                <button
-                  key={definition.kind}
-                  type="button"
-                  role="menuitem"
-                  className={`wc-add-node wc-add-node--${definition.kind}`}
-                  aria-label={`添加${label}`}
-                  title={`添加${label}`}
-                  onClick={() => createAtCenter(definition.kind)}
-                >
-                  <Icon aria-hidden="true" />
-                  <span className="wc-add-node-label">{label}</span>
-                </button>
-              );
-            })}
+            <div className="wc-node-picker-heading" aria-hidden="true">
+              <span className="wc-node-picker-heading-mark">
+                <Plus />
+              </span>
+              <span className="wc-node-picker-heading-copy">
+                <strong>添加节点</strong>
+                <small>选一个类型放到画布中心</small>
+              </span>
+            </div>
+            <div className="wc-node-picker-grid" role="group" aria-label="节点类型">
+              {creatableNodes.map((definition, index) => {
+                const Icon = definition.icon ?? Puzzle;
+                const label = definition.label();
+                return (
+                  <button
+                    key={definition.kind}
+                    type="button"
+                    role="menuitem"
+                    className="wc-node-picker-tile"
+                    data-kind={definition.kind}
+                    aria-label={`添加${label}`}
+                    style={{ animationDelay: `${Math.min(index, 8) * 16}ms` }}
+                    onClick={() => createAtCenter(definition.kind)}
+                  >
+                    <span className="wc-node-picker-tile-icon" aria-hidden="true">
+                      <Icon />
+                    </span>
+                    <span className="wc-node-picker-tile-label">{label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
         <span className="wc-create-rail-divider" aria-hidden="true" />
@@ -233,7 +247,7 @@ export const BottomToolbar = memo(function BottomToolbar({
           data-wc-preserve-drawers
           className={resourceOpen ? "is-active wc-resource-toggle" : "wc-resource-toggle"}
           aria-label={resourceOpen ? "收起资源库" : "打开资源库"}
-          title="资产库"
+          title="卡片与资产（Ctrl/⌘+K）"
           aria-pressed={resourceOpen}
           onClick={() => {
             onCloseSettings();

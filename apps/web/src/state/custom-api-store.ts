@@ -31,6 +31,7 @@ import {
   type CustomGenerationResult,
 } from "../lib/custom-api";
 import { resolveCanvasApiAccess } from "../lib/canvas-api-access";
+import { withCommonCustomParameters } from "../lib/custom-common-parameters";
 import { modelSupportsModality } from "../lib/custom-model-knowledge";
 import { beginBrowserGeneration, endBrowserGeneration } from "../lib/browser-generation-runtime";
 import { composeModelParameters } from "../lib/generation-config";
@@ -598,20 +599,27 @@ function createChoice(
   sourceModel: PublicModel,
   route: CustomApiRoute | null,
 ): CustomApiModelChoice {
-  const executable = route !== null;
+  // 协议档案的端点覆盖在此统一生效：选择器与执行读的是同一份路由。
+  const resolvedRoute = route ? applyProtocolOverride(route, profile.connection) : null;
+  // BYOK 常用参数（比例 / 分辨率 / 秒数）在这一个出口补：目录没给的能力由固定档位
+  // 兜住，UI 芯片与下发字段同时就位，画布节点与工作台看到的是同一份模型。
+  const { model, route: routeWithCommon } = withCommonCustomParameters(
+    {
+      ...sourceModel,
+      id: key,
+      label: `${sourceModel.label} · ${profile.name}`,
+    },
+    resolvedRoute,
+  );
+  const executable = routeWithCommon !== null;
   return {
     key,
     profileId: profile.id,
     profileName: profile.name,
     catalogModelId,
     rawModelId,
-    model: {
-      ...sourceModel,
-      id: key,
-      label: `${sourceModel.label} · ${profile.name}`,
-    },
-    // 协议档案的端点覆盖在此统一生效：选择器与执行读的是同一份路由。
-    route: route ? applyProtocolOverride(route, profile.connection) : null,
+    model,
+    route: routeWithCommon,
     executable,
     unsupportedReason: executable ? null : "当前模型没有已配置的兼容调用协议",
   };

@@ -392,6 +392,8 @@ describe("canvas reference lifecycle", () => {
       durationMs: null,
     };
     node.data.generation.parameters = { aspect_ratio: "1:1" };
+    // 只有用户显式选过的画幅才应该在恢复时压过媒体自身比例。
+    node.data.generation.aspectExplicit = true;
     useCanvasStore.setState({ nodes: [node], edges: [], groups: [] });
     const project = selectProject(useCanvasStore.getState());
 
@@ -399,6 +401,64 @@ describe("canvas reference lifecycle", () => {
 
     expect(targetRatio(node.id)).toBeCloseTo(1);
     expect(useCanvasStore.getState().nodes[0]).toMatchObject({ width: 360, height: 360 });
+  });
+
+  it("keeps a portrait media node portrait when auto model defaults say 16:9", () => {
+    const node = createCanvasNode("image", { x: 100, y: 200 });
+    node.id = "ratio-portrait-guard";
+    node.width = 360;
+    node.height = 640;
+    node.data.media = {
+      id: "portrait-media",
+      name: "portrait.png",
+      mimeType: "image/png",
+      size: 1,
+      source: "local",
+      serverId: null,
+      width: 1_080,
+      height: 1_920,
+      durationMs: null,
+    };
+    // 打开生成面板时自动补上的模型默认参数，并非用户的选择。
+    node.data.generation.parameters = { size: "16:9" };
+    useCanvasStore.setState({ nodes: [node], edges: [], groups: [], past: [], future: [] });
+
+    useCanvasStore.getState().resizeMediaNodeForGenerationParameters(node.id, { size: "16:9" });
+
+    expect(useCanvasStore.getState().nodes[0]).toMatchObject({ width: 360, height: 640 });
+    expect(useCanvasStore.getState().past).toHaveLength(0);
+
+    // 用户真的改了画幅（force）仍然要改形。
+    useCanvasStore
+      .getState()
+      .resizeMediaNodeForGenerationParameters(node.id, { size: "1:1" }, { force: true });
+
+    expect(targetRatio(node.id)).toBeCloseTo(1);
+  });
+
+  it("keeps a portrait media node portrait after reload when only auto defaults were persisted", () => {
+    const node = createCanvasNode("image", { x: 100, y: 200 });
+    node.id = "ratio-portrait-restore";
+    node.width = 360;
+    node.height = 640;
+    node.data.media = {
+      id: "portrait-media-restore",
+      name: "portrait.png",
+      mimeType: "image/png",
+      size: 1,
+      source: "local",
+      serverId: null,
+      width: 1_080,
+      height: 1_920,
+      durationMs: null,
+    };
+    node.data.generation.parameters = { size: "16:9" };
+    useCanvasStore.setState({ nodes: [node], edges: [], groups: [] });
+    const project = selectProject(useCanvasStore.getState());
+
+    useCanvasStore.getState().replaceProject(project);
+
+    expect(useCanvasStore.getState().nodes[0]).toMatchObject({ width: 360, height: 640 });
   });
 
   it("does not resize or create history when unrelated generation parameters change", () => {

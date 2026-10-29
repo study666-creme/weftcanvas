@@ -4,13 +4,10 @@ import {
   CircleUserRound,
   ClipboardList,
   Coins,
-  Image as ImageIcon,
   LoaderCircle,
   Moon,
-  Music2,
   Settings,
   Sun,
-  Video,
 } from "lucide-react";
 
 import type { ThemeMode } from "../App";
@@ -118,20 +115,9 @@ export function DirectGenerationPage({
             <small>Weftcanvas</small>
           </span>
         </a>
-        <nav aria-label="生成类型导航">
-          <a className={modality === "image" ? "is-active" : undefined} href="/generate/image">
-            <ImageIcon aria-hidden="true" />
-            图片生成
-          </a>
-          <a className={modality === "video" ? "is-active" : undefined} href="/generate/video">
-            <Video aria-hidden="true" />
-            视频生成
-          </a>
-          <a className={modality === "audio" ? "is-active" : undefined} href="/generate/audio">
-            <Music2 aria-hidden="true" />
-            音频生成
-          </a>
-        </nav>
+        {/* 这里不再放图片/视频/音频的导航链接：生成台顶部的类型切换器就在下面
+            一条窄带里，切换走 SPA、不整页刷新。两套入口并存时，顶栏这套还会
+            用 <a href> 把整页重载一遍，用户会以为切换要重新进入页面。 */}
         <div className="wc-entry-nav-actions">
           <button
             ref={settingsTriggerRef}

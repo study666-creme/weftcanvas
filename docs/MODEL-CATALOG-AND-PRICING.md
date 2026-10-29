@@ -97,6 +97,48 @@ and BYOK execution produce a playable file. Audio is billed per request; the
 quote layer already accepted audio as an input role, and now accepts it as an
 output modality end to end (hosted job, BYOK direct, standalone workbench).
 
+## Music and speech parameters (2026-10-27)
+
+The live API site published five Suno music entries (`suno-v5`, `suno-v5.5`,
+`suno-v6`, `suno-v6-mini`, `suno-v6-wild`) and one Gemini speech entry
+(`gemini-3.8-flash-tts`) at the time of this review. All six are ordinary
+selectable catalog models; every one of them could be quoted and every execution
+payload could be constructed from the stored snapshot.
+
+The catalog is the only parameter authority. Canvas does not invent style,
+duration, lyric, or reference-audio fields for music models: the site does not
+publish them, and an unrecognized field would make the upstream request fail.
+The creative controls are therefore exactly the published ones, presented as
+fixed choices:
+
+| Model           | Published parameter  | Canvas surface                                                                                                                               |
+| --------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Suno (`suno-*`) | `messages`           | bound to the prompt textarea (one `user` message)                                                                                            |
+| Suno            | `instrumental`       | visible toggle「纯音乐」— the only creative switch (on = instrumental, off = vocals)                                                         |
+| Suno            | `n`                  | fixed `1`, hidden; one submission creates one music task                                                                                     |
+| Suno            | `stream`             | hidden on every surface and rejected server-side when `true` (SSE is not parseable by the job pipeline)                                      |
+| TTS             | `contents`           | bound to the prompt textarea (`[{role:"user",parts:[{text}]}]`)                                                                              |
+| TTS             | `speechConfig`       | the 30 published preset voices, as a dropdown (default `Zephyr`)                                                                             |
+| TTS             | `responseModalities` | fixed `["AUDIO"]`, hidden                                                                                                                    |
+| TTS             | `speech_metadata`    | not exposed: per-turn style needs a structured multi-speaker editor (speaker ↔ voice pairs), not a raw JSON box; the server still accepts it |
+
+Two execution details are part of the same rule set:
+
+- **Enumerated parameters are validated by their options, not their transport
+  type.** `speechConfig` is an object upstream but the user submits a bare voice
+  name (`Kore`). The quote layer previously validated it as an object and
+  rejected every TTS request before submission; it now accepts a declared option
+  value and lets the execution adapter wrap it. The options remain the only
+  accepted values.
+- **Gemini voice shape is `speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName`.**
+  Hosted and BYOK execution both use this shape. A fixed value such as
+  `responseModalities` is always included in the request even though it is hidden.
+
+Long enumerations fall back to a dropdown instead of inline chips
+(`INLINE_CHIP_OPTION_LIMIT = 6`); the 30 voices are not rendered as 30 buttons.
+The full audit, including the local-storage findings from the same pass, is in
+[`audits/data-storage-safety-2026-10-27.md`](audits/data-storage-safety-2026-10-27.md).
+
 MiniMax H3 publishes the resolution labels declared by the live catalog:
 `768`, `1080p`, `2K`, and `4K`. The first two are the ordinary H3 video path;
 `2K` and `4K` are reference-media modes and require at least one reference
@@ -321,7 +363,9 @@ Both public 8.2 entries submit to `/v1/midjourney/generations`, require `model`
 and `prompt`, and fix `n` at `1`. They accept `size`, `raw`, and optional
 `image`/`images`; only `mj-v82` accepts `resolution` with `1K` or `2K`. Canvas
 uses `aspect_ratio` in `image.v1` and projects it to `size` on dispatch. One
-request returns four images and is priced as one request.
+request returns five images — the four-up cover grid plus four singles — and is
+priced at the catalog's per-image rate (10 credits/image for the stable series,
+so 50 credits per call) or as one request when the entry is request-priced.
 
 For the Chinese id, the equivalent request uses the exact public value
 `Midjourney v8.2 高速`; do not translate or normalize the model string.
@@ -334,12 +378,15 @@ the SD2 nine-image face route). These fallbacks live only inside the server
 normalization boundary in `apps/api/src/catalog/normalize.ts`; the browser never
 carries a fallback price or parameter table. Each Midjourney fallback entry
 (`mj-v81`, `mj-v7`, `mj-niji7`) uses the product decision confirmed on
-2026-08-10: one request costs 40 credits / CNY 0.4 with a 100 credit-per-yuan
-conversion and returns four single-image artifacts. The 40/0.4 price is a
-product pricing decision. When the live catalog provides a Midjourney entry,
-its published price remains authoritative. Normalization pins the public output
-contract to four artifacts and one submission (`n: 1`), so the four delivered
-artifacts can never be interpreted as four separate paid calls.
+2026-10-28: one request returns five images (cover grid plus four singles) and
+costs 50 credits / CNY 0.5 at 10 credits per image with a 100 credit-per-yuan
+conversion. The 50/0.5 price is a product pricing decision. When the live
+catalog provides a Midjourney entry, its published price remains authoritative.
+Normalization pins the public output contract to the delivered artifact count
+and one submission (`n: 1`), so the artifacts can never be interpreted as
+separate paid calls: five for the stable series (e.g. `mj-v8.2`,
+`Midjourney v8.1-稳定`) and four for the 特惠 series (e.g.
+`Midjourney v8.2-特惠`, 3.75 credits/image).
 
 When the upstream `pricing_version` is empty, missing, or the `unknown` sentinel
 (any casing, with surrounding whitespace), normalization derives a deterministic

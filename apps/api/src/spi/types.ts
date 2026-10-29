@@ -60,6 +60,17 @@ export type GenerationProvider = {
     key: string,
     token?: string,
   ): Promise<PublicGenerationJob | HostedGenerationResult<PublicGenerationJob> | null>;
+  /**
+   * Converge jobs nobody is observing. Observation is the only other recovery
+   * path, so without this a closed tab leaves a paid submission pending forever.
+   * Must be local-only: no user access token exists after a session ends.
+   */
+  sweepStaleJobs?(): Promise<{
+    scanned: number;
+    frozen: number;
+    failed: number;
+    skipped: number;
+  }>;
   openMedia?(
     ownerId: string,
     mediaId: string,

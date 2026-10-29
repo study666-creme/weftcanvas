@@ -496,9 +496,36 @@ const app = createApiApp({
   trustedProxySpec: process.env.TRUSTED_PROXY_CIDRS,
 });
 
+// 服务端过期任务收敛：见 sweepStaleJobs 的说明。间隔可调，默认 10 分钟。
+const generationJanitorIntervalMs = readInteger(
+  process.env.GENERATION_JANITOR_INTERVAL_MS,
+  10 * 60_000,
+  60_000,
+  60 * 60_000,
+);
+let generationJanitorTimer: ReturnType<typeof setInterval> | null = null;
+async function sweepStaleGenerationJobs() {
+  try {
+    const result = await generation?.sweepStaleJobs?.();
+    if (result && (result.frozen > 0 || result.failed > 0)) {
+      console.log("generation janitor converged stale jobs", result);
+    }
+  } catch (error) {
+    console.error("generation janitor failed", error);
+  }
+}
+
 const server = serve({ fetch: app.fetch, port, hostname }, (info) => {
   console.log(`Canvas API listening on http://${hostname}:${info.port}`);
   opsAlerts?.start();
+  // 观察是 hosted 任务的常规恢复路径；用户关掉页面后没人推进，所以这里补一个
+  // 本地巡检，只做终态收敛（不联网、不重放付费提交、不伪造退款）。
+  void sweepStaleGenerationJobs();
+  generationJanitorTimer = setInterval(
+    () => void sweepStaleGenerationJobs(),
+    generationJanitorIntervalMs,
+  );
+  generationJanitorTimer.unref();
 });
 
 let shuttingDown = false;
@@ -506,6 +533,7 @@ const shutdown = () => {
   if (shuttingDown) return;
   shuttingDown = true;
   opsAlerts?.stop();
+  if (generationJanitorTimer) clearInterval(generationJanitorTimer);
   server.close(async () => {
     await pool?.end().catch((error) => console.error("Failed to close the database pool", error));
     process.exit(0);

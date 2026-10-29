@@ -172,24 +172,22 @@ describe("seedance video models", () => {
     model("S-2.0满血-线路六", "S-2.0满血-线路六"),
   ];
 
-  it("gives seedance its own bucket instead of 其他", () => {
+  it("buckets seedance by generation instead of opening a vendor tab", () => {
     const categories = buildCategories("video", catalog);
-    const seedance = categories.find((category) => category.id === "seedance");
-    expect(seedance).toBeDefined();
-    // 运营要求：官转渠道分类名带「官方」后缀，与 S 系「线路」渠道区分。
-    expect(seedance?.label).toBe("Seedance官方");
-    for (const item of catalog.filter((entry) => /seedance/i.test(entry.id))) {
-      expect(seedance?.match(item)).toBe(true);
-    }
+    // Seedance 的 903 / 933 就是 2.0 代，不该单开一个分类（用户 2026-10-28）。
+    expect(categories.map((category) => category.id)).not.toContain("seedance");
+    const byId = Object.fromEntries(categories.map((category) => [category.id, category.match]));
+    const ids = (id: string) => catalog.filter((item) => byId[id]?.(item)).map((item) => item.id);
+    expect(ids("2.0")).toEqual([
+      "doubao-seedance-2.0",
+      "firefly-seedance2-720p",
+      "S-2.0满血-线路六",
+    ]);
+    expect(ids("2.0fast")).toEqual(["doubao-seedance-2.0-fast"]);
+    expect(ids("2.0mini")).toEqual(["doubao-seedance-2.0-mini"]);
+    expect(ids("2.5")).toEqual(["doubao-seedance-2.5"]);
     const other = categories.find((category) => category.id === "other");
-    expect(other?.match(catalog[0]!)).not.toBe(true);
-    expect(categories.map((category) => category.id)).toContain("seedance");
-  });
-
-  it("keeps S-family lines out of the seedance bucket", () => {
-    const categories = buildCategories("video", catalog);
-    const seedance = categories.find((category) => category.id === "seedance");
-    expect(seedance?.match(catalog.find((item) => item.id === "S-2.0满血-线路六")!)).toBe(false);
+    expect(other).toBeUndefined();
   });
 });
 

@@ -110,7 +110,7 @@ test("shows the announcements modal with badges, links and both dismissal button
   await modal.getByRole("button", { name: "关闭本次" }).click();
   await expect(page.locator(SCRIM)).toHaveCount(0);
   await page.reload();
-  await expect(page.locator(".wc-entry-gate")).toBeVisible();
+  await expect(page.locator(".wc-home")).toBeVisible();
   await expect(page.locator(SCRIM)).toHaveCount(0);
 });
 
@@ -126,7 +126,7 @@ test("今日不再提醒 keeps the quiet state across reloads", async ({ page })
   await expect(page.locator(SCRIM)).toHaveCount(0);
 
   await page.reload();
-  await expect(page.locator(".wc-entry-gate")).toBeVisible();
+  await expect(page.locator(".wc-home")).toBeVisible();
   await expect(page.locator(SCRIM)).toHaveCount(0);
 });
 

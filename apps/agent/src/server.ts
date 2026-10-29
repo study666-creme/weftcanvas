@@ -70,9 +70,44 @@ const canvasControl = new CanvasControlQueue({
 const canvasApiUrl = process.env.CANVAS_API_URL?.trim() || "http://127.0.0.1:8787";
 const remoteBlender = new RemoteBlenderRunner(canvasApiUrl, token);
 
+// 上游 /v1/models 的短 TTL 快照：向画布 API 如实上报「当前哪些模型一发就能成」，
+// 合并方据此过滤平台目录。上游失败只意味着这一轮不上报，绝不阻断模型目录。
+const UPSTREAM_MODELS_TTL_MS = readInteger(
+  process.env.UPSTREAM_MODELS_TTL_MS,
+  300_000,
+  5_000,
+  3_600_000,
+);
+let upstreamModelsCache: { ids: string[]; at: number } | undefined;
+let upstreamModelsInflight: Promise<string[] | undefined> | undefined;
+async function getUpstreamModelIds(): Promise<string[] | undefined> {
+  const cached = upstreamModelsCache;
+  if (cached && Date.now() - cached.at < UPSTREAM_MODELS_TTL_MS) return cached.ids;
+  if (upstreamModelsInflight) return upstreamModelsInflight;
+  upstreamModelsInflight = (async () => {
+    try {
+      const ids = await model.listModels();
+      upstreamModelsCache = { ids, at: Date.now() };
+      return ids;
+    } catch (cause) {
+      console.warn("[agent] upstream model list unavailable; catalog will not report it", {
+        error: cause instanceof Error ? cause.message : String(cause),
+      });
+      // 失败时保留上一次成功快照（如有），否则按未上报处理。
+      return cached?.ids;
+    } finally {
+      upstreamModelsInflight = undefined;
+    }
+  })();
+  return upstreamModelsInflight;
+}
+
 const app = createAgentApp({
   token,
-  models,
+  models: {
+    getCatalog: () => models.getCatalog(),
+    getUpstreamModelIds,
+  },
   runs: new AgentRunHandler(model, models, createKnowledgeRetriever(), {
     buildTools: async (request, signal) => {
       // 用户有在线的外部 Blender 时走远程通道；否则退回本机运行时（开发/自托管）。

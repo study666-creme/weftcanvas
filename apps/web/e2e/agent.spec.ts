@@ -226,18 +226,13 @@ test("top Agent companion reacts and opens a bounded non-modal side workspace", 
   await dock.getByLabel("打开资源库").click();
   await expect(page.getByRole("dialog", { name: "资源库" })).toBeVisible();
 
-  const readFlowCenter = () =>
+  const readFlowViewport = () =>
     page.evaluate(() => {
-      const shell = document.querySelector<HTMLElement>(".wc-flow-shell")!;
       const viewport = document.querySelector<HTMLElement>(".react-flow__viewport")!;
-      const bounds = shell.getBoundingClientRect();
       const matrix = new DOMMatrixReadOnly(getComputedStyle(viewport).transform);
-      return {
-        x: (bounds.width / 2 - matrix.m41) / matrix.a,
-        y: (bounds.height / 2 - matrix.m42) / matrix.d,
-      };
+      return { x: matrix.m41, y: matrix.m42, zoom: matrix.a };
     });
-  const centerBeforeAgent = await readFlowCenter();
+  const viewportBeforeAgent = await readFlowViewport();
   const flowBeforeAgent = await page.locator(".wc-flow-shell").boundingBox();
   expect(flowBeforeAgent).not.toBeNull();
   await companion.click();
@@ -300,6 +295,8 @@ test("top Agent companion reacts and opens a bounded non-modal side workspace", 
   const agentMark = drawer.locator(".wc-agent-mark");
   const composer = drawer.locator(".wc-agent-composer");
   const composerBox = await composer.boundingBox();
+  const composerInputBox = await composer.locator("textarea").boundingBox();
+  const composerFooterBox = await composer.locator(".wc-agent-composer-footer").boundingBox();
   expect(drawerBox).not.toBeNull();
   expect(zoomBox).not.toBeNull();
   // 贴边抽屉：右侧到底、上下到顶，不留悬浮边距。
@@ -313,7 +310,18 @@ test("top Agent companion reacts and opens a bounded non-modal side workspace", 
   expect(drawerBox!.x).toBeGreaterThan(zoomBox!.x + zoomBox!.width + 24);
   expect(composerBox!.x).toBeGreaterThan(drawerBox!.x);
   expect(composerBox!.y + composerBox!.height).toBeLessThan(drawerBox!.y + drawerBox!.height);
-  expect(composerBox!.height).toBeGreaterThanOrEqual(140);
+  // 2026-10-26 起输入区改成两行控制栏：模型/模式/技能一行，附件/提示/设置/发送一行。
+  // 守住的是输入框不被压扁、控制栏不换行、控制栏不盖住输入框。
+  expect(composerInputBox).not.toBeNull();
+  expect(composerFooterBox).not.toBeNull();
+  expect(composerInputBox!.height).toBeGreaterThanOrEqual(64);
+  expect(composerFooterBox!.height).toBeLessThanOrEqual(110);
+  expect(composerFooterBox!.y).toBeGreaterThanOrEqual(
+    composerInputBox!.y + composerInputBox!.height - 0.5,
+  );
+  expect(composerBox!.height).toBeGreaterThanOrEqual(
+    composerInputBox!.height + composerFooterBox!.height,
+  );
   expect(composerBox!.height).toBeLessThanOrEqual(240);
   await expect(agentMark).toBeVisible();
   await expect(drawer.locator(".wc-agent-composer-context")).toHaveCount(0);
@@ -336,24 +344,31 @@ test("top Agent companion reacts and opens a bounded non-modal side workspace", 
   });
   expect(modelSelectStyles).toMatchObject({
     triggerAlign: "center",
-    triggerHeight: 34,
+    triggerHeight: 38,
     valueInside: true,
   });
   expect(modelSelectStyles.triggerWidth).toBeGreaterThan(160);
   await expect(drawer.getByLabel("Agent 回复")).toBeVisible();
+  // Since 2026-10-18 the drawer reserves its column (.wc-workspace.is-agent-open
+  // narrows .wc-flow-shell) instead of overlaying the canvas. Opening it must
+  // not pan or zoom the canvas: nodes stay where they were on screen, and the
+  // canvas simply ends where the drawer begins.
   await expect
     .poll(async () => {
-      const center = await readFlowCenter();
+      const current = await readFlowViewport();
       return Math.max(
-        Math.abs(center.x - centerBeforeAgent.x),
-        Math.abs(center.y - centerBeforeAgent.y),
+        Math.abs(current.x - viewportBeforeAgent.x),
+        Math.abs(current.y - viewportBeforeAgent.y),
+        Math.abs(current.zoom - viewportBeforeAgent.zoom) * 1_000,
       );
     })
     .toBeLessThan(1);
   const flowBox = await page.locator(".wc-flow-shell").boundingBox();
   expect(flowBox).not.toBeNull();
-  expect(Math.abs(flowBox!.width - flowBeforeAgent!.width)).toBeLessThan(1);
+  expect(Math.abs(flowBox!.x - flowBeforeAgent!.x)).toBeLessThan(1);
+  expect(Math.abs(flowBox!.y - flowBeforeAgent!.y)).toBeLessThan(1);
   expect(Math.abs(flowBox!.height - flowBeforeAgent!.height)).toBeLessThan(1);
+  expect(Math.abs(flowBox!.x + flowBox!.width - drawerBox!.x)).toBeLessThan(1);
 
   const viewport = page.locator(".react-flow__viewport");
   const readViewport = () => viewport.evaluate((element) => getComputedStyle(element).transform);
@@ -705,7 +720,7 @@ test("未登录时不请求 Agent，登录成功后自动加载当前画布对�
     passwordResetUrl: null,
   };
   let activeSession: typeof session | null = null;
-  let agentRequests = 0;
+  const agentRequestPaths: string[] = [];
 
   await page.addInitScript(() => localStorage.clear());
   await page.route("**/api/v1/auth/session", (route) =>
@@ -719,8 +734,9 @@ test("未登录时不请求 Agent，登录成功后自动加载当前画布对�
   });
   await mockAuthenticatedBackgroundRequests(page);
   await page.route("**/api/v1/agent/**", (route) => {
-    agentRequests += 1;
-    if (new URL(route.request().url()).pathname === "/api/v1/agent/models") {
+    const { pathname } = new URL(route.request().url());
+    agentRequestPaths.push(pathname);
+    if (pathname === "/api/v1/agent/models") {
       return route.fulfill({ json: { ok: true, data: agentModels } });
     }
     return route.fulfill({ json: { ok: true, data: [] } });
@@ -730,9 +746,18 @@ test("未登录时不请求 Agent，登录成功后自动加载当前画布对�
   await page.getByLabel("打开画布 Agent").click();
   const drawer = page.getByRole("dialog", { name: "画布 Agent" });
   await expect(drawer.getByText("登录后继续对话")).toBeVisible();
-  expect(agentRequests).toBe(0);
+  expect(agentRequestPaths).toEqual([]);
 
   await page.setViewportSize({ width: 390, height: 844 });
+  // Crossing the narrow breakpoint replays the drawer's 200ms slide-in
+  // (translateX 26px -> 0), so wait for it to settle on the 8px inset before
+  // sampling the geometry.
+  await expect
+    .poll(async () => {
+      const box = await drawer.boundingBox();
+      return box ? Math.round(box.x) : -1;
+    })
+    .toBe(8);
   const mobileDrawerBox = await drawer.boundingBox();
   expect(mobileDrawerBox).not.toBeNull();
   expect(mobileDrawerBox!.x).toBeGreaterThanOrEqual(7);
@@ -743,9 +768,10 @@ test("未登录时不请求 Agent，登录成功后自动加载当前画布对�
   expect(844 - mobileDrawerBox!.y - mobileDrawerBox!.height).toBeLessThanOrEqual(9);
 
   await drawer.getByRole("button", { name: "登录账号" }).click();
-  const account = page.getByRole("dialog", { name: "纬线账号" });
-  await account.getByLabel("邮箱").fill("creator@example.com");
-  await account.getByLabel("密码").fill("password");
+  // Signed-out visitors get the full-screen login layer, not the account center.
+  const account = page.getByRole("dialog", { name: "登录纬线" });
+  await account.getByRole("textbox", { name: "邮箱" }).fill("creator@example.com");
+  await account.getByRole("textbox", { name: "密码" }).fill("password");
   await account.getByRole("button", { name: "进入画布", exact: true }).click();
 
   await expect(account).toBeHidden();
@@ -771,7 +797,11 @@ test("未登录时不请求 Agent，登录成功后自动加载当前画布对�
   await page.screenshot({
     path: testInfo.outputPath("agent-side-workspace-mobile-authenticated.png"),
   });
-  await expect.poll(() => agentRequests).toBe(2);
+  // One load each after sign-in: the canvas conversation, the model catalog, and
+  // the user's imported skills (added with the skills feature). No duplicates.
+  await expect
+    .poll(() => [...agentRequestPaths].sort())
+    .toEqual(["/api/v1/agent/conversations", "/api/v1/agent/models", "/api/v1/agent/skills"]);
   await expect(drawer.getByLabel("Agent 回复")).not.toContainText("Agent 服务暂未配置");
 });
 
@@ -942,6 +972,8 @@ test("Agent 提案必须确认后才修改画布并记录回执", async ({ page 
     });
   });
 
+  // New projects start empty, so seed the starter graph the proposal lands next to.
+  await seedStarterCanvas(page);
   await page.goto("/canvas");
   const nodes = page.locator(".react-flow__node-weftcanvas");
   await expect(nodes.first()).toBeVisible();
@@ -1028,6 +1060,8 @@ test("专业辅助基线未完成时阻止旧服务返回的提案", async ({ pa
     });
   });
 
+  // New projects start empty, so seed the starter graph the blocked proposal must not touch.
+  await seedStarterCanvas(page);
   await page.goto("/canvas");
   const nodes = page.locator(".react-flow__node-weftcanvas");
   await expect(nodes.first()).toBeVisible();

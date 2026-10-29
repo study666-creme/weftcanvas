@@ -158,6 +158,24 @@ describe("generation parameter groups", () => {
     expect(names(groups.moreParameters)).toEqual(["voice", "duration"]);
   });
 
+  it("promotes audio creative choices and enum-shaped objects into the quick row", () => {
+    const model = createModel("audio", [
+      parameter("speechConfig", "object", {
+        required: true,
+        options: ["Kore", "Puck"],
+      }),
+      parameter("instrumental", "boolean", { default: false }),
+      parameter("stream", "boolean", { default: false }),
+      parameter("responseModalities", "array", { required: true, fixed: ["AUDIO"] }),
+    ]);
+
+    const groups = partitionGenerationParameters(model);
+
+    expect(names(groups.quickParameters)).toEqual(["speechConfig", "instrumental"]);
+    // 传输开关与固定通道不出现在参数面板，但仍由 compose 原样下发。
+    expect(groups.moreParameters.map((item) => item.name)).toEqual([]);
+  });
+
   it("excludes model-bound prompts and internal route parameters", () => {
     const model = createModel("image", [
       parameter("instruction", "string", { required: true }),

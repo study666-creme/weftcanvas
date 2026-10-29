@@ -1,7 +1,10 @@
 import type { AgentModel } from "@weftcanvas/contracts";
-import { Check, ChevronDown, Sparkles } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
+
+import { modelVendorOf } from "../lib/model-vendor";
+import { ModelVendorIcon } from "./model-vendor-icon";
 
 /** 按次模型的平台默认价（2 分钱 = 2 积分，和 API 侧保持一致）。 */
 const DEFAULT_REQUEST_PRICE_LABEL = "2 积分/次";
@@ -10,9 +13,23 @@ function modelBilling(model: AgentModel) {
   return model.billing === "token" ? "token" : "request";
 }
 
+/** 计费口径：目录给了 meta 就用它，否则按 billing 兜底。 */
+function modelBillingLabel(model: AgentModel) {
+  return model.meta
+    ? model.meta
+    : modelBilling(model) === "token"
+      ? "按 Token 计费"
+      : DEFAULT_REQUEST_PRICE_LABEL;
+}
+
+/**
+ * 触发器第二行的「厂商 · 计费」。厂商在这里还有用（收起时看不到 tab），
+ * 但列表行不拼厂商——那一行已经有商标图标，再写一遍只会把模型名挤成省略号。
+ */
 function modelMetaLabel(model: AgentModel) {
-  if (model.meta) return model.meta;
-  return modelBilling(model) === "token" ? "按 Token 计费" : DEFAULT_REQUEST_PRICE_LABEL;
+  const billing = modelBillingLabel(model);
+  const group = model.group?.trim();
+  return group && group !== "其他" ? `${group} · ${billing}` : billing;
 }
 
 export type VendorGroup = { id: string; label: string; models: AgentModel[] };
@@ -159,9 +176,13 @@ export function ModelPickerSelect({
 
   const active = groups.find((group) => group.id === activeGroup) ?? groups[0] ?? null;
   const visible = active?.models ?? [];
+  const selectedVendor = selected
+    ? modelVendorOf(selected.id, selected.label, selected.group)
+    : null;
 
   const renderOption = (model: AgentModel) => {
     const isActive = model.id === value;
+    const vendor = modelVendorOf(model.id, model.label, model.group);
     return (
       <button
         key={model.id}
@@ -175,9 +196,17 @@ export function ModelPickerSelect({
           setOpen(false);
         }}
       >
+        <ModelVendorIcon vendor={vendor.key} size={14} tile />
         <span className="wc-cat-select-option-copy">
-          <strong>{model.label}</strong>
-          <span className="wc-cat-select-option-price">{modelMetaLabel(model)}</span>
+          <span className="wc-cat-select-option-stack">
+            <span className="wc-cat-select-option-title">
+              <strong>{model.label}</strong>
+              <span className="wc-cat-select-option-price">{modelBillingLabel(model)}</span>
+            </span>
+            {model.detail ? (
+              <small className="wc-cat-select-option-detail">{model.detail}</small>
+            ) : null}
+          </span>
         </span>
         {isActive ? <Check aria-hidden="true" className="wc-cat-select-check" /> : null}
       </button>
@@ -204,7 +233,11 @@ export function ModelPickerSelect({
         }}
         onClick={() => setOpen((current) => !current)}
       >
-        <Sparkles aria-hidden="true" className="wc-cat-select-icon" />
+        <ModelVendorIcon
+          vendor={selectedVendor?.key ?? "generic"}
+          size={15}
+          className="wc-cat-select-vendor"
+        />
         <span className="wc-cat-select-value">{selected?.label ?? placeholder}</span>
         {selected ? <span className="wc-cat-select-meta">{modelMetaLabel(selected)}</span> : null}
         <ChevronDown aria-hidden="true" className="wc-cat-select-caret" />
@@ -235,13 +268,23 @@ export function ModelPickerSelect({
                       title={`${group.label}（${group.models.length}）`}
                       onClick={() => setActiveGroup(group.id)}
                     >
+                      <ModelVendorIcon
+                        vendor={modelVendorOf(group.id, group.label).key}
+                        size={13}
+                      />
                       <span>{group.label}</span>
                       <i aria-hidden="true">{group.models.length}</i>
                     </button>
                   ))}
                 </div>
               ) : null}
-              <div className="wc-cat-select-options">{visible.map(renderOption)}</div>
+              <div className="wc-cat-select-options">
+                <div className="wc-cat-select-menu-head">
+                  <strong>选择模型</strong>
+                  <span>{models.length} 个模型 · 按厂商分组</span>
+                </div>
+                {visible.map(renderOption)}
+              </div>
             </div>,
             document.body,
           )

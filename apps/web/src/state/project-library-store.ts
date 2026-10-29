@@ -28,6 +28,8 @@ type ProjectLibraryState = {
   renameProject: (projectId: string, name: string) => boolean;
   duplicateProject: (projectId: string) => void;
   deleteProject: (projectId: string) => void;
+  /** 批量删除：一次确认后删掉多个本地项目，当前项目也在其中时切到剩下的第一个。 */
+  deleteProjects: (projectIds: string[]) => void;
   importProject: (project: CanvasProject) => void;
 };
 
@@ -126,10 +128,16 @@ export const useProjectLibraryStore = create<ProjectLibraryState>((set, get) => 
   },
 
   deleteProject: (projectId) => {
+    get().deleteProjects([projectId]);
+  },
+
+  deleteProjects: (projectIds) => {
+    const ids = [...new Set(projectIds.filter(Boolean))];
+    if (!ids.length) return;
     try {
       const canvas = useCanvasStore.getState();
-      const deletingActive = canvas.projectId === projectId;
-      removeProject(projectId);
+      const deletingActive = ids.includes(canvas.projectId);
+      for (const id of ids) removeProject(id);
       let projects = loadSummaries();
       if (deletingActive) {
         const replacement = projects
@@ -149,7 +157,9 @@ export const useProjectLibraryStore = create<ProjectLibraryState>((set, get) => 
         open: deletingActive ? false : get().open,
         query: deletingActive ? "" : get().query,
       });
-      useToastStore.getState().show("项目已删除", "success");
+      useToastStore
+        .getState()
+        .show(ids.length > 1 ? `已删除 ${ids.length} 个项目` : "项目已删除", "success");
     } catch {
       useToastStore.getState().show("项目删除失败", "error");
     }

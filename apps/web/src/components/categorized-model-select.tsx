@@ -70,9 +70,10 @@ type Category = {
  * - Image models: 香蕉 / 全能模型2 / 全能模型2.5 / Midjourney / Seedream / 其他.
  *   The console splits the 全能模型 line into its 2 and 2.5 generations, so the
  *   picker does the same instead of hiding both under one "全能模型2" tab.
- * - Video models: S-family is split into 2.0 / 2.0fast / 2.0mini (no umbrella
- *   "S模型" tab); other series use their vendor names: Minimax / 可灵 / Veo /
- *   Runway / Wan / Seedance; leftovers go to 其他.
+ * - Video models: the S-family and Seedance share one generation axis, split into
+ *   2.0 / 2.5 / 2.0fast / 2.0mini (no umbrella "S模型" tab, no separate Seedance
+ *   tab); other series use their vendor names: Minimax / 可灵 / Veo / Runway /
+ *   Wan / Grok; leftovers go to 其他.
  * No "全部" tab — users pick by subcategory only.
  */
 const VIDEO_CATEGORY_RULES: {
@@ -114,14 +115,9 @@ const VIDEO_CATEGORY_RULES: {
     label: "Grok",
     match: (model) => /grok/i.test(model.id) || /grok/i.test(model.label),
   },
-  // 字节 Seedance：按 token 计费的 doubao-seedance-* 与按秒分档的
-  // firefly-seedance2-*。缺这条规则时它们全落进「其他」。
-  // 标注「官方」：这里是站点官转渠道，与 S 系「线路」Self-Host 渠道区分开。
-  {
-    id: "seedance",
-    label: "Seedance官方",
-    match: (model) => /seedance/i.test(model.id) || /seedance/i.test(model.label),
-  },
+  // 字节 Seedance 不单开分类：它的 903 / 933 两条就是 2.0 代，跟 S 系的 2.0 是
+  // 同一代际，按 isGenerationFamily 归进 2.0 / 2.5 / 2.0fast / 2.0mini
+  // （用户 2026-10-28：「Seedance 就是 2.0 啊，为什么要单独开一个分类」）。
 ];
 
 const IMAGE_CATEGORY_RULES: {
@@ -171,13 +167,15 @@ function isUniversal25(model: PublicModel) {
 }
 
 /**
- * S-family grouping, per the console's own rules:
- *  - S + fast        → "2.0fast" bucket (no 2.0 marker required, so a bare
- *                      "S-fast高质量" belongs here too)
- *  - S + mini        → "2.0mini" bucket
- *  - S + 2.0 / 2.5   → "2.0" bucket, as long as it is not fast/mini
- * fast/mini beat the 2.0 marker because they name the more specific line.
+ * 2.0 / 2.5 / 2.0fast / 2.0mini 是按"代际线"分的，不是按渠道：S 系（S-… /
+ * 卡人脸 / 可人脸）和字节 Seedance 走同一套代际规则——Seedance 2.0 的 903 /
+ * 933 就属于 2.0，Seedance 2.5 属于 2.5，fast / mini 也是同理。只有代际之外的
+ * 厂商（Minimax / 可灵 / Wan / Grok）才按厂商单独开分类。
  */
+function isGenerationFamily(model: PublicModel) {
+  return isSFamily(model) || /seedance/i.test(`${model.id} ${model.label}`);
+}
+
 function isSFamily(model: PublicModel) {
   return /^S-/i.test(model.id) || /卡人脸|可人脸/.test(model.label);
 }
@@ -189,23 +187,23 @@ function hasS20Marker(model: PublicModel) {
 
 function isS25(model: PublicModel) {
   const haystack = `${model.id} ${model.label}`.toLowerCase();
-  if (!isSFamily(model) || !/2\.5/.test(haystack)) return false;
+  if (!isGenerationFamily(model) || !/2\.5/.test(haystack)) return false;
   return !/fast/i.test(haystack) && !/mini/i.test(haystack);
 }
 
 function isS20Fast(model: PublicModel) {
   const haystack = `${model.id} ${model.label}`.toLowerCase();
-  return isSFamily(model) && /fast/i.test(haystack);
+  return isGenerationFamily(model) && /fast/i.test(haystack);
 }
 
 function isS20Mini(model: PublicModel) {
   const haystack = `${model.id} ${model.label}`.toLowerCase();
-  return isSFamily(model) && hasS20Marker(model) && /mini/i.test(haystack);
+  return isGenerationFamily(model) && hasS20Marker(model) && /mini/i.test(haystack);
 }
 
 function isS20(model: PublicModel) {
   const haystack = `${model.id} ${model.label}`.toLowerCase();
-  if (!isSFamily(model) || !hasS20Marker(model) || /2\.5/.test(haystack)) return false;
+  if (!isGenerationFamily(model) || !hasS20Marker(model) || /2\.5/.test(haystack)) return false;
   return !/fast/i.test(haystack) && !/mini/i.test(haystack);
 }
 

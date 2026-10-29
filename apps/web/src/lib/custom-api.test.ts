@@ -1596,7 +1596,7 @@ describe("custom API audio execution", () => {
       contents: [{ role: "user", parts: [{ text: "你好" }] }],
       generationConfig: {
         responseModalities: ["AUDIO"],
-        speechConfig: { voiceConfig: { voice: "Kore" } },
+        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } } },
       },
     });
     // 无头 PCM 被包成 WAV 后入库（取本测试的最后一次 storeMedia 调用）。

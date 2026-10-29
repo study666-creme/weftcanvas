@@ -223,6 +223,7 @@ async function mockAuthenticatedWallet(
     walletCalls?: { summary: number; products: number; ledger: number };
     customTopUp?: boolean;
     tasks?: () => ReturnType<typeof membershipTaskCenter>;
+    products?: typeof products;
   } = {},
 ) {
   const calls = options.walletCalls ?? { summary: 0, products: 0, ledger: 0 };
@@ -240,7 +241,7 @@ async function mockAuthenticatedWallet(
     return route.fulfill({
       json: {
         ok: true,
-        data: products,
+        data: options.products ?? products,
         ...(options.customTopUp ? { customCreditTopUp } : {}),
       },
     });
@@ -312,6 +313,35 @@ test("账号默认展示共享会员权益及当前限免能力", async ({ page 
   const proPlan = dialog.locator(".wc-membership-plan").filter({ hasText: "专业会员" });
   await expect(proPlan).toContainText("多人协作（最多 5 人）");
   await expect(proPlan).toContainText("当前限免");
+});
+
+test("购买会员前必须先选择积分领取方式", async ({ page }) => {
+  await preparePage(page);
+  await mockAuthenticatedWallet(page);
+
+  await page.goto("/canvas");
+  const dialog = await openAccount(page, "账号：创作者");
+  const membershipTab = dialog.getByRole("tab", { name: "会员权益" });
+  await membershipTab.click();
+  await expect(membershipTab).toHaveAttribute("aria-selected", "true");
+
+  const proPlan = dialog.locator(".wc-membership-plan").filter({ hasText: "专业会员" });
+  await proPlan.click();
+
+  const checkout = dialog.locator(".wc-wallet-checkout");
+  await expect(checkout).toBeDisabled();
+  await expect(checkout).toContainText("请先选择积分领取方式");
+  await expect(dialog.locator(".wc-membership-grant-hint")).toContainText(
+    "请先选择积分领取方式再支付",
+  );
+
+  await dialog
+    .getByRole("group", { name: "积分到账方式" })
+    .getByRole("button", { name: "每日积分" })
+    .click();
+
+  await expect(checkout).toBeEnabled();
+  await expect(checkout).toContainText("立即支付");
 });
 
 test("任务快捷入口显示可领取数并在领取每日五积分后刷新状态", async ({ page }) => {
@@ -486,6 +516,72 @@ test("外部账号登录失败会保留表单，成功后加载动态余额、�
   await expect(productList).toContainText("专业会员");
   await expect(productList).toContainText("1 个额外协作者席位");
   await expect(walletDialog.getByRole("listitem")).toContainText("生成消费");
+});
+
+/**
+ * 大额积分档：¥1000 / ¥3000 限时加赠 3%。实发积分由服务端下发（credits 已是加赠后
+ * 的口径），画布只把「限时加赠 3%」说出来，不在前端重算——否则展示与入账会分叉。
+ */
+test("大额积分档显示限时加赠与加赠后的实发积分", async ({ page }) => {
+  test.skip(RECHARGE_DISABLED, RECHARGE_SKIP_REASON);
+  await preparePage(page);
+  let checkoutBody: unknown = null;
+  await mockAuthenticatedWallet(page, {
+    // 与 Prompt Hub `server/src/lib/epay.ts` 的 CREDIT_PACKS 同口径：
+    // credits 已是加赠后的实发数，bonusPercent 只驱动「限时加赠」标记。
+    products: [
+      { kind: "credits", id: "points-10", amount: 10, credits: 1_000 },
+      { kind: "credits", id: "points-20", amount: 30, credits: 3_000 },
+      { kind: "credits", id: "points-50", amount: 50, credits: 5_000 },
+      { kind: "credits", id: "points-100", amount: 100, credits: 10_000 },
+      { kind: "credits", id: "points-300", amount: 300, credits: 30_000 },
+      { kind: "credits", id: "points-500", amount: 500, credits: 50_000 },
+      { kind: "credits", id: "points-1000", amount: 1000, credits: 103_000, bonusPercent: 3 },
+      { kind: "credits", id: "points-3000", amount: 3000, credits: 309_000, bonusPercent: 3 },
+    ],
+  });
+  await page.route("**/api/v1/wallet/checkout", (route) => {
+    checkoutBody = route.request().postDataJSON();
+    return route.fulfill({
+      json: {
+        ok: true,
+        data: { orderNo: "PAYPROMO1", checkoutUrl: "https://pay.example.com/PAYPROMO1" },
+      },
+    });
+  });
+
+  await page.goto("/canvas");
+  const dialog = await openWallet(page, "账号：创作者");
+  const productList = dialog.getByRole("listbox", { name: "充值商品" });
+  await expect(productList.getByRole("option")).toHaveCount(8);
+  await expect(productList).not.toContainText("20,000 积分");
+  // 8 档两列四行必须在列表高度内放完，不能让新档位藏在滚动条后面。
+  const listBox = await productList.evaluate((el) => ({
+    scrollHeight: el.scrollHeight,
+    clientHeight: el.clientHeight,
+  }));
+  expect(listBox.scrollHeight).toBeLessThanOrEqual(listBox.clientHeight + 1);
+
+  const plain = productList.getByRole("option", { name: /30,000 积分/ });
+  await expect(plain).toContainText("¥300");
+  await expect(plain).toContainText("约 100 积分/元");
+  await expect(plain.locator(".wc-wallet-product-bonus")).toHaveCount(0);
+
+  const promo = productList.getByRole("option", { name: /103,000 积分/ });
+  await expect(promo).toContainText("¥1,000");
+  await expect(promo).toContainText("约 103 积分/元");
+  await expect(promo.locator(".wc-wallet-product-bonus")).toHaveText("限时加赠 3%");
+  await expect(productList.getByRole("option", { name: /309,000 积分/ })).toContainText("¥3,000");
+
+  await promo.click();
+  await expect(promo).toHaveAttribute("aria-selected", "true");
+  await dialog.getByRole("button", { name: "立即支付 ¥1,000" }).click();
+  await expect
+    .poll(() => checkoutBody)
+    .toEqual({
+      productId: "points-1000",
+      paymentMethod: "alipay",
+    });
 });
 
 test("快速重复结账只创建一个订单，pending 转 paid 后刷新余额与流水", async ({ page }) => {

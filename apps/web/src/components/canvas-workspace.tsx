@@ -4,7 +4,6 @@ import {
   Background,
   BackgroundVariant,
   PanOnScrollMode,
-  Position,
   ReactFlow,
   SelectionMode,
   useReactFlow,
@@ -62,7 +61,17 @@ import {
 } from "../lib/node-body-connection";
 import { nodeCreationDimensions } from "../lib/node-factory";
 import { getGroupBounds, indexCanvasNodes, type NodeGroupBounds } from "../lib/node-groups";
-import { useAgentLinkStore, useAgentLinkedNodeIds } from "../state/agent-link-store";
+import {
+  useAgentLinkStore,
+  useAgentLinkedNodeIds,
+  MAX_AGENT_LINKED_NODES,
+} from "../state/agent-link-store";
+import {
+  agentLinkRejectionMessage,
+  agentLinkVerdict,
+  dragEventPoint,
+  isPointOverElement,
+} from "../lib/agent-companion-drop";
 import { useAgentStore } from "../state/agent-store";
 import { useCanvasStore } from "../state/canvas-store";
 import { useCloudProjectStore } from "../state/cloud-project-store";
@@ -100,10 +109,10 @@ import { CanvasStarfield } from "./canvas-starfield";
 import { CanvasWaterSurface } from "./canvas-water-surface";
 import { ConnectionCreateMenu, type PendingConnectionCreate } from "./connection-create-menu";
 import {
-  AGENT_ANCHOR_HANDLE_ID,
-  AGENT_ANCHOR_NODE_ID,
-  AgentLinkAnchorNodeView,
-} from "./agent-link-anchor";
+  AGENT_PORT_DROP_PADDING,
+  AgentMaterialPort,
+  type AgentPortDrop,
+} from "./agent-material-port";
 import { WeftcanvasConnectionLine, WeftcanvasEdgeComponent } from "./weftcanvas-edge";
 import { WeftcanvasNode as WeftcanvasNodeComponent } from "./weftcanvas-node";
 import { NodeConfigurationComposer } from "./node-configuration-composer";
@@ -115,7 +124,6 @@ import { ZoomControl } from "./zoom-control";
 
 const nodeTypes = {
   weftcanvas: WeftcanvasNodeComponent,
-  "agent-anchor": AgentLinkAnchorNodeView,
 } as unknown as NodeTypes;
 const edgeTypes = { default: WeftcanvasEdgeComponent, weftcanvas: WeftcanvasEdgeComponent };
 // Above this many nodes the per-node shadows/borders become the dominant paint
@@ -154,17 +162,6 @@ function connectionKeysFor(edges: readonly WeftcanvasEdge[]) {
 const isValidCanvasConnection: IsValidConnection<WeftcanvasEdge> = (connection) => {
   if (!connection.source || !connection.target || connection.source === connection.target)
     return false;
-  if (connection.target === AGENT_ANCHOR_NODE_ID) {
-    // Agent 引用口只收有图片/视频素材的节点；重复连线由 handleConnect 去重。
-    const canvas = useCanvasStore.getState();
-    const source = canvas.nodes.find((node) => node.id === connection.source);
-    if (!source || !source.data.media) return false;
-    if (source.data.kind !== "image" && source.data.kind !== "video") return false;
-    return !(useAgentLinkStore.getState().linksByProject[canvas.projectId] ?? []).includes(
-      connection.source,
-    );
-  }
-  if (connection.source === AGENT_ANCHOR_NODE_ID) return false;
   if (
     connectionKeysFor(useCanvasStore.getState().edges).has(
       `${connection.source}\0${connection.target}`,
@@ -276,7 +273,6 @@ export function CanvasWorkspace({
   const addCapturedImages = useCanvasStore((state) => state.addCapturedImages);
   const projectId = useCanvasStore((state) => state.projectId);
   const agentLinkedNodeIds = useAgentLinkedNodeIds(projectId);
-  const toggleAgentLink = useAgentLinkStore((state) => state.toggle);
   const pruneAgentLinks = useAgentLinkStore((state) => state.prune);
   const cloudLinked = useCloudProjectStore((state) => Boolean(state.links[projectId]));
   const updateNodeData = useCanvasStore((state) => state.updateNodeData);
@@ -308,7 +304,11 @@ export function CanvasWorkspace({
     return () => setPanActive(false);
   }, [panMode]);
   const [miniMapOpen, setMiniMapOpen] = useState(readPersistedMiniMapOpen);
-  const [agentAnchorPosition, setAgentAnchorPosition] = useState<XYPosition>({ x: 0, y: 0 });
+  // Agent 引用口：拖线开始/结束时各更新一次预告状态；悬停与否逐帧变化，只改 DOM 属性。
+  const agentPortRef = useRef<HTMLDivElement>(null);
+  const agentDropHoverRef = useRef<Element | null>(null);
+  const [agentPortDrop, setAgentPortDrop] = useState<AgentPortDrop>(null);
+  const [agentPortPulse, setAgentPortPulse] = useState(0);
   const shortcutsOpen = useUiShellStore((state) => state.shortcutsOpen);
   const setShortcutsOpen = useUiShellStore((state) => state.setShortcutsOpen);
   const resourceOpen = useUiShellStore((state) => state.resourceOpen);
@@ -368,60 +368,6 @@ export function CanvasWorkspace({
     setViewport: setFlowViewport,
   } = useReactFlow<WeftcanvasNode, WeftcanvasEdge>();
   const flowStore = useStoreApi<WeftcanvasNode, WeftcanvasEdge>();
-  /**
-   * Agent 引用口贴着画布右缘（抽屉已经预留了列），缩放/平移后重新贴边。
-   * 用视口值直接换算，避免依赖 React Flow 内部 DOM 更新时序。
-   */
-  const placeAgentAnchor = useCallback(
-    (nextViewport: Viewport = getViewport()) => {
-      const rect = flowShellRef.current?.getBoundingClientRect();
-      if (!rect || rect.width < 240) return;
-      const zoom = nextViewport.zoom || 1;
-      setAgentAnchorPosition({
-        x: (rect.width - 202 - nextViewport.x) / zoom,
-        y: (120 - nextViewport.y) / zoom,
-      });
-    },
-    [getViewport],
-  );
-  useEffect(() => {
-    if (!agentOpen) return;
-    // 抽屉会让画布宽度发生变化；首帧与过渡结束各贴一次，避免停在 0,0。
-    const frame = window.requestAnimationFrame(() => placeAgentAnchor());
-    const retry = window.setTimeout(() => placeAgentAnchor(), 160);
-    const onResize = () => placeAgentAnchor();
-    window.addEventListener("resize", onResize);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.clearTimeout(retry);
-      window.removeEventListener("resize", onResize);
-    };
-  }, [agentOpen, placeAgentAnchor, projectId]);
-  useEffect(() => {
-    if (!agentOpen) return;
-    // 引用连线依赖源节点已测量的 Handle 几何；打开 Agent 或连线变化时补测一次，
-    // 避免节点是恢复/粘贴来的、ResizeObserver 尚未回报时边被丢弃。
-    const measure = () => {
-      const state = flowStore.getState();
-      const updates = new Map<
-        string,
-        { id: string; nodeElement: HTMLDivElement; force: boolean }
-      >();
-      for (const id of state.nodeLookup.keys()) {
-        const element = state.domNode?.querySelector<HTMLDivElement>(
-          `.react-flow__node[data-id="${CSS.escape(id)}"]`,
-        );
-        if (element) updates.set(id, { id, nodeElement: element, force: true });
-      }
-      if (updates.size) state.updateNodeInternals(updates, { triggerFitView: false });
-    };
-    const frame = window.requestAnimationFrame(measure);
-    const retry = window.setTimeout(measure, 260);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.clearTimeout(retry);
-    };
-  }, [agentLinkedNodeIds, agentOpen, flowStore, nodes.length]);
   useEffect(() => {
     pruneAgentLinks(projectId, new Set(nodes.map((node) => node.id)));
   }, [nodes, projectId, pruneAgentLinks]);
@@ -466,25 +412,12 @@ export function CanvasWorkspace({
   }, [flowStore]);
   const handleEdgesChange = useCallback(
     (changes: EdgeChange<WeftcanvasEdge>[]) => {
-      const persisted = changes.filter((change) => {
-        if (change.type === "add" || change.type === "replace") {
-          return !change.item.id.startsWith("agent-link:");
-        }
-        return !change.id.startsWith("agent-link:");
-      });
-      if (persisted.length) onEdgesChange(persisted);
+      if (changes.length) onEdgesChange(changes);
     },
     [onEdgesChange],
   );
   const handleNodesChange = useCallback(
-    (incomingChanges: NodeChange<WeftcanvasNode>[]) => {
-      // 虚拟的 Agent 引用口不写进画布 store。
-      const changes = incomingChanges.filter((change) => {
-        if (change.type === "add" || change.type === "replace") {
-          return change.item.id !== AGENT_ANCHOR_NODE_ID;
-        }
-        return change.id !== AGENT_ANCHOR_NODE_ID;
-      });
+    (changes: NodeChange<WeftcanvasNode>[]) => {
       if (!changes.length) return;
       onNodesChange(changes);
       if (
@@ -694,9 +627,8 @@ export function CanvasWorkspace({
       }
       pendingViewportRef.current = null;
       setStoredViewport(nextViewport);
-      if (agentOpen) placeAgentAnchor(nextViewport);
     },
-    [agentOpen, placeAgentAnchor, setStoredViewport],
+    [setStoredViewport],
   );
 
   const zoomCanvasAtPointer = useCallback(
@@ -807,6 +739,22 @@ export function CanvasWorkspace({
     [setStoredViewport],
   );
 
+  /** 松手点落在 Agent 引用口（含外扩的一圈）或 Agent 形象上时返回该元素。 */
+  const agentDropTargetAt = useCallback((point: XYPosition): Element | null => {
+    const port = agentPortRef.current;
+    if (port && isPointOverElement(point.x, point.y, port, AGENT_PORT_DROP_PADDING)) return port;
+    const companion = document.querySelector(".wc-agent-companion");
+    return isPointOverElement(point.x, point.y, companion) ? companion : null;
+  }, []);
+
+  const setAgentDropHover = useCallback((target: Element | null) => {
+    const previous = agentDropHoverRef.current;
+    if (previous === target) return;
+    previous?.removeAttribute("data-drop-hover");
+    target?.setAttribute("data-drop-hover", "");
+    agentDropHoverRef.current = target;
+  }, []);
+
   const clearBodyConnectionCandidate = useCallback(() => {
     const active = bodyConnectionDragRef.current;
     active?.candidateElement?.classList.remove("is-connection-drop-target");
@@ -853,10 +801,12 @@ export function CanvasWorkspace({
         bodyConnectionFrameRef.current = null;
         const point = bodyConnectionPointRef.current;
         bodyConnectionPointRef.current = null;
-        if (point) updateBodyConnectionCandidate(point);
+        if (!point) return;
+        setAgentDropHover(agentDropTargetAt(point));
+        updateBodyConnectionCandidate(point);
       });
     },
-    [updateBodyConnectionCandidate],
+    [agentDropTargetAt, setAgentDropHover, updateBodyConnectionCandidate],
   );
 
   const stopBodyConnectionDrag = useCallback(() => {
@@ -868,7 +818,10 @@ export function CanvasWorkspace({
     clearBodyConnectionCandidate();
     bodyConnectionDragRef.current = null;
     setCanvasConnectionDragging(false);
-  }, [clearBodyConnectionCandidate, trackBodyConnectionPointer]);
+    setAgentDropHover(null);
+    setAgentPortDrop(null);
+    if (workspaceRef.current) delete workspaceRef.current.dataset.agentDrop;
+  }, [clearBodyConnectionCandidate, setAgentDropHover, trackBodyConnectionPointer]);
 
   const handleConnectStart = useCallback<OnConnectStart>(
     (_event, params) => {
@@ -884,12 +837,26 @@ export function CanvasWorkspace({
         candidateElement: null,
       };
       setCanvasConnectionDragging(true);
+      // 预告这条线能不能交给 Agent：引用口亮起（或变灰），悬停时说明原因。
+      const verdict = agentLinkVerdict(
+        useCanvasStore.getState().nodes.find((node) => node.id === params.nodeId),
+        useAgentLinkStore.getState().linksByProject[projectId] ?? [],
+        MAX_AGENT_LINKED_NODES,
+      );
+      const drop: NonNullable<AgentPortDrop> = verdict.ok
+        ? { state: "ready", hint: "松手引用给 Agent" }
+        : {
+            state: "blocked",
+            hint: agentLinkRejectionMessage(verdict.reason, MAX_AGENT_LINKED_NODES),
+          };
+      setAgentPortDrop(drop);
+      if (workspaceRef.current) workspaceRef.current.dataset.agentDrop = drop.state;
       window.addEventListener("pointermove", trackBodyConnectionPointer, {
         capture: true,
         passive: true,
       });
     },
-    [stopBodyConnectionDrag, trackBodyConnectionPointer],
+    [projectId, stopBodyConnectionDrag, trackBodyConnectionPointer],
   );
 
   const showConnectionSuccess = useCallback((nodeId: string) => {
@@ -935,14 +902,38 @@ export function CanvasWorkspace({
     };
   }, [stopBodyConnectionDrag]);
 
+  /**
+   * 把节点引用给 Agent（拖线到引用口/形象、或把节点拖上去）。引用不留常驻连线：
+   * 连上即把素材挂给 Agent，虚线只存在于拖拽过程中。不能引用时说明原因，
+   * 而不是松手后什么都没发生。
+   */
+  const linkNodeToAgent = useCallback(
+    (nodeId: string) => {
+      const node = useCanvasStore.getState().nodes.find((item) => item.id === nodeId);
+      const links = useAgentLinkStore.getState();
+      const verdict = agentLinkVerdict(
+        node,
+        links.linksByProject[projectId] ?? [],
+        MAX_AGENT_LINKED_NODES,
+      );
+      if (!verdict.ok) {
+        showToast(
+          agentLinkRejectionMessage(verdict.reason, MAX_AGENT_LINKED_NODES),
+          verdict.reason === "linked" ? "info" : "error",
+        );
+        return;
+      }
+      links.add(projectId, nodeId);
+      showToast(`已把「${node?.data.media?.name ?? "素材"}」引用给 Agent`, "success");
+      setAgentPortPulse((value) => value + 1);
+      showConnectionSuccess(nodeId);
+    },
+    [projectId, showConnectionSuccess, showToast],
+  );
+
   const handleConnect = useCallback(
     (connection: Connection) => {
       setPendingConnectionCreate(null);
-      if (connection.target === AGENT_ANCHOR_NODE_ID && connection.source) {
-        toggleAgentLink(projectId, connection.source);
-        showConnectionSuccess(connection.source);
-        return;
-      }
       const edgeCount = useCanvasStore.getState().edges.length;
       onConnect(connection);
       if (useCanvasStore.getState().edges.length === edgeCount) return;
@@ -951,7 +942,7 @@ export function CanvasWorkspace({
         active?.nodeId === connection.source ? connection.target : connection.source;
       showConnectionSuccess(dropNodeId);
     },
-    [onConnect, projectId, showConnectionSuccess, toggleAgentLink],
+    [onConnect, showConnectionSuccess],
   );
 
   const handleConnectEnd = useCallback<OnConnectEnd>(
@@ -964,6 +955,16 @@ export function CanvasWorkspace({
       if (event.type.endsWith("cancel")) {
         stopBodyConnectionDrag();
         return;
+      }
+      // 松手在 Agent 引用口或形象上：这条线是「交给 Agent」，不是建连线/新节点。
+      // 引用口不是 ReactFlow 节点，xyflow 判定为落空（isValid=false），这里按坐标接住。
+      if (point && !connectionState.isValid && connectionState.fromNode) {
+        if (agentDropTargetAt(point)) {
+          const nodeId = connectionState.fromNode.id;
+          stopBodyConnectionDrag();
+          linkNodeToAgent(nodeId);
+          return;
+        }
       }
       if (point) updateBodyConnectionCandidate(point);
       const bodyDropConnection = bodyConnectionDragRef.current?.candidateConnection ?? null;
@@ -992,8 +993,10 @@ export function CanvasWorkspace({
       });
     },
     [
+      agentDropTargetAt,
       getViewport,
       handleConnect,
+      linkNodeToAgent,
       screenToFlowPosition,
       stopBodyConnectionDrag,
       updateBodyConnectionCandidate,
@@ -1088,7 +1091,7 @@ export function CanvasWorkspace({
   );
 
   const handleNodeDragStop = useCallback<OnNodeDrag<WeftcanvasNode>>(
-    (_event, node) => {
+    (event, node) => {
       flushLiveNodePositions();
       const drag = nodeGroupMembershipDragRef.current;
       if (drag?.draggedId === node.id) {
@@ -1125,8 +1128,17 @@ export function CanvasWorkspace({
       nodeGroupMembershipDragRef.current = null;
       setNodeDragging(false);
       commitTransaction();
+      // 松手点落在 Agent 形象或引用口上 = 把这个节点引用给 Agent（拖上去的手感版引用）。
+      const point = dragEventPoint(event);
+      if (point && agentDropTargetAt(point)) linkNodeToAgent(node.id);
     },
-    [commitTransaction, flushLiveNodePositions, setNodeDragging],
+    [
+      agentDropTargetAt,
+      commitTransaction,
+      flushLiveNodePositions,
+      linkNodeToAgent,
+      setNodeDragging,
+    ],
   );
 
   const handleSelectionDragStart = useCallback(() => {
@@ -1143,7 +1155,6 @@ export function CanvasWorkspace({
   const openNodeMenu = useCallback<NodeMouseHandler<WeftcanvasNode>>(
     (event, node) => {
       event.preventDefault();
-      if (node.id === AGENT_ANCHOR_NODE_ID) return;
       const currentNodes = useCanvasStore.getState().nodes;
       if (!currentNodes.find((item) => item.id === node.id)?.selected) {
         onNodesChange(
@@ -1168,7 +1179,7 @@ export function CanvasWorkspace({
   const openEdgeMenu = useCallback<EdgeMouseHandler<WeftcanvasEdge>>(
     (event, edge) => {
       event.preventDefault();
-      if (!edge.id.startsWith("agent-link:")) selectEdge(edge.id);
+      selectEdge(edge.id);
       setMenu({
         clientX: event.clientX,
         clientY: event.clientY,
@@ -1502,77 +1513,6 @@ export function CanvasWorkspace({
 
   const dense = nodes.length >= DENSE_NODE_THRESHOLD;
 
-  // Agent 引用口与连线只存在于渲染层：项目 JSON、撤销栈和 Agent 画布摘要
-  // 都只看 store 里的 nodes/edges，不会把虚拟节点写成真实画布结构。
-  const agentAnchorNode = useMemo(
-    () =>
-      agentOpen
-        ? ({
-            id: AGENT_ANCHOR_NODE_ID,
-            type: "agent-anchor",
-            position: agentAnchorPosition,
-            data: { count: agentLinkedNodeIds.length },
-            // 固定尺寸必须显式给出：虚拟节点不经过画布 store 的 dimensions
-            // 变更，缺了 measured 时 React Flow 会跳过 Handle 测量，进而把
-            // 指向它的边全部丢弃。
-            width: 190,
-            height: 54,
-            initialWidth: 190,
-            initialHeight: 54,
-            measured: { width: 190, height: 54 },
-            // 声明 Handle 几何：Virtual node 不走 onNodesChange 的尺寸回写，
-            // 依赖 ResizeObserver 的 handleBounds 可能一直是空的，边就会被
-            // getEdgePosition 丢弃。声明后 React Flow 直接用这份几何。
-            handles: [
-              {
-                id: AGENT_ANCHOR_HANDLE_ID,
-                type: "target",
-                position: Position.Left,
-                x: 0,
-                y: 27,
-                width: 12,
-                height: 12,
-              },
-            ],
-            draggable: false,
-            selectable: true,
-            connectable: true,
-            deletable: false,
-            className: "wc-agent-anchor-node",
-          } as unknown as WeftcanvasNode)
-        : null,
-    [agentAnchorPosition, agentLinkedNodeIds.length, agentOpen],
-  );
-  const agentLinkEdges = useMemo<WeftcanvasEdge[]>(
-    () =>
-      agentOpen
-        ? agentLinkedNodeIds.map((nodeId) => ({
-            id: `agent-link:${nodeId}`,
-            source: nodeId,
-            // 节点右侧端口 ID 固定为 right-source；缺了它 React Flow 在
-            // 多端口节点上无法确定边从哪个 Handle 出发，会静默丢弃这条边。
-            sourceHandle: "right-source",
-            target: AGENT_ANCHOR_NODE_ID,
-            targetHandle: AGENT_ANCHOR_HANDLE_ID,
-            type: "default",
-            animated: true,
-            selectable: false,
-            deletable: false,
-            interactionWidth: 16,
-            className: "wc-agent-link-edge",
-          }))
-        : [],
-    [agentLinkedNodeIds, agentOpen],
-  );
-  const flowNodes = useMemo(
-    () => (agentAnchorNode ? [...nodes, agentAnchorNode] : nodes),
-    [agentAnchorNode, nodes],
-  );
-  const flowEdges = useMemo(
-    () => (agentLinkEdges.length ? [...edges, ...agentLinkEdges] : edges),
-    [agentLinkEdges, edges],
-  );
-
   // 专注模式：任一节点在生成即视为创作中，自动收起工具浮岛；Tab 随时手动开关，Esc 退出。
   const generatingActive = nodes.some(
     (node) =>
@@ -1673,6 +1613,17 @@ export function CanvasWorkspace({
       {!agentOpen ? <StorageTipBanner /> : null}
       <AgentCompanion open={agentOpen} onToggle={handleToggleAgent} />
       <ProjectSidebar />
+      {/* Agent 引用口是画布之上的固定浮层：不进项目文档、撤销栈和 Agent 画布摘要，
+          也不跟着平移/缩放重算位置。它挂在抽屉左缘那一列（不是画布里），
+          贴着面板走，和节点加号贴着节点边缘同一套落位逻辑。 */}
+      {agentOpen ? (
+        <AgentMaterialPort
+          portRef={agentPortRef}
+          count={agentLinkedNodeIds.length}
+          drop={agentPortDrop}
+          pulse={agentPortPulse}
+        />
+      ) : null}
       <div
         ref={flowShellRef}
         className={`wc-flow-shell ${fileDropActive ? "is-file-drop-active" : ""}`}
@@ -1706,8 +1657,8 @@ export function CanvasWorkspace({
         <CanvasNodeRuntimeContext.Provider value={nodeRuntimeContext}>
           <CanvasEdgeRuntimeContext.Provider value={edgeRuntimeContext}>
             <ReactFlow<WeftcanvasNode, WeftcanvasEdge>
-              nodes={flowNodes}
-              edges={flowEdges}
+              nodes={nodes}
+              edges={edges}
               nodeTypes={nodeTypes}
               edgeTypes={edgeTypes}
               defaultViewport={viewport}
@@ -1735,6 +1686,9 @@ export function CanvasWorkspace({
               nodeDragThreshold={2}
               paneClickDistance={6}
               connectionRadius={34}
+              // Agent 抽屉打开时画布右缘就是引用口：拖线到那里是要交给 Agent，
+              // 不是要把画布往右滑。关掉连线自动平移，画布不跟着指针跑。
+              autoPanOnConnect={!agentOpen}
               connectionLineStyle={connectionLineStyle}
               connectionLineComponent={WeftcanvasConnectionLine}
               selectionMode={SelectionMode.Partial}

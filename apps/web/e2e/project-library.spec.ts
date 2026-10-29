@@ -309,6 +309,48 @@ test("project library renames, exports, imports, and deletes without losing the 
   await expect(projectRow(page, "已重命名项目")).toBeVisible();
 });
 
+test("project library batch-selects and deletes several projects at once", async ({ page }) => {
+  await cleanProjectLibrary(page);
+  await seedFixtureProject(page);
+  await page.goto("/canvas");
+  await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
+
+  // 新建两个项目，凑成 3 个（新建后侧栏会自动收起；等滑动结束、真正不可见后再点开，
+  // 否则会点在仍在退场的侧栏上）。
+  const sidebarElement = page.locator(".wc-project-sidebar");
+  await openProjectLibrary(page);
+  await sidebarElement.getByLabel("新建项目").click();
+  await expect(sidebarElement).toBeHidden();
+  await openProjectLibrary(page);
+  await sidebarElement.getByLabel("新建项目").click();
+  await expect(sidebarElement).toBeHidden();
+  await expect(page.getByLabel("项目名称")).toHaveValue("纬线 3");
+
+  const sidebar = await openProjectLibrary(page);
+  await expect(sidebar.locator(".wc-project-row")).toHaveCount(3);
+  await sidebar.getByRole("button", { name: "批量选择项目" }).click();
+  await expect(sidebar.locator(".wc-project-select-bar")).toContainText("已选 0");
+
+  // 勾选前两个，留当前项目（纬线 3）不动。
+  await projectRow(page, "纬线 1").locator(".wc-project-open").click();
+  await projectRow(page, "纬线 2").locator(".wc-project-open").click();
+  await expect(sidebar.locator(".wc-project-select-bar")).toContainText("已选 2");
+  await expect(projectRow(page, "纬线 1")).toHaveClass(/is-selected/);
+
+  await sidebar.getByRole("button", { name: "删除", exact: true }).click();
+  const confirmation = page.getByRole("dialog", { name: "批量删除项目" });
+  await expect(confirmation).toContainText("删除 2 个项目");
+  await expect(confirmation).toContainText("纬线 1");
+  await confirmation.getByRole("button", { name: "全部删除" }).click();
+
+  // 只删勾选的：当前项目还在，剩下的项目仍然可以打开。
+  // 当前项目没被删，侧栏保持打开，列表直接刷新。
+  await expect(page.getByLabel("项目名称")).toHaveValue("纬线 3");
+  await expect(sidebar.locator(".wc-project-row")).toHaveCount(1);
+  await expect(projectRow(page, "纬线 3")).toBeVisible();
+  await expect(sidebar.locator(".wc-project-select-bar")).toHaveCount(0);
+});
+
 test("project sidebar remains readable in both themes without document overflow", async ({
   page,
 }) => {

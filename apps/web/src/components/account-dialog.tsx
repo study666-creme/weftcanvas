@@ -232,6 +232,12 @@ function productDetail(product: WalletProduct) {
   return "支付确认后计入账号，可跨项目复用";
 }
 
+/** 限时加赠的活动标记；实发积分已含加赠，这里只负责把它说出来。 */
+function productBonusLabel(product: WalletProduct) {
+  if (product.kind !== "credits" || !product.bonusPercent) return null;
+  return `限时加赠 ${product.bonusPercent}%`;
+}
+
 function paidOrderMessage(order: WalletOrder) {
   return order.productKind === "collaboration_seat" ? "席位权益已到账" : "积分与权益已刷新";
 }
@@ -259,7 +265,7 @@ function MembershipBenefits({
   summary: WalletSummary | null;
   products: WalletProduct[];
   selectedProductId: string;
-  grantMode: CreditGrantMode;
+  grantMode: CreditGrantMode | null;
   grantModeTouched: { current: boolean };
   onSelectProduct: (productId: string) => void;
   onGrantModeChange: (mode: CreditGrantMode) => void;
@@ -275,6 +281,10 @@ function MembershipBenefits({
     : undefined;
   const selectedProduct = products.find((product) => product.id === selectedProductId) ?? null;
   const fixedGrantMode = selectedProduct ? membershipGrantMode(selectedProduct) : undefined;
+  // 轻量会员固定每日，其余档位必须由用户在支付前选择一次。
+  const effectiveGrantMode: CreditGrantMode | null = fixedGrantMode ?? grantMode;
+  const grantChoiceMissing =
+    selectedProduct?.kind === "membership" && fixedGrantMode === undefined && grantMode === null;
   // 档位卡即商品：四张方案卡按 tier 直接对上会员商品，选中即可支付；
   // 对不上方案卡的会员商品（历史档位等）落到"其他方案"兜底行。
   const plannedTiers = new Set<string>(MEMBERSHIP_PLANS.map((plan) => plan.tier));
@@ -426,7 +436,7 @@ function MembershipBenefits({
           <div className="wc-membership-plan-actions">
             {fixedGrantMode === undefined ? (
               <div className="wc-wallet-choice-row">
-                <span>积分到账</span>
+                <span>积分领取方式</span>
                 <div className="wc-wallet-segmented" role="group" aria-label="积分到账方式">
                   <button
                     type="button"
@@ -454,10 +464,19 @@ function MembershipBenefits({
               </div>
             ) : fixedGrantMode === "daily" ? (
               <div className="wc-wallet-choice-row wc-wallet-choice-row--fixed">
-                <span>积分到账</span>
+                <span>积分领取方式</span>
                 <strong>每日积分</strong>
               </div>
             ) : null}
+            <p
+              className={`wc-membership-grant-hint ${effectiveGrantMode === "bundle" ? "is-bundle" : ""} ${grantChoiceMissing ? "is-required" : ""}`}
+            >
+              {effectiveGrantMode === "daily"
+                ? "每日到账：每天在任务中心领取，当日有效，未用完次日清零。"
+                : effectiveGrantMode === "bundle"
+                  ? "一次性到账：开通时一次性发完全部积分，之后不会出现「会员每日积分」。"
+                  : "请先选择积分领取方式再支付：每日需每天在任务中心领取（当日清零），一次性开通即全部到账。"}
+            </p>
             <div className="wc-wallet-payment-row">
               <span>支付方式</span>
               <div className="wc-wallet-segmented" role="group" aria-label="支付方式">
@@ -475,7 +494,7 @@ function MembershipBenefits({
             <button
               type="button"
               className="wc-account-submit wc-wallet-checkout"
-              disabled={!selectedProduct || paymentBusy || checkoutBlocked}
+              disabled={!selectedProduct || paymentBusy || checkoutBlocked || grantChoiceMissing}
               onClick={onCheckout}
             >
               {paymentBusy ? (
@@ -485,9 +504,11 @@ function MembershipBenefits({
               )}
               {checkoutBlocked
                 ? "请先处理待支付订单"
-                : checkoutAmount !== null
-                  ? `立即支付 ¥${formatMoney(checkoutAmount)}`
-                  : "请选择商品"}
+                : grantChoiceMissing
+                  ? "请先选择积分领取方式"
+                  : checkoutAmount !== null
+                    ? `立即支付 ¥${formatMoney(checkoutAmount)}`
+                    : "请选择商品"}
             </button>
             {orderError ? (
               <p className="wc-wallet-order-error" role="alert">
@@ -756,7 +777,7 @@ export function AccountDialog() {
   const [selectedProductId, setSelectedProductId] = useState("");
   const [customAmountInput, setCustomAmountInput] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<WalletPaymentMethod>("alipay");
-  const [grantMode, setGrantMode] = useState<CreditGrantMode>("daily");
+  const [grantMode, setGrantMode] = useState<CreditGrantMode | null>(null);
   const [redeemGrantMode, setRedeemGrantMode] = useState<CreditGrantMode>("daily");
   const [paymentBusy, setPaymentBusy] = useState(false);
   const [paymentOrder, setPaymentOrder] = useState<WalletOrder | null>(null);
@@ -799,6 +820,10 @@ export function AccountDialog() {
   const selectedCheckoutAmount = customTopUpSelected
     ? customAmountValidation.amount
     : (selectedProduct?.amount ?? null);
+  const selectedMembershipGrantMode =
+    selectedProduct?.kind === "membership"
+      ? (membershipGrantMode(selectedProduct) ?? grantMode)
+      : null;
   const selectedCheckoutRequest: WalletCheckoutRequest | null = customTopUpSelected
     ? customAmountValidation.amount === null || !customCreditTopUp
       ? null
@@ -807,12 +832,12 @@ export function AccountDialog() {
           paymentMethod,
           customAmount: customAmountValidation.amount,
         }
-    : selectedProduct
+    : selectedProduct && (selectedProduct.kind !== "membership" || selectedMembershipGrantMode)
       ? {
           productId: selectedProduct.id,
           paymentMethod,
-          ...(selectedProduct.kind === "membership"
-            ? { creditGrantMode: membershipGrantMode(selectedProduct) ?? grantMode }
+          ...(selectedProduct.kind === "membership" && selectedMembershipGrantMode
+            ? { creditGrantMode: selectedMembershipGrantMode }
             : {}),
         }
       : null;
@@ -844,7 +869,7 @@ export function AccountDialog() {
     setSelectedProductId("");
     setCustomAmountInput("");
     setPaymentMethod("alipay");
-    setGrantMode("daily");
+    setGrantMode(null);
     setRedeemGrantMode("daily");
     grantModeTouched.current = false;
     redeemGrantModeTouched.current = false;
@@ -965,10 +990,13 @@ export function AccountDialog() {
   }, [clearRequestedProduct, open, products, productsStatus, requestedProductKind, status]);
 
   useEffect(() => {
-    if (!summary?.creditGrantMode) return;
-    if (!grantModeTouched.current) setGrantMode(summary.creditGrantMode);
-    if (!redeemGrantModeTouched.current) setRedeemGrantMode(summary.creditGrantMode);
-  }, [summary?.creditGrantMode]);
+    // 购买会员的领取方式必须由用户在支付前明确选择，不从账号默认值预填；
+    // 兑换码沿用账号当前方式（免费账号默认每日）。
+    const redeemDefault: CreditGrantMode = summary?.membership.active
+      ? (summary.creditGrantMode ?? "daily")
+      : "daily";
+    if (!redeemGrantModeTouched.current) setRedeemGrantMode(redeemDefault);
+  }, [summary?.creditGrantMode, summary?.membership.active]);
 
   const clearOrder = useCallback(() => {
     persistWalletOrder(null);
@@ -1006,7 +1034,7 @@ export function AccountDialog() {
         showToast("订单已退款，相关权益已撤销", "info");
         return;
       }
-      await Promise.all([loadSummary(true), loadLedger(true)]);
+      await Promise.all([loadSummary(true), loadLedger(true), loadMembershipTasks(true)]);
       showToast(
         next.productKind === "collaboration_seat"
           ? "支付成功，协作席位已写入账号权益"
@@ -1014,7 +1042,7 @@ export function AccountDialog() {
         "success",
       );
     },
-    [loadLedger, loadSummary, showToast],
+    [loadLedger, loadMembershipTasks, loadSummary, showToast],
   );
 
   const pollOrder = useCallback((): Promise<WalletOrder | null> => {
@@ -1121,7 +1149,13 @@ export function AccountDialog() {
 
   const startCheckout = async (input: WalletCheckoutRequest | null = selectedCheckoutRequest) => {
     if (!input || !session) {
-      setOrderError(customTopUpSelected ? customAmountValidation.error : "请选择一个商品");
+      setOrderError(
+        customTopUpSelected
+          ? customAmountValidation.error
+          : selectedProduct?.kind === "membership"
+            ? "请先选择积分领取方式"
+            : "请选择一个商品",
+      );
       return;
     }
     if (paymentBusyRef.current) return;
@@ -1453,30 +1487,36 @@ export function AccountDialog() {
                           </div>
                         ) : walletProducts.length || customCreditTopUp ? (
                           <div className="wc-wallet-products" role="listbox" aria-label="充值商品">
-                            {walletProducts.map((product) => (
-                              <button
-                                type="button"
-                                role="option"
-                                aria-selected={selectedProductId === product.id}
-                                className={`wc-wallet-product ${selectedProductId === product.id ? "is-selected" : ""}`}
-                                key={product.id}
-                                onClick={() => {
-                                  setSelectedProductId(product.id);
-                                  setOrderError(null);
-                                }}
-                              >
-                                <span className="wc-wallet-product-check">
-                                  {selectedProductId === product.id ? (
-                                    <Check aria-hidden="true" />
-                                  ) : null}
-                                </span>
-                                <span className="wc-wallet-product-copy">
-                                  <strong>{productLabel(product)}</strong>
-                                  <small>{productDetail(product)}</small>
-                                </span>
-                                <b>¥{formatMoney(product.amount)}</b>
-                              </button>
-                            ))}
+                            {walletProducts.map((product) => {
+                              const bonusLabel = productBonusLabel(product);
+                              return (
+                                <button
+                                  type="button"
+                                  role="option"
+                                  aria-selected={selectedProductId === product.id}
+                                  className={`wc-wallet-product ${selectedProductId === product.id ? "is-selected" : ""}`}
+                                  key={product.id}
+                                  onClick={() => {
+                                    setSelectedProductId(product.id);
+                                    setOrderError(null);
+                                  }}
+                                >
+                                  <span className="wc-wallet-product-check">
+                                    {selectedProductId === product.id ? (
+                                      <Check aria-hidden="true" />
+                                    ) : null}
+                                  </span>
+                                  <span className="wc-wallet-product-copy">
+                                    <strong>{productLabel(product)}</strong>
+                                    <small>{productDetail(product)}</small>
+                                    {bonusLabel ? (
+                                      <em className="wc-wallet-product-bonus">{bonusLabel}</em>
+                                    ) : null}
+                                  </span>
+                                  <b>¥{formatMoney(product.amount)}</b>
+                                </button>
+                              );
+                            })}
                             {customCreditTopUp ? (
                               <button
                                 type="button"

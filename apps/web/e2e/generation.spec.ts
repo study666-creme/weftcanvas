@@ -37,20 +37,30 @@ test("replaces a removed saved model only after the live catalog succeeds", asyn
             id: "stale-image-node",
             type: "weftcanvas",
             position: { x: 460, y: 240 },
-            width: 340,
+            width: 191.25,
             height: 340,
             data: {
               kind: "image",
               body: "雨夜街道",
               accent: "blue",
-              status: "idle",
+              status: "success",
               progress: 0,
-              media: null,
+              media: {
+                id: "stale-image-media",
+                name: "stale-image.png",
+                mimeType: "image/png",
+                size: 1024,
+                source: "local",
+                serverId: null,
+                width: 900,
+                height: 1600,
+                durationMs: null,
+              },
               directorCapture: null,
               config: null,
               generation: {
                 modelId: "retired-image-model",
-                parameters: { retired: "value" },
+                parameters: { aspect_ratio: "9:16" },
                 maxOutputTokens: null,
                 referenceMode: "auto",
                 referenceNodeIds: [],
@@ -58,6 +68,7 @@ test("replaces a removed saved model only after the live catalog succeeds", asyn
                 jobVersion: null,
                 jobCreatedAt: null,
                 jobStatus: null,
+                aspectExplicit: true,
                 error: null,
               },
               createdAt: now,
@@ -105,7 +116,29 @@ test("replaces a removed saved model only after the live catalog succeeds", asyn
           fetchedAt: timestamp,
           expiresAt,
           quoteAvailable: true,
-          models: [testCatalogModel("safe-image", "可用图片模型", "image")],
+          models: [
+            {
+              ...testCatalogModel("safe-image", "可用图片模型", "image"),
+              parameters: [
+                {
+                  name: "prompt",
+                  label: "提示词",
+                  type: "string",
+                  required: true,
+                  mutuallyExclusiveWith: [],
+                },
+                {
+                  name: "aspect_ratio",
+                  label: "画面比例",
+                  type: "string",
+                  required: false,
+                  default: "16:9",
+                  options: ["16:9", "9:16", "1:1"],
+                  mutuallyExclusiveWith: [],
+                },
+              ],
+            },
+          ],
         },
       },
     }),
@@ -143,9 +176,10 @@ test("replaces a removed saved model only after the live catalog succeeds", asyn
 
   await page.goto("/canvas");
   const node = page.locator('.react-flow__node-weftcanvas[data-id="stale-image-node"]');
+  const before = await node.boundingBox();
   await node.locator(".wc-node-drag-strip").click();
   const panel = page.getByLabel("图片节点创作设置");
-  await expect(panel.locator("[data-generation-model-select]")).toHaveValue("safe-image");
+  await expect(panel.getByLabel("模型")).toContainText("可用图片模型");
   await expect(panel).not.toContainText("所选模型已停用或来源已移除");
   await expect
     .poll(() =>
@@ -166,7 +200,13 @@ test("replaces a removed saved model only after the live catalog succeeds", asyn
           : null;
       }, projectId),
     )
-    .toEqual({ modelId: "safe-image", parameters: {} });
+    // 恢复失效模型只换模型：已有节点的画幅参数与几何都保持原样。默认画幅
+    // 只服务新建/上传节点，不能因为一次点击把 9:16 的成品改成 16:9。
+    .toEqual({ modelId: "safe-image", parameters: { aspect_ratio: "9:16" } });
+  const after = await node.boundingBox();
+  expect(after?.width).toBeCloseTo(before!.width, 0);
+  expect(after?.height).toBeCloseTo(before!.height, 0);
+  expect(after!.width / after!.height).toBeCloseTo(191.25 / 340, 2);
 });
 
 test("collapses stale H3 and image2-A aliases into one control and one request field", async ({
@@ -292,7 +332,9 @@ test("collapses stale H3 and image2-A aliases into one control and one request f
   expect(quotes.get("minimax_h3")).not.toHaveProperty("resolution");
 });
 
-test("labels a fixed Midjourney submission by its delivered image count", async ({ page }) => {
+test("labels a per-image-priced fixed Midjourney call by its delivered image count", async ({
+  page,
+}) => {
   const timestamp = new Date().toISOString();
   const expiresAt = new Date(Date.now() + 60_000).toISOString();
   let quotedQuantity = -1;
@@ -420,11 +462,11 @@ test("labels a fixed Midjourney submission by its delivered image count", async 
               ],
               pricing: {
                 mode: "fixed",
-                unit: "request",
+                unit: "image",
                 currency: "CNY",
                 creditsPerYuan: 100,
-                baseCreditMicros: 40_000_000,
-                baseYuanMicros: 400_000,
+                baseCreditMicros: 10_000_000,
+                baseYuanMicros: 100_000,
                 tiers: [],
               },
             },
@@ -451,12 +493,12 @@ test("labels a fixed Midjourney submission by its delivered image count", async 
           quantity: 1,
           outputCount: 5,
           normalizedParameters: request.parameters,
-          creditMicros: 40_000_000,
-          credits: "40",
-          yuanMicros: 400_000,
-          yuan: "0.4",
+          creditMicros: 50_000_000,
+          credits: "50",
+          yuanMicros: 500_000,
+          yuan: "0.5",
           estimated: false,
-          pricingUnit: "request",
+          pricingUnit: "image",
           catalogVersion: "catalog-mj-call-count",
           capabilityVersion: "capability-mj-call-count",
           pricingVersion: "pricing-mj-call-count",
@@ -467,12 +509,15 @@ test("labels a fixed Midjourney submission by its delivered image count", async 
   });
 
   await page.goto("/canvas");
+  await page.getByRole("button", { name: "添加节点" }).click();
+  await page.getByRole("menuitem", { name: "添加图片节点" }).click();
   const imageNode = page
     .locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="image"])')
     .first();
   await imageNode.locator(".wc-node-drag-strip").click();
+  await page.locator(".wc-node-prompt-editor").fill("cinematic city");
   const panel = page.locator('.wc-generation-panel--embedded[data-generation-modality="image"]');
-  await expect(panel.locator("[data-generation-model-select]")).toHaveValue("mj-v81");
+  await expect(panel.getByLabel("模型")).toContainText("Midjourney 8.1");
   // 固定多图的模型不再显示「调用次数 1 次」，否则用户会以为一次只出一张、
   // 单价偏高；改为直接告诉用户这一次会出几张。
   await expect(panel.getByLabel("\u51fa\u56fe\u5f20\u6570")).toHaveText("5 \u5f20");

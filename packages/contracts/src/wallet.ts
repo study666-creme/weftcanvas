@@ -164,6 +164,8 @@ export const walletProductSchema = z.discriminatedUnion("kind", [
     id: z.string().min(1).max(64),
     amount: z.number().finite().positive(),
     credits: z.number().finite().positive(),
+    // 限时加赠比例（百分比）。credits 已经是含加赠的实发数，这里只用于展示。
+    bonusPercent: z.number().finite().positive().max(100).optional(),
   }),
   z.object({
     kind: z.literal("membership"),

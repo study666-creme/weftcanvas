@@ -221,8 +221,26 @@ row per user/request identity, and serve that row from
 `GET /api/v1/video/requests/:clientRequestId`. A missing route implementation
 must be treated as a deployment contract failure; repeated 404 lookup polling
 is not a valid recovery state. Known pre-task routing rejections such as
-`MODEL_UNAVAILABLE`, `ROUTING_UNAVAILABLE`, or `无可用渠道 (distributor)` are
-definitive failures and do not enter this ambiguous recovery path.
+`MODEL_UNAVAILABLE`, `ROUTING_UNAVAILABLE`, `无可用渠道 (distributor)`, or the
+relay's `当前模型暂时没有可用通道` message are definitive failures and do not
+enter this ambiguous recovery path. On the submission POST the verdict is read
+from the error code and message, not from the envelope wrapper: a 4xx/5xx with
+a plain `{ error: { code, message } }` body (no `ok: false`) is classified the
+same way, while a 5xx without a routing signal stays ambiguous. A status read
+keeps the conservative rule, because a temporary channel outage does not
+invalidate an already accepted task.
+
+A hosted job is also converged when no browser observes it. The API's stale-job
+janitor runs at startup and every ten minutes (`GENERATION_JANITOR_INTERVAL_MS`,
+default 600000): an orphaned `submitting` record becomes `submission_unknown`
+after the submission budget; a `submission_unknown` record becomes a retryable
+failure after 2 hours when no upstream task id was ever bound
+(`GENERATION_SUBMISSION_NOT_FOUND`) and after 12 hours when one was
+(`GENERATION_STATUS_UNCONFIRMED`); an over-budget image task keeps its existing
+retryable timeout. The sweep never contacts the upstream, never replays the paid
+POST, and never invents a charge or refund — the server holds no user access
+token after a session ends. The failure message therefore tells the creator to
+retry and to contact support about any charge.
 
 A locally created hosted task (`phj_*`) is never shown as ordinary
 `queued`/`running` work until both a validated durable upstream task id and an

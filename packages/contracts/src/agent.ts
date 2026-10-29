@@ -87,6 +87,13 @@ export const agentModelCatalogSchema = z
   .object({
     defaultModelId: agentModelIdSchema,
     models: z.array(agentModelSchema).min(1).max(64),
+    /**
+     * 运行时上报的上游（OpenAI 兼容网关）当前真实可服务的模型 id。运行时自己
+     * 的 allowlist 之外，合并平台目录的一方应据此过滤，避免模型选择器开出
+     * 上游分组不提供、一发就失败的模型。缺省/为空表示运行时没有上报（旧版
+     * 运行时或上游列表不可用），调用方不得据此清空目录。
+     */
+    upstreamModelIds: z.array(z.string().trim().min(1).max(128)).max(256).optional(),
   })
   .strict()
   .superRefine((value, context) => {
