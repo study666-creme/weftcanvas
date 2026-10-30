@@ -1,6 +1,7 @@
 import type { SignedMediaAccess } from "../media/signed-access.js";
 import type { MediaService } from "../media/service.js";
 import type { GenerationQuoteService } from "../catalog/quote.js";
+import type { ResolvedGenerationRoute } from "../catalog/execution-route.js";
 import type { CatalogCompatibilityOverlay } from "../catalog/normalize.js";
 import type { AccountRouteRegistrar } from "../account-routes/contract.js";
 import type { IdentityProvider } from "../identity/provider.js";
@@ -160,6 +161,8 @@ export type ProviderServiceInputs = {
   quotes: GenerationQuoteService;
   media: MediaService | undefined;
   signedMedia: SignedMediaAccess | undefined;
+  /** 目录私有路由：托管音频执行需要模型声明的上游端点与参数路径。 */
+  routes?: { getExecutionRoute(modelId: string): Promise<ResolvedGenerationRoute | null> };
   /** dev-test 身份（Postgres 缺失时为 undefined，app 以"账号服务不可用"暴露）。 */
   nativeIdentity: IdentityProvider | undefined;
   /** dev-test 生成（durable 任务；pool/media 缺失时为 undefined）。 */

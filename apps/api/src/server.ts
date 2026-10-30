@@ -232,6 +232,7 @@ const providerServices = await assembleProviderServices(providerPlan, {
   quotes,
   media,
   signedMedia,
+  routes: catalog,
   nativeIdentity,
   nativeGeneration,
 });

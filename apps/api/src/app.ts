@@ -498,6 +498,8 @@ function generationErrorStatus(code: string): ApiErrorStatus {
       "GENERATION_INVALID_RESPONSE",
       "RESULT_DOWNLOAD_FAILED",
       "RESULT_DOWNLOAD_UNAVAILABLE",
+      "AUDIO_UPSTREAM_UNAVAILABLE",
+      "AUDIO_STORAGE_UNAVAILABLE",
     ].includes(code)
   )
     return 503;

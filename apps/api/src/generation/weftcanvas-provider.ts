@@ -376,6 +376,31 @@ export class WeftcanvasGenerationProvider implements GenerationProvider {
   }
 }
 
+/**
+ * 按目录私有路由把固定参数与用户参数铺进请求体（音频执行直接复用这一份，
+ * 避免托管与直连两条链路各写一份参数路径规则）。
+ */
+export function buildRouteParameterPayload(
+  route: PrivateModelRoute,
+  parameters: Record<string, unknown>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const parameter of route.parameters) {
+    if (parameter.fixed !== undefined) {
+      setPath(payload, parameter.path, parameter.fixed);
+      continue;
+    }
+    if (isMediaParameter(parameter.name)) continue;
+    const value = parameters[parameter.name];
+    if (parameter.name === "stream" && value === true)
+      throw rejected("STREAMING_UNAVAILABLE", "当前任务暂不支持流式生成");
+    if (value !== undefined) setPath(payload, parameter.path, value);
+  }
+  if (payload.model !== route.sourceModelId)
+    throw new Error("Private model route is not fixed correctly");
+  return payload;
+}
+
 export async function buildWeftcanvasRequestPayload(
   request: ProviderGenerationRequest,
   references: GenerationReferenceResolver,
@@ -388,20 +413,7 @@ export async function buildWeftcanvasRequestPayload(
   if (request.modality === "image") {
     return buildWeftcanvasImageRequestPayload(request, references);
   }
-  const payload: Record<string, unknown> = {};
-  for (const parameter of route.parameters) {
-    if (parameter.fixed !== undefined) {
-      setPath(payload, parameter.path, parameter.fixed);
-      continue;
-    }
-    if (isMediaParameter(parameter.name)) continue;
-    const value = request.parameters[parameter.name];
-    if (parameter.name === "stream" && value === true)
-      throw rejected("STREAMING_UNAVAILABLE", "当前任务暂不支持流式生成");
-    if (value !== undefined) setPath(payload, parameter.path, value);
-  }
-  if (payload.model !== route.sourceModelId)
-    throw new Error("Private model route is not fixed correctly");
+  const payload = buildRouteParameterPayload(route, request.parameters);
 
   await bindImages(payload, route, request.ownerId, request.inputs.images ?? [], references);
   await bindMedia(
@@ -1032,7 +1044,7 @@ function parseImageResult(value: unknown, origin: string): StagedGenerationResul
  * - Gemini 原生 `:generateContent`（TTS）：parts[].inlineData 返回无头
  *   PCM，必须按目录声明的采样规格包成 WAV 才能进媒体管线。
  */
-function parseAudioResult(
+export function parseAudioResult(
   value: unknown,
   route: PrivateModelRoute,
   origin: string,
@@ -1136,7 +1148,7 @@ function geminiCandidateParts(value: unknown): Array<Record<string, unknown>> {
  * `speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName`。以前包成
  * `{ voiceConfig: { voice } }` 并不是 Gemini 的字段，上游会直接按无效参数拒绝。
  */
-function normalizeAudioRequestPayload(payload: Record<string, unknown>) {
+export function normalizeAudioRequestPayload(payload: Record<string, unknown>) {
   const generationConfig = recordOf(payload.generationConfig);
   if (!generationConfig) return;
   if (typeof generationConfig.speechConfig === "string")
