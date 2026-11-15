@@ -1,7 +1,9 @@
-# Cloudflare Pages header rules for the Canvas Web origin.
+# Cloudflare Pages header rules for the public Web origin.
 # `_worker.js` sets the immutable Cache-Control itself because advanced mode
-# ignores this file; the rules below mirror the pre-Pages vercel.json contract
-# so the behavior survives if advanced mode is ever dropped.
+# ignores this file; the rules below survive if advanced mode is ever dropped.
+#
+# 公开树（物化覆盖）：这里只允许同源嵌入。私有托管站点另有自己的 CSP 契约
+# （允许 Prompt Hub 控制台与子站内嵌），那份允许列表属于私有部署，不进公开树。
 #
 # Hashed bundles and the auth-film textures never change under the same URL.
 /assets/*
@@ -15,12 +17,8 @@
 /mediapipe/*
   Cache-Control: public, max-age=31536000, immutable
 
-# frame-ancestors 允许 Prompt Hub 控制台内嵌（prompt-hubs.com/canvas/，契约见
-# prompt-hub 仓库 docs/CANVAS-INTEGRATION.md）、prompt-hubs.com 的各个子站
-# （如 API 站 newapi.prompt-hubs.com 的站内画布）与本地主站开发端口；
-# 不能用 X-Frame-Options 表达允许列表（ALLOW-FROM 已废弃），故不再发送该头。
 /*
-  Content-Security-Policy: base-uri 'self'; object-src 'none'; frame-ancestors 'self' https://prompt-hubs.com https://*.prompt-hubs.com http://localhost:* http://127.0.0.1:*; form-action 'self'
+  Content-Security-Policy: base-uri 'self'; object-src 'none'; frame-ancestors 'self' http://localhost:* http://127.0.0.1:*; form-action 'self'
   X-Content-Type-Options: nosniff
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   Referrer-Policy: strict-origin-when-cross-origin

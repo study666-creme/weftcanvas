@@ -14,6 +14,7 @@ import {
 import type { PublicGenerationJob, WalletLedgerItem } from "@weftcanvas/contracts";
 
 import { fetchGenerationJob, listGenerationJobs } from "../lib/api-client";
+import { generationErrorMessage } from "../lib/generation-error";
 import { useIdentityStore } from "../state/identity-store";
 import { useWalletStore } from "../state/wallet-store";
 
@@ -226,7 +227,7 @@ function JobRow({ job }: { job: PublicGenerationJob }) {
         <p className="wc-activity-job-error">
           <CircleAlert aria-hidden="true" />
           <span>
-            {job.error.message}
+            {generationErrorMessage(job) ?? job.error.message}
             {job.error.retryable ? "（可重试）" : ""}
           </span>
         </p>

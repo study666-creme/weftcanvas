@@ -13,7 +13,11 @@ import { Check, ChevronDown, Sparkles } from "lucide-react";
 
 import { isCustomModelKey } from "../lib/custom-api";
 import { computeModelMenuPlacement, type ModelMenuPlacement } from "../lib/model-menu-placement";
-import { modelPriceLabel, modelPickerLabel } from "./generation-model-select";
+import {
+  modelConfiguredUnitPriceLabel,
+  modelPickerLabel,
+  modelPriceLabel,
+} from "./generation-model-select";
 
 /** 运营分区：稳定主推（缺省）/ 特惠引流。 */
 export function isPromoZoneModel(model: PublicModel) {
@@ -257,6 +261,7 @@ export function CategorizedModelSelect({
   onChange,
   ariaLabel = "模型",
   placeholder = "选择模型",
+  selectedParameters,
 }: {
   value: string;
   models: PublicModel[];
@@ -264,6 +269,8 @@ export function CategorizedModelSelect({
   onChange: (modelId: string) => void;
   ariaLabel?: string;
   placeholder?: string;
+  /** 当前节点已配置的参数：模型行按它显示「按当前参数」的单价。 */
+  selectedParameters?: Record<string, unknown>;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -378,7 +385,13 @@ export function CategorizedModelSelect({
         {selected && isPromoZoneModel(selected) ? (
           <span className="wc-cat-select-promo-badge">特惠</span>
         ) : null}
-        {selected ? <span className="wc-cat-select-meta">{modelPriceLabel(selected)}</span> : null}
+        {selected ? (
+          <span className="wc-cat-select-meta">
+            {selectedParameters
+              ? modelConfiguredUnitPriceLabel(selected, selectedParameters)
+              : modelPriceLabel(selected)}
+          </span>
+        ) : null}
         <ChevronDown aria-hidden="true" className="wc-cat-select-caret" />
       </button>
 

@@ -92,6 +92,23 @@ export function modelConfiguredPriceLabel(model: PublicModel, configured: Record
     : formatCreditMicros(micros, model.pricing.unit, true);
 }
 
+/**
+ * 单价口径（不乘时长/张数）的「按当前参数」展示价。模型行里给的是「x 积分/秒」，
+ * 用户换分辨率时这一行必须跟着变——一直显示模型的出厂默认价，看起来就像
+ * 「换分辨率不改变计费」。
+ */
+export function modelConfiguredUnitPriceLabel(
+  model: PublicModel,
+  configured: Record<string, unknown>,
+) {
+  if (isCustomModelKey(model.id)) return "自有 API";
+  if (model.pricing.mode === "token") return modelPriceLabel(model);
+  const micros = calculateCatalogPriceMicros(model, pricingParameters(model, configured), false);
+  return micros === null
+    ? modelPriceLabel(model)
+    : formatCreditMicros(micros, model.pricing.unit, false);
+}
+
 export function pricingUnitText(unit: PublicModel["pricing"]["unit"]): string {
   if (unit === "second") return "按秒计费";
   if (unit === "image") return "按张计费";
@@ -126,16 +143,17 @@ function calculateCatalogPriceMicros(
   multiplyUnits: boolean,
 ) {
   const pricing = model.pricing;
-  const tier = pricing.tiers.find((candidate) =>
-    Object.entries(candidate.when).every(([name, value]) => sameValue(parameters[name], value)),
-  );
+  const tier = matchingPricingTier(pricing.tiers, parameters);
   const baseCreditMicros = tier?.creditMicros ?? pricing.baseCreditMicros;
   const baseYuanMicros = tier?.yuanMicros ?? pricing.baseYuanMicros;
   if (baseCreditMicros === undefined && baseYuanMicros === undefined) return null;
 
   let units = 1;
   if (multiplyUnits && pricing.unit === "second") {
-    const duration = parameters.duration ?? parameters.seconds;
+    // 视频模型的时长参数三套写法都有（duration_seconds / seconds / duration），
+    // 只认前两套会让「按秒」的总价永远算成 1 秒的量：界面上写着「38 积分/秒」，
+    // 提交条却停在 38 积分，看起来就像换分辨率/改时长都不影响计费。
+    const duration = parameters.duration_seconds ?? parameters.duration ?? parameters.seconds;
     if (typeof duration === "number" && Number.isFinite(duration) && duration > 0)
       units *= duration;
   }
@@ -150,6 +168,36 @@ function calculateCatalogPriceMicros(
 
 function sameValue(left: unknown, right: unknown) {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+/**
+ * 与 API 侧 `matchingPricingTier` 同一口径：条件最多且全部命中的档胜出，字符串
+ * 忽略大小写与首尾空格，`when: {}` 的空条件档不参与命中（否则它会把所有请求都
+ * 吞进最低档，界面价格与实际扣费就分叉了）。两处必须同步，改一处要改另一处。
+ */
+function matchingPricingTier(
+  tiers: PublicModel["pricing"]["tiers"],
+  parameters: Record<string, unknown>,
+) {
+  let matched: { tier: PublicModel["pricing"]["tiers"][number]; conditions: number } | null = null;
+  let unconditional: PublicModel["pricing"]["tiers"][number] | null = null;
+  for (const tier of tiers) {
+    const conditions = Object.entries(tier.when);
+    if (!conditions.length) {
+      unconditional ??= tier;
+      continue;
+    }
+    if (!conditions.every(([name, value]) => samePricingValue(parameters[name], value))) continue;
+    if (!matched || conditions.length > matched.conditions)
+      matched = { tier, conditions: conditions.length };
+  }
+  return matched?.tier ?? unconditional;
+}
+
+function samePricingValue(left: unknown, right: unknown) {
+  if (typeof left === "string" && typeof right === "string")
+    return left.trim().toLowerCase() === right.trim().toLowerCase();
+  return sameValue(left, right);
 }
 
 function formatCreditMicros(micros: number, unit: PublicModel["pricing"]["unit"], total: boolean) {

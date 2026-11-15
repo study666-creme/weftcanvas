@@ -2825,11 +2825,19 @@ body.is-canvas-connection-dragging .wc-node-config-shell {
   border-radius: 8px;
   background: color-mix(in srgb, var(--wc-group-color) 4%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wc-group-color) 4%, transparent);
-  pointer-events: none;
+  /* 空白处可按住拖动整组；标题栏与缩放手柄仍是各自独立的拖动面。 */
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
   transition:
     border-color 130ms ease,
     background-color 130ms ease,
     box-shadow 130ms ease;
+}
+
+.wc-group-frame:active {
+  cursor: grabbing;
 }
 
 .wc-group-frame.is-selected {
@@ -3701,7 +3709,10 @@ body.is-canvas-connection-dragging .wc-node-config-shell {
 
 .wc-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  /* 卡片是「缩略图 + 标题 + 三行提示词 + 操作组」的横排结构，210px 时文案列
+     只剩不到 60px，标题被截成四五个字、操作键贴着正文。286px 起才是这个
+     结构放得下两列文字的宽度；抽屉 860px 时稳定两列。 */
+  grid-template-columns: repeat(auto-fill, minmax(286px, 1fr));
   align-content: start;
   gap: 8px;
   padding: 10px;
@@ -3783,6 +3794,17 @@ body.is-canvas-connection-dragging .wc-node-config-shell {
 .wc-card-preview-nav svg {
   width: 16px;
   height: 16px;
+  transition: transform var(--wc-dur-hover) var(--wc-ease-out);
+}
+
+/* 箭头朝翻页方向让半拍，提示「这边还有图」。按钮本体的 translateY(-50%)
+   在容器上，箭头位移不会破坏垂直居中。 */
+.wc-card-preview-nav.is-prev:hover svg {
+  transform: translateX(-2px);
+}
+
+.wc-card-preview-nav.is-next:hover svg {
+  transform: translateX(2px);
 }
 
 .wc-card-preview-thumbstrip button {
@@ -3796,18 +3818,23 @@ body.is-canvas-connection-dragging .wc-node-config-shell {
   background: var(--wc-surface-strong);
   cursor: pointer;
   opacity: 0.62;
+  transform: translateY(0);
   transition:
-    opacity 120ms ease,
-    border-color 120ms ease;
+    opacity var(--wc-dur-hover) var(--wc-ease-out),
+    transform var(--wc-dur-hover) var(--wc-ease-out),
+    border-color var(--wc-dur-hover) var(--wc-ease-out);
 }
 
 .wc-card-preview-thumbstrip button:hover {
   opacity: 1;
+  transform: translateY(-1px);
 }
 
+/* 当前图抬起一格 + 品牌色描边，翻页时眼睛不用重新找。 */
 .wc-card-preview-thumbstrip button.is-active {
-  border-color: var(--wc-accent);
+  border-color: color-mix(in srgb, var(--wc-brand) 62%, var(--wc-border));
   opacity: 1;
+  transform: translateY(-1px);
 }
 
 .wc-card-preview-thumbstrip img {
@@ -15076,6 +15103,61 @@ body.is-canvas-connection-dragging .wc-node-config-shell {
   scrollbar-color: color-mix(in srgb, var(--wc-text-tertiary) 38%, transparent) transparent;
 }
 
+/* 精选技能包：内置 SKILL.md 原文，添加即导入并启用。 */
+.wc-agent-skills-curated {
+  margin-top: 4px;
+  border-top: 1px solid color-mix(in srgb, var(--wc-text) 9%, transparent);
+}
+
+.wc-agent-skills-section {
+  padding: 9px 8px 3px;
+  color: var(--wc-text-tertiary);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+.wc-agent-skills-curated-row {
+  align-items: flex-start;
+  padding: 2px 4px 6px;
+}
+
+.wc-agent-skills-curated-row .wc-agent-skills-row-copy {
+  flex: 1;
+  padding: 5px 4px;
+}
+
+.wc-agent-skills-add {
+  display: inline-flex;
+  height: 24px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  margin: 4px 2px 0 0;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--wc-border-strong) 70%, transparent);
+  border-radius: 6px;
+  color: var(--wc-text-secondary);
+  background: color-mix(in srgb, var(--wc-surface-strong) 55%, transparent);
+  font-size: 11px;
+  font-weight: 620;
+}
+
+.wc-agent-skills-add:hover:not(:disabled) {
+  color: var(--wc-text);
+  background: color-mix(in srgb, var(--wc-surface-strong) 78%, transparent);
+}
+
+.wc-agent-skills-add:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.wc-agent-skills-add svg {
+  width: 12px;
+  height: 12px;
+}
+
 .wc-agent-skills-row {
   display: flex;
   align-items: center;
@@ -16586,43 +16668,46 @@ body > .wc-cat-select-menu--floating .wc-cat-select-options > button.is-selected
   max-height: min(168px, 26vh);
 }
 
+/* 单行控制区：附件 · 模型 · 协作 · 技能 · 设置 · 发送。两代行容器用
+   display:contents 拍平，避免为仅调整排布再复制一套 DOM。 */
 .wc-agent-drawer--refined .wc-agent-composer-footer {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  display: flex;
+  min-width: 0;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 6px;
   padding: 8px;
   border-top: 1px solid var(--wc-chrome-hairline);
 }
 
-.wc-agent-composer-meta {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 6px;
+.wc-agent-drawer--refined .wc-agent-composer-footer > .wc-agent-composer-meta,
+.wc-agent-drawer--refined .wc-agent-composer-footer > .wc-agent-composer-row {
+  display: contents;
 }
 
-.wc-agent-composer-meta .wc-agent-model-field {
+.wc-agent-drawer--refined .wc-agent-composer-footer .wc-agent-model-field {
   min-width: 0;
   flex: 1 1 auto;
 }
 
-.wc-agent-composer-row {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 6px;
+.wc-agent-drawer--refined .wc-agent-composer-footer .wc-agent-attach-button {
+  order: -1;
 }
 
-.wc-agent-composer-hint {
-  min-width: 0;
-  flex: 1 1 auto;
-  overflow: hidden;
-  color: var(--wc-text-tertiary);
-  font-size: 10px;
-  font-weight: 540;
-  letter-spacing: 0.01em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.wc-agent-drawer--refined .wc-agent-composer-footer .wc-agent-mode-select,
+.wc-agent-drawer--refined .wc-agent-composer-footer .wc-agent-skills {
+  flex: 0 0 auto;
+}
+
+/* 单行后提示文字让位给控件；快捷键提示保留在输入框 title 上。 */
+.wc-agent-drawer--refined .wc-agent-composer-hint {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .wc-agent-drawer--refined .wc-agent-composer-footer {
+    flex-wrap: wrap;
+  }
 }
 
 .wc-agent-drawer--refined .wc-agent-model-select .wc-cat-select-trigger {
@@ -17010,4 +17095,34 @@ body > .wc-cat-select-menu--floating .wc-cat-select-options > button.is-selected
 
 .wc-agent-drawer--refined .wc-agent-model-select .wc-cat-select-trigger {
   align-items: center;
+}
+
+/* 白天模式下资产库图标是白+蓝的位图，落在浅色底上白边会消失。整颗按钮固定为
+   深石墨底（悬停/选中只提升明度与描边），选中态再加一圈清晰的环；放在文件末尾
+   是为了压过 classic/studio 的 chrome hover 背景。 */
+:root[data-theme="light"] .wc-edit-dock > .wc-resource-toggle,
+.wc-app[data-theme="light"] .wc-edit-dock > .wc-resource-toggle {
+  border-color: color-mix(in srgb, #718ba3 72%, var(--wc-border-strong));
+  background: #0a1522;
+  box-shadow:
+    0 3px 10px rgb(0 0 0 / 18%),
+    inset 0 1px 0 rgb(255 255 255 / 8%);
+}
+
+:root[data-theme="light"] .wc-edit-dock > .wc-resource-toggle:hover:not(:disabled),
+.wc-app[data-theme="light"] .wc-edit-dock > .wc-resource-toggle:hover:not(:disabled) {
+  border-color: color-mix(in srgb, #8aa6c2 78%, var(--wc-border-strong));
+  background: #0d1b2b;
+}
+
+:root[data-theme="light"] .wc-edit-dock > .wc-resource-toggle.is-active,
+:root[data-theme="light"] .wc-edit-dock > .wc-resource-toggle.is-active:hover:not(:disabled),
+.wc-app[data-theme="light"] .wc-edit-dock > .wc-resource-toggle.is-active,
+.wc-app[data-theme="light"] .wc-edit-dock > .wc-resource-toggle.is-active:hover:not(:disabled) {
+  border-color: color-mix(in srgb, #a9c4de 76%, var(--wc-border));
+  background: #122131;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, #8aa6c2 42%, transparent),
+    0 5px 14px rgb(0 0 0 / 22%),
+    inset 0 1px 0 rgb(255 255 255 / 12%);
 }

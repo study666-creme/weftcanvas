@@ -218,6 +218,11 @@ export type CanvasGroup = z.infer<typeof canvasGroupSchema>;
 export const canvasNodeDataSchema = z.object({
   kind: canvasNodeKindSchema,
   body: z.string().default(""),
+  /**
+   * 用户给节点起的名字（左上角类型标签位置显示）。空/缺省 = 仍显示节点类型；
+   * 可选字段，旧项目与测试夹具无需改写（与 uploading 同一处理）。
+   */
+  title: z.string().max(120).optional(),
   accent: z.string().default("jade"),
   status: canvasNodeStatusSchema.default("idle"),
   progress: z.number().int().min(0).max(100).nullable().default(null),

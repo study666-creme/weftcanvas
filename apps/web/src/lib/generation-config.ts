@@ -380,6 +380,11 @@ export function setExclusiveParameter(
   const canonicalName = canonicalParameterName(model, name);
   const next = { ...current, [canonicalName]: value };
   if (canonicalName !== name) delete next[name];
+  // 同族别名（size / resolution）只能留一个值：留着旧别名，用户刚点的规范值
+  // 会在下面 canonicalize 时被别名抢先读走，等于点了没反应——视频模型上就是
+  // 「换分辨率不改变计费，全按旧档收」。
+  for (const alias of aliasNames(canonicalName) ?? [])
+    if (alias !== canonicalName) delete next[alias];
   if (!hasValue(value)) return next;
   const parameter = model.parameters.find((item) => item.name === canonicalName);
   for (const excluded of parameter?.mutuallyExclusiveWith ?? []) delete next[excluded];
@@ -493,7 +498,11 @@ function canonicalizeConfiguredValues(
       continue;
     const family = aliasFamily(model, parameter.name);
     const candidates = family.length > 1 ? family : [parameter];
-    const savedNames = aliasNames(parameter.name) ?? new Set([parameter.name]);
+    // 规范参数自己保存的值必须排在同族别名之前。`size` / `resolution` 共用一套
+    // 维度语义，Set 的书写顺序会把 `size` 排在前面：项目里只要残留一个旧
+    // `size`，用户刚选的 resolution 就会被它盖掉（2026-11-05 报障「换分辨率
+    // 不改变计费，全按 480 收」的客户端成因）。
+    const savedNames = orderedSavedNames(parameter.name);
     const values: unknown[] = [];
     for (const savedName of savedNames) {
       if (Object.hasOwn(current, savedName))
@@ -529,6 +538,16 @@ function canonicalizeConfiguredValues(
 function aliasFamily(model: PublicModel, name: string) {
   const names = aliasNames(name);
   return names ? model.parameters.filter((parameter) => names.has(parameter.name)) : [];
+}
+
+/**
+ * 读取已保存值的顺序：规范参数自己在最前，同族别名按固定顺序跟随。
+ * 这样"规范值有效"时别名永远不会反客为主，别名只在规范值缺失或类型不匹配时兜底。
+ */
+function orderedSavedNames(name: string) {
+  const names = aliasNames(name);
+  if (!names) return [name];
+  return [name, ...[...names].filter((candidate) => candidate !== name)];
 }
 
 function aliasNames(name: string) {

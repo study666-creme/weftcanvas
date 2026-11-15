@@ -7,17 +7,23 @@ import { createPortal } from "react-dom";
 import "../app-cursor.css";
 import { useUiPreferencesStore } from "../state/ui-preferences-store";
 import { useCursorInteractionStore } from "../state/cursor-interaction-store";
+import {
+  isFramedDocument,
+  localPointerFromScreen,
+  screenToClientOffset,
+  type CursorPoint,
+} from "../lib/cursor-pointer-mapping";
 
 type CursorMode = "default" | "link" | "drag" | "pan" | "text" | "native";
 
 const DRAG_TARGETS = [
   "[data-wc-cursor='drag']",
   ".wc-node-drag-strip",
-  ".wc-node-type-label",
   ".wc-node-text-preview",
   ".wc-media-empty--passive",
   ".wc-node-media-frame",
   ".wc-audio-wave",
+  ".wc-group-frame",
   ".wc-group-frame-header",
   ".wc-director-canvas",
   "input[type='range']",
@@ -145,19 +151,38 @@ export const AppCursor = memo(function AppCursor() {
     // 也就是自绘光标最容易背锅的那「慢一帧」。非 Chromium 内核没有这个事件，
     // 继续走上面的 rAF 合并路径。
     const supportsRawUpdate = "onpointerrawupdate" in window;
+    // 内嵌在 /canvas（跨源 iframe）时，raw 事件的 clientX/clientY 是**顶层页面**
+    // 坐标而不是本帧坐标，直接用会把光标整体推偏一个「侧栏宽 + 顶栏高」——用户
+    // 反馈的「鼠标和实际位置对不上、指针直接出画布」就是这个。所以内嵌时改用
+    // screen 坐标折算（见 lib/cursor-pointer-mapping）。顶层文档保持原路径不变，
+    // 避免为各浏览器 screenX 单位差异引入回归。
+    const framed = isFramedDocument(window);
+    let screenOffset: CursorPoint | null = null;
+    const learnScreenOffset = (event: PointerEvent) => {
+      if (!framed) return;
+      const next = screenToClientOffset(event);
+      if (next) screenOffset = next;
+    };
+    const rawPoint = (event: PointerEvent): CursorPoint | null =>
+      framed ? localPointerFromScreen(event, screenOffset) : { x: event.clientX, y: event.clientY };
     const rawMove = (event: Event) => {
       const raw = event as PointerEvent;
       if (!isFinePointerEvent(raw)) return;
       const samples = raw.getCoalescedEvents?.() ?? [];
       const latest = samples.at(-1) ?? raw;
-      pointer.style.transform = `translate3d(${latest.clientX - 4}px, ${latest.clientY - 3}px, 0)`;
+      const point = rawPoint(latest);
+      if (!point) return;
+      pointer.style.transform = `translate3d(${point.x - 4}px, ${point.y - 3}px, 0)`;
     };
 
     const move = (event: PointerEvent) => {
       if (!isFinePointerEvent(event)) return;
+      learnScreenOffset(event);
       // 有 rawupdate 时位置只由它写：pointermove 是按帧对齐的旧样本，再排一次
       // rAF 写入会在同一帧里把更新的 raw 位置盖回去，光标就会往回跳一下。
-      if (!supportsRawUpdate) queuePosition(event);
+      // 内嵌且还没学到平移量时例外：那时 raw 坐标不可用，先用本地化的
+      // pointermove 兜住，避免第一下移动光标不动。
+      if (!supportsRawUpdate || (framed && !screenOffset)) queuePosition(event);
       if (lastTarget !== event.target) {
         const nextInsideCanvas =
           event.target instanceof Element && Boolean(event.target.closest(".react-flow"));
@@ -169,6 +194,10 @@ export const AppCursor = memo(function AppCursor() {
     };
     const down = (event: PointerEvent) => {
       if (!isFinePointerEvent(event)) return;
+      learnScreenOffset(event);
+      // 没移动过就直接点（页面刚加载）时也要把光标画到按下的位置，否则会停在
+      // 左上角一帧。
+      pointer.style.transform = `translate3d(${event.clientX - 4}px, ${event.clientY - 3}px, 0)`;
       lastTarget = event.target;
       pointerInsideCanvas =
         event.target instanceof Element && Boolean(event.target.closest(".react-flow"));

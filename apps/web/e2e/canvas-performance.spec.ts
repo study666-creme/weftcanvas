@@ -213,7 +213,7 @@ test("dense grouped canvas pans within hard thresholds with zero per-frame persi
     const frames = [...document.querySelectorAll<HTMLElement>("[data-wc-group-frame]")];
     let inaccuracies = 0;
     for (const frame of frames) {
-      const match = /^group-(\d+)$/.exec(frame.dataset.kcGroupFrame ?? "");
+      const match = /^group-(\d+)$/.exec(frame.dataset.wcGroupFrame ?? "");
       if (!match) continue;
       const groupIndex = Number(match[1]);
       const frameRect = frame.getBoundingClientRect();

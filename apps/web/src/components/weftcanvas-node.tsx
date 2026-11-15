@@ -1051,6 +1051,9 @@ export const WeftcanvasNode = memo(function WeftcanvasNode({
   const expandedPointer = useRef<{ at: number; x: number; y: number } | null>(null);
   const [hovered, setHovered] = useState(false);
   const [toolbarDismissed, setToolbarDismissed] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const renameDoneRef = useRef(false);
   const [overlayMode, setOverlayMode] = useState<NodeOverlayMode | null>(null);
   const [generationOpen, setGenerationOpen] = useState(false);
   const [clipEditorOpen, setClipEditorOpen] = useState(false);
@@ -1132,7 +1135,8 @@ export const WeftcanvasNode = memo(function WeftcanvasNode({
       ? state.exhaustedObservations[data.generation.jobId] === true
       : false,
   );
-  const toolbarVisible = toolbarActive && (hovered || (isSoleSelectedNode && !toolbarDismissed));
+  const toolbarVisible =
+    toolbarActive && (hovered || (isSoleSelectedNode && !toolbarDismissed)) && !renaming;
   const compactOverview =
     overviewZoom &&
     !selected &&
@@ -1487,7 +1491,7 @@ export const WeftcanvasNode = memo(function WeftcanvasNode({
       if (!(target instanceof Element)) return;
       if (target.closest("[data-canvas-node-toolbar]")) return;
       const targetNode = target.closest<HTMLElement>("[data-wc-node-id]");
-      if (targetNode?.dataset.kcNodeId === id) return;
+      if (targetNode?.dataset.wcNodeId === id) return;
       setHovered(false);
       setToolbarDismissed(true);
       setActiveToolbarNodeId(null);
@@ -1610,6 +1614,21 @@ export const WeftcanvasNode = memo(function WeftcanvasNode({
   // 入场动画只对真正新建的节点播（详见 shouldPlayNodeEntrance）。
   const playEntrance = shouldPlayNodeEntrance(id, data.createdAt);
 
+  // 左上角名称：单击进入编辑，Enter/失焦提交，Escape 取消；空名回退为节点类型。
+  const startRename = () => {
+    renameDoneRef.current = false;
+    setNameDraft((data.title ?? "").trim());
+    setRenaming(true);
+  };
+  const finishRename = (commit: boolean) => {
+    if (renameDoneRef.current) return;
+    renameDoneRef.current = true;
+    setRenaming(false);
+    if (!commit) return;
+    const next = nameDraft.trim().slice(0, 32);
+    if (next !== (data.title ?? "").trim()) updateNodeData(id, { title: next }, true);
+  };
+
   return (
     <div
       className={`wc-node-wrap wc-node-wrap--${data.kind} wc-accent--${visualAccent}${playEntrance ? " wc-node-entering" : ""}`}
@@ -1624,9 +1643,45 @@ export const WeftcanvasNode = memo(function WeftcanvasNode({
       onPointerDownCapture={rememberExpandedPointer}
     >
       {compactOverview ? null : (
-        <span className="wc-node-type-label">
+        <span
+          className={`wc-node-type-label nodrag${renaming ? " is-renaming" : ""}`}
+          title={data.title?.trim() || nodeLabel(data.kind)}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (!renaming) startRename();
+          }}
+        >
           <Icon aria-hidden="true" />
-          {nodeLabel(data.kind)}
+          {renaming ? (
+            <input
+              className="wc-node-name-input nodrag nowheel"
+              autoFocus
+              value={nameDraft}
+              maxLength={32}
+              aria-label="节点名称"
+              placeholder={nodeLabel(data.kind)}
+              onChange={(event) => setNameDraft(event.target.value)}
+              onBlur={() => finishRename(true)}
+              onPointerDown={(event) => event.stopPropagation()}
+              onDoubleClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => {
+                event.stopPropagation();
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  finishRename(true);
+                }
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  finishRename(false);
+                }
+              }}
+            />
+          ) : (
+            <span className="wc-node-type-label-text">
+              {data.title?.trim() || nodeLabel(data.kind)}
+            </span>
+          )}
         </span>
       )}
       {toolbarVisible ? (

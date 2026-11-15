@@ -1182,6 +1182,7 @@ export const AgentDrawer = memo(function AgentDrawer() {
           <textarea
             ref={textareaRef}
             aria-label="发送给 Agent"
+            title="Enter 发送，Shift+Enter 换行"
             value={draft}
             rows={3}
             maxLength={activeBaselineStep?.maxLength ?? MAX_AGENT_MESSAGE_CHARS}

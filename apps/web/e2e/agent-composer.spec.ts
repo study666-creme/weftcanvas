@@ -182,6 +182,41 @@ test("composer keeps long text inside the field and above the footer", async ({ 
   expect(metrics!.scrollHeight).toBeGreaterThan(metrics!.clientHeight);
 });
 
+test("composer controls stay on a single row", async ({ page }) => {
+  await openAgentDrawer(page);
+  const layout = await page.evaluate(() => {
+    const footer = document.querySelector<HTMLElement>(".wc-agent-composer-footer");
+    if (!footer) return null;
+    const selectors = [
+      ".wc-agent-attach-button",
+      ".wc-agent-model-field",
+      ".wc-agent-mode-select",
+      ".wc-agent-skills",
+      ".wc-agent-settings-button",
+      ".wc-agent-send",
+    ];
+    const boxes = selectors.map((selector) => {
+      const element = footer.querySelector<HTMLElement>(selector);
+      if (!element) return null;
+      const box = element.getBoundingClientRect();
+      return { selector, top: box.top, bottom: box.bottom };
+    });
+    return {
+      boxes,
+      scrollWidth: footer.scrollWidth,
+      clientWidth: footer.clientWidth,
+    };
+  });
+  expect(layout).not.toBeNull();
+  expect(layout!.boxes.every((box) => box !== null)).toBe(true);
+  const boxes = layout!.boxes.filter((box): box is NonNullable<typeof box> => box !== null);
+  // 所有控件的纵向区间必须彼此相交：任何一项换行都会让 top 落到其他项的 bottom 之下。
+  const lowestTop = Math.max(...boxes.map((box) => box.top));
+  const highestBottom = Math.min(...boxes.map((box) => box.bottom));
+  expect(lowestTop).toBeLessThan(highestBottom);
+  expect(layout!.scrollWidth).toBeLessThanOrEqual(layout!.clientWidth + 1);
+});
+
 test("composer collapses to the resting height when cleared", async ({ page }) => {
   const { textarea } = await openAgentDrawer(page);
   await textarea.fill("一句话");

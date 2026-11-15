@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Copy, FolderOpen, Library, Quote, Search, Sparkles } from "lucide-react";
 
 import type { AssetLibraryItem, AssetLibraryKind } from "../../lib/asset-library-store";
+import { ASSET_SOURCE_LABEL } from "../../lib/asset-source-labels";
 import { formatRelativeTime, mediaKindOf, type HomeWork } from "../../lib/home-data";
 import { useToastStore } from "../../state/toast-store";
 import { HomeMediaThumb } from "./home-media-thumb";
@@ -16,12 +17,6 @@ const FILTERS: { value: AssetFilter; label: string }[] = [
   { value: "card", label: "卡片" },
   { value: "prompt", label: "提示词" },
 ];
-
-const SOURCE_LABEL: Record<AssetLibraryItem["source"], string> = {
-  "card-library": "卡片库收藏",
-  local: "本地上传",
-  canvas: "生成作品",
-};
 
 export function assetToWork(item: AssetLibraryItem): HomeWork | null {
   if (!item.media) return null;
@@ -159,7 +154,7 @@ export function HomeAssetsSection({
                         {item.name}
                       </span>
                       <span className="wc-home-work-meta">
-                        <span>{SOURCE_LABEL[item.source]}</span>
+                        <span>{ASSET_SOURCE_LABEL[item.source]}</span>
                         <span aria-hidden="true">·</span>
                         <span>{formatRelativeTime(item.updatedAt)}</span>
                       </span>

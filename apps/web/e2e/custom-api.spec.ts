@@ -421,13 +421,23 @@ test("workbench (/generate) lists custom models and runs them without login or c
   await expect(
     page.getByRole("group", { name: "分辨率" }).getByRole("radio", { name: "2K", exact: true }),
   ).toHaveAttribute("aria-checked", "true");
-  await page.getByLabel(/提示词/).fill("雨夜站台，电影感构图");
+  // 提示词用 data 属性定位：参数区里还有「负面提示词」，按 /提示词/ 取会命中两个。
+  await page.locator("[data-direct-prompt]").fill("雨夜站台，电影感构图");
+  // 本次新增的自由参数：填了才下发（未填时请求与旧版逐字节一致，见单测）。
+  await expect(page.getByLabel("负面提示词")).toHaveValue("");
+  await page.getByLabel("负面提示词").fill("低清晰度，多余手指");
+  await page.getByLabel("随机种子").fill("42");
   await page.locator(".wc-direct-parameters").screenshot({
     path: testInfo.outputPath("workbench-byok-parameters.png"),
   });
   await page.getByRole("button", { name: "生成", exact: true }).click();
   await expect.poll(() => generationRequests).toBe(1);
-  expect(payloads[0]).toMatchObject({ aspect_ratio: "16:9", resolution: "2K" });
+  expect(payloads[0]).toMatchObject({
+    aspect_ratio: "16:9",
+    resolution: "2K",
+    negative_prompt: "低清晰度，多余手指",
+    seed: 42,
+  });
   await expect(page.locator(".wc-direct-result-gallery img")).toBeVisible();
 });
 

@@ -2,6 +2,8 @@ import type { ModelModality, PublicModel } from "@weftcanvas/contracts";
 import { describe, expect, it } from "vitest";
 
 import {
+  modelConfiguredPriceLabel,
+  modelConfiguredUnitPriceLabel,
   modelGroupLabel,
   modelPickerLabel,
   modelPriceLabel,
@@ -250,6 +252,81 @@ describe("generation model select", () => {
     expect(
       orderModelsForPicker([promoLineOne, lineTwo, stableLineOne]).map((item) => item.id),
     ).toEqual(["sd2.0-720p-pro", "kling-line-two", "promo-veo"]);
+  });
+});
+
+describe("dual-resolution video pricing", () => {
+  const dualResolutionModel = (): PublicModel => ({
+    ...model("video", "sd-2.5-fullparam", "S-2.5 全参", 0, 3),
+    parameters: [
+      {
+        name: "prompt",
+        label: "提示词",
+        type: "string",
+        required: true,
+        mutuallyExclusiveWith: [],
+      },
+      {
+        name: "duration_seconds",
+        label: "时长（秒）",
+        type: "integer",
+        required: false,
+        default: 4,
+        min: 4,
+        max: 30,
+        mutuallyExclusiveWith: [],
+      },
+      {
+        name: "resolution",
+        label: "分辨率",
+        type: "string",
+        required: false,
+        default: "720p",
+        options: ["480p", "720p"],
+        mutuallyExclusiveWith: [],
+      },
+    ],
+    pricing: {
+      mode: "tiered",
+      unit: "second",
+      currency: "CNY",
+      creditsPerYuan: 100,
+      baseCreditMicros: 28_000_000,
+      tiers: [
+        // 站点把基准价发布成无条件档，且排在最前：它以前恒真，会把 720p 也吞成 480 的价。
+        { when: {}, creditMicros: 28_000_000, yuanMicros: 280_000 },
+        { when: { resolution: "720p" }, creditMicros: 38_000_000, yuanMicros: 380_000 },
+      ],
+    },
+  });
+
+  it("prices the selected resolution and multiplies the duration_seconds parameter", () => {
+    // 0.28 × 4 秒 = 112 积分，0.38 × 4 秒 = 152 积分：换分辨率必须换价。
+    expect(modelConfiguredPriceLabel(dualResolutionModel(), { resolution: "480p" })).toBe(
+      "112 积分（按秒计费）",
+    );
+    expect(modelConfiguredPriceLabel(dualResolutionModel(), { resolution: "720p" })).toBe(
+      "152 积分（按秒计费）",
+    );
+    // 时长也要真的乘进去：以前只认 duration / seconds，duration_seconds 参数
+    // （视频模型的标准写法）被忽略，总价永远停在「一秒的量」。
+    expect(
+      modelConfiguredPriceLabel(dualResolutionModel(), {
+        resolution: "720p",
+        duration_seconds: 30,
+      }),
+    ).toBe("1140 积分（按秒计费）");
+  });
+
+  it("shows the per-second unit price of the selected resolution", () => {
+    // 模型行给的是「x 积分/秒」：它必须跟着当前分辨率走，否则用户看到的永远
+    // 是出厂默认价，等于告诉用户「换分辨率不改变计费」。
+    expect(modelConfiguredUnitPriceLabel(dualResolutionModel(), { resolution: "480p" })).toBe(
+      "28 积分/秒",
+    );
+    expect(modelConfiguredUnitPriceLabel(dualResolutionModel(), { resolution: "720p" })).toBe(
+      "38 积分/秒",
+    );
   });
 });
 

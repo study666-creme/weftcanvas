@@ -377,6 +377,11 @@ const CanvasGroupsLayerContent = memo(function CanvasGroupsLayerContent() {
             }
             onPointerEnter={() => openGroup(item.group.id)}
             onPointerLeave={scheduleClose}
+            onPointerDown={(event) => {
+              // 空白处按下即拖整组；标题栏与缩放手柄有自己的处理，不重复进入。
+              if (event.target !== event.currentTarget) return;
+              beginGroupDrag(event, item);
+            }}
           >
             <header
               className="wc-group-frame-header nodrag nowheel"

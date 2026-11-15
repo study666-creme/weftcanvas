@@ -61,9 +61,10 @@ rows. Changes that trade pointer latency for anything else will not be merged.
   canvas projects without it.
 - Never commit API keys, tokens, or production endpoints. BYOK keys belong in
   the contributor's own browser `localStorage` only. CI runs gitleaks.
-- First-time contributors sign the CLA (see [`CLA.md`](CLA.md)); it grants the
-  maintainer the right to relicense, which is what keeps the dual-license model
-  viable.
+- No CLA and no copyright assignment: your contribution stays yours, and it is
+  released under the same MIT license as the rest of the repository (see
+  [`LICENSE`](LICENSE)). Nothing here restricts what you may do with the code
+  afterwards.
 
 ## Reporting
 

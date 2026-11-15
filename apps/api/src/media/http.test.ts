@@ -18,6 +18,7 @@ import type {
 import { MediaService } from "./service.js";
 import { SignedMediaAccess } from "./signed-access.js";
 import {
+  hostedMediaResponse,
   MEDIA_CONTENT_CACHE_CONTROL,
   MEDIA_NO_STORE_CACHE_CONTROL,
   MEDIA_THUMB_CACHE_CONTROL,
@@ -238,6 +239,107 @@ describe("media HTTP API", () => {
     const defaulted = mediaContentResponse(content, false);
     expect(defaulted.headers.get("Cache-Control")).toBe(MEDIA_NO_STORE_CACHE_CONTROL);
     expect(defaulted.headers.get("Cache-Control")).toBe("private, no-store, no-transform");
+  });
+});
+
+describe("hostedMediaResponse", () => {
+  // 回归：生产上 21 次 `TypeError: Response body object should not be disturbed
+  // or locked`，栈全部落在 `http.ts` 的
+  // `new Response(upstream.body, …)`（extractBody ← @hono/node-server 的
+  // Response 替身重建）。归档流程会读走响应体的另一条分支，交付路径再读一次
+  // `.body` 并重新绑定，就把"还能不能读"赌在了流的状态上。这里锁住三条不变量：
+  // 能就地改头就不重建；不确定安全就原样返回；任何情况下都不抛。
+  it("copies the delivery headers onto a mutable response without rebinding the body", async () => {
+    const upstream = new Response("hosted-bytes", {
+      status: 206,
+      headers: {
+        "Content-Type": "video/mp4",
+        "Content-Length": "12",
+        "Content-Range": "bytes 0-11/12",
+        "Accept-Ranges": "bytes",
+        "X-Provider-Trace": "trace-1",
+      },
+    });
+
+    const result = hostedMediaResponse(upstream);
+
+    expect(result).toBe(upstream);
+    expect(result.status).toBe(206);
+    expect(result.headers.get("Cache-Control")).toBe("private, no-store, no-transform");
+    expect(result.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(result.headers.get("Content-Range")).toBe("bytes 0-11/12");
+    expect(result.headers.get("Accept-Ranges")).toBe("bytes");
+    expect(await result.text()).toBe("hosted-bytes");
+  });
+
+  it("returns a response whose body is already consumed untouched instead of throwing", async () => {
+    const upstream = new Response("consumed-bytes", {
+      status: 200,
+      headers: { "Content-Type": "video/mp4" },
+    });
+    await upstream.text();
+    expect(upstream.bodyUsed).toBe(true);
+
+    const result = hostedMediaResponse(upstream);
+
+    expect(result).toBe(upstream);
+    expect(result.headers.get("Cache-Control")).toBe("private, no-store, no-transform");
+    expect(result.headers.get("X-Content-Type-Options")).toBe("nosniff");
+  });
+
+  it("returns a response whose body stream is locked untouched instead of throwing", async () => {
+    const upstream = new Response("locked-bytes", {
+      status: 200,
+      headers: { "Content-Type": "video/mp4" },
+    });
+    const reader = upstream.body!.getReader();
+    expect(upstream.body!.locked).toBe(true);
+
+    let result: Response | undefined;
+    expect(() => {
+      result = hostedMediaResponse(upstream);
+    }).not.toThrow();
+    expect(result).toBe(upstream);
+
+    // 锁没被抢走，原持有者仍能把内容读完。
+    const chunks: Uint8Array[] = [];
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) chunks.push(value);
+    }
+    expect(Buffer.concat(chunks).toString()).toBe("locked-bytes");
+  });
+
+  it("rebuilds only when the headers are immutable and the body is provably readable", async () => {
+    // undici 的 fetch 响应头部是 guard=immutable，`headers.set` 会抛
+    // `TypeError: immutable`：这条路只能重建，用最小的替身复现即可。
+    const bytes = Buffer.from("immutable-bytes");
+    const stored = new Map<string, string>([
+      ["Content-Type", "audio/mpeg"],
+      ["Content-Length", String(bytes.length)],
+    ]);
+    const upstream = {
+      status: 200,
+      statusText: "",
+      bodyUsed: false,
+      body: Readable.toWeb(Readable.from(bytes)) as ReadableStream<Uint8Array>,
+      headers: {
+        get: (name: string) => stored.get(name) ?? null,
+        set: () => {
+          throw new TypeError("immutable");
+        },
+      },
+    } as unknown as Response;
+
+    const result = hostedMediaResponse(upstream);
+
+    expect(result).not.toBe(upstream);
+    expect(result.status).toBe(200);
+    expect(result.headers.get("Cache-Control")).toBe("private, no-store, no-transform");
+    expect(result.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(result.headers.get("Content-Type")).toBe("audio/mpeg");
+    expect(await result.text()).toBe("immutable-bytes");
   });
 });
 

@@ -516,18 +516,34 @@ async function sweepStaleGenerationJobs() {
   }
 }
 
-const server = serve({ fetch: app.fetch, port, hostname }, (info) => {
-  console.log(`Canvas API listening on http://${hostname}:${info.port}`);
-  opsAlerts?.start();
-  // 观察是 hosted 任务的常规恢复路径；用户关掉页面后没人推进，所以这里补一个
-  // 本地巡检，只做终态收敛（不联网、不重放付费提交、不伪造退款）。
-  void sweepStaleGenerationJobs();
-  generationJanitorTimer = setInterval(
-    () => void sweepStaleGenerationJobs(),
-    generationJanitorIntervalMs,
-  );
-  generationJanitorTimer.unref();
-});
+const server = serve(
+  {
+    fetch: app.fetch,
+    port,
+    hostname,
+    // `@hono/node-server` 默认会把 `globalThis.Request` / `Response` 换成一个
+    // 轻量替身。替身的 `get body` 会就地重建一个真实 `Response`，而重建一旦碰上
+    // 已经被消费或加锁的 body 就直接抛
+    // `TypeError: Response body object should not be disturbed or locked`
+    // （生产上 21 次，全部落在媒体交付路径）。Hono 的 `context.header()` 在响应
+    // finalize 之后每写一个头都会重新包一层 Response，本应用的全局中间件在
+    // `await next()` 之后还要写 4 个头，重建次数被放大了好几倍。这里保留原生
+    // 实现：多一层包装换来的那点吞吐不值得把用户的结果赌在流的状态上。
+    overrideGlobalObjects: false,
+  },
+  (info) => {
+    console.log(`Canvas API listening on http://${hostname}:${info.port}`);
+    opsAlerts?.start();
+    // 观察是 hosted 任务的常规恢复路径；用户关掉页面后没人推进，所以这里补一个
+    // 本地巡检，只做终态收敛（不联网、不重放付费提交、不伪造退款）。
+    void sweepStaleGenerationJobs();
+    generationJanitorTimer = setInterval(
+      () => void sweepStaleGenerationJobs(),
+      generationJanitorIntervalMs,
+    );
+    generationJanitorTimer.unref();
+  },
+);
 
 let shuttingDown = false;
 const shutdown = () => {

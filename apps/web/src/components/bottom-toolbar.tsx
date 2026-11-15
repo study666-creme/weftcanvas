@@ -247,7 +247,7 @@ export const BottomToolbar = memo(function BottomToolbar({
           data-wc-preserve-drawers
           className={resourceOpen ? "is-active wc-resource-toggle" : "wc-resource-toggle"}
           aria-label={resourceOpen ? "收起资源库" : "打开资源库"}
-          title="卡片与资产（Ctrl/⌘+K）"
+          title="资产库（Ctrl/⌘+K）"
           aria-pressed={resourceOpen}
           onClick={() => {
             onCloseSettings();

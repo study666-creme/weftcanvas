@@ -4,10 +4,10 @@
 支持拉取上游模型列表、常见模型识别和可配置的接入协议；项目与素材默认保存在本机浏览器。
 
 [![CI](https://github.com/study666-creme/weftcanvas/actions/workflows/ci.yml/badge.svg)](https://github.com/study666-creme/weftcanvas/actions/workflows/ci.yml)
-[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 [快速开始](#快速开始) · [连接中转站](docs/CONNECTING-RELAYS.md) ·
-[自托管](docs/DEPLOYING.md) · [文档索引](docs/README.md) · [商业授权](COMMERCIAL-LICENSE.md)
+[自托管](docs/DEPLOYING.md) · [文档索引](docs/README.md) · [许可证](LICENSE)
 
 **在线预览**：[官方托管实例](https://canvas.prompt-hubs.com)（含云端钱包与卡片库，功能范围与开源版有差异）。
 
@@ -35,40 +35,40 @@
 
 | 石墨 · 白天                                       | 墨黑 · 黑夜                                      |
 | ------------------------------------------------- | ------------------------------------------------ |
-| ![石墨画布](docs/screenshots/canvas-light-v3.png) | ![墨黑画布](docs/screenshots/canvas-dark-v3.png) |
+| ![石墨画布](docs/screenshots/canvas-light-v4.png) | ![墨黑画布](docs/screenshots/canvas-dark-v4.png) |
 
 **节点生成面板**——选中节点即开，模型、参数、价格一目了然；角落里的蓝发少女（白色是头饰）
 是可拖拽的 Agent 伙伴，平时待在画布上方的默认位，输入框打开时她趴到输入框的右上角：
 
-![节点生成面板](docs/screenshots/generation-panel-v3.png)
+![节点生成面板](docs/screenshots/generation-panel-v4.png)
 
 **模型选择器**——按厂商/系列分类，每个模型带简介与服务端聚合的真实成功率（能量条）：
 
-![模型选择器](docs/screenshots/model-picker-v3.png)
+![模型选择器](docs/screenshots/model-picker-v4.png)
 
 **BYOK 外接 API**——填自己的 OpenAI 兼容或 Gemini 原生端点，请求由浏览器直发、Key 只落本机；
 支持多份配置、拉取上游模型目录：
 
-![BYOK 外接 API 配置](docs/screenshots/byok-settings-v3.png)
+![BYOK 外接 API 配置](docs/screenshots/byok-settings-v4.png)
 
 **外观与样式**——独立的外观面板里调节点 / 界面风格、配色（石墨 / 墨黑 / 素陶 / 糖彩）、
 背景（网格 / 点阵 / 星空 / 水面）、生成特效、默认画幅，逐项可换：
 
-![外观与样式设置](docs/screenshots/appearance-styles-v3.png)
+![外观与样式设置](docs/screenshots/appearance-styles-v4.png)
 
 **资产库**——本地素材、提示词、分类管理，拖进画布即用：
 
-![资产库](docs/screenshots/asset-library-v3.png)
+![资产库](docs/screenshots/asset-library-v4.png)
 
 **3D 导演台**——Three.js 预演空间：摆人物道具、定机位、逐镜头截图回画布：
 
-![3D 导演台](docs/screenshots/director-stage-v2.png)
+![3D 导演台](docs/screenshots/director-stage-v4.png)
 
 **直出工作台**——不开画布也能生成，明暗双主题：
 
 | 白天                                                           | 黑夜                                                          |
 | -------------------------------------------------------------- | ------------------------------------------------------------- |
-| ![直出工作台（白天）](docs/screenshots/workbench-light-v2.png) | ![直出工作台（黑夜）](docs/screenshots/workbench-dark-v2.png) |
+| ![直出工作台（白天）](docs/screenshots/workbench-light-v4.png) | ![直出工作台（黑夜）](docs/screenshots/workbench-dark-v4.png) |
 
 ## 运营后台
 
@@ -93,7 +93,7 @@
 
 | 概览（石墨）                                         | 模型运营（墨黑）                                |
 | ---------------------------------------------------- | ----------------------------------------------- |
-| ![运营后台概览](docs/screenshots/ops-console-v2.png) | ![模型运营](docs/screenshots/ops-models-v2.png) |
+| ![运营后台概览](docs/screenshots/ops-console-v4.png) | ![模型运营](docs/screenshots/ops-models-v4.png) |
 
 ## 开源范围
 
@@ -173,19 +173,19 @@ pnpm test:e2e     # Playwright
 
 ## 许可
 
-- **AGPL-3.0**（见 [LICENSE](LICENSE)）：可以自由使用、修改、分发，包括商用；
-  但如果你把它作为网络服务提供给第三方，需要按 AGPL-3.0 第 13 条提供对应源码。
-- **闭源商用**：如果你的产品不能开源，可以购买商业授权免除 AGPL 义务，
-  见 [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md)。
+**MIT License**（见 [LICENSE](LICENSE)）——最宽松的开源协议之一：可以自由使用、
+修改、分发和**闭源商用**，只需在副本中保留版权与许可声明。没有附加条款，
+没有网络服务开源义务，也不需要购买任何授权。
+
+自托管、二次开发、集成进你自己的产品，都直接可用。
 
 ## 参与
 
-见 [CONTRIBUTING.md](CONTRIBUTING.md)（开发环境、验证命令、画布手感约束与 CLA）；
+见 [CONTRIBUTING.md](CONTRIBUTING.md)（开发环境、验证命令与画布手感约束）；
 安全问题见 [SECURITY.md](SECURITY.md)。
 
 **交流**：QQ 群 **743378399**——用法答疑、插件与协议适配讨论、首发公告都在这。
-商务授权与安全问题邮件 **2705367723@qq.com**（见
-[COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md) / [SECURITY.md](SECURITY.md)）。
+安全问题邮件 **2705367723@qq.com**（见 [SECURITY.md](SECURITY.md)）。
 
 ## 来源与致谢
 

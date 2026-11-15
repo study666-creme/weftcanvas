@@ -90,10 +90,10 @@ export function GlobalTooltip() {
       if (!target || target.closest('[aria-hidden="true"]')) return null;
       const nativeTitle = target.getAttribute("title")?.trim();
       if (nativeTitle) {
-        target.dataset.kcTooltip = nativeTitle;
+        target.dataset.wcTooltip = nativeTitle;
         target.removeAttribute("title");
       }
-      const copy = target.dataset.kcTooltip?.trim();
+      const copy = target.dataset.wcTooltip?.trim();
       return copy ? { target, copy } : null;
     };
 

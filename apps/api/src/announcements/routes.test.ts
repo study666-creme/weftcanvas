@@ -41,7 +41,11 @@ function seed(): AnnouncementCollection {
         level: "info",
         pinned: false,
         enabled: true,
-        publishedAt: "2026-11-01T08:00:00.000Z",
+        // 这条断言比对的是真实时钟：`GET /api/v1/announcements` 调用
+        // `publicAnnouncements(collection)` 用的是默认的 `new Date()`，不是上面
+        // 那个注入的 `NOW`。写死日期会随时间腐烂（2026-11-01 起这条就自己"到点"
+        // 漏进公开列表了），所以按"未来 30 天"表达意图。
+        publishedAt: new Date(Date.now() + 30 * 86_400_000).toISOString(),
         expiresAt: null,
       },
     ],

@@ -12,7 +12,6 @@ What does this PR change, and why? Link the issue if one exists (`Closes #`).
 - [ ] UI changes include before/after screenshots (both colour schemes)
 - [ ] No secrets, keys, or production endpoints in the diff
 - [ ] Docs/comments updated when behavior or contracts changed
-- [ ] CLA signed (first contribution)
 
 ## Canvas feel
 

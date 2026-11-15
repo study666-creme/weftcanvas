@@ -317,9 +317,7 @@ function calculateAmount(
       return calculateVideoReferenceAmount(model, request, parameters);
     return calculateTokenAmount(pricing, request);
   }
-  const tier = pricing.tiers.find((candidate) =>
-    Object.entries(candidate.when).every(([name, value]) => sameValue(parameters[name], value)),
-  );
+  const tier = matchingPricingTier(pricing.tiers, parameters);
   const baseCreditMicros = tier?.creditMicros ?? pricing.baseCreditMicros;
   const baseYuanMicros = tier?.yuanMicros ?? pricing.baseYuanMicros;
   if (baseCreditMicros === undefined && baseYuanMicros === undefined) {
@@ -535,6 +533,49 @@ function invalidType(parameter: ModelParameter): never {
 }
 function sameValue(left: unknown, right: unknown) {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+/**
+ * 命中价格分档：**条件全部命中且条件最多**的那一档。
+ *
+ * 这里以前是 `tiers.find(条件全命中)`，三个静默退化都直接变成少收（用户
+ * 2026-11-05 报障「480/720 双档模型换分辨率不改变计费，全按 480 收」）：
+ *
+ * 1. `when: {}` 的空条件档在 `.every()` 下恒真。站点只要把基准价发布成一条
+ *    无条件档（或它的字段名对不上参数名，被过滤成 `{}`），第一档就吞掉所有
+ *    请求，后面的分辨率档永远轮不到——全部按最低档结算。
+ * 2. 上游偶有 `720P` / `720p` 的大小写差异。精确比较会让「720P」打不进
+ *    「720p」档，直接回落到基准价（通常是更便宜的那一档）。
+ * 3. 宽泛档（只看 quality）排在精确档（resolution + quality）前面时，`find`
+ *    会先命中宽泛档：精确档永远收不到钱。
+ *
+ * 空条件档不再参与命中，只在没有任何条件档命中、且目录没发布基准价时兜底，
+ * 保留「无条件档就是这个模型的基准价」的原始语义。
+ */
+function matchingPricingTier(tiers: ModelPricing["tiers"], parameters: Record<string, unknown>) {
+  let matched: { tier: ModelPricing["tiers"][number]; conditions: number } | null = null;
+  let unconditional: ModelPricing["tiers"][number] | null = null;
+  for (const tier of tiers) {
+    const conditions = Object.entries(tier.when);
+    if (!conditions.length) {
+      unconditional ??= tier;
+      continue;
+    }
+    if (!conditions.every(([name, value]) => samePricingValue(parameters[name], value))) continue;
+    if (!matched || conditions.length > matched.conditions)
+      matched = { tier, conditions: conditions.length };
+  }
+  return matched?.tier ?? unconditional;
+}
+
+/**
+ * 分档条件的比较口径：字符串忽略大小写与首尾空格（选项值由目录决定，上游改写
+ * 大小写不代表换了档），其余类型按 JSON 结构精确比较。
+ */
+function samePricingValue(left: unknown, right: unknown) {
+  if (typeof left === "string" && typeof right === "string")
+    return left.trim().toLowerCase() === right.trim().toLowerCase();
+  return sameValue(left, right);
 }
 
 function creditsToYuan(creditMicros: number, creditsPerYuan: number) {

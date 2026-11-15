@@ -21,6 +21,11 @@ Weftcanvas 是**独立实现（clean-room re-implementation）**：代码在本�
 如果你认为本仓库中有内容需要更正归属，请开 issue 或邮件 **2705367723@qq.com**，
 我们会核实并更新本文档。
 
+## 许可
+
+本仓库以 **MIT License** 发布（全文见 [`LICENSE`](LICENSE)）：可自由使用、
+修改、再分发与闭源商用，只需保留版权声明与许可声明。
+
 ## 第三方依赖
 
 运行时核心依赖均为宽松许可（React、Vite、Hono、three.js、Zod 等）。完整的依赖与

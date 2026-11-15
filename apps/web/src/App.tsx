@@ -236,10 +236,10 @@ export function App() {
     if (accountDialogOpen) setAccountDialogLoaded(true);
   }, [accountDialogOpen]);
 
-  // 首屏流畅度优先：index.html 的引导脚本已无条件把 data-wc-motion="lite" 打在
-  // <html> 上（静态英雄层、无星空/光晕/毛玻璃动画）。此前的运行时帧率采样只在
-  // 首屏已经卡过 1.2 秒之后才降级，对弱机等于「先卡够再救」，已移除；弱动效
-  // 现在是所有设备的默认，不做强机回升。
+  // 动效档位由 index.html 的引导脚本在首帧前打标（data-wc-motion）。2026-11-03
+  // 起「全设备无条件 lite」回调为按设备能力降级：正常设备 full（电影引擎、
+  // 星空/光晕、毛玻璃全开），仅低核数/低内存/省流或系统减少动效时 lite。
+  // 运行时帧率采样不再引入——弱机在引导脚本同步 sniff，不为强机付出卡顿。
 
   useEffect(() => {
     const syncPath = () => {

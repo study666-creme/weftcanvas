@@ -46,6 +46,7 @@ import {
   releaseBrowserSubmissionIdentity,
 } from "../lib/browser-generation-runtime";
 import { formatCreditMicros, generationBillingText } from "../lib/generation-billing";
+import { generationErrorMessage } from "../lib/generation-error";
 import { useWalletStore } from "../state/wallet-store";
 import { isCustomModelKey } from "../lib/custom-api";
 import {
@@ -1548,7 +1549,7 @@ export function NodeGenerationPanel({
                                   {pricingUnitText(job.quote.pricingUnit)}
                                   {billing ? ` · ${billing}` : ""}
                                 </small>
-                                {job.error?.message ? <em>{job.error.message}</em> : null}
+                                {job.error?.message ? <em>{generationErrorMessage(job)}</em> : null}
                               </span>
                               <b>{status.label}</b>
                             </div>
@@ -1730,6 +1731,9 @@ export function NodeGenerationPanel({
               disabled={catalogLoading || !models.length || generationLocked}
               onChange={chooseModel}
               ariaLabel="模型"
+              // 双档模型（480P/720P）的单价必须跟着当前选择走：一直显示模型
+              // 出厂默认价，用户会以为「换分辨率不改变计费」。
+              selectedParameters={parameters}
             />
           </label>
           {model?.description ? (
@@ -1904,7 +1908,7 @@ export function NodeGenerationPanel({
                           {pricingUnitText(job.quote.pricingUnit)}
                           {billing ? ` · ${billing}` : ""}
                         </small>
-                        {job.error?.message ? <em>{job.error.message}</em> : null}
+                        {job.error?.message ? <em>{generationErrorMessage(job)}</em> : null}
                       </span>
                       <b>{status.label}</b>
                     </div>

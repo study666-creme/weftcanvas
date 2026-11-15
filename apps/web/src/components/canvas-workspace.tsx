@@ -681,7 +681,7 @@ export function CanvasWorkspace({
         return;
 
       const nodeElement = target.closest<HTMLElement>("[data-wc-node-id]");
-      const nodeId = nodeElement?.dataset.kcNodeId;
+      const nodeId = nodeElement?.dataset.wcNodeId;
       if (!nodeId) return;
 
       const node = useCanvasStore.getState().nodes.find((item) => item.id === nodeId);

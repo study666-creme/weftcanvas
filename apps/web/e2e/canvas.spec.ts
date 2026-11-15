@@ -2134,6 +2134,104 @@ test("node groups persist, move together, and remain undoable", async ({ page })
   await expect(page.locator(".wc-group-frame")).toHaveCount(0);
 });
 
+test("drags a group by pressing empty space inside its frame", async ({ page }) => {
+  await cleanProject(page);
+  await openCanvas(page);
+  const configNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="config"])',
+  );
+  const textNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="text"])',
+  );
+  await configNode.locator(".wc-node-drag-strip").click();
+  await page.keyboard.down("Control");
+  await textNode.locator(".wc-node-drag-strip").click();
+  await page.keyboard.up("Control");
+  await page.locator(".wc-selection-toolbar").getByLabel("组合选中节点").click();
+  const frame = page.locator(".wc-group-frame");
+  await expect(frame).toHaveCount(1);
+
+  const frameBox = await frame.boundingBox();
+  const configBefore = await configNode.boundingBox();
+  const textBefore = await textNode.boundingBox();
+  expect(frameBox).not.toBeNull();
+  expect(configBefore).not.toBeNull();
+  expect(textBefore).not.toBeNull();
+
+  // 右下角内边距：在所有成员节点之外、又避开右/下缩放手柄的命中带。
+  const startX = frameBox!.x + frameBox!.width - 10;
+  const startY = frameBox!.y + frameBox!.height - 12;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX - 90, startY - 40, { steps: 9 });
+  await page.mouse.up();
+
+  const configAfter = await configNode.boundingBox();
+  const textAfter = await textNode.boundingBox();
+  expect(configAfter!.x - configBefore!.x).toBeLessThan(-60);
+  expect(textAfter!.x - textBefore!.x).toBeLessThan(-60);
+});
+
+test("renames a node from its upper-left label and keeps it after reload", async ({ page }) => {
+  await cleanProject(page);
+  await openCanvas(page);
+  const textNode = page.locator(
+    '.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="text"])',
+  );
+  const label = textNode.locator(".wc-node-type-label");
+  await label.click();
+  const input = label.getByLabel("节点名称");
+  await input.fill("主角设定");
+  await input.press("Enter");
+  await expect(label).toContainText("主角设定");
+
+  await page.waitForTimeout(460);
+  await page.reload();
+  await expect(
+    page
+      .locator('.react-flow__node-weftcanvas:has(.wc-node-wrap[data-node-kind="text"])')
+      .locator(".wc-node-type-label"),
+  ).toContainText("主角设定");
+});
+
+test("light theme keeps the asset library button legible on hover and when active", async ({
+  page,
+}) => {
+  await cleanProject(page);
+  await openCanvas(page);
+  // cleanProject 的初始化脚本会清掉 localStorage，这里直接在运行时把主题钉成白天。
+  await page.evaluate(() => {
+    document.documentElement.setAttribute("data-theme", "light");
+    document.querySelector(".wc-app")?.setAttribute("data-theme", "light");
+  });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  const toggle = page.locator(".wc-edit-dock .wc-resource-toggle");
+  await expect(toggle).toBeVisible();
+
+  const luminance = async () =>
+    toggle.evaluate((element) => {
+      const match = getComputedStyle(element).backgroundColor.match(/rgba?\(([^)]+)\)/);
+      if (!match) return null;
+      const [red = 0, green = 0, blue = 0] = match[1]!
+        .split(",")
+        .map((value) => Number.parseFloat(value));
+      return (red * 0.2126 + green * 0.7152 + blue * 0.0722) / 255;
+    });
+
+  // 白+蓝的位图只落在深色底上才清楚：悬停与选中都不能被浅色 chrome hover 洗白。
+  await toggle.hover();
+  const hoverLuminance = await luminance();
+  expect(hoverLuminance).not.toBeNull();
+  expect(hoverLuminance!).toBeLessThan(0.3);
+
+  await toggle.evaluate((element) => element.classList.add("is-active"));
+  const activeLuminance = await luminance();
+  expect(activeLuminance).not.toBeNull();
+  expect(activeLuminance!).toBeLessThan(0.3);
+  const activeShadow = await toggle.evaluate((element) => getComputedStyle(element).boxShadow);
+  expect(activeShadow).not.toBe("none");
+});
+
 test("group members drag independently and join or leave through the frozen frame", async ({
   page,
 }, testInfo) => {

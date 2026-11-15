@@ -25,10 +25,22 @@
       } catch {
         document.documentElement.dataset.theme = "dark";
       }
-      // 首屏与登录页必须保流畅：无条件启用弱动效模式（静态英雄层、无星空/光晕/
-      // 毛玻璃动画）。此前的运行时帧率采样要等首屏卡上 1 秒后才降级，弱机已经
-      // 先卡完启动段；现在直接同步打标，登录页电影引擎也不再默认启动。
-      document.documentElement.dataset.kcMotion = "lite";
+      // 动效档位：默认全动效（登录页电影引擎、星空/光晕、毛玻璃、悬浮预览）。
+      // 2026-11-03 owner 要求对齐参考站的丝滑手感，把此前「全设备无条件
+      // lite」回调为按设备能力降级：仅低核数/低内存/省流模式或系统级
+      // 减少动效偏好时保留 lite，保证弱机首屏依然流畅。
+      let kcMotion = "full";
+      try {
+        const weakDevice =
+          (navigator.hardwareConcurrency !== undefined && navigator.hardwareConcurrency <= 4) ||
+          (navigator.deviceMemory !== undefined && navigator.deviceMemory <= 4) ||
+          (navigator.connection && navigator.connection.saveData === true);
+        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        if (weakDevice || reduceMotion) kcMotion = "lite";
+      } catch {
+        kcMotion = "full";
+      }
+      document.documentElement.dataset.wcMotion = kcMotion;
     </script>
     <style>
       html,

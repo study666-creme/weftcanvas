@@ -163,11 +163,25 @@ export const ResourceDrawer = memo(function ResourceDrawer({
   // 卡片库的缓存清理与空闲预热由面板模块自持（开源 stub 为 no-op）。
   useAccountCardsWarmth(identityScope);
 
-  if (!open) return null;
+  // 2026-11-03：关闭不再瞬间卸载。保留 150ms 退场（wc-resource-drawer-out），
+  // 与 190ms 入场对称；lite 档 CSS 自动跳过动画，但卸载时序一致。
+  const [renderOpen, setRenderOpen] = useState(open);
+  useEffect(() => {
+    if (open) {
+      setRenderOpen(true);
+      return;
+    }
+    if (!renderOpen) return;
+    const timer = window.setTimeout(() => setRenderOpen(false), 150);
+    return () => window.clearTimeout(timer);
+  }, [open, renderOpen]);
+
+  if (!renderOpen) return null;
 
   return (
     <section
       ref={drawerRef}
+      data-closing={open ? undefined : "true"}
       className={
         "wc-resource-drawer " +
         (tab === "cards" && accountCardsTabAvailable && !authenticated ? "is-connection-gate" : "")
@@ -738,8 +752,7 @@ function AssetLibraryPanel({
                   key={item.id}
                   tabIndex={0}
                   draggable
-                  title="拖到画布直接使用"
-                  aria-label={`${item.name} 资产`}
+                  aria-label={`${item.name} 资产，可拖到画布使用`}
                   onDragStart={(event) => {
                     startCanvasAssetDrag(event.dataTransfer, {
                       title: item.name,

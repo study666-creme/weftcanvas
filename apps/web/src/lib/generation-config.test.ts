@@ -267,6 +267,34 @@ describe("generation config", () => {
     });
   });
 
+  it("keeps the resolution the creator just picked over a stale size alias", () => {
+    // 480/720 双档视频模型：旧项目里可能残留 size（与 resolution 同族的别名）。
+    // 用户点 720p 时，残留的 size=480p 以前会抢先被 canonicalize 读走，提交的
+    // 仍是 480p——「换分辨率也不会改变计费，全按 480 收」正是这么来的。
+    const model: PublicModel = {
+      ...imageModel(),
+      id: "sd-2.5-fullparam",
+      modality: "video",
+      output: { type: "video", minCount: 1, maxCount: 1 },
+      parameters: [
+        parameter("prompt", "string", { required: true }),
+        parameter("duration_seconds", "integer", { default: 4, min: 4, max: 30 }),
+        parameter("resolution", "string", { default: "720p", options: ["480p", "720p"] }),
+      ],
+    };
+
+    expect(
+      setExclusiveParameter(model, { resolution: "480p", size: "480p" }, "resolution", "720p"),
+    ).toEqual({ resolution: "720p" });
+    expect(
+      composeModelParameters(model, "夜跑", { resolution: "720p", size: "480p" }),
+    ).toMatchObject({ resolution: "720p" });
+    // 没有规范值时，别名仍然要能顶上来（老项目只有 size 的迁移路径不变）。
+    expect(composeModelParameters(model, "夜跑", { size: "480p" })).toMatchObject({
+      resolution: "480p",
+    });
+  });
+
   it("accepts legacy lowercase symbolic resolution values and emits catalog casing", () => {
     const model = imageModel();
     model.id = "mj-v81";

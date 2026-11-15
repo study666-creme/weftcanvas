@@ -2725,6 +2725,21 @@ function mediaBindingFromName(value: string | undefined): MediaBinding | null {
   return null;
 }
 
+/**
+ * 路由里已经声明过的参考素材类型（只按参数名/路径的媒体语义判断，不看 format）。
+ *
+ * BYOK 兼容档靠它决定「还要不要补一个图片/视频入口」：目录或协议档案已经声明了
+ * 图片字段（哪怕 format 是 data URL）就说明上游对这个概念有自己的表达，绝不重复下发。
+ */
+export function declaredReferenceKinds(route: CustomApiRoute) {
+  const kinds = new Set<MediaReferenceKind>();
+  for (const parameter of route.parameters) {
+    const binding = mediaParameterBindingFor(parameter);
+    if (binding) kinds.add(binding.kind);
+  }
+  return kinds;
+}
+
 export function publicReferenceKinds(route: CustomApiRoute) {
   const kinds = new Set<MediaReferenceKind>();
   for (const parameter of route.parameters) {

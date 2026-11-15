@@ -1008,7 +1008,7 @@ textarea:focus-visible {
   line-height: 18px;
   white-space: nowrap;
   text-overflow: ellipsis;
-  cursor: grab;
+  cursor: text;
   pointer-events: auto;
   transition:
     color 130ms ease,
@@ -1018,6 +1018,38 @@ textarea:focus-visible {
 
 .wc-node-wrap[data-node-status="running"] .wc-node-type-label {
   color: color-mix(in srgb, var(--node-accent) 68%, var(--wc-text-secondary));
+}
+
+.wc-node-type-label.is-renaming {
+  cursor: text;
+  overflow: visible;
+}
+
+.wc-node-type-label-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wc-node-name-input {
+  width: 132px;
+  min-width: 0;
+  max-width: min(200px, 40vw);
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid color-mix(in srgb, var(--wc-accent) 48%, var(--wc-border-strong));
+  border-radius: 5px;
+  color: var(--wc-text);
+  background: var(--wc-surface-raised);
+  font: inherit;
+  font-weight: 560;
+  line-height: 20px;
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--wc-accent) 14%, transparent);
+}
+
+.wc-node-name-input::placeholder {
+  color: var(--wc-text-tertiary);
 }
 
 .wc-node-wrap[data-node-status="error"] .wc-node-type-label {
@@ -1037,10 +1069,10 @@ textarea:focus-visible {
   background: var(--wc-surface);
   box-shadow: 0 2px 12px rgb(0 0 0 / 28%);
   transition:
-    border-color 130ms ease,
-    box-shadow 150ms ease,
-    transform 130ms ease,
-    background-color 130ms ease;
+    border-color 180ms var(--wc-ease-out),
+    box-shadow 220ms var(--wc-ease-out),
+    transform 180ms var(--wc-ease-out),
+    background-color 160ms var(--wc-ease-out);
   transform-origin: 50% 70%;
   isolation: isolate;
 }
@@ -2735,6 +2767,35 @@ textarea:focus-visible {
   }
 }
 
+/* 2026-11-03：关闭退场。此前关闭是瞬间卸载，开合手感不对称。组件在关闭时
+   挂 data-closing 并延迟 150ms 卸载，这里播放对称的下滑淡出；lite 档与
+   prefers-reduced-motion 直接跳过动画（组件仍按同样时序卸载）。 */
+.wc-resource-drawer[data-closing="true"] {
+  animation: wc-resource-drawer-out 150ms var(--wc-ease-out) both;
+  pointer-events: none;
+}
+
+@keyframes wc-resource-drawer-out {
+  from {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, 10px) scale(0.99);
+  }
+}
+
+:root[data-wc-motion="lite"] .wc-resource-drawer[data-closing="true"] {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wc-resource-drawer[data-closing="true"] {
+    animation: none;
+  }
+}
+
 .wc-resource-text-button,
 .wc-resource-upload,
 .wc-resource-empty button {
@@ -2769,7 +2830,8 @@ textarea:focus-visible {
   background: color-mix(in srgb, #05070c 64%, transparent);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  animation: wc-card-preview-in 160ms ease both;
+  /* 遮罩比面板快一拍：背景先压暗，面板再滑到位，观感上轻盈不少。 */
+  animation: wc-card-preview-in 140ms var(--wc-ease-out) both;
 }
 
 .wc-card-preview-surface {
@@ -2785,7 +2847,18 @@ textarea:focus-visible {
   background: var(--wc-surface-raised);
   box-shadow: 0 30px 90px rgb(0 0 0 / 55%);
   outline: none;
-  animation: wc-card-preview-surface-in 180ms cubic-bezier(0.22, 0.8, 0.26, 1) both;
+  animation: wc-card-preview-surface-in 220ms var(--wc-ease-expo) both;
+}
+
+/* 关闭退场：与资源抽屉同一套时序（150ms，lite 档跳过）。组件在关闭先挂
+   data-closing 播完再卸载，所以这里不需要处理 pointer-events 之外的逻辑。 */
+.wc-card-preview[data-closing="true"] {
+  animation: wc-card-preview-out var(--wc-dur-exit) var(--wc-ease-out) both;
+  pointer-events: none;
+}
+
+.wc-card-preview[data-closing="true"] .wc-card-preview-surface {
+  animation: wc-card-preview-surface-out var(--wc-dur-exit) var(--wc-ease-out) both;
 }
 
 @keyframes wc-card-preview-in {
@@ -2797,14 +2870,34 @@ textarea:focus-visible {
   }
 }
 
+@keyframes wc-card-preview-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
 @keyframes wc-card-preview-surface-in {
   from {
     opacity: 0;
-    transform: translateY(10px) scale(0.985);
+    transform: translateY(14px) scale(0.982);
   }
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+@keyframes wc-card-preview-surface-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
   }
 }
 
@@ -2975,9 +3068,31 @@ textarea:focus-visible {
   animation-duration: 0s;
 }
 
+:root[data-wc-motion="lite"] .wc-card-preview[data-closing="true"],
+:root[data-wc-motion="lite"] .wc-card-preview[data-closing="true"] .wc-card-preview-surface {
+  animation-duration: 0s;
+}
+
 :root[data-wc-motion="lite"] .wc-card-preview {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+}
+
+/* 换图淡入：img 以 url 为 key，翻页/切缩略图时重建节点，动画自然重播。
+   原先是硬切，多图卡片左右翻页会有明显「闪一下」。 */
+.wc-card-preview-canvas > img {
+  animation: wc-card-preview-media-in 220ms var(--wc-ease-out) both;
+}
+
+@keyframes wc-card-preview-media-in {
+  from {
+    opacity: 0;
+    transform: scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* --- 卡片悬浮大图快览（卡片库 + 社区弹层共用）---
@@ -3002,7 +3117,13 @@ textarea:focus-visible {
     0 2px 6px rgb(0 0 0 / 30%),
     0 24px 64px -20px rgb(0 0 0 / 60%);
   pointer-events: none;
-  animation: wc-card-hover-preview-in 150ms ease both;
+  animation: wc-card-hover-preview-in 160ms var(--wc-ease-expo) both;
+}
+
+/* 移出卡片的退场：比入场快、位移方向相反（往里收），像「缩回鼠标」而不是
+   「被抽走」。组件延迟 150ms 卸载，lite 档直接卸不播。 */
+.wc-card-hover-preview.is-closing {
+  animation: wc-card-hover-preview-out var(--wc-dur-exit) var(--wc-ease-out) both;
 }
 
 @keyframes wc-card-hover-preview-in {
@@ -3016,7 +3137,35 @@ textarea:focus-visible {
   }
 }
 
-:root[data-wc-motion="lite"] .wc-card-hover-preview {
+@keyframes wc-card-hover-preview-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.99);
+  }
+}
+
+/* 换卡/缩略图升级成原图时的交叉淡入（img 以 url 为 key，换源即重建）。 */
+.wc-card-hover-preview img,
+.wc-card-hover-preview video {
+  animation: wc-card-hover-media-in 180ms var(--wc-ease-out) both;
+}
+
+@keyframes wc-card-hover-media-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+:root[data-wc-motion="lite"] .wc-card-hover-preview,
+:root[data-wc-motion="lite"] .wc-card-hover-preview img,
+:root[data-wc-motion="lite"] .wc-card-hover-preview video {
   animation: none;
 }
 

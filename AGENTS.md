@@ -68,5 +68,5 @@ pnpm build
 
 ## 许可
 
-本项目以 AGPL-3.0 发布。提交贡献即接受 [`CLA.md`](CLA.md)。闭源商用见
-[`COMMERCIAL-LICENSE.md`](COMMERCIAL-LICENSE.md)。
+本项目以 **MIT License** 发布（全文见 [`LICENSE`](LICENSE)）：可自由使用、修改、
+再分发与闭源商用，只需保留版权声明。不要求签 CLA，也不需要额外购买授权。

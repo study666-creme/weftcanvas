@@ -10,8 +10,8 @@
 
 ## 开发与贡献
 
-- [贡献指南](../CONTRIBUTING.md)：环境、代码规范、验证与 CLA。
+- [贡献指南](../CONTRIBUTING.md)：环境、代码规范与验证。
 - [架构](ARCHITECTURE.md)：运行时职责与共享契约。
 - [生成任务](GENERATION-JOBS.md)：状态、恢复与持久化执行。
 - [媒体存储](MEDIA-STORAGE.md)：本地与服务端媒体。
-- [变更记录](../CHANGELOG.md)、[安全反馈](../SECURITY.md)、[商业授权](../COMMERCIAL-LICENSE.md)。
+- [变更记录](../CHANGELOG.md)、[安全反馈](../SECURITY.md)、[许可](../LICENSE)（MIT）。

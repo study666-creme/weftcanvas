@@ -16,6 +16,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { useAgentStore } from "../state/agent-store";
+import type { CuratedSkill } from "../lib/curated-skills";
 
 /**
  * 技能入口：抽屉输入区的「技能」键。
@@ -24,6 +25,9 @@ import { useAgentStore } from "../state/agent-store";
  * 交给 Agent。这里只做三件事：看清单、勾选本轮要用的（最多 4 个）、导入/删除。
  * 面板锚在输入区上方，用 portal 挂到 body——抽屉本身 overflow: hidden，直接绝对
  * 定位会被裁掉（与模型选择器同一个原因）。
+ *
+ * 精选技能包（六个 MIT 许可的内置 SKILL.md）按需懒加载：点「添加」等价于用户在
+ * 技能页导入一次，随即自动启用；不预置进任何人的技能库，也不随对话打包下发。
  */
 export function AgentSkillsMenu({ disabled = false }: { disabled?: boolean }) {
   const skills = useAgentStore((state) => state.skills);
@@ -33,11 +37,18 @@ export function AgentSkillsMenu({ disabled = false }: { disabled?: boolean }) {
   const loadSkills = useAgentStore((state) => state.loadSkills);
   const toggleSkill = useAgentStore((state) => state.toggleSkill);
   const removeSkill = useAgentStore((state) => state.removeSkill);
+  const importSkill = useAgentStore((state) => state.importSkill);
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
+  const [curated, setCurated] = useState<CuratedSkill[] | null>(null);
+  const [curatedStatus, setCuratedStatus] = useState<"idle" | "loading" | "ready" | "error">(
+    "idle",
+  );
+  const [addingId, setAddingId] = useState<string | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
   const [menuStyle, setMenuStyle] = useState<CSSProperties>({});
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -117,7 +128,39 @@ export function AgentSkillsMenu({ disabled = false }: { disabled?: boolean }) {
     if (open) void loadSkills();
   }, [loadSkills, open]);
 
+  // 精选包是六个 SKILL.md 原文：只在第一次展开时懒加载，不进入主包。
+  useEffect(() => {
+    if (!open || curatedStatus !== "idle") return;
+    setCuratedStatus("loading");
+    void import("../lib/curated-skills")
+      .then((module) => {
+        setCurated(module.curatedSkills);
+        setCuratedStatus("ready");
+      })
+      .catch(() => setCuratedStatus("error"));
+  }, [curatedStatus, open]);
+
   const rows = skills ?? [];
+
+  const addCuratedSkill = async (skill: CuratedSkill) => {
+    if (addingId) return;
+    setAddingId(skill.id);
+    setAddError(null);
+    try {
+      const existing = rows.find((row) => row.name === skill.name);
+      if (existing) {
+        if (!selectedSkillIds.includes(existing.id) && !full) toggleSkill(existing.id);
+        return;
+      }
+      const imported = await importSkill(skill.content);
+      // 导入成功即启用（未到 4 个上限时）；到上限就留在「我的技能」里等用户取舍。
+      if (!full) toggleSkill(imported.id);
+    } catch (cause) {
+      setAddError(cause instanceof Error ? cause.message : "技能添加失败");
+    } finally {
+      setAddingId(null);
+    }
+  };
 
   return (
     <div className="wc-agent-skills" ref={rootRef} data-enabled={enabledCount}>
@@ -236,10 +279,72 @@ export function AgentSkillsMenu({ disabled = false }: { disabled?: boolean }) {
                     </div>
                   );
                 })}
+                {curatedStatus !== "idle" ? (
+                  <div className="wc-agent-skills-curated">
+                    <div className="wc-agent-skills-section">精选技能包</div>
+                    {curatedStatus === "loading" ? (
+                      <div className="wc-agent-skills-empty" role="status">
+                        <LoaderCircle className="is-spinning" aria-hidden="true" />
+                        正在加载精选技能
+                      </div>
+                    ) : null}
+                    {curatedStatus === "error" ? (
+                      <div className="wc-agent-skills-empty">精选技能加载失败，请刷新后重试</div>
+                    ) : null}
+                    {(curated ?? []).map((skill) => {
+                      const added = rows.find((row) => row.name === skill.name);
+                      const enabled = Boolean(added && selectedSkillIds.includes(added.id));
+                      const adding = addingId === skill.id;
+                      const blocked = enabled || (full && !enabled);
+                      return (
+                        <div
+                          key={skill.id}
+                          className="wc-agent-skills-row wc-agent-skills-curated-row"
+                          data-enabled={enabled}
+                        >
+                          <span
+                            className="wc-agent-skills-row-copy"
+                            title={skill.description || skill.name}
+                          >
+                            <strong>{skill.name}</strong>
+                            {skill.description ? <small>{skill.description}</small> : null}
+                          </span>
+                          <button
+                            type="button"
+                            className="wc-agent-skills-add"
+                            disabled={adding || blocked}
+                            title={
+                              enabled
+                                ? "已在你这一轮的技能里"
+                                : full
+                                  ? `最多同时启用 ${agentSkillLimits.enabledPerRun} 个，先取消一个`
+                                  : added
+                                    ? "启用这份技能"
+                                    : "添加并启用"
+                            }
+                            onClick={() => void addCuratedSkill(skill)}
+                          >
+                            {adding ? (
+                              <LoaderCircle className="is-spinning" aria-hidden="true" />
+                            ) : enabled ? (
+                              <Check aria-hidden="true" />
+                            ) : null}
+                            {enabled ? "已启用" : added ? "启用" : "添加"}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
               </div>
               {removeError ? (
                 <div className="wc-agent-skills-error" role="alert">
                   {removeError}
+                </div>
+              ) : null}
+              {addError ? (
+                <div className="wc-agent-skills-error" role="alert">
+                  {addError}
                 </div>
               ) : null}
               <div className="wc-agent-skills-foot">

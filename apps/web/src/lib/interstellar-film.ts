@@ -1835,7 +1835,7 @@ export function createInterstellarFilm(
   // fast-track can still climb back once delivery proves healthy.
   let quality = 1;
   {
-    const motionBudget = document.documentElement.dataset.kcMotion;
+    const motionBudget = document.documentElement.dataset.wcMotion;
     if (motionBudget === "lite") {
       // 已被 App.tsx 的采样判定为弱机：起步就落在可维持档位，而不是先全分辨率
       // 卡几秒再靠上面的快速降档兜底。0.66 × 1.4Mpx ≈ 0.9Mpx。

@@ -946,6 +946,23 @@ describe("canvas reference lifecycle", () => {
     expect(useCanvasStore.getState().past).toHaveLength(1);
   });
 
+  it("renames a node with undo and keeps the name across project reload", () => {
+    const node = createCanvasNode("image", { x: 0, y: 0 });
+    useCanvasStore.setState({ nodes: [node] });
+
+    useCanvasStore.getState().updateNodeData(node.id, { title: "封面主视觉" }, true);
+    expect(useCanvasStore.getState().nodes[0]?.data.title).toBe("封面主视觉");
+    expect(useCanvasStore.getState().past).toHaveLength(1);
+
+    useCanvasStore.getState().undo();
+    expect(useCanvasStore.getState().nodes[0]?.data.title).toBeUndefined();
+    useCanvasStore.getState().redo();
+
+    const project = selectProject(useCanvasStore.getState());
+    useCanvasStore.getState().replaceProject(project);
+    expect(useCanvasStore.getState().nodes[0]?.data.title).toBe("封面主视觉");
+  });
+
   it("skips full graph snapshots for non-recorded hot-path updates", () => {
     const node = createCanvasNode("image", { x: 0, y: 0 });
     useCanvasStore.setState({ nodes: [node] });

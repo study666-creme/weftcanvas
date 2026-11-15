@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { computeHoverPreviewPlacement } from "../lib/hover-preview-placement";
+import { EXIT_FADE_MS, prefersInstantMotion } from "../lib/motion-preference";
 
 export {
   computeHoverPreviewPlacement,
@@ -73,8 +74,12 @@ export function CardHoverPreview({ source }: { source: CardHoverPreviewSource | 
   const [aspect, setAspect] = useState(1);
   const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
   const [viewport, setViewport] = useState(() => readViewportSize());
+  // 移出卡片时先播退场再卸载，避免大图「啪」地消失。
+  const [closing, setClosing] = useState(false);
   const appearTimer = useRef(0);
+  const exitTimer = useRef(0);
   const displayRef = useRef<CardHoverPreviewSource | null>(null);
+  const closingRef = useRef(false);
   const latestPointer = useRef<{ x: number; y: number } | null>(null);
   const moveFrame = useRef(0);
 
@@ -82,12 +87,17 @@ export function CardHoverPreview({ source }: { source: CardHoverPreviewSource | 
     displayRef.current = display;
   }, [display]);
 
+  useEffect(() => {
+    closingRef.current = closing;
+  }, [closing]);
+
   // 持续记录鼠标位置：浮层出现时才能立刻贴上去，不用等下一次移动。
   useEffect(() => {
     if (!canHover) return;
     const track = (event: PointerEvent) => {
       latestPointer.current = { x: event.clientX, y: event.clientY };
-      if (!displayRef.current || moveFrame.current) return;
+      // 退场中不再跟随：否则淡出的那一帧还在追光标，看起来像在"逃跑"。
+      if (!displayRef.current || closingRef.current || moveFrame.current) return;
       moveFrame.current = window.requestAnimationFrame(() => {
         moveFrame.current = 0;
         if (latestPointer.current) setAnchor(latestPointer.current);
@@ -105,9 +115,27 @@ export function CardHoverPreview({ source }: { source: CardHoverPreviewSource | 
   useEffect(() => {
     if (!canHover || !source) {
       window.clearTimeout(appearTimer.current);
-      setDisplay(null);
+      // 移出不再瞬间消失：先播 150ms 淡出再卸载（lite 档与减少动效直接卸）。
+      // display 是本次渲染的快照，用来判断「当前是否真有层要收」。
+      if (!display) {
+        setClosing(false);
+        return;
+      }
+      if (prefersInstantMotion()) {
+        setDisplay(null);
+        setClosing(false);
+        return;
+      }
+      setClosing(true);
+      window.clearTimeout(exitTimer.current);
+      exitTimer.current = window.setTimeout(() => {
+        setDisplay(null);
+        setClosing(false);
+      }, EXIT_FADE_MS);
       return;
     }
+    window.clearTimeout(exitTimer.current);
+    setClosing(false);
     setLargeBroken(false);
     // 缓存命中直接以原图开场；未命中先落缩略图，解析就绪后原位升级。
     setLargeUrl(readHoverPreviewCache(source.key));
@@ -125,6 +153,8 @@ export function CardHoverPreview({ source }: { source: CardHoverPreviewSource | 
     // 的快照判断即可，语义等价且避免每次换卡重排 effect。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canHover, source]);
+
+  useEffect(() => () => window.clearTimeout(exitTimer.current), []);
 
   // 浮层出现时贴到当前鼠标位置；视口尺寸变化时重新收进屏幕内。
   useEffect(() => {
@@ -183,7 +213,7 @@ export function CardHoverPreview({ source }: { source: CardHoverPreviewSource | 
   const isVideo = display.mediaKind === "video";
   return createPortal(
     <figure
-      className="wc-card-hover-preview"
+      className={closing ? "wc-card-hover-preview is-closing" : "wc-card-hover-preview"}
       aria-hidden="true"
       style={{
         left: placement.left,

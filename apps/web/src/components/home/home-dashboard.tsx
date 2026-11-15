@@ -21,7 +21,6 @@ import {
 } from "lucide-react";
 
 import "../../home-dashboard.css";
-import { WEFTCANVAS_API_SITE_URL } from "../../lib/custom-api";
 import type { HomeWork } from "../../lib/home-data";
 import { HOME_TEMPLATES, type HomeTemplate } from "../../lib/home-templates";
 import { useIdentityStore } from "../../state/identity-store";
@@ -388,7 +387,6 @@ export function HomeDashboard({
         onToggleCollapsed={toggleCollapsed}
         counts={counts}
         storage={library.storage}
-        cardLibraryUrl={WEFTCANVAS_API_SITE_URL}
         shortcutLabel={SHORTCUT_LABEL}
         tourAnchors={!narrow}
         onCreateProject={createProject}

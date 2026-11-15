@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { formatBytes } from "../../lib/home-data";
+import { HOME_EXTRA_NAV } from "./home-extra-nav";
 import { prefetchCanvas } from "./home-project-actions";
 import type { StorageEstimate } from "./use-home-library";
 
@@ -45,7 +46,6 @@ export function HomeSidebar({
   onToggleCollapsed,
   counts,
   storage,
-  cardLibraryUrl,
   shortcutLabel,
   tourAnchors,
   onCreateProject,
@@ -58,7 +58,6 @@ export function HomeSidebar({
   onToggleCollapsed: () => void;
   counts: Partial<Record<HomeTab, number>>;
   storage: StorageEstimate;
-  cardLibraryUrl: string;
   shortcutLabel: string;
   /** 是否在生成入口上挂新手教程锚点（窄屏抽屉模式下改挂到首页快速开始）。 */
   tourAnchors: boolean;
@@ -168,13 +167,12 @@ export function HomeSidebar({
               <Workflow aria-hidden="true" />
               <span>创作画布</span>
             </a>
-            {cardLibraryUrl ? (
-              <a href={cardLibraryUrl} target="_blank" rel="noreferrer" title="卡片库（新窗口）">
-                <Library aria-hidden="true" />
-                <span>卡片库</span>
-                <ExternalLink className="wc-home-nav-trailing" aria-hidden="true" />
+            {HOME_EXTRA_NAV.map(({ href, label, title }) => (
+              <a key={href} href={href} target="_blank" rel="noreferrer" title={title}>
+                <ExternalLink aria-hidden="true" />
+                <span>{label}</span>
               </a>
-            ) : null}
+            ))}
           </nav>
         </div>
       </div>

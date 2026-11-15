@@ -10,6 +10,7 @@ import type {
   ReferenceImagePurpose,
 } from "@weftcanvas/contracts";
 import { GENERATION_JOB_SCHEMA_VERSION } from "@weftcanvas/contracts";
+import { generationErrorMessage } from "../lib/generation-error";
 import {
   AlertCircle,
   ArrowDownToLine,
@@ -3417,7 +3418,10 @@ function directStatus({
   if (latestJob?.status === "submission_unknown")
     return { tone: "error" as const, text: "提交结果待确认；再次点击会创建新的请求并正常扣费" };
   if (latestJob?.status === "failed")
-    return { tone: "error" as const, text: latestJob.error?.message ?? "生成失败，请重试" };
+    return {
+      tone: "error" as const,
+      text: generationErrorMessage(latestJob, { compact: true }) ?? "生成失败，请重试",
+    };
   if (activeJobs.length)
     return { tone: "running" as const, text: `${activeJobs.length} 个任务生成中` };
   if (draft.quoteError) return { tone: "error" as const, text: draft.quoteError };
